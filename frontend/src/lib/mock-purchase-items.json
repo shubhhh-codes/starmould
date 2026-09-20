@@ -1,0 +1,1002 @@
+[
+  {
+    "id": 1,
+    "pid": 1,
+    "plateid": 533,
+    "materialtype": "955 x 955 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-05 12:48:31"
+  },
+  {
+    "id": 2,
+    "pid": 1,
+    "plateid": 534,
+    "materialtype": "955 x 955 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-05 12:48:31"
+  },
+  {
+    "id": 3,
+    "pid": 1,
+    "plateid": 535,
+    "materialtype": "985 x 1000 x 25 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-05 12:48:31"
+  },
+  {
+    "id": 4,
+    "pid": 1,
+    "plateid": 536,
+    "materialtype": "965 x 965 x 35 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-05 12:48:31"
+  },
+  {
+    "id": 5,
+    "pid": 2,
+    "plateid": 488,
+    "materialtype": "19 x 0 x 255 mm",
+    "material": "MS-Black",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-05 12:50:24"
+  },
+  {
+    "id": 6,
+    "pid": 2,
+    "plateid": 487,
+    "materialtype": "19 x 0 x 255 mm",
+    "material": "MS-Black",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-05 12:50:24"
+  },
+  {
+    "id": 7,
+    "pid": 3,
+    "plateid": 540,
+    "materialtype": "340 x 370 x 60 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-05 12:51:13"
+  },
+  {
+    "id": 8,
+    "pid": 4,
+    "plateid": 539,
+    "materialtype": "48 x 50 x 7 inch",
+    "material": "Wooden Box",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-05 12:51:39"
+  },
+  {
+    "id": 9,
+    "pid": 5,
+    "plateid": 479,
+    "materialtype": "od 90 x 43 (L)",
+    "material": "D-2",
+    "particulars": "4",
+    "qty": null,
+    "created_at": "2023-10-06 03:32:24"
+  },
+  {
+    "id": 10,
+    "pid": 6,
+    "plateid": 546,
+    "materialtype": "od 14 x 310 mm",
+    "material": "Aluminium",
+    "particulars": "20",
+    "qty": null,
+    "created_at": "2023-10-06 06:16:24"
+  },
+  {
+    "id": 11,
+    "pid": 7,
+    "plateid": 473,
+    "materialtype": "645 x 305 x 100 mm",
+    "material": "MS-Black",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-06 09:30:55"
+  },
+  {
+    "id": 12,
+    "pid": 7,
+    "plateid": 474,
+    "materialtype": "665 x 305 x 100 mm",
+    "material": "MS-Black",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-06 09:30:55"
+  },
+  {
+    "id": 13,
+    "pid": 8,
+    "plateid": 550,
+    "materialtype": "OD 8 x 310 mm",
+    "material": "Silver Bar",
+    "particulars": "15",
+    "qty": null,
+    "created_at": "2023-10-06 10:16:00"
+  },
+  {
+    "id": 14,
+    "pid": 8,
+    "plateid": 551,
+    "materialtype": "OD 10 x 310 mm",
+    "material": "Silver Bar",
+    "particulars": "15",
+    "qty": null,
+    "created_at": "2023-10-06 10:16:00"
+  },
+  {
+    "id": 15,
+    "pid": 9,
+    "plateid": 552,
+    "materialtype": "30 x 16 x 11(h)  inch",
+    "material": "Wooden Box",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-07 03:13:08"
+  },
+  {
+    "id": 16,
+    "pid": 9,
+    "plateid": 553,
+    "materialtype": "30 x 16 x 16(h)  inch",
+    "material": "Wooden Box",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-07 03:13:08"
+  },
+  {
+    "id": 17,
+    "pid": 10,
+    "plateid": 559,
+    "materialtype": "OD - 28 x 355 mm",
+    "material": "WPS",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-07 11:58:01"
+  },
+  {
+    "id": 20,
+    "pid": 12,
+    "plateid": 554,
+    "materialtype": "330 x 40 x 280 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-09 06:53:55"
+  },
+  {
+    "id": 21,
+    "pid": 12,
+    "plateid": 555,
+    "materialtype": "330 x 40 x 280 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-09 06:53:55"
+  },
+  {
+    "id": 22,
+    "pid": 13,
+    "plateid": 573,
+    "materialtype": "400 x 270 x 32 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-09 08:50:54"
+  },
+  {
+    "id": 23,
+    "pid": 13,
+    "plateid": 574,
+    "materialtype": "400 x 270 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-09 08:50:54"
+  },
+  {
+    "id": 24,
+    "pid": 14,
+    "plateid": 579,
+    "materialtype": "39 x 39 x 10 inch",
+    "material": "Wooden Box",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-09 08:55:59"
+  },
+  {
+    "id": 25,
+    "pid": 14,
+    "plateid": 580,
+    "materialtype": "41 x 40 x 7 inch",
+    "material": "Wooden Box",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-09 08:55:59"
+  },
+  {
+    "id": 26,
+    "pid": 15,
+    "plateid": 533,
+    "materialtype": "955 x 955 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-12 03:49:10"
+  },
+  {
+    "id": 27,
+    "pid": 15,
+    "plateid": 534,
+    "materialtype": "955 x 955 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-12 03:49:10"
+  },
+  {
+    "id": 28,
+    "pid": 16,
+    "plateid": 618,
+    "materialtype": "323 x 317 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "6",
+    "qty": null,
+    "created_at": "2023-10-12 04:05:42"
+  },
+  {
+    "id": 29,
+    "pid": 16,
+    "plateid": 536,
+    "materialtype": "965 x 965 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-12 04:05:42"
+  },
+  {
+    "id": 30,
+    "pid": 16,
+    "plateid": 535,
+    "materialtype": "985 x 1000 x 25 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-12 04:05:42"
+  },
+  {
+    "id": 31,
+    "pid": 17,
+    "plateid": 622,
+    "materialtype": "685 x 355 x 42 mm",
+    "material": "D-2",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-13 03:09:45"
+  },
+  {
+    "id": 32,
+    "pid": 18,
+    "plateid": 623,
+    "materialtype": "OD 80 x 37 mm",
+    "material": "D-2",
+    "particulars": "33",
+    "qty": null,
+    "created_at": "2023-10-13 03:12:35"
+  },
+  {
+    "id": 33,
+    "pid": 19,
+    "plateid": 621,
+    "materialtype": "OD 80 X 37 mm",
+    "material": "D-2",
+    "particulars": "3",
+    "qty": null,
+    "created_at": "2023-10-13 03:15:18"
+  },
+  {
+    "id": 34,
+    "pid": 20,
+    "plateid": 620,
+    "materialtype": "OD 80 X 40 mm",
+    "material": "D-2",
+    "particulars": "33",
+    "qty": null,
+    "created_at": "2023-10-13 03:17:18"
+  },
+  {
+    "id": 35,
+    "pid": 21,
+    "plateid": 618,
+    "materialtype": "323 x 317 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "4",
+    "qty": null,
+    "created_at": "2023-10-13 04:08:17"
+  },
+  {
+    "id": 36,
+    "pid": 22,
+    "plateid": 620,
+    "materialtype": "OD 80 x 40 mm",
+    "material": "D-2",
+    "particulars": "33",
+    "qty": null,
+    "created_at": "2023-10-14 03:39:24"
+  },
+  {
+    "id": 37,
+    "pid": 23,
+    "plateid": 621,
+    "materialtype": "OD 80 x 37 mm",
+    "material": "D-2",
+    "particulars": "3",
+    "qty": null,
+    "created_at": "2023-10-14 03:39:50"
+  },
+  {
+    "id": 38,
+    "pid": 24,
+    "plateid": 623,
+    "materialtype": "OD 80 X 37 MM",
+    "material": "D-2",
+    "particulars": "33",
+    "qty": null,
+    "created_at": "2023-10-14 03:40:20"
+  },
+  {
+    "id": 39,
+    "pid": 25,
+    "plateid": 487,
+    "materialtype": "OD 19 x  215 mm",
+    "material": "MS-Bright",
+    "particulars": "7",
+    "qty": null,
+    "created_at": "2023-10-14 06:34:15"
+  },
+  {
+    "id": 40,
+    "pid": 26,
+    "plateid": 630,
+    "materialtype": "1005 x 955 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-14 12:01:20"
+  },
+  {
+    "id": 41,
+    "pid": 27,
+    "plateid": 633,
+    "materialtype": "1005 x 955 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-15 05:25:19"
+  },
+  {
+    "id": 42,
+    "pid": 28,
+    "plateid": 635,
+    "materialtype": "635 x 365 x 6 mm",
+    "material": "SS-304",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 10:07:06"
+  },
+  {
+    "id": 43,
+    "pid": 29,
+    "plateid": 636,
+    "materialtype": "405 x 365 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-16 10:15:14"
+  },
+  {
+    "id": 44,
+    "pid": 29,
+    "plateid": 637,
+    "materialtype": "315 x 315 x 32 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 10:15:14"
+  },
+  {
+    "id": 45,
+    "pid": 29,
+    "plateid": 638,
+    "materialtype": "315 x 315 x 16 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 10:15:14"
+  },
+  {
+    "id": 46,
+    "pid": 30,
+    "plateid": 639,
+    "materialtype": "0 x 0 x 0 mm",
+    "material": "SS-304",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 11:20:57"
+  },
+  {
+    "id": 47,
+    "pid": 31,
+    "plateid": 640,
+    "materialtype": "0 x 0 x 0 mm",
+    "material": "SS-304",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 11:25:15"
+  },
+  {
+    "id": 48,
+    "pid": 32,
+    "plateid": 510,
+    "materialtype": "375 x 335 x 32 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 11:31:00"
+  },
+  {
+    "id": 49,
+    "pid": 32,
+    "plateid": 641,
+    "materialtype": "375 x 335 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 11:31:00"
+  },
+  {
+    "id": 50,
+    "pid": 33,
+    "plateid": 527,
+    "materialtype": "340 x 315 x 50 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 11:31:36"
+  },
+  {
+    "id": 51,
+    "pid": 33,
+    "plateid": 642,
+    "materialtype": "340 x 315 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-16 11:31:36"
+  },
+  {
+    "id": 52,
+    "pid": 34,
+    "plateid": 650,
+    "materialtype": "OD 75 x 134 mm",
+    "material": "Aluminium",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 53,
+    "pid": 34,
+    "plateid": 651,
+    "materialtype": "OD 60 x 58 mm",
+    "material": "MS-Black",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 54,
+    "pid": 34,
+    "plateid": 652,
+    "materialtype": "OD 50.3 x 53 mm",
+    "material": "MS-Bright",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 55,
+    "pid": 34,
+    "plateid": 653,
+    "materialtype": "OD 60 x 80 mm",
+    "material": "MS-Black",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 56,
+    "pid": 34,
+    "plateid": 654,
+    "materialtype": "OD 57 x 75 mm",
+    "material": "MS-Bright",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 57,
+    "pid": 34,
+    "plateid": 655,
+    "materialtype": "OD 55 x 44 mm",
+    "material": "MS-Black",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 58,
+    "pid": 34,
+    "plateid": 656,
+    "materialtype": "OD 50 x 38 mm",
+    "material": "MS-Bright",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 59,
+    "pid": 34,
+    "plateid": 657,
+    "materialtype": "OD 60 x 90 mm",
+    "material": "Derlin",
+    "particulars": "22",
+    "qty": null,
+    "created_at": "2023-10-19 06:17:27"
+  },
+  {
+    "id": 60,
+    "pid": 35,
+    "plateid": 489,
+    "materialtype": "300 x 20 x 6 mm",
+    "material": "MS-Bright",
+    "particulars": "4",
+    "qty": null,
+    "created_at": "2023-10-19 06:18:05"
+  },
+  {
+    "id": 61,
+    "pid": 36,
+    "plateid": 659,
+    "materialtype": "285 x 265 x 92 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-19 09:37:45"
+  },
+  {
+    "id": 62,
+    "pid": 36,
+    "plateid": 660,
+    "materialtype": "285 x 265 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-19 09:37:45"
+  },
+  {
+    "id": 63,
+    "pid": 36,
+    "plateid": 661,
+    "materialtype": "OD 100 x 80 mm",
+    "material": "Aluminium",
+    "particulars": "4",
+    "qty": null,
+    "created_at": "2023-10-19 09:37:45"
+  },
+  {
+    "id": 64,
+    "pid": 37,
+    "plateid": 662,
+    "materialtype": "100 x 25.4 x 690 mm",
+    "material": "MS-Bright",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-19 13:23:20"
+  },
+  {
+    "id": 65,
+    "pid": 38,
+    "plateid": 659,
+    "materialtype": "285 x 265 x 92 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-20 10:47:16"
+  },
+  {
+    "id": 66,
+    "pid": 38,
+    "plateid": 660,
+    "materialtype": "285 x 265 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-20 10:47:16"
+  },
+  {
+    "id": 67,
+    "pid": 38,
+    "plateid": 661,
+    "materialtype": "OD 95 x 80 mm",
+    "material": "Aluminium",
+    "particulars": "4",
+    "qty": null,
+    "created_at": "2023-10-20 10:47:16"
+  },
+  {
+    "id": 68,
+    "pid": 39,
+    "plateid": 660,
+    "materialtype": "285 x 265 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-20 11:23:38"
+  },
+  {
+    "id": 69,
+    "pid": 39,
+    "plateid": 661,
+    "materialtype": "95 x 0 x 80 mm",
+    "material": "Aluminium",
+    "particulars": "4",
+    "qty": null,
+    "created_at": "2023-10-20 11:23:38"
+  },
+  {
+    "id": 70,
+    "pid": 40,
+    "plateid": 659,
+    "materialtype": "310 x 265 x 100 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-20 11:28:30"
+  },
+  {
+    "id": 71,
+    "pid": 41,
+    "plateid": 663,
+    "materialtype": "1125 x 825 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-21 06:46:30"
+  },
+  {
+    "id": 72,
+    "pid": 41,
+    "plateid": 664,
+    "materialtype": "1125 x 825 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-21 06:46:30"
+  },
+  {
+    "id": 73,
+    "pid": 41,
+    "plateid": 665,
+    "materialtype": "1200 x 860 x 50 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 06:46:30"
+  },
+  {
+    "id": 74,
+    "pid": 42,
+    "plateid": 666,
+    "materialtype": "1125 x 825 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-21 06:46:59"
+  },
+  {
+    "id": 75,
+    "pid": 42,
+    "plateid": 667,
+    "materialtype": "1125 x 825 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-21 06:46:59"
+  },
+  {
+    "id": 76,
+    "pid": 43,
+    "plateid": 668,
+    "materialtype": "1325 x 825 x 30 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 06:53:27"
+  },
+  {
+    "id": 77,
+    "pid": 43,
+    "plateid": 669,
+    "materialtype": "1165 x 1180 x 30 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 06:53:27"
+  },
+  {
+    "id": 78,
+    "pid": 44,
+    "plateid": 668,
+    "materialtype": "1325 x 825 x 30 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 08:46:16"
+  },
+  {
+    "id": 79,
+    "pid": 44,
+    "plateid": 669,
+    "materialtype": "1165 x 1180 x 30 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 08:46:16"
+  },
+  {
+    "id": 80,
+    "pid": 44,
+    "plateid": 673,
+    "materialtype": "300 x 300 x 45 mm",
+    "material": "Aluminium",
+    "particulars": "8",
+    "qty": null,
+    "created_at": "2023-10-21 08:46:16"
+  },
+  {
+    "id": 81,
+    "pid": 45,
+    "plateid": 670,
+    "materialtype": "1325 x 825 x 30 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 08:47:13"
+  },
+  {
+    "id": 82,
+    "pid": 45,
+    "plateid": 671,
+    "materialtype": "1185 x 845 x 50 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 08:47:13"
+  },
+  {
+    "id": 83,
+    "pid": 45,
+    "plateid": 672,
+    "materialtype": "1135 x 1180 x 30 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 08:47:13"
+  },
+  {
+    "id": 84,
+    "pid": 46,
+    "plateid": 674,
+    "materialtype": "2438 x 1219 x 6 mm",
+    "material": "SS-304",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-21 10:02:30"
+  },
+  {
+    "id": 85,
+    "pid": 47,
+    "plateid": 675,
+    "materialtype": "2438 x 1219 x 6 mm",
+    "material": "SS-304",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-21 10:02:52"
+  },
+  {
+    "id": 86,
+    "pid": 48,
+    "plateid": 679,
+    "materialtype": "OD 120 x 53 mm",
+    "material": "Aluminium",
+    "particulars": "54",
+    "qty": null,
+    "created_at": "2023-10-23 08:51:50"
+  },
+  {
+    "id": 87,
+    "pid": 49,
+    "plateid": 684,
+    "materialtype": "OD 75 X 155 MM",
+    "material": "Aluminium",
+    "particulars": "16",
+    "qty": null,
+    "created_at": "2023-10-24 08:41:35"
+  },
+  {
+    "id": 88,
+    "pid": 49,
+    "plateid": 685,
+    "materialtype": "OD 50 X 75 MM",
+    "material": "MS-Bright",
+    "particulars": "16",
+    "qty": null,
+    "created_at": "2023-10-24 08:41:35"
+  },
+  {
+    "id": 89,
+    "pid": 49,
+    "plateid": 686,
+    "materialtype": "OD 50 X 40 MM",
+    "material": "MS-Black",
+    "particulars": "16",
+    "qty": null,
+    "created_at": "2023-10-24 08:41:35"
+  },
+  {
+    "id": 90,
+    "pid": 50,
+    "plateid": 687,
+    "materialtype": "2180 x 1180 x 3 mm",
+    "material": "SS-304",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-27 03:49:28"
+  },
+  {
+    "id": 91,
+    "pid": 51,
+    "plateid": 622,
+    "materialtype": "685 x 355 x 40 mm",
+    "material": "D-2",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-27 04:45:43"
+  },
+  {
+    "id": 92,
+    "pid": 52,
+    "plateid": 692,
+    "materialtype": "390 x 340 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-27 08:16:53"
+  },
+  {
+    "id": 93,
+    "pid": 52,
+    "plateid": 693,
+    "materialtype": "390 x 340 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-27 08:16:53"
+  },
+  {
+    "id": 94,
+    "pid": 52,
+    "plateid": 694,
+    "materialtype": "315 x 240 x 16 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-27 08:16:53"
+  },
+  {
+    "id": 95,
+    "pid": 53,
+    "plateid": 493,
+    "materialtype": "18 x 25 x 5 mm",
+    "material": "O-ring",
+    "particulars": "25",
+    "qty": null,
+    "created_at": "2023-10-27 10:02:52"
+  },
+  {
+    "id": 96,
+    "pid": 53,
+    "plateid": 491,
+    "materialtype": "id 18 x 1.5 mm",
+    "material": "O-ring",
+    "particulars": "30",
+    "qty": null,
+    "created_at": "2023-10-27 10:02:52"
+  },
+  {
+    "id": 97,
+    "pid": 53,
+    "plateid": 697,
+    "materialtype": "id 70 x 1.5 mm",
+    "material": "O-ring",
+    "particulars": "100",
+    "qty": null,
+    "created_at": "2023-10-27 10:02:52"
+  },
+  {
+    "id": 98,
+    "pid": 54,
+    "plateid": 708,
+    "materialtype": "985 x 945 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-29 09:03:17"
+  },
+  {
+    "id": 99,
+    "pid": 54,
+    "plateid": 709,
+    "materialtype": "985 x 945 x 65 mm",
+    "material": "Aluminium",
+    "particulars": "2",
+    "qty": null,
+    "created_at": "2023-10-29 09:03:17"
+  },
+  {
+    "id": 100,
+    "pid": 54,
+    "plateid": 710,
+    "materialtype": "1045 x 1005 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-29 09:03:17"
+  },
+  {
+    "id": 101,
+    "pid": 54,
+    "plateid": 711,
+    "materialtype": "1045 x 1005 x 40 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-29 09:03:17"
+  },
+  {
+    "id": 102,
+    "pid": 55,
+    "plateid": 712,
+    "materialtype": "1195 x 795 x 100 mm",
+    "material": "Aluminium",
+    "particulars": "1",
+    "qty": null,
+    "created_at": "2023-10-29 09:05:00"
+  }
+]
