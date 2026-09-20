@@ -60,6 +60,40 @@ export default function UserManagementPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Live Supabase fetch from profiles
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/users");
+      const data = await res.json();
+      if (data.users && data.users.length > 0) {
+        const formatted = data.users.map((u: any) => ({
+          id: u.mysql_id ?? u.id,
+          name: u.name,
+          username: u.username,
+          initials: u.initials,
+          email: u.email,
+          usertype: u.usertype,
+          usersubtype: u.usersubtype,
+          role_id: Number(u.role ?? 4),
+          status: Number(u.status ?? 1),
+          created_at: u.created_at,
+          updated_at: u.updated_at,
+        }));
+        setUsers(formatted);
+      }
+    } catch (err) {
+      console.error("Failed to load live users from Supabase:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchUsers();
+  }, []);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);

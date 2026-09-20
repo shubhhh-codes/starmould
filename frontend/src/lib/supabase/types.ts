@@ -190,3 +190,32 @@ export interface ViewPoPendingInwardQty {
   pending_qty: number;
 }
 
+// Authentic material list from resources/views/scanning/index.blade.php (<select id="material"> lines 714-739)
+export const SCANNING_MATERIALS = [
+  'Acralic',
+  'Aluminium',
+  'Brass',
+  'C45',
+  'Copper',
+  'D-2',
+  'Derlin',
+  'EN8',
+  'Gun Metal',
+  'MS-Black',
+  'MS-Bright',
+  'Nylon',
+  'O-ring',
+  'Rubber',
+  'Silver Bar',
+  'Spring',
+  'SS',
+  'SS-202',
+  'SS-304',
+  'U-seal',
+  'Wood',
+  'Wooden Box',
+  'WPS',
+] as const;
+
+export type ScanningMaterial = (typeof SCANNING_MATERIALS)[number];
+

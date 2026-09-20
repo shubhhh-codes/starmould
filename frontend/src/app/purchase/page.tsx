@@ -30,8 +30,9 @@ import type { PurchaseOrder, PurchaseItem, Subplate, Customer } from "@/lib/supa
 
 export default function PurchasePage() {
   const [purchases, setPurchases] = useState<PurchaseOrder[]>(rawPurchases as unknown as PurchaseOrder[]);
-  const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
+
+  const [subplates, setSubplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
+  const [customers, setCustomers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
 
   // Navigation Tabs: All Purchase Orders vs. Pending Purchase (needing PO)
   const [activeTab, setActiveTab] = useState<"orders" | "pending_plates">("orders");
@@ -39,6 +40,33 @@ export default function PurchasePage() {
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Live Supabase fetch for purchases, customers, and subplates
+  const fetchPurchases = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/purchases?limit=100&includePlates=true");
+      const data = await res.json();
+      if (data.purchases && data.purchases.length > 0) {
+        setPurchases(data.purchases);
+      }
+      if (data.customers && data.customers.length > 0) {
+        setCustomers(data.customers);
+      }
+      if (data.subplates && data.subplates.length > 0) {
+        setSubplates(data.subplates);
+      }
+    } catch (err) {
+      console.error("Failed to load live purchases from Supabase:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchPurchases();
+  }, []);
 
   // Add / Edit Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,7 +88,7 @@ export default function PurchasePage() {
     cname: "",
     projectid: "",
     items: [
-      { plateid: "", material: "300 x 300 x 45 mm", materialtype: "Aluminium", qty: 1 },
+      { plateid: "", material: "", materialtype: "", qty: 1 },
     ],
   });
 
@@ -177,7 +205,7 @@ export default function PurchasePage() {
       ...prev,
       items: [
         ...prev.items,
-        { plateid: "", material: "250 x 250 x 35 mm", materialtype: "Aluminium", qty: 1 },
+        { plateid: "", material: "", materialtype: "", qty: 1 },
       ],
     }));
   };
@@ -204,9 +232,54 @@ export default function PurchasePage() {
     });
   };
 
+  // Select plate handler: auto-populates readonly materialtype & prefilled dimensions
+  // Matching purchase/index.blade.php lines 810-845 (updatedata function: $("#materialtype").val(data.material))
+  const handleSelectPlate = (index: number, plateId: number | "") => {
+    if (plateId === "") {
+      setFormData((prev) => {
+        const updated = [...prev.items];
+        updated[index] = { ...updated[index], plateid: "", material: "", materialtype: "", qty: 1 };
+        return { ...prev, items: updated };
+      });
+      return;
+    }
+    const foundPlate = subplates.find((sp) => sp.id === Number(plateId));
+    setFormData((prev) => {
+      const updated = [...prev.items];
+      if (foundPlate) {
+        const dims = [
+          foundPlate.width ?? "",
+          foundPlate.height ?? "",
+          foundPlate.length ?? "",
+        ].filter(Boolean).join(" x ") + (foundPlate.unit ? ` ${foundPlate.unit}` : " mm");
+
+        updated[index] = {
+          ...updated[index],
+          plateid: foundPlate.id,
+          // Readonly materialtype auto-populated from linked subplate material
+          // Matching purchase/index.blade.php:822: $("#materialtype").val(data.material)
+          materialtype: foundPlate.material || "",
+          material: dims,
+          qty: foundPlate.sqty || 1,
+        };
+      } else {
+        updated[index] = { ...updated[index], plateid: Number(plateId) };
+      }
+      return { ...prev, items: updated };
+    });
+  };
+
   // Open modal for creating PO
   const handleOpenAddModal = (presetPlate?: Subplate) => {
     const defaultMould = presetPlate ? presetPlate.projectid : availableProjects[0] || "";
+    const presetDims = presetPlate
+      ? [
+          presetPlate.width ?? "",
+          presetPlate.height ?? "",
+          presetPlate.length ?? "",
+        ].filter(Boolean).join(" x ") + (presetPlate.unit ? ` ${presetPlate.unit}` : " mm")
+      : "";
+
     setFormData({
       odate: new Date().toISOString().slice(0, 10),
       vname: vendors[0]?.id || "",
@@ -216,16 +289,16 @@ export default function PurchasePage() {
         ? [
             {
               plateid: presetPlate.id,
-              material: `${presetPlate.length || 200} x ${presetPlate.width || 200} x ${presetPlate.height || 30} mm`,
-              materialtype: presetPlate.material || "Aluminium",
+              material: presetDims,
+              materialtype: presetPlate.material || "",
               qty: presetPlate.sqty || 1,
             },
           ]
         : [
             {
               plateid: "",
-              material: "300 x 300 x 45 mm",
-              materialtype: "Aluminium",
+              material: "",
+              materialtype: "",
               qty: 1,
             },
           ],
@@ -1000,17 +1073,17 @@ export default function PurchasePage() {
                           )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
                           {/* Plate Selector */}
-                          <div className="sm:col-span-1">
-                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1">
+                          <div className="sm:col-span-4">
+                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1 font-medium">
                               Subplate <span className="text-rose-500">*</span>
                             </label>
                             <select
                               required
                               value={item.plateid}
                               onChange={(e) =>
-                                handleUpdateItem(idx, "plateid", Number(e.target.value))
+                                handleSelectPlate(idx, e.target.value ? Number(e.target.value) : "")
                               }
                               className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white text-xs"
                             >
@@ -1031,10 +1104,27 @@ export default function PurchasePage() {
                             </select>
                           </div>
 
-                          {/* Dimensions / Material Spec */}
-                          <div className="sm:col-span-1">
-                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1">
-                              Dimensions (material)
+                          {/* Material Type (READONLY - Auto-populated from linked subplate's material) */}
+                          {/* Source: purchase/index.blade.php:822: name="materialtype[]" readonly */}
+                          <div className="sm:col-span-2">
+                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1 font-medium">
+                              Material Type <span className="text-[10px] text-slate-400 font-normal">(Readonly)</span>
+                            </label>
+                            <input
+                              type="text"
+                              readOnly
+                              value={item.materialtype}
+                              placeholder="Auto from plate"
+                              className="w-full px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 text-xs cursor-not-allowed font-medium select-none"
+                              title="Material type is read-only and auto-populated from the selected subplate (purchase/index.blade.php:822)"
+                            />
+                          </div>
+
+                          {/* Dimensions / Required Material */}
+                          {/* Source: purchase/index.blade.php:828: name="material[]" */}
+                          <div className="sm:col-span-3">
+                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1 font-medium">
+                              Required Material / Dims
                             </label>
                             <input
                               type="text"
@@ -1045,31 +1135,30 @@ export default function PurchasePage() {
                             />
                           </div>
 
-                          {/* Material Type */}
+                          {/* Remaining Qty (sqty) - Readonly display */}
+                          {/* Source: purchase/index.blade.php:844: id="sqty" disabled */}
                           <div className="sm:col-span-1">
-                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1">
-                              Material Type
+                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1 font-medium text-center">
+                              Rem. Qty
                             </label>
-                            <select
-                              value={item.materialtype}
-                              onChange={(e) =>
-                                handleUpdateItem(idx, "materialtype", e.target.value)
+                            <input
+                              type="text"
+                              disabled
+                              value={
+                                item.plateid
+                                  ? subplates.find((sp) => sp.id === item.plateid)?.sqty ?? "—"
+                                  : "—"
                               }
-                              className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white text-xs"
-                            >
-                              <option value="Aluminium">Aluminium</option>
-                              <option value="MS-Black">MS-Black</option>
-                              <option value="P20">P20 Tool Steel</option>
-                              <option value="EN-31">EN-31</option>
-                              <option value="Wooden Box">Wooden Box</option>
-                              <option value="Standard">Standard</option>
-                            </select>
+                              className="w-full px-2 py-1.5 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 dark:text-slate-400 text-xs cursor-not-allowed font-mono text-center"
+                              title="Remaining quantity to order"
+                            />
                           </div>
 
-                          {/* Quantity */}
-                          <div className="sm:col-span-1">
-                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1">
-                              Quantity (qty) <span className="text-rose-500">*</span>
+                          {/* Order Qty (qty) */}
+                          {/* Source: purchase/index.blade.php:834: name="qty[]" */}
+                          <div className="sm:col-span-2">
+                            <label className="block text-[11px] text-slate-600 dark:text-slate-400 mb-1 font-medium">
+                              Order Qty <span className="text-rose-500">*</span>
                             </label>
                             <input
                               type="number"
@@ -1079,7 +1168,7 @@ export default function PurchasePage() {
                               onChange={(e) =>
                                 handleUpdateItem(idx, "qty", Number(e.target.value))
                               }
-                              className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white text-xs"
+                              className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white text-xs text-center font-bold"
                             />
                           </div>
                         </div>

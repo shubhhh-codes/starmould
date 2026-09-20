@@ -60,6 +60,27 @@ export default function CustomerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Live Supabase fetch
+  const fetchCustomers = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/customers");
+      const data = await res.json();
+      if (data.customers && data.customers.length > 0) {
+        setCustomers(data.customers);
+      }
+    } catch (err) {
+      console.error("Failed to load live customers from Supabase:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchCustomers();
+  }, []);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);

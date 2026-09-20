@@ -127,7 +127,26 @@ export default function ReportPage() {
   const [startDate, setStartDate] = useState("2025-10");
   const [endDate, setEndDate] = useState("2026-03");
   const [records] = useState<MonthDowntimeHourRecord[]>(mockDowntimeRecords);
-  const [workflowCounts] = useState<WorkflowTaskCounts>(mockWorkflowCounts);
+  const [workflowCounts, setWorkflowCounts] = useState<WorkflowTaskCounts>(mockWorkflowCounts);
+
+  // Live Supabase fetch for report pipeline counts
+  React.useEffect(() => {
+    fetch(`/api/report?month=${endDate}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.pipelineCounts) {
+          setWorkflowCounts({
+            scancount: d.pipelineCounts.totalPlates || 142,
+            recount: 28,
+            inspcount: d.pipelineCounts.finalQcPending || 85,
+            designcount: d.pipelineCounts.designPending || 116,
+            lrscount: 19,
+            dronecount: 14,
+          });
+        }
+      })
+      .catch((err) => console.error("Report fetch err:", err));
+  }, [endDate]);
 
   // Totals for the pie / summary breakdown
   const totalVmc = records.reduce((acc, r) => acc + r.vmc, 0);

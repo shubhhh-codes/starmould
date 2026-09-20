@@ -39,6 +39,31 @@ export default function PurchaseInwardPage() {
   const [poInwards, setPoInwards] = useState<PurchaseInwardReceipt[]>(rawPoInwards as unknown as PurchaseInwardReceipt[]);
   const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
   const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
+  const [livePendingItems, setLivePendingItems] = useState<ViewPoPendingInwardQty[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Live Supabase fetch for pending inward items and inward receipts
+  const fetchInwardData = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/purchase-inward");
+      const data = await res.json();
+      if (data.pendingReceiveItems) {
+        setLivePendingItems(data.pendingReceiveItems);
+      }
+      if (data.receipts && data.receipts.length > 0) {
+        setPoInwards(data.receipts);
+      }
+    } catch (err) {
+      console.error("Failed to load live purchase inward from Supabase:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchInwardData();
+  }, []);
 
   // Navigation Tabs: Pending Receive vs. Received Inward History
   const [activeTab, setActiveTab] = useState<"pending_receive" | "inward_history">("pending_receive");
@@ -127,8 +152,11 @@ export default function PurchaseInwardPage() {
   // Tab 1: Pending Receive Records where pending_qty != 0
   // Source: PurchaseController.php getPData() lines 201: ViewPurchaseModel::where('pending_qty', '!=', 0)
   const pendingReceiveItems = useMemo(() => {
+    if (livePendingItems !== null && livePendingItems.length > 0) {
+      return livePendingItems;
+    }
     return viewPoPendingInwardList.filter((item) => item.pending_qty > 0);
-  }, [viewPoPendingInwardList]);
+  }, [livePendingItems, viewPoPendingInwardList]);
 
   // Tab 2: Fully Received / Inward History where pending_qty == 0 or inward receipts
   // Source: PurchaseController.php getPRData() lines 267: ViewPurchaseModel::where('pending_qty', '==', 0)
