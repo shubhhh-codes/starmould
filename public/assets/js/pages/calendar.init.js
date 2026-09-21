@@ -5,7 +5,11 @@ var __webpack_exports__ = {};
   !*** ./resources/js/pages/calendar.init.js ***!
   \*********************************************/
 /*
-
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: Calendar init js
 */
 
 /* eslint-disable require-jsdoc */

@@ -3,161 +3,233 @@ var __webpack_exports__ = {};
 /*!*****************************************!*\
   !*** ./resources/js/pages/flot.init.js ***!
   \*****************************************/
-!function (n) {
+/*
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: Flot chart init Js File
+*/
+// get colors array from the string
+function getChartColorsArray(chartId) {
+  if (document.getElementById(chartId) !== null) {
+    var colors = document.getElementById(chartId).getAttribute("data-colors");
+
+    if (colors) {
+      colors = JSON.parse(colors);
+      return colors.map(function (value) {
+        var newValue = value.replace(" ", "");
+
+        if (newValue.indexOf(",") === -1) {
+          var color = getComputedStyle(document.documentElement).getPropertyValue(newValue);
+
+          if (color) {
+            color = color.replace(" ", "");
+            return color;
+          } else return newValue;
+
+          ;
+        } else {
+          var val = value.split(',');
+
+          if (val.length == 2) {
+            var rgbaColor = getComputedStyle(document.documentElement).getPropertyValue(val[0]);
+            rgbaColor = "rgba(" + rgbaColor + "," + val[1] + ")";
+            return rgbaColor;
+          } else {
+            return newValue;
+          }
+        }
+      });
+    }
+  }
+}
+
+!function ($) {
   "use strict";
 
-  function t() {
-    this.$body = n("body"), this.$realData = [];
-  }
+  var FlotChart = function FlotChart() {
+    this.$body = $("body");
+    this.$realData = [];
+  }; //creates plot graph
 
-  t.prototype.createPlotGraph = function (t, a, o, e, r, l, i, s) {
-    n.plot(n(t), [{
-      data: a,
-      label: r[0],
-      color: l[0]
+
+  FlotChart.prototype.createPlotGraph = function (selector, data1, data2, data3, labels, colors, borderColor, bgColor) {
+    //shows tooltip
+    function showTooltip(x, y, contents) {
+      $('<div id="tooltip" class="tooltipflot">' + contents + '</div>').css({
+        position: 'absolute',
+        top: y + 5,
+        left: x + 5
+      }).appendTo("body").fadeIn(200);
+    }
+
+    $.plot($(selector), [{
+      data: data1,
+      label: labels[0],
+      color: colors[0]
     }, {
-      data: o,
-      label: r[1],
-      color: l[1]
+      data: data2,
+      label: labels[1],
+      color: colors[1]
     }, {
-      data: e,
-      label: r[2],
-      color: l[2]
+      data: data3,
+      label: labels[2],
+      color: colors[2]
     }], {
       series: {
         lines: {
-          show: !0,
-          fill: !0,
+          show: true,
+          fill: true,
           lineWidth: 2,
           fillColor: {
             colors: [{
-              opacity: .5
+              opacity: 0.5
             }, {
-              opacity: .5
+              opacity: 0.5
             }]
           }
         },
         points: {
-          show: !1
+          show: false
         },
         shadowSize: 0
       },
       legend: {
-        position: "nw",
+        position: 'nw',
         backgroundColor: "transparent"
       },
       grid: {
-        hoverable: !0,
-        clickable: !0,
-        borderColor: i,
+        hoverable: true,
+        clickable: true,
+        borderColor: borderColor,
         borderWidth: 1,
         labelMargin: 10,
-        backgroundColor: s
+        backgroundColor: bgColor
       },
       yaxis: {
         min: 0,
         max: 300,
-        tickColor: "rgba(166, 176, 207, 0.1)",
+        tickColor: 'rgba(166, 176, 207, 0.1)',
         font: {
-          color: "#8791af"
+          color: '#8791af'
         }
       },
       xaxis: {
-        tickColor: "rgba(166, 176, 207, 0.1)",
+        tickColor: 'rgba(166, 176, 207, 0.1)',
         font: {
-          color: "#8791af"
+          color: '#8791af'
         }
       },
-      tooltip: !0,
+      tooltip: true,
       tooltipOpts: {
-        content: "%s: Value of %x is %y",
+        content: '%s: Value of %x is %y',
         shifts: {
           x: -60,
           y: 25
         },
-        defaultTheme: !1
+        defaultTheme: false
       }
     });
-  }, t.prototype.createPieGraph = function (t, a, o, e) {
-    o = [{
-      label: a[0],
-      data: o[0]
+  }, //end plot graph
+  //creates Pie Chart
+  FlotChart.prototype.createPieGraph = function (selector, labels, datas, colors) {
+    var data = [{
+      label: labels[0],
+      data: datas[0]
     }, {
-      label: a[1],
-      data: o[1]
+      label: labels[1],
+      data: datas[1]
     }, {
-      label: a[2],
-      data: o[2]
-    }], e = {
+      label: labels[2],
+      data: datas[2]
+    }];
+    var options = {
       series: {
         pie: {
-          show: !0
+          show: true
         }
       },
       legend: {
-        show: !0,
+        show: true,
         backgroundColor: "transparent"
       },
       grid: {
-        hoverable: !0,
-        clickable: !0
+        hoverable: true,
+        clickable: true
       },
-      colors: e,
-      tooltip: !0,
+      colors: colors,
+      tooltip: true,
       tooltipOpts: {
         content: "%s, %p.0%"
       }
     };
-    n.plot(n(t), o, e);
-  }, t.prototype.randomData = function () {
-    for (0 < this.$realData.length && (this.$realData = this.$realData.slice(1)); this.$realData.length < 300;) {
-      var t = (0 < this.$realData.length ? this.$realData[this.$realData.length - 1] : 50) + 10 * Math.random() - 5;
-      t < 0 ? t = 0 : 100 < t && (t = 100), this.$realData.push(t);
+    $.plot($(selector), data, options);
+  }, //returns some random data
+  FlotChart.prototype.randomData = function () {
+    var totalPoints = 300;
+    if (this.$realData.length > 0) this.$realData = this.$realData.slice(1); // Do a random walk
+
+    while (this.$realData.length < totalPoints) {
+      var prev = this.$realData.length > 0 ? this.$realData[this.$realData.length - 1] : 50,
+          y = prev + Math.random() * 10 - 5;
+
+      if (y < 0) {
+        y = 0;
+      } else if (y > 100) {
+        y = 100;
+      }
+
+      this.$realData.push(y);
+    } // Zip the generated y values with the x values
+
+
+    var res = [];
+
+    for (var i = 0; i < this.$realData.length; ++i) {
+      res.push([i, this.$realData[i]]);
     }
 
-    for (var a = [], o = 0; o < this.$realData.length; ++o) {
-      a.push([o, this.$realData[o]]);
-    }
-
-    return a;
-  }, t.prototype.createRealTimeGraph = function (t, a, o) {
-    return n.plot(t, [a], {
-      colors: o,
+    return res;
+  }, FlotChart.prototype.createRealTimeGraph = function (selector, data, colors) {
+    var plot = $.plot(selector, [data], {
+      colors: colors,
       series: {
         lines: {
-          show: !0,
-          fill: !0,
+          show: true,
+          fill: true,
           lineWidth: 2,
           fillColor: {
             colors: [{
-              opacity: .45
+              opacity: 0.45
             }, {
-              opacity: .45
+              opacity: 0.45
             }]
           }
         },
         points: {
-          show: !1
+          show: false
         },
         shadowSize: 0
       },
       grid: {
-        show: !0,
-        aboveData: !1,
-        color: "#dcdcdc",
+        show: true,
+        aboveData: false,
+        color: '#dcdcdc',
         labelMargin: 15,
         axisMargin: 0,
         borderWidth: 0,
         borderColor: null,
         minBorderMargin: 5,
-        clickable: !0,
-        hoverable: !0,
-        autoHighlight: !1,
+        clickable: true,
+        hoverable: true,
+        autoHighlight: false,
         mouseActiveRadius: 20
       },
-      tooltip: !0,
+      tooltip: true,
+      //activate tooltip
       tooltipOpts: {
-        content: "Value is : %y.0%",
+        content: "Value is : %y.0" + "%",
         shifts: {
           x: -30,
           y: -50
@@ -166,43 +238,46 @@ var __webpack_exports__ = {};
       yaxis: {
         min: 0,
         max: 100,
-        tickColor: "rgba(166, 176, 207, 0.1)",
+        tickColor: 'rgba(166, 176, 207, 0.1)',
         font: {
-          color: "#8791af"
+          color: '#8791af'
         }
       },
       xaxis: {
-        show: !1
+        show: false
       }
     });
-  }, t.prototype.createDonutGraph = function (t, a, o, e) {
-    o = [{
-      label: a[0],
-      data: o[0]
+    return plot;
+  }, //creates Pie Chart
+  FlotChart.prototype.createDonutGraph = function (selector, labels, datas, colors) {
+    var data = [{
+      label: labels[0],
+      data: datas[0]
     }, {
-      label: a[1],
-      data: o[1]
+      label: labels[1],
+      data: datas[1]
     }, {
-      label: a[2],
-      data: o[2]
+      label: labels[2],
+      data: datas[2]
     }, {
-      label: a[3],
-      data: o[3]
+      label: labels[3],
+      data: datas[3]
     }, {
-      label: a[4],
-      data: o[4]
-    }], e = {
+      label: labels[4],
+      data: datas[4]
+    }];
+    var options = {
       series: {
         pie: {
-          show: !0,
-          innerRadius: .7
+          show: true,
+          innerRadius: 0.7
         }
       },
       legend: {
-        show: !0,
+        show: true,
         backgroundColor: "transparent",
-        labelFormatter: function labelFormatter(t, a) {
-          return '<div style="font-size:12px;">&nbsp;' + t + "</div>";
+        labelFormatter: function labelFormatter(label, series) {
+          return '<div style="font-size:12px;">&nbsp;' + label + '</div>';
         },
         labelBoxBorderColor: null,
         margin: 50,
@@ -210,31 +285,75 @@ var __webpack_exports__ = {};
         padding: 1
       },
       grid: {
-        hoverable: !0,
-        clickable: !0
+        hoverable: true,
+        clickable: true
       },
-      colors: e,
-      tooltip: !0,
+      colors: colors,
+      tooltip: true,
       tooltipOpts: {
         content: "%s, %p.0%"
       }
     };
-    n.plot(n(t), o, e);
-  }, t.prototype.init = function () {
-    this.createPlotGraph("#website-stats", [[0, 50], [1, 130], [2, 80], [3, 70], [4, 180], [5, 105], [6, 250]], [[0, 80], [1, 100], [2, 60], [3, 120], [4, 140], [5, 100], [6, 105]], [[0, 20], [1, 80], [2, 70], [3, 140], [4, 250], [5, 80], [6, 200]], ["Desktops", "Laptops", "Tablets"], ["#f0f1f4", "#556ee6", "#34c38f"], "rgba(166, 176, 207, 0.1)", "transparent");
-    this.createPieGraph("#pie-chart #pie-chart-container", ["Desktops", "Laptops", "Tablets"], [20, 30, 15], ["#556ee6", "#34c38f", "#ebeff2"]);
-    var a = this.createRealTimeGraph("#flotRealTime", this.randomData(), ["#34c38f"]);
-    a.draw();
-    var o = this;
-    !function t() {
-      a.setData([o.randomData()]), a.draw(), setTimeout(t, (n("html").hasClass("mobile-device"), 1e3));
-    }();
-    this.createDonutGraph("#donut-chart #donut-chart-container", ["Desktops", "Laptops", "Tablets"], [29, 20, 18], ["#f0f1f4", "#556ee6", "#34c38f"]);
-  }, n.FlotChart = new t(), n.FlotChart.Constructor = t;
-}(window.jQuery), function () {
+    $.plot($(selector), data, options);
+  }, //initializing various charts and components
+  FlotChart.prototype.init = function () {
+    var areaChartColors = getChartColorsArray("website-stats");
+
+    if (areaChartColors) {
+      //plot graph data
+      var desktops = [[0, 50], [1, 130], [2, 80], [3, 70], [4, 180], [5, 105], [6, 250]];
+      var laptops = [[0, 80], [1, 100], [2, 60], [3, 120], [4, 140], [5, 100], [6, 105]];
+      var tablets = [[0, 20], [1, 80], [2, 70], [3, 140], [4, 250], [5, 80], [6, 200]];
+      var plabels = ["Desktops", "Laptops", "Tablets"];
+      var pcolors = areaChartColors;
+      var borderColor = 'rgba(166, 176, 207, 0.1)';
+      var bgColor = 'transparent';
+      this.createPlotGraph("#website-stats", desktops, laptops, tablets, plabels, pcolors, borderColor, bgColor);
+    } //Pie graph data
+
+
+    var pieChartColors = getChartColorsArray("pie-chart-container");
+
+    if (pieChartColors) {
+      var pielabels = ["Desktops", "Laptops", "Tablets"];
+      var datas = [20, 30, 15];
+      var colors = pieChartColors;
+      this.createPieGraph("#pie-chart #pie-chart-container", pielabels, datas, colors);
+    } //real time data representation
+
+
+    var realTimeChartColors = getChartColorsArray("flotRealTime");
+
+    if (realTimeChartColors) {
+      var plot = this.createRealTimeGraph('#flotRealTime', this.randomData(), realTimeChartColors);
+      plot.draw();
+      var $this = this;
+    }
+
+    function updatePlot() {
+      plot.setData([$this.randomData()]); // Since the axes don't change, we don't need to call plot.setupGrid()
+
+      plot.draw();
+      setTimeout(updatePlot, $('html').hasClass('mobile-device') ? 1000 : 1000);
+    }
+
+    updatePlot(); //Donut pie graph data
+
+    var donutChartColors = getChartColorsArray("donut-chart-container");
+
+    if (donutChartColors) {
+      var donutlabels = ["Desktops", "Laptops", "Tablets"];
+      var donutdatas = [29, 20, 18];
+      var donutcolors = ['#f0f1f4', '#556ee6', '#34c38f'];
+      this.createDonutGraph("#donut-chart #donut-chart-container", donutlabels, donutdatas, donutcolors);
+    }
+  }, //init flotchart
+  $.FlotChart = new FlotChart(), $.FlotChart.Constructor = FlotChart;
+}(window.jQuery), //initializing flotchart
+function ($) {
   "use strict";
 
-  window.jQuery.FlotChart.init();
-}();
+  $.FlotChart.init();
+}(window.jQuery);
 /******/ })()
 ;

@@ -3,12 +3,19 @@ var __webpack_exports__ = {};
 /*!****************************************************!*\
   !*** ./resources/js/pages/auth-2-carousel.init.js ***!
   \****************************************************/
-$("#auth-review-carousel").owlCarousel({
+/*
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: auth 2 carousel Init Js File
+*/
+$('#auth-review-carousel').owlCarousel({
   items: 1,
-  loop: !1,
+  loop: false,
   margin: 16,
-  nav: !1,
-  dots: !0
+  nav: false,
+  dots: true
 });
 /******/ })()
 ;

@@ -23,6 +23,8 @@ export interface UserProfile {
   updated_at: string;
 }
 
+export type User = UserProfile;
+
 export interface Customer {
   id: number;
   customername: string;
@@ -218,4 +220,226 @@ export const SCANNING_MATERIALS = [
 ] as const;
 
 export type ScanningMaterial = (typeof SCANNING_MATERIALS)[number];
+
+// Phase 2d: Challan, Dispatch, Inward Types
+export interface ChallanItem {
+  id: number;
+  challanid: number;
+  plateid: number;
+  particulars: string;
+  customer: number;
+  project: string;
+  qty: number;
+  platename?: string;
+  customername?: string;
+  description?: string;
+}
+
+export interface Challan {
+  id: number;
+  challanno: string; // e.g. "SM/JW/01"
+  customerid: number;
+  vendorid: number;
+  vendortid: number;
+  projectid: string;
+  subprojectid?: number;
+  chdate: string; // YYYY-MM-DD
+  status: '1' | '0' | string;
+  created_by: string;
+  created_at?: string;
+  updated_at?: string;
+  items?: ChallanItem[];
+  customername?: string;
+  vendorname?: string;
+  transportername?: string;
+}
+
+export interface DispatchItem {
+  id: number;
+  dispatchid: number;
+  plateid: number | null;
+  custom_plate_name?: string | null;
+  custom_plate_qty?: number | null;
+  particulars?: string | null;
+  condition?: string | null;
+  work?: string | null;
+  customer: number;
+  project: string;
+  qty: number;
+  platename?: string;
+  customername?: string;
+  description?: string;
+}
+
+export interface Dispatch {
+  id: number;
+  challanno: string; // e.g. "SM/DC/0001"
+  customerid: number;
+  vendorid?: number | null;
+  vendortid: number;
+  projectid: string;
+  subprojectid?: number;
+  chdate: string;
+  invoiceno: string;
+  vehicleno: string;
+  deliverytype: 'Door Delivery' | 'Godown Delivery' | 'Door Pickup' | 'Hand To Hand' | string;
+  freightmode: 'To Pay' | 'Paid' | string;
+  freightcharge: string;
+  noofcases: string;
+  status: '1' | '0' | string;
+  created_by: string;
+  created_at?: string;
+  updated_at?: string;
+  items?: DispatchItem[];
+  customername?: string;
+  transportername?: string;
+}
+
+export interface InwardItem {
+  id: number;
+  challanid: number; // outward challan id
+  inchallanid: number; // inward receipt id
+  plateid: number;
+  particulars: string;
+  customer: number;
+  project: string;
+  cdescription?: string;
+  qty: number; // outward qty
+  inward_qty: number; // received qty
+  pending_qty?: number;
+  platename?: string;
+  customername?: string;
+}
+
+export interface Inward {
+  id: number;
+  challanid: number; // references outward challan.id
+  inchallanno: string; // e.g. "SM/IW/01"
+  customerid?: number | null;
+  vendorid: number;
+  vendortid: number;
+  projectid: string;
+  subprojectid?: number;
+  chdate: string;
+  status: '1' | '0' | string;
+  created_by: string | number;
+  created_at?: string;
+  updated_at?: string;
+  items?: InwardItem[];
+  challanno?: string; // outward challan number
+  vendorname?: string;
+  transportername?: string;
+  customername?: string;
+}
+
+export interface ViewPendingInwardQty {
+  id: number;
+  customername: string;
+  vendorname: string;
+  transportername: string;
+  vendorid: number;
+  customer: number;
+  challanno: string;
+  vendortid: number;
+  projectid: string;
+  created_by: string;
+  chdate: string;
+  plateid: number;
+  particulars: string;
+  qty: number;
+  inward_qty: number;
+  pending_qty: number;
+  platename: string;
+}
+
+export interface ViewPendingDispatchQty {
+  projectid: string;
+  projectname: string;
+  plateid: number;
+  platename: string;
+  sqty: number;
+  pqty: number;
+  oqty: number;
+}
+
+export interface ViewPendingOutwordQty {
+  projectid: string;
+  projectname: string;
+  plateid: number;
+  platename: string;
+  sqty: number;
+  pqty: number;
+  oqty: number;
+}
+
+export interface Expense {
+  id: number;
+  customerid: number;
+  description: string;
+  payment_mode: 'Cash' | 'Gpay' | 'Check' | 'NEFT' | string;
+  payment_type: 'Credit' | 'Debit' | 'Outstanding' | string;
+  amount: number;
+  balance: number;
+  rdate: string;
+  created_at?: string;
+  updated_at?: string;
+  customername?: string;
+}
+
+export interface Worklog {
+  id: number;
+  scan_print_id: number;
+  customerid: number;
+  projectid: string;
+  subplateid: string | null;
+  work_hr: string;
+  sdate: string | null;
+  edate: string | null;
+  starttime: string;
+  endtime: string;
+  workdescription: string;
+  design_hr: number;
+  program_hr: number;
+  machine_hr: number;
+  driltap_hr: number;
+  qc_hr: number;
+  userid: number;
+  rdate: string | null;
+  created_at?: string;
+  updated_at?: string;
+  customername?: string;
+  username?: string;
+  userinitials?: string;
+}
+
+export interface PrintProject {
+  id: number;
+  cname: string;
+  projectid: string;
+  description: string;
+  tdate: string;
+  cdate: string;
+  gram: number;
+  hr: number;
+  pr_printhr: number;
+  amount: number;
+  ramount: number;
+  print_by: number;
+  qc_by: number;
+  payment: number;
+  dispatch: number;
+  status: 'pending' | 'completed' | string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface GramCalc {
+  id: number;
+  fix: number;
+  multiply: number;
+  lessthan: number;
+  graterthan: number;
+  created_at?: string;
+  updated_at?: string;
+}
 

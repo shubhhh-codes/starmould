@@ -15,6 +15,7 @@ import {
   Info,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import rawGramCalc from "@/lib/mock-gram-calc.json";
 
 export interface GramTier {
   id: number;
@@ -24,17 +25,8 @@ export interface GramTier {
   multiply: number;   // rate per gram (₹/g)
 }
 
-const defaultTiers: GramTier[] = [
-  { id: 1, graterthan: 0, lessthan: 50, fix: 450, multiply: 0 },
-  { id: 2, graterthan: 51, lessthan: 150, fix: 900, multiply: 0 },
-  { id: 3, graterthan: 151, lessthan: 300, fix: 1600, multiply: 0 },
-  { id: 4, graterthan: 301, lessthan: 600, fix: 0, multiply: 5.5 },
-  { id: 5, graterthan: 601, lessthan: 1200, fix: 0, multiply: 5.0 },
-  { id: 6, graterthan: 1201, lessthan: 5000, fix: 0, multiply: 4.5 },
-];
-
 export default function GramMasterPage() {
-  const [tiers, setTiers] = useState<GramTier[]>(defaultTiers);
+  const [tiers, setTiers] = useState<GramTier[]>(rawGramCalc as unknown as GramTier[]);
   const [testWeight, setTestWeight] = useState<number>(240);
   const [showModal, setShowModal] = useState(false);
   const [editingTier, setEditingTier] = useState<GramTier | null>(null);
@@ -185,56 +177,75 @@ export default function GramMasterPage() {
                 </tr>
               </thead>
               <tbody>
-                {tiers.map((tier) => {
-                  const isFixed = tier.fix > 0;
-                  return (
-                    <tr key={tier.id}>
-                      <td className="font-mono text-xs font-semibold text-slate-600">
-                        #{tier.id}
-                      </td>
-                      <td className="font-semibold text-slate-800 text-xs">
-                        <span className="font-mono">{tier.graterthan}g</span>
-                        <span className="text-slate-400 mx-1.5">to</span>
-                        <span className="font-mono">{tier.lessthan}g</span>
-                      </td>
-                      <td className="font-semibold text-slate-900 text-xs">
-                        {tier.fix > 0 ? formatCurrency(tier.fix) : "-"}
-                      </td>
-                      <td className="text-slate-700 text-xs font-medium">
-                        {tier.multiply > 0 ? `₹${tier.multiply} / g` : "-"}
-                      </td>
-                      <td>
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                            isFixed
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : "bg-blue-50 text-blue-700 border-blue-200"
-                          }`}
-                        >
-                          {isFixed ? "Fixed Flat Fee" : "Weight Multiplier"}
-                        </span>
-                      </td>
-                      <td className="text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            onClick={() => openEditModal(tier)}
-                            title="Edit Tier"
-                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+                {tiers.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="text-center py-10 text-slate-500 text-sm"
+                    >
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <Scale className="w-8 h-8 text-slate-300" />
+                        <p className="font-semibold text-slate-700">
+                          No Gram Pricing Tiers Configured
+                        </p>
+                        <p className="text-xs text-slate-400 max-w-sm">
+                          `gram_calc` has 0 rows in the database. Click &ldquo;Add Tier&rdquo; above to create the first weight bracket.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  tiers.map((tier) => {
+                    const isFixed = tier.fix > 0;
+                    return (
+                      <tr key={tier.id}>
+                        <td className="font-mono text-xs font-semibold text-slate-600">
+                          #{tier.id}
+                        </td>
+                        <td className="font-semibold text-slate-800 text-xs">
+                          <span className="font-mono">{tier.graterthan}g</span>
+                          <span className="text-slate-400 mx-1.5">to</span>
+                          <span className="font-mono">{tier.lessthan}g</span>
+                        </td>
+                        <td className="font-semibold text-slate-900 text-xs">
+                          {tier.fix > 0 ? formatCurrency(tier.fix) : "-"}
+                        </td>
+                        <td className="text-slate-700 text-xs font-medium">
+                          {tier.multiply > 0 ? `₹${tier.multiply} / g` : "-"}
+                        </td>
+                        <td>
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                              isFixed
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : "bg-blue-50 text-blue-700 border-blue-200"
+                            }`}
                           >
-                            <Edit2 className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTier(tier.id)}
-                            title="Delete Tier"
-                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-rose-600 transition-colors"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                            {isFixed ? "Fixed Flat Fee" : "Weight Multiplier"}
+                          </span>
+                        </td>
+                        <td className="text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => openEditModal(tier)}
+                              title="Edit Tier"
+                              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTier(tier.id)}
+                              title="Delete Tier"
+                              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-rose-600 transition-colors"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

@@ -3,24 +3,38 @@ var __webpack_exports__ = {};
 /*!***************************************************!*\
   !*** ./resources/js/pages/materialdesign.init.js ***!
   \***************************************************/
-function isNew(e) {
-  return "5.8.55" === e.version;
+/*
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: Material design Init Js File
+*/
+// icons
+function isNew(icon) {
+  return icon.version === '5.8.55';
 }
 
-function isDeprecated(e) {
-  return void 0 !== e.deprecated && e.deprecated;
+function isDeprecated(icon) {
+  return typeof icon.deprecated == 'undefined' ? false : icon.deprecated;
 }
 
-function getIconItem(e, n) {
-  var o = document.createElement("div"),
-      a = document.createElement("i");
-  o.className = "col-xl-3 col-lg-4 col-sm-6", a.className = "mdi mdi-" + e.name, o.appendChild(a);
-  a = document.createElement("span");
-  return a.appendChild(document.createTextNode("mdi-" + e.name)), o.appendChild(a), o;
+function getIconItem(icon, isNewIcon) {
+  var div = document.createElement('div'),
+      i = document.createElement('i');
+  div.className = "col-xl-3 col-lg-4 col-sm-6";
+  i.className = 'mdi mdi-' + icon.name;
+  div.appendChild(i);
+  var span = document.createElement('span');
+  span.appendChild(document.createTextNode('mdi-' + icon.name));
+  div.appendChild(span);
+  return div;
 }
 
-!function () {
-  var e = [{
+(function () {
+  var iconsCount = 0;
+  var newIconsCount = 0;
+  var icons = [{
     name: "ab-testing",
     hex: "F01C9",
     version: "4.0.96"
@@ -4888,7 +4902,7 @@ function getIconItem(e, n) {
     name: "cellphone-android",
     hex: "F011D",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "cellphone-arrow-down",
     hex: "F09D5",
@@ -4921,7 +4935,7 @@ function getIconItem(e, n) {
     name: "cellphone-iphone",
     hex: "F0120",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "cellphone-key",
     hex: "F094E",
@@ -7906,12 +7920,12 @@ function getIconItem(e, n) {
     name: "do-not-disturb",
     hex: "F0698",
     version: "1.7.12",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "do-not-disturb-off",
     hex: "F0699",
     version: "1.7.12",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "dock-bottom",
     hex: "F10A9",
@@ -13320,12 +13334,12 @@ function getIconItem(e, n) {
     name: "laptop-chromebook",
     hex: "F0323",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "laptop-mac",
     hex: "F0324",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "laptop-off",
     hex: "F06E7",
@@ -13334,7 +13348,7 @@ function getIconItem(e, n) {
     name: "laptop-windows",
     hex: "F0325",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "laravel",
     hex: "F0AD0",
@@ -17003,7 +17017,7 @@ function getIconItem(e, n) {
     name: "plus-one",
     hex: "F041B",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "plus-outline",
     hex: "F0705",
@@ -20792,7 +20806,7 @@ function getIconItem(e, n) {
     name: "tablet-ipad",
     hex: "F04F8",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "taco",
     hex: "F0762",
@@ -20921,7 +20935,7 @@ function getIconItem(e, n) {
     name: "telegram",
     hex: "F0501",
     version: "1.5.54",
-    deprecated: !0
+    deprecated: true
   }, {
     name: "telescope",
     hex: "F0B4E",
@@ -23451,13 +23465,22 @@ function getIconItem(e, n) {
     hex: "F0A88",
     version: "2.6.95"
   }];
-  e.push({
-    name: "blank",
-    hex: "f68c"
-  }), e.forEach(function (e) {
-    var n = getIconItem(e, isNew(e));
-    document.getElementById("icons").appendChild(n), isNew(e) && (e = getIconItem(e, !1, !1), document.getElementById("newIcons").appendChild(e), 0), 0;
+  icons.push({
+    "name": "blank",
+    "hex": "f68c"
   });
-}();
+  icons.forEach(function (icon) {
+    var item = getIconItem(icon, isNew(icon));
+    document.getElementById('icons').appendChild(item);
+
+    if (isNew(icon)) {
+      var newItem = getIconItem(icon, false, false);
+      document.getElementById('newIcons').appendChild(newItem);
+      newIconsCount++;
+    }
+
+    iconsCount++;
+  });
+})();
 /******/ })()
 ;

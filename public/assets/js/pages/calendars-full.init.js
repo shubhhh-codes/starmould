@@ -4,11 +4,11 @@ var __webpack_exports__ = {};
   !*** ./resources/js/pages/calendars-full.init.js ***!
   \***************************************************/
 /*
-Template Name: Minia - Admin & Dashboard Template
+Template Name: Fibrox3d - Admin & Dashboard Template
 Author: Themesbrand
 Website: https://themesbrand.com/
 Contact: themesbrand@gmail.com
-File: Calendar init js
+File: Apex Chart init js
 */
 !function ($) {
   "use strict";
@@ -31,7 +31,7 @@ File: Calendar init js
     var d = date.getDate();
     var m = date.getMonth();
     var y = date.getFullYear();
-    var Draggable = FullCalendar.Draggable;
+    var Draggable = FullCalendarInteraction.Draggable;
     var externalEventContainerEl = document.getElementById('external-events'); // init dragable
 
     new Draggable(externalEventContainerEl, {
@@ -100,40 +100,14 @@ File: Calendar init js
       newEventData = info;
     }
 
-    function getInitialView() {
-      if (window.innerWidth >= 768 && window.innerWidth < 1200) {
-        return 'timeGridWeek';
-      } else if (window.innerWidth <= 768) {
-        return 'listMonth';
-      } else {
-        return 'dayGridMonth';
-      }
-    }
-
     var calendar = new FullCalendar.Calendar(calendarEl, {
+      plugins: ['bootstrap', 'interaction', 'dayGrid', 'timeGrid'],
       editable: true,
       droppable: true,
       selectable: true,
-      initialView: getInitialView(),
+      defaultView: 'dayGridMonth',
       themeSystem: 'bootstrap',
-      // responsive
-      windowResize: function windowResize(view) {
-        var newView = getInitialView();
-        calendar.changeView(newView);
-      },
-      eventDidMount: function eventDidMount(info) {
-        if (info.event.extendedProps.status === 'done') {
-          // Change background color of row
-          info.el.style.backgroundColor = 'red'; // Change color of dot marker
-
-          var dotEl = info.el.getElementsByClassName('fc-event-dot')[0];
-
-          if (dotEl) {
-            dotEl.style.backgroundColor = 'white';
-          }
-        }
-      },
-      headerToolbar: {
+      header: {
         left: 'prev,next today',
         center: 'title',
         right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
@@ -164,8 +138,8 @@ File: Calendar init js
       var updatedCategory = $('#event-category').val(); // validation
 
       if (forms[0].checkValidity() === false) {
-        // event.preventDefault();
-        // event.stopPropagation();
+        event.preventDefault();
+        event.stopPropagation();
         forms[0].classList.add('was-validated');
       } else {
         if (selectedEvent) {

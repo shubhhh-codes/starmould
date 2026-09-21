@@ -3,197 +3,293 @@ var __webpack_exports__ = {};
 /*!********************************************!*\
   !*** ./resources/js/pages/chartjs.init.js ***!
   \********************************************/
-!function (l) {
+/*
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: ChartJs init Js File
+*/
+function getChartColorsArray(chartId) {
+  if (document.getElementById(chartId) !== null) {
+    var colors = document.getElementById(chartId).getAttribute("data-colors");
+
+    if (colors) {
+      colors = JSON.parse(colors);
+      return colors.map(function (value) {
+        var newValue = value.replace(" ", "");
+
+        if (newValue.indexOf(",") === -1) {
+          var color = getComputedStyle(document.documentElement).getPropertyValue(newValue);
+
+          if (color) {
+            color = color.replace(" ", "");
+            return color;
+          } else return newValue;
+
+          ;
+        } else {
+          var val = value.split(',');
+
+          if (val.length == 2) {
+            var rgbaColor = getComputedStyle(document.documentElement).getPropertyValue(val[0]);
+            rgbaColor = "rgba(" + rgbaColor + "," + val[1] + ")";
+            return rgbaColor;
+          } else {
+            return newValue;
+          }
+        }
+      });
+    }
+  }
+}
+
+!function ($) {
   "use strict";
 
-  function r() {}
+  var ChartJs = function ChartJs() {};
 
-  r.prototype.respChart = function (r, o, e, a) {
-    Chart.defaults.global.defaultFontColor = "#8791af", Chart.defaults.scale.gridLines.color = "rgba(166, 176, 207, 0.1)";
-    var t = r.get(0).getContext("2d"),
-        n = l(r).parent();
+  ChartJs.prototype.respChart = function (selector, type, data, options) {
+    Chart.defaults.global.defaultFontColor = "#9295a4", Chart.defaults.scale.gridLines.color = "rgba(166, 176, 207, 0.1)"; // get selector by context
 
-    function i() {
-      r.attr("width", l(n).width());
+    var ctx = selector.get(0).getContext("2d"); // pointing parent container to make chart js inherit its width
 
-      switch (o) {
-        case "Line":
-          new Chart(t, {
-            type: "line",
-            data: e,
-            options: a
+    var container = $(selector).parent(); // enable resizing matter
+
+    $(window).resize(generateChart); // this function produce the responsive Chart JS
+
+    function generateChart() {
+      // make chart width fit with its container
+      var ww = selector.attr('width', $(container).width());
+
+      switch (type) {
+        case 'Line':
+          new Chart(ctx, {
+            type: 'line',
+            data: data,
+            options: options
           });
           break;
 
-        case "Doughnut":
-          new Chart(t, {
-            type: "doughnut",
-            data: e,
-            options: a
+        case 'Doughnut':
+          new Chart(ctx, {
+            type: 'doughnut',
+            data: data,
+            options: options
           });
           break;
 
-        case "Pie":
-          new Chart(t, {
-            type: "pie",
-            data: e,
-            options: a
+        case 'Pie':
+          new Chart(ctx, {
+            type: 'pie',
+            data: data,
+            options: options
           });
           break;
 
-        case "Bar":
-          new Chart(t, {
-            type: "bar",
-            data: e,
-            options: a
+        case 'Bar':
+          new Chart(ctx, {
+            type: 'bar',
+            data: data,
+            options: options
           });
           break;
 
-        case "Radar":
-          new Chart(t, {
-            type: "radar",
-            data: e,
-            options: a
+        case 'Radar':
+          new Chart(ctx, {
+            type: 'radar',
+            data: data,
+            options: options
           });
           break;
 
-        case "PolarArea":
-          new Chart(t, {
-            data: e,
-            type: "polarArea",
-            options: a
+        case 'PolarArea':
+          new Chart(ctx, {
+            data: data,
+            type: 'polarArea',
+            options: options
           });
-      }
+          break;
+      } // Initiate new chart or Redraw
+
     }
 
-    l(window).resize(i), i();
-  }, r.prototype.init = function () {
-    this.respChart(l("#lineChart"), "Line", {
-      labels: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October"],
-      datasets: [{
-        label: "Sales Analytics",
-        fill: !0,
-        lineTension: .5,
-        backgroundColor: "rgba(85, 110, 230, 0.2)",
-        borderColor: "#556ee6",
-        borderCapStyle: "butt",
-        borderDash: [],
-        borderDashOffset: 0,
-        borderJoinStyle: "miter",
-        pointBorderColor: "#556ee6",
-        pointBackgroundColor: "#fff",
-        pointBorderWidth: 1,
-        pointHoverRadius: 5,
-        pointHoverBackgroundColor: "#556ee6",
-        pointHoverBorderColor: "#fff",
-        pointHoverBorderWidth: 2,
-        pointRadius: 1,
-        pointHitRadius: 10,
-        data: [65, 59, 80, 81, 56, 55, 40, 55, 30, 80]
-      }, {
-        label: "Monthly Earnings",
-        fill: !0,
-        lineTension: .5,
-        backgroundColor: "rgba(235, 239, 242, 0.2)",
-        borderColor: "#ebeff2",
-        borderCapStyle: "butt",
-        borderDash: [],
-        borderDashOffset: 0,
-        borderJoinStyle: "miter",
-        pointBorderColor: "#ebeff2",
-        pointBackgroundColor: "#fff",
-        pointBorderWidth: 1,
-        pointHoverRadius: 5,
-        pointHoverBackgroundColor: "#ebeff2",
-        pointHoverBorderColor: "#eef0f2",
-        pointHoverBorderWidth: 2,
-        pointRadius: 1,
-        pointHitRadius: 10,
-        data: [80, 23, 56, 65, 23, 35, 85, 25, 92, 36]
-      }]
-    }, {
-      scales: {
-        yAxes: [{
-          ticks: {
-            max: 100,
-            min: 20,
-            stepSize: 10
-          }
+    ; // run function - render chart at first load
+
+    generateChart();
+  }, //init
+  ChartJs.prototype.init = function () {
+    //creating lineChart
+    var LinechartLinechartColors = getChartColorsArray("lineChart");
+
+    if (LinechartLinechartColors) {
+      var lineChart = {
+        labels: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October"],
+        datasets: [{
+          label: "Sales Analytics",
+          fill: true,
+          lineTension: 0.5,
+          backgroundColor: LinechartLinechartColors[0],
+          borderColor: LinechartLinechartColors[1],
+          borderCapStyle: 'butt',
+          borderDash: [],
+          borderDashOffset: 0.0,
+          borderJoinStyle: 'miter',
+          pointBorderColor: LinechartLinechartColors[1],
+          pointBackgroundColor: "#fff",
+          pointBorderWidth: 1,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: LinechartLinechartColors[1],
+          pointHoverBorderColor: "#fff",
+          pointHoverBorderWidth: 2,
+          pointRadius: 1,
+          pointHitRadius: 10,
+          data: [65, 59, 80, 81, 56, 55, 40, 55, 30, 80]
+        }, {
+          label: "Monthly Earnings",
+          fill: true,
+          lineTension: 0.5,
+          backgroundColor: LinechartLinechartColors[2],
+          borderColor: LinechartLinechartColors[3],
+          borderCapStyle: 'butt',
+          borderDash: [],
+          borderDashOffset: 0.0,
+          borderJoinStyle: 'miter',
+          pointBorderColor: LinechartLinechartColors[3],
+          pointBackgroundColor: "#fff",
+          pointBorderWidth: 1,
+          pointHoverRadius: 5,
+          pointHoverBackgroundColor: LinechartLinechartColors[3],
+          pointHoverBorderColor: "#eef0f2",
+          pointHoverBorderWidth: 2,
+          pointRadius: 1,
+          pointHitRadius: 10,
+          data: [80, 23, 56, 65, 23, 35, 85, 25, 92, 36]
         }]
-      }
-    });
-    this.respChart(l("#doughnut"), "Doughnut", {
-      labels: ["Desktops", "Tablets"],
-      datasets: [{
-        data: [300, 210],
-        backgroundColor: ["#556ee6", "#ebeff2"],
-        hoverBackgroundColor: ["#556ee6", "#ebeff2"],
-        hoverBorderColor: "#fff"
-      }]
-    });
-    this.respChart(l("#pie"), "Pie", {
-      labels: ["Desktops", "Tablets"],
-      datasets: [{
-        data: [300, 180],
-        backgroundColor: ["#34c38f", "#ebeff2"],
-        hoverBackgroundColor: ["#34c38f", "#ebeff2"],
-        hoverBorderColor: "#fff"
-      }]
-    });
-    this.respChart(l("#bar"), "Bar", {
-      labels: ["January", "February", "March", "April", "May", "June", "July"],
-      datasets: [{
-        label: "Sales Analytics",
-        backgroundColor: "rgba(52, 195, 143, 0.8)",
-        borderColor: "rgba(52, 195, 143, 0.8)",
-        borderWidth: 1,
-        hoverBackgroundColor: "rgba(52, 195, 143, 0.9)",
-        hoverBorderColor: "rgba(52, 195, 143, 0.9)",
-        data: [65, 59, 81, 45, 56, 80, 50, 20]
-      }]
-    }, {
-      scales: {
-        xAxes: [{
-          barPercentage: .4
+      };
+      var lineOpts = {
+        scales: {
+          yAxes: [{
+            ticks: {
+              max: 100,
+              min: 20,
+              stepSize: 10
+            }
+          }]
+        }
+      };
+      this.respChart($("#lineChart"), 'Line', lineChart, lineOpts);
+    } //donut chart
+
+
+    var DoughnutchartColors = getChartColorsArray("doughnut");
+
+    if (DoughnutchartColors) {
+      var donutChart = {
+        labels: ["Desktops", "Tablets"],
+        datasets: [{
+          data: [300, 210],
+          backgroundColor: DoughnutchartColors,
+          hoverBackgroundColor: DoughnutchartColors,
+          hoverBorderColor: "#fff"
         }]
-      }
-    });
-    this.respChart(l("#radar"), "Radar", {
-      labels: ["Eating", "Drinking", "Sleeping", "Designing", "Coding", "Cycling", "Running"],
-      datasets: [{
-        label: "Desktops",
-        backgroundColor: "rgba(52, 195, 143, 0.2)",
-        borderColor: "#34c38f",
-        pointBackgroundColor: "#34c38f",
-        pointBorderColor: "#fff",
-        pointHoverBackgroundColor: "#fff",
-        pointHoverBorderColor: "#34c38f",
-        data: [65, 59, 90, 81, 56, 55, 40]
-      }, {
-        label: "Tablets",
-        backgroundColor: "rgba(85, 110, 230, 0.2)",
-        borderColor: "#556ee6",
-        pointBackgroundColor: "#556ee6",
-        pointBorderColor: "#fff",
-        pointHoverBackgroundColor: "#fff",
-        pointHoverBorderColor: "#556ee6",
-        data: [28, 48, 40, 19, 96, 27, 100]
-      }]
-    });
-    this.respChart(l("#polarArea"), "PolarArea", {
-      datasets: [{
-        data: [11, 16, 7, 18],
-        backgroundColor: ["#f46a6a", "#34c38f", "#f1b44c", "#556ee6"],
-        label: "My dataset",
-        hoverBorderColor: "#fff"
-      }],
-      labels: ["Series 1", "Series 2", "Series 3", "Series 4"]
-    });
-  }, l.ChartJs = new r(), l.ChartJs.Constructor = r;
-}(window.jQuery), function () {
+      };
+      this.respChart($("#doughnut"), 'Doughnut', donutChart);
+    } //Pie chart
+
+
+    var PiechartColors = getChartColorsArray("pie");
+
+    if (PiechartColors) {
+      var pieChart = {
+        labels: ["Desktops", "Tablets"],
+        datasets: [{
+          data: [300, 180],
+          backgroundColor: PiechartColors,
+          hoverBackgroundColor: PiechartColors,
+          hoverBorderColor: "#fff"
+        }]
+      };
+      this.respChart($("#pie"), 'Pie', pieChart);
+    } //barchart
+
+
+    var BarchartColors = getChartColorsArray("bar");
+
+    if (BarchartColors) {
+      var barChart = {
+        labels: ["January", "February", "March", "April", "May", "June", "July"],
+        datasets: [{
+          label: "Sales Analytics",
+          backgroundColor: BarchartColors[0],
+          borderColor: BarchartColors[0],
+          borderWidth: 1,
+          hoverBackgroundColor: BarchartColors[1],
+          hoverBorderColor: BarchartColors[1],
+          data: [65, 59, 81, 45, 56, 80, 50, 20]
+        }]
+      };
+      var barOpts = {
+        scales: {
+          xAxes: [{
+            barPercentage: 0.4
+          }]
+        }
+      };
+      this.respChart($("#bar"), 'Bar', barChart, barOpts);
+    } //radar chart
+
+
+    var RadarchartColors = getChartColorsArray("radar");
+
+    if (RadarchartColors) {
+      var radarChart = {
+        labels: ["Eating", "Drinking", "Sleeping", "Designing", "Coding", "Cycling", "Running"],
+        datasets: [{
+          label: "Desktops",
+          backgroundColor: RadarchartColors[0],
+          borderColor: RadarchartColors[1],
+          pointBackgroundColor: RadarchartColors[1],
+          pointBorderColor: "#fff",
+          pointHoverBackgroundColor: "#fff",
+          pointHoverBorderColor: RadarchartColors[1],
+          data: [65, 59, 90, 81, 56, 55, 40]
+        }, {
+          label: "Tablets",
+          backgroundColor: RadarchartColors[2],
+          borderColor: RadarchartColors[3],
+          pointBackgroundColor: RadarchartColors[3],
+          pointBorderColor: "#fff",
+          pointHoverBackgroundColor: "#fff",
+          pointHoverBorderColor: RadarchartColors[3],
+          data: [28, 48, 40, 19, 96, 27, 100]
+        }]
+      };
+      this.respChart($("#radar"), 'Radar', radarChart);
+    } //Polar area  chart
+
+
+    var PolarAreachartColors = getChartColorsArray("polarArea");
+
+    if (PolarAreachartColors) {
+      var polarChart = {
+        datasets: [{
+          data: [11, 16, 7, 18],
+          backgroundColor: PolarAreachartColors,
+          label: 'My dataset',
+          // for legend
+          hoverBorderColor: "#fff"
+        }],
+        labels: ["Series 1", "Series 2", "Series 3", "Series 4"]
+      };
+      this.respChart($("#polarArea"), 'PolarArea', polarChart);
+    }
+  }, $.ChartJs = new ChartJs(), $.ChartJs.Constructor = ChartJs;
+}(window.jQuery), //initializing
+function ($) {
   "use strict";
 
-  window.jQuery.ChartJs.init();
-}();
+  $.ChartJs.init();
+}(window.jQuery);
 /******/ })()
 ;

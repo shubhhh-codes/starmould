@@ -11,6 +11,41 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ------------------------------------------------------------------------------
+-- CLEAN RE-CREATION: DROP EXISTING VIEWS & TABLES
+-- ------------------------------------------------------------------------------
+DROP VIEW IF EXISTS public.view_po_pending_outword_qty CASCADE;
+DROP VIEW IF EXISTS public.view_po_pending_inward_qty CASCADE;
+DROP VIEW IF EXISTS public.view_po_outword_items_qty CASCADE;
+DROP VIEW IF EXISTS public.view_po_inward_items_qty CASCADE;
+DROP VIEW IF EXISTS public.view_pending_outword_qty CASCADE;
+DROP VIEW IF EXISTS public.view_pending_inward_qty CASCADE;
+DROP VIEW IF EXISTS public.view_pending_dispatch_qty CASCADE;
+DROP VIEW IF EXISTS public.view_outword_items_qty CASCADE;
+DROP VIEW IF EXISTS public.view_inward_items_qty CASCADE;
+DROP VIEW IF EXISTS public.view_dispatch_items_qty CASCADE;
+
+DROP TABLE IF EXISTS public.scanning_models CASCADE;
+DROP TABLE IF EXISTS public.print CASCADE;
+DROP TABLE IF EXISTS public.gram_calc CASCADE;
+DROP TABLE IF EXISTS public.expense CASCADE;
+DROP TABLE IF EXISTS public.worklog CASCADE;
+DROP TABLE IF EXISTS public.dispatch_items CASCADE;
+DROP TABLE IF EXISTS public.dispatch CASCADE;
+DROP TABLE IF EXISTS public.purchase_inward_items CASCADE;
+DROP TABLE IF EXISTS public.po_inward CASCADE;
+DROP TABLE IF EXISTS public.purchase_items CASCADE;
+DROP TABLE IF EXISTS public.purchase CASCADE;
+DROP TABLE IF EXISTS public.inward_items CASCADE;
+DROP TABLE IF EXISTS public.inward CASCADE;
+DROP TABLE IF EXISTS public.challan_items CASCADE;
+DROP TABLE IF EXISTS public.challan CASCADE;
+DROP TABLE IF EXISTS public.subplate CASCADE;
+DROP TABLE IF EXISTS public.scan CASCADE;
+DROP TABLE IF EXISTS public.customers CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
+DROP TABLE IF EXISTS public.roles CASCADE;
+
+-- ------------------------------------------------------------------------------
 -- 1. ROLES & AUTH HELPER INFRASTRUCTURE
 -- ------------------------------------------------------------------------------
 -- Replaces old hardcoded role numbers ("0"=Admin, "1"=Manager, "2"=Supervisor, "3"=Designer, "4"=Worker/Machine)

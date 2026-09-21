@@ -3,20 +3,38 @@ var __webpack_exports__ = {};
 /*!************************************************!*\
   !*** ./resources/js/pages/ico-landing.init.js ***!
   \************************************************/
+/*
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: ico landing Init Js File
+*/
+// Sticky nav
 $(window).scroll(function () {
-  50 <= $(window).scrollTop() ? $(".sticky").addClass("nav-sticky") : $(".sticky").removeClass("nav-sticky");
-}), $("[data-countdown]").each(function () {
-  var s = $(this),
-      i = $(this).data("countdown");
-  s.countdown(i, function (s) {
-    $(this).html(s.strftime('<div class="coming-box">%D <span>Days</span></div> <div class="coming-box">%H <span>Hours</span></div> <div class="coming-box">%M <span>Minutes</span></div> <div class="coming-box">%S <span>Seconds</span></div> '));
+  var scroll = $(window).scrollTop();
+
+  if (scroll >= 50) {
+    $(".sticky").addClass("nav-sticky");
+  } else {
+    $(".sticky").removeClass("nav-sticky");
+  }
+}); // Countdown
+
+$('[data-countdown]').each(function () {
+  var $this = $(this),
+      finalDate = $(this).data('countdown');
+  $this.countdown(finalDate, function (event) {
+    $(this).html(event.strftime('' + '<div class="coming-box">%D <span>Days</span></div> ' + '<div class="coming-box">%H <span>Hours</span></div> ' + '<div class="coming-box">%M <span>Minutes</span></div> ' + '<div class="coming-box">%S <span>Seconds</span></div> '));
   });
-}), $("#clients-carousel, #team-carousel").owlCarousel({
+}); // Clients carousel
+
+$('#clients-carousel, #team-carousel').owlCarousel({
   items: 1,
-  loop: !1,
+  loop: false,
   margin: 24,
-  nav: !1,
-  dots: !1,
+  nav: false,
+  dots: false,
   responsive: {
     576: {
       items: 2
@@ -28,13 +46,15 @@ $(window).scroll(function () {
       items: 4
     }
   }
-}), $("#timeline-carousel").owlCarousel({
+}); // Timeline carousel
+
+$('#timeline-carousel').owlCarousel({
   items: 1,
-  loop: !1,
+  loop: false,
   margin: 0,
-  nav: !0,
+  nav: true,
   navText: ["<i class='mdi mdi-chevron-left'></i>", "<i class='mdi mdi-chevron-right'></i>"],
-  dots: !1,
+  dots: false,
   responsive: {
     576: {
       items: 2

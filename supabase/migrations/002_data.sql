@@ -5383,7 +5383,7 @@ INSERT INTO public."dispatch_items" ("id", "dispatchid", "plateid", "custom_plat
 
 -- Table: expense
 INSERT INTO public."expense" ("id", "customerid", "description", "payment_mode", "payment_type", "amount", "balance", "rdate", "created_at", "updated_at") VALUES
-  (1, 0, 'description', 'payment_mode', 'payment_type', 0, 0, '0000-00-00', '0000-00-00 00:00:00', '0000-00-00 00:00:00'),
+  (1, 0, 'description', 'payment_mode', 'payment_type', 0, 0, '2023-01-01', '2023-01-01 00:00:00', '2023-01-01 00:00:00'),
   (2, 116, 'Cash', 'Cash', 'Credit', 100000, 100000, '2023-08-28', '2023-08-31 04:57:00', '2023-08-31 04:57:00'),
   (3, 122, 'vishal upad', 'Cash', 'Debit', 8000, 92000, '2023-08-28', '2023-08-31 04:59:00', '2023-08-31 04:59:00'),
   (4, 122, 'shravan upad', 'Cash', 'Debit', 5000, 87000, '2023-08-28', '2023-08-31 05:00:00', '2023-08-31 05:00:00'),

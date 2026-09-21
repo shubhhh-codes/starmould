@@ -11,70 +11,11 @@ export async function GET(req: NextRequest) {
       .gt("pending_qty", 0)
       .order("id", { ascending: false });
 
-    let pendingReceiveList: any[] = [];
-
-    if (!viewErr && viewData) {
-      pendingReceiveList = viewData;
-    } else {
-      // Fallback if view has not yet been run in SQL editor
-      const { data: pos } = await supabaseAdmin
-        .from("purchase")
-        .select("*")
-        .eq("status", "1")
-        .order("id", { ascending: false })
-        .limit(100);
-
-      const pids = (pos || []).map((p) => p.id);
-      const { data: poItems } = await supabaseAdmin.from("purchase_items").select("*").in("pid", pids);
-      const { data: inwardItems } = await supabaseAdmin.from("purchase_inward_items").select("*").in("pid", pids);
-      const { data: customers } = await supabaseAdmin.from("customers").select("id, customername");
-      const custMap = new Map((customers || []).map((c) => [c.id, c.customername]));
-
-      const plateIds = Array.from(new Set((poItems || []).map((it) => it.plateid)));
-      const { data: subplates } = await supabaseAdmin
-        .from("subplate")
-        .select("id, platename, projectid, material")
-        .in("id", plateIds.slice(0, 500));
-      const plateMap = new Map((subplates || []).map((sp) => [sp.id, sp.platename]));
-
-      const receivedMap = new Map<string, number>();
-      for (const inItem of inwardItems || []) {
-        const key = `${inItem.pid}_${inItem.plateid}`;
-        receivedMap.set(key, (receivedMap.get(key) || 0) + (Number(inItem.inward_qty) || 0));
-      }
-
-      const poMap = new Map((pos || []).map((p) => [p.id, p]));
-      for (const item of poItems || []) {
-        const po = poMap.get(item.pid);
-        if (!po) continue;
-        const key = `${item.pid}_${item.plateid}`;
-        const receivedQty = receivedMap.get(key) || 0;
-        const orderedQty = Number(item.qty) || 0;
-        const pendingQty = Math.max(0, orderedQty - receivedQty);
-
-        if (pendingQty > 0) {
-          pendingReceiveList.push({
-            id: item.id,
-            poid: po.id,
-            srno: po.srno,
-            pno: po.pno,
-            vname: po.vname,
-            vendorname: custMap.get(po.vname) || `Vendor #${po.vname}`,
-            cname: po.cname,
-            customername: custMap.get(po.cname) || `Customer #${po.cname}`,
-            projectid: po.projectid,
-            odate: po.odate,
-            plateid: item.plateid,
-            platename: plateMap.get(item.plateid) || `Plate #${item.plateid}`,
-            material: item.material,
-            materialtype: item.materialtype,
-            qty: orderedQty,
-            inward_qty: receivedQty,
-            pending_qty: pendingQty,
-          });
-        }
-      }
+    if (viewErr) {
+      return NextResponse.json({ error: viewErr.message }, { status: 500 });
     }
+
+    const pendingReceiveList = viewData || [];
 
     // 2. Fetch recent inward receipts history from po_inward
     const { data: receipts } = await supabaseAdmin
@@ -116,7 +57,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({
-      source: !viewErr ? "view_po_pending_inward_qty" : "fallback_join",
+      source: "view_po_pending_inward_qty",
       pendingReceiveItems: pendingReceiveList,
       receipts: enrichedReceipts,
     });

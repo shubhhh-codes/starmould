@@ -154,7 +154,7 @@ table.dataTable > thead > tr > td:active {
 }
 table.dataTable > thead > tr > th:not(.sorting_disabled),
 table.dataTable > thead > tr > td:not(.sorting_disabled) {
-  padding-right: 15px;
+  padding-right: 30px;
 }
 table.dataTable > thead .sorting,
 table.dataTable > thead .sorting_asc,

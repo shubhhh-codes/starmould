@@ -3,47 +3,54 @@ var __webpack_exports__ = {};
 /*!********************************************!*\
   !*** ./resources/js/pages/profile.init.js ***!
   \********************************************/
+/*
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: Profile Init Js File
+*/
 var options = {
   chart: {
     height: 330,
-    type: "bar",
+    type: 'bar',
     toolbar: {
-      show: !1
+      show: false
     }
   },
   plotOptions: {
     bar: {
-      horizontal: !1,
-      columnWidth: "14%",
-      endingShape: "rounded"
+      horizontal: false,
+      columnWidth: '14%',
+      endingShape: 'rounded'
     }
   },
   dataLabels: {
-    enabled: !1
+    enabled: false
   },
   stroke: {
-    show: !0,
+    show: true,
     width: 2,
-    colors: ["transparent"]
+    colors: ['transparent']
   },
   series: [{
-    name: "Revenue",
+    name: 'Revenue',
     data: [42, 85, 101, 56, 37, 105, 38, 58, 92, 82, 72, 32]
   }],
   xaxis: {
-    categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   },
   yaxis: {
     title: {
-      text: "$ (thousands)"
+      text: '$ (thousands)'
     }
   },
   fill: {
     opacity: 1
   },
-  colors: ["#556ee6"]
-},
-    chart = new ApexCharts(document.querySelector("#revenue-chart"), options);
+  colors: ['#556ee6']
+};
+var chart = new ApexCharts(document.querySelector("#revenue-chart"), options);
 chart.render();
 /******/ })()
 ;

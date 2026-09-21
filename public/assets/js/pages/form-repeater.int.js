@@ -3,44 +3,58 @@ var __webpack_exports__ = {};
 /*!*************************************************!*\
   !*** ./resources/js/pages/form-repeater.int.js ***!
   \*************************************************/
+/*
+Template Name: Fibrox3d - Admin & Dashboard Template
+Author: Themesbrand
+Website: https://themesbrand.com/
+Contact: themesbrand@gmail.com
+File: Form repeater Js File
+*/
 $(document).ready(function () {
-  "use strict";
+  'use strict';
 
-  $(".repeater").repeater({
+  $('.repeater').repeater({
     defaultValues: {
-      "textarea-input": "foo",
-      "text-input": "bar",
-      "select-input": "B",
-      "checkbox-input": ["A", "B"],
-      "radio-input": "B"
+      'textarea-input': 'foo',
+      'text-input': 'bar',
+      'select-input': 'B',
+      'checkbox-input': ['A', 'B'],
+      'radio-input': 'B'
     },
     show: function show() {
       $(this).slideDown();
     },
-    hide: function hide(e) {
-      confirm("Are you sure you want to delete this element?") && $(this).slideUp(e);
+    hide: function hide(deleteElement) {
+      if (confirm('Are you sure you want to delete this element?')) {
+        $(this).slideUp(deleteElement);
+      }
     },
-    ready: function ready(e) {}
-  }), window.outerRepeater = $(".outer-repeater").repeater({
+    ready: function ready(setIndexes) {}
+  });
+  window.outerRepeater = $('.outer-repeater').repeater({
     defaultValues: {
-      "text-input": "outer-default"
+      'text-input': 'outer-default'
     },
     show: function show() {
-      console.log("outer show"), $(this).slideDown();
+      console.log('outer show');
+      $(this).slideDown();
     },
-    hide: function hide(e) {
-      console.log("outer delete"), $(this).slideUp(e);
+    hide: function hide(deleteElement) {
+      console.log('outer delete');
+      $(this).slideUp(deleteElement);
     },
     repeaters: [{
-      selector: ".inner-repeater",
+      selector: '.inner-repeater',
       defaultValues: {
-        "inner-text-input": "inner-default"
+        'inner-text-input': 'inner-default'
       },
       show: function show() {
-        console.log("inner show"), $(this).slideDown();
+        console.log('inner show');
+        $(this).slideDown();
       },
-      hide: function hide(e) {
-        console.log("inner delete"), $(this).slideUp(e);
+      hide: function hide(deleteElement) {
+        console.log('inner delete');
+        $(this).slideUp(deleteElement);
       }
     }]
   });
