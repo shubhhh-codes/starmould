@@ -23,10 +23,6 @@ import {
   FileText,
   RotateCcw,
 } from "lucide-react";
-import rawInwards from "@/lib/mock-inwards.json";
-import rawChallans from "@/lib/mock-challans.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawSubplates from "@/lib/mock-subplates.json";
 import type {
   Inward,
   InwardItem,
@@ -36,10 +32,14 @@ import type {
 } from "@/lib/supabase/types";
 
 export default function InwardPage() {
-  const [inwards, setInwards] = useState<Inward[]>(rawInwards as unknown as Inward[]);
-  const [challans] = useState<Challan[]>(rawChallans as unknown as Challan[]);
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
+  const [inwards, setInwards] = useState<Inward[]>([]);
+  const [pendingChallans, setPendingChallans] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
+  const [kpis, setKpis] = useState({ totalInwards: 0, totalPendingChallanItems: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [vendorFilter, setVendorFilter] = useState("ALL");
@@ -74,17 +74,40 @@ export default function InwardPage() {
 
   const [formError, setFormError] = useState<string | null>(null);
 
+  const fetchInwards = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/inward");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load inwards");
+      setInwards(data.inwards || []);
+      setPendingChallans(data.pendingChallans || []);
+      setCustomers(data.customers || []);
+      setSubplates(data.subplates || []);
+      if (data.kpis) setKpis(data.kpis);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to fetch inward data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchInwards();
+  }, []);
+
   // Filtered dropdown lists strictly based on legacy usertype
   const vendors = useMemo(() => customers.filter((c) => c.usertype === "Vendor"), [customers]);
   const customersList = useMemo(() => customers.filter((c) => c.usertype === "Customer"), [customers]);
   const transporters = useMemo(() => customers.filter((c) => c.usertype === "Transport"), [customers]);
 
-  // Outward challans for selected vendor & customer
+  // Outward challans for selected vendor with pending inward items
   const availableOutwardChallans = useMemo(() => {
     if (!modalForm.vendorid) return [];
     const vId = Number(modalForm.vendorid);
-    return challans.filter((c) => c.vendorid === vId);
-  }, [challans, modalForm.vendorid]);
+    return pendingChallans.filter((c) => c.vendorid === vId);
+  }, [pendingChallans, modalForm.vendorid]);
 
   // Expand / collapse child rows
   const toggleRow = (id: number) => {
@@ -92,7 +115,7 @@ export default function InwardPage() {
   };
 
   // KPI Calculations
-  const totalInwards = inwards.length;
+  const totalInwards = kpis.totalInwards || inwards.length;
   const activeInwards = inwards.filter((i) => i.status === "1").length;
   const totalPlatesReceived = inwards.reduce(
     (acc, i) => acc + (i.items?.reduce((sum, it) => sum + (it.inward_qty || 0), 0) || 0),
@@ -125,26 +148,28 @@ export default function InwardPage() {
   // On selecting Outward Challan: auto-populate line items (inward/index.blade.php getichallandata())
   const handleSelectChallan = (challanIdStr: string) => {
     const challanId = Number(challanIdStr);
-    const selectedChallan = challans.find((c) => c.id === challanId);
+    const selectedChallan = pendingChallans.find((c) => c.id === challanId);
 
     if (selectedChallan) {
-      const cust = customers.find((c) => c.id === selectedChallan.customerid);
-      const itemsToLoad = (selectedChallan.items || []).map((it) => ({
-        plateid: it.plateid,
-        platename: it.platename || `Plate #${it.plateid}`,
-        customer: selectedChallan.customerid,
-        customername: it.customername || cust?.customername || `Customer #${selectedChallan.customerid}`,
-        project: it.project || selectedChallan.projectid,
-        particulars: it.particulars,
-        qty: it.qty,
-        inward_qty: it.qty, // default to full quantity received
-      }));
+      const cust = customers.find((c) => c.id === selectedChallan.customer);
+      const itemsToLoad = [
+        {
+          plateid: selectedChallan.plateid,
+          platename: selectedChallan.platename || `Plate #${selectedChallan.plateid}`,
+          customer: selectedChallan.customer,
+          customername: selectedChallan.customername || cust?.customername || `Customer #${selectedChallan.customer}`,
+          project: selectedChallan.projectid,
+          particulars: selectedChallan.particulars,
+          qty: selectedChallan.qty,
+          inward_qty: selectedChallan.pending_qty,
+        },
+      ];
 
       setModalForm((prev) => ({
         ...prev,
         challanid: challanIdStr,
-        customerid: String(selectedChallan.customerid),
-        vendortid: String(selectedChallan.vendortid),
+        customerid: String(selectedChallan.customer || ""),
+        vendortid: String(selectedChallan.vendortid || selectedChallan.vendorid || ""),
         items: itemsToLoad,
       }));
     } else {
@@ -167,7 +192,7 @@ export default function InwardPage() {
     });
   };
 
-  const handleSubmitInward = (e: React.FormEvent) => {
+  const handleSubmitInward = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -196,56 +221,46 @@ export default function InwardPage() {
       }
     }
 
-    // Sequence format: SM/IW/xx (InwardController.php lines 324-328)
-    const nextSeq = inwards.length + 1;
-    const inchallanno = nextSeq < 10 ? `SM/IW/0${nextSeq}` : `SM/IW/${nextSeq}`;
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/inward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modalForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save inward receipt");
 
-    const selectedChallan = challans.find((c) => c.id === Number(modalForm.challanid));
-    const vendor = customers.find((c) => c.id === Number(modalForm.vendorid));
-    const customer = customers.find((c) => c.id === Number(modalForm.customerid));
-    const transporter = customers.find((c) => c.id === Number(modalForm.vendortid));
+      await fetchInwards();
+      setIsModalOpen(false);
+      setModalForm({
+        chdate: new Date().toISOString().slice(0, 10),
+        vendorid: "",
+        customerid: "",
+        vendortid: "",
+        challanid: "",
+        items: [],
+      });
+    } catch (err: any) {
+      setFormError(err.message || "Failed to record inward receipt");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    const newInward: Inward = {
-      id: Date.now(),
-      challanid: Number(modalForm.challanid),
-      inchallanno,
-      customerid: Number(modalForm.customerid),
-      vendorid: Number(modalForm.vendorid),
-      vendortid: Number(modalForm.vendortid),
-      projectid: selectedChallan?.projectid || "",
-      chdate: modalForm.chdate,
-      status: "1",
-      created_by: "Akshay",
-      challanno: selectedChallan?.challanno || `SM/JW/${modalForm.challanid}`,
-      vendorname: vendor?.customername || `Vendor #${modalForm.vendorid}`,
-      customername: customer?.customername || `Customer #${modalForm.customerid}`,
-      transportername: transporter?.customername || `Transporter #${modalForm.vendortid}`,
-      items: modalForm.items.map((it, idx) => ({
-        id: Date.now() + idx,
-        challanid: Number(modalForm.challanid),
-        inchallanid: Date.now(),
-        plateid: it.plateid,
-        particulars: it.particulars,
-        customer: it.customer,
-        project: it.project,
-        qty: it.qty,
-        inward_qty: it.inward_qty,
-        pending_qty: Math.max(0, it.qty - it.inward_qty),
-        platename: it.platename,
-        customername: it.customername,
-      })),
-    };
-
-    setInwards([newInward, ...inwards]);
-    setIsModalOpen(false);
-    setModalForm({
-      chdate: new Date().toISOString().slice(0, 10),
-      vendorid: "",
-      customerid: "",
-      vendortid: "",
-      challanid: "",
-      items: [],
-    });
+  const handleCancelInward = async (id: number) => {
+    if (window.confirm("Are you sure you want to cancel this inward receipt?")) {
+      try {
+        const res = await fetch(`/api/inward?id=${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to cancel inward");
+        }
+        await fetchInwards();
+      } catch (err: any) {
+        alert("Error: " + err.message);
+      }
+    }
   };
 
   return (

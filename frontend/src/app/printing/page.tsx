@@ -20,10 +20,6 @@ import {
   AlertCircle,
   Filter,
 } from "lucide-react";
-import rawPrints from "@/lib/mock-prints.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawUsers from "@/lib/mock-users.json";
-import rawGramCalc from "@/lib/mock-gram-calc.json";
 import type { PrintProject, Customer, User, GramCalc } from "@/lib/supabase/types";
 
 // Dynamic Gram pricing calculation matching legacy PrintingController.php:170-183
@@ -48,12 +44,19 @@ const calculateGramAmount = (
 };
 
 export default function PrintingPage() {
-  const [prints, setPrints] = useState<PrintProject[]>(
-    rawPrints as unknown as PrintProject[]
-  );
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [users] = useState<User[]>(rawUsers as unknown as User[]);
-  const [gramTiers] = useState<GramCalc[]>(rawGramCalc as unknown as GramCalc[]);
+  const [prints, setPrints] = useState<PrintProject[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [gramTiers, setGramTiers] = useState<GramCalc[]>([]);
+  const [kpis, setKpis] = useState({
+    totalPrints: 0,
+    pendingPrints: 0,
+    dispatchedPrints: 0,
+    totalRevenue: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Role Toggle: Worker (Floor) vs Admin View (Merged PrintingController + PrintAdminController)
   const [viewMode, setViewMode] = useState<"worker" | "admin">("worker");
@@ -74,9 +77,32 @@ export default function PrintingPage() {
     description: "",
   });
 
+  const fetchPrints = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/printing");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load prints");
+      setPrints(data.prints || []);
+      setCustomers(data.customers || []);
+      setUsers(data.users || []);
+      setGramTiers(data.gramTiers || []);
+      if (data.kpis) setKpis(data.kpis);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to fetch print projects");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchPrints();
+  }, []);
+
   // Filter active staff for assignment
   const activeStaff = useMemo(() => {
-    return users.filter((u) => Number(u.status) === 1);
+    return users.filter((u) => String(u.status) === "1");
   }, [users]);
 
   // Filtered prints
@@ -87,13 +113,14 @@ export default function PrintingPage() {
         !searchQuery ||
         p.projectid?.toLowerCase().includes(q) ||
         p.description?.toLowerCase().includes(q) ||
-        p.cname?.toLowerCase().includes(q);
+        String(p.cname)?.toLowerCase().includes(q) ||
+        (p as any).customername?.toLowerCase().includes(q);
 
       const matchStatus =
         statusFilter === "ALL" || p.status === statusFilter;
 
       const matchCustomer =
-        customerFilter === "ALL" || p.cname === customerFilter;
+        customerFilter === "ALL" || String(p.cname) === customerFilter;
 
       return matchQuery && matchStatus && matchCustomer;
     });
@@ -106,113 +133,164 @@ export default function PrintingPage() {
   }, [modalForm.gram, gramTiers]);
 
   // KPIs
-  const totalJobs = prints.length;
-  const pendingJobs = prints.filter((p) => p.status === "pending").length;
-  const dispatchedJobs = prints.filter((p) => p.dispatch === 1).length;
-  const totalRevenue = prints.reduce(
+  const totalJobs = kpis.totalPrints || prints.length;
+  const pendingJobs = kpis.pendingPrints || prints.filter((p) => p.status === "pending" || !p.status).length;
+  const dispatchedJobs = kpis.dispatchedPrints || prints.filter((p) => Number(p.dispatch) === 1).length;
+  const totalRevenue = kpis.totalRevenue || prints.reduce(
     (sum, p) => sum + Number(p.ramount > 0 ? p.ramount : p.amount || 0),
     0
   );
 
-  // Handle Staff Assignment Change (Source: PrintingController.php:79-110)
-  const handleStaffChange = (
+  // Handle Staff Assignment Change (Live API PATCH)
+  const handleStaffChange = async (
     id: number,
     field: "print_by" | "qc_by",
     userId: number
   ) => {
-    setPrints((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [field]: userId } : p))
-    );
-  };
-
-  // Handle Dispatch Checkbox Toggle (Source: PrintingController.php:117-122)
-  const handleDispatchToggle = (id: number) => {
-    setPrints((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          const nextDispatch = p.dispatch === 1 ? 0 : 1;
-          return {
-            ...p,
-            dispatch: nextDispatch,
-            status: nextDispatch === 1 ? "registered" : "pending",
-          };
-        }
-        return p;
-      })
-    );
-  };
-
-  // Handle Admin Inline Real Amount Edit (Source: PrintAdminController.php:154-159)
-  const handleRamountChange = (id: number, val: number) => {
-    setPrints((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ramount: val } : p))
-    );
-  };
-
-  // Handle Admin Payment Status Toggle (Source: PrintAdminController.php:136-153)
-  const handlePaymentToggle = (id: number) => {
-    setPrints((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, payment: p.payment === 1 ? 0 : 1 } : p
-      )
-    );
-  };
-
-  // Handle Admin Delete Print Job (Source: PrintAdminController.php:168-172)
-  const handleDelete = (id: number) => {
-    if (window.confirm("Do you really want to delete this 3D print job?")) {
-      setPrints((prev) => prev.filter((p) => p.id !== id));
+    try {
+      const res = await fetch("/api/printing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field, value: userId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to assign staff");
+      }
+      setPrints((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, [field]: userId } : p))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
     }
   };
 
-  // Handle Create Print Job (Source: PrintingController.php:163-238)
-  const handleCreate = (e: React.FormEvent) => {
+  // Handle Dispatch Checkbox Toggle (Live API PATCH)
+  const handleDispatchToggle = async (id: number) => {
+    const target = prints.find((p) => p.id === id);
+    if (!target) return;
+    const nextDispatch = Number(target.dispatch) === 1 ? 0 : 1;
+    const nextStatus = nextDispatch === 1 ? "registered" : "pending";
+
+    try {
+      const res = await fetch("/api/printing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          updates: { dispatch: nextDispatch, status: nextStatus },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update dispatch");
+      }
+      setPrints((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, dispatch: nextDispatch, status: nextStatus }
+            : p
+        )
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  // Handle Admin Inline Real Amount Edit (Live API PATCH)
+  const handleRamountChange = async (id: number, val: number) => {
+    try {
+      const res = await fetch("/api/printing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field: "ramount", value: val }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update received amount");
+      }
+      setPrints((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, ramount: val } : p))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  // Handle Admin Payment Status Toggle (Live API PATCH)
+  const handlePaymentToggle = async (id: number) => {
+    const target = prints.find((p) => p.id === id);
+    if (!target) return;
+    const nextPayment = Number(target.payment) === 1 ? 0 : 1;
+
+    try {
+      const res = await fetch("/api/printing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field: "payment", value: nextPayment }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update payment");
+      }
+      setPrints((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, payment: nextPayment } : p))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  // Handle Admin Delete Print Job (Live API DELETE)
+  const handleDelete = async (id: number) => {
+    if (window.confirm("Do you really want to delete this 3D print job?")) {
+      try {
+        const res = await fetch(`/api/printing?id=${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to delete print job");
+        }
+        setPrints((prev) => prev.filter((p) => p.id !== id));
+      } catch (err: any) {
+        alert("Error: " + err.message);
+      }
+    }
+  };
+
+  // Handle Create Print Job (Live API POST)
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalForm.cname || !modalForm.description) return;
 
-    const grams = parseFloat(modalForm.gram) || 0;
-    const hours = parseFloat(modalForm.hr) || 0;
-    const preview = calculateGramAmount(grams, gramTiers);
-    const finalAmount = preview.matchedTier
-      ? preview.amount
-      : parseFloat(modalForm.customAmount) || 0;
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/printing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...modalForm,
+          manualAmount: modalForm.customAmount,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create print job");
 
-    const newId = Math.max(...prints.map((x) => x.id), 0) + 1;
-    // Sequential project ID format matching legacy Laravel: P1, P2...
-    const generatedProjectId = `P${newId}`;
-
-    const newRecord: PrintProject = {
-      id: newId,
-      cname: modalForm.cname,
-      projectid: generatedProjectId,
-      description: modalForm.description,
-      tdate: modalForm.tdate,
-      cdate: modalForm.cdate,
-      gram: grams,
-      hr: hours,
-      pr_printhr: 0,
-      amount: finalAmount,
-      ramount: 0,
-      print_by: 0,
-      qc_by: 0,
-      payment: 0,
-      dispatch: 0,
-      status: "pending",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    setPrints([newRecord, ...prints]);
-    setIsModalOpen(false);
-    setModalForm({
-      cname: "",
-      tdate: new Date().toISOString().split("T")[0],
-      cdate: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
-      gram: "",
-      hr: "",
-      customAmount: "",
-      description: "",
-    });
+      await fetchPrints();
+      setIsModalOpen(false);
+      setModalForm({
+        cname: "",
+        tdate: new Date().toISOString().split("T")[0],
+        cdate: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
+        gram: "",
+        hr: "",
+        customAmount: "",
+        description: "",
+      });
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Export CSV

@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -22,6 +22,9 @@ import {
   FileDown,
   ChevronRight,
   Factory,
+  RotateCcw,
+  LogOut,
+  User as UserIcon,
 } from "lucide-react";
 
 export interface NavItem {
@@ -29,7 +32,7 @@ export interface NavItem {
   href: string;
   icon: React.ElementType;
   badge?: string;
-  roles?: string[];
+  allowedRoles: number[]; // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker
 }
 
 export const navigationItems: NavItem[] = [
@@ -37,81 +40,103 @@ export const navigationItems: NavItem[] = [
     title: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
+    allowedRoles: [0, 1, 2, 3, 4],
   },
   {
     title: "Customer / Vendor",
     href: "/customer",
     icon: Users,
+    allowedRoles: [0, 1],
   },
   {
-    title: "Subplate",
+    title: "Subplate Master",
     href: "/subplate",
     icon: Layers,
+    allowedRoles: [0, 1, 2, 3],
   },
   {
-    title: "Scanning",
+    title: "Scanning / Moulds",
     href: "/scanning",
     icon: Scan,
+    allowedRoles: [0, 1, 2, 3, 4],
   },
   {
-    title: "Printing",
+    title: "Printing (Dispatch)",
     href: "/printing",
     icon: Printer,
+    allowedRoles: [0, 1, 2],
   },
   {
-    title: "Purchase",
+    title: "Purchase Order",
     href: "/purchase",
     icon: ShoppingCart,
+    allowedRoles: [0, 1, 2],
   },
   {
     title: "Purchase Inward",
     href: "/purchase-inward",
     icon: PackagePlus,
+    allowedRoles: [0, 1, 2],
   },
   {
     title: "Challan (Outward)",
     href: "/challan",
     icon: ArrowUpRight,
+    allowedRoles: [0, 1, 2],
   },
   {
-    title: "Dispatch",
+    title: "Dispatch (Final)",
     href: "/dispatch",
     icon: Truck,
+    allowedRoles: [0, 1, 2],
   },
   {
     title: "Inward (Return)",
     href: "/inward",
     icon: ArrowDownLeft,
+    allowedRoles: [0, 1, 2],
   },
   {
     title: "Work / Worklog",
     href: "/work",
     icon: Briefcase,
+    allowedRoles: [0, 1, 2, 3, 4],
   },
   {
-    title: "Expense",
+    title: "Sample / Rework",
+    href: "/sample",
+    icon: RotateCcw,
+    allowedRoles: [0, 1, 2, 3],
+  },
+  {
+    title: "Expense & Finance",
     href: "/expense",
     icon: Receipt,
+    allowedRoles: [0, 1],
   },
   {
     title: "Gram Master",
     href: "/gram",
     icon: Scale,
+    allowedRoles: [0, 1],
   },
   {
     title: "User Management",
     href: "/user",
     icon: ShieldCheck,
+    allowedRoles: [0], // Admin only
   },
   {
-    title: "Reports",
+    title: "Reports & Downtime",
     href: "/report",
     icon: BarChart3,
+    allowedRoles: [0, 1, 2],
   },
   {
-    title: "Export",
+    title: "Export Streams",
     href: "/export",
     icon: FileDown,
+    allowedRoles: [0, 1],
   },
 ];
 
@@ -122,6 +147,36 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed = false }: SidebarProps) {
   const pathname = usePathname();
+  const [currentUser, setCurrentUser] = useState<{
+    id: number;
+    name: string;
+    username: string;
+    role_id: number;
+    role: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.user) {
+          setCurrentUser(data.user);
+        }
+      })
+      .catch((err) => console.error("Error loading session:", err));
+  }, []);
+
+  const userRoleId = currentUser?.role_id ?? 0;
+
+  // Filter menu items by user role
+  const visibleItems = navigationItems.filter((item) =>
+    item.allowedRoles.includes(userRoleId)
+  );
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  };
 
   return (
     <aside
@@ -148,15 +203,20 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
 
       {/* Navigation Links Scrollable Area */}
       <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1 scrollbar-thin">
-        <div className="px-2 pb-2">
+        <div className="px-2 pb-2 flex items-center justify-between">
           {!collapsed && (
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-              Core Modules
-            </p>
+            <>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                Core Modules
+              </p>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                {currentUser?.role || "Admin"}
+              </span>
+            </>
           )}
         </div>
 
-        {navigationItems.map((item) => {
+        {visibleItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
 
@@ -187,17 +247,40 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
         })}
       </div>
 
-      {/* Sidebar Footer / System Badge */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-950/40">
+      {/* Sidebar Footer / User Profile & Logout */}
+      <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
         {!collapsed ? (
-          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-slate-800/50 text-[11px] text-slate-400">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="truncate">Production Live</span>
-            <span className="ml-auto text-[10px] text-slate-400">v2.0</span>
+          <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-800/50 text-xs">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="h-7 w-7 rounded-full bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300 flex-shrink-0">
+                <UserIcon className="h-3.5 w-3.5" />
+              </div>
+              <div className="overflow-hidden">
+                <p className="font-semibold text-white truncate text-[11px]">
+                  {currentUser?.name || "Administrator"}
+                </p>
+                <p className="text-[10px] text-slate-400 truncate">
+                  Role {userRoleId}: {currentUser?.role || "Admin"}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded transition cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" title="System Live" />
+            <button
+              onClick={handleLogout}
+              className="p-2 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
           </div>
         )}
       </div>

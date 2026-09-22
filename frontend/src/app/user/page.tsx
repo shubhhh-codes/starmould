@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   ShieldCheck,
@@ -24,8 +24,9 @@ import {
   Eye,
   EyeOff,
   Lock,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
-import rawUsers from "@/lib/mock-users.json";
 import {
   ROLES_TABLE,
   ALL_ROLES,
@@ -54,46 +55,48 @@ export interface UserRecord {
 }
 
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<UserRecord[]>(rawUsers as UserRecord[]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("All");
   const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "Inactive">("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
-  // Live Supabase fetch from profiles
-  const fetchUsers = async () => {
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => {
+      setNotification((curr) => (curr?.message === message ? null : curr));
+    }, 4000);
+  };
+
+  // Live Supabase fetch from users table
+  const fetchUsers = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch("/api/users");
       const data = await res.json();
-      if (data.users && data.users.length > 0) {
-        const formatted = data.users.map((u: any) => ({
-          id: u.mysql_id ?? u.id,
-          name: u.name,
-          username: u.username,
-          initials: u.initials,
-          email: u.email,
-          usertype: u.usertype,
-          usersubtype: u.usersubtype,
-          role_id: Number(u.role ?? 4),
-          status: Number(u.status ?? 1),
-          created_at: u.created_at,
-          updated_at: u.updated_at,
-        }));
-        setUsers(formatted);
+      if (res.ok && Array.isArray(data.users)) {
+        setUsers(data.users);
+      } else {
+        showNotification("error", data.error || "Failed to load users from database");
       }
-    } catch (err) {
-      console.error("Failed to load live users from Supabase:", err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load users";
+      showNotification("error", msg);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  React.useEffect(() => {
-    fetchUsers();
   }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -126,6 +129,7 @@ export default function UserManagementPage() {
   const [initialError, setInitialError] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Filter and search
   const filteredUsers = useMemo(() => {
@@ -142,10 +146,10 @@ export default function UserManagementPage() {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
-        u.name.toLowerCase().includes(q) ||
-        u.username.toLowerCase().includes(q) ||
-        u.initials.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q)
+        (u.name && u.name.toLowerCase().includes(q)) ||
+        (u.username && u.username.toLowerCase().includes(q)) ||
+        (u.initials && u.initials.toLowerCase().includes(q)) ||
+        (u.email && u.email.toLowerCase().includes(q))
       );
     });
   }, [users, selectedRoleFilter, statusFilter, searchQuery]);
@@ -221,7 +225,7 @@ export default function UserManagementPage() {
     }
     const currentId = selectedUser?.id;
     const exists = users.some(
-      (u) => u.initials.toUpperCase() === clean && u.id !== currentId
+      (u) => u.initials && u.initials.toUpperCase() === clean && u.id !== currentId
     );
     if (exists) {
       setInitialError("Initial already exists!");
@@ -241,6 +245,7 @@ export default function UserManagementPage() {
     const currentId = selectedUser?.id;
     const exists = users.some(
       (u) =>
+        u.username &&
         u.username.trim().toLowerCase() === clean.toLowerCase() &&
         u.id !== currentId
     );
@@ -253,11 +258,7 @@ export default function UserManagementPage() {
   };
 
   // Usertype change handler with auto-subtype rule
-  // Source: UserController.php lines 75-80:
-  // "if ($request->usertype == 'Admin' || $request->usertype == 'Manager' ||
-  //      $request->usertype == 'Supervisor' || $request->usertype == 'Designer') {
-  //     $model->usersubtype = 'Skilled MP';
-  //  }"
+  // Source: UserController.php lines 75-80
   const handleUsertypeChange = (newUsertype: UserType) => {
     const autoSubtype = getAutoUserSubtype(newUsertype);
     setFormData((prev) => ({
@@ -267,71 +268,99 @@ export default function UserManagementPage() {
     }));
   };
 
-  // Toggle user status (Active/Inactive)
-  const handleToggleStatus = (user: UserRecord) => {
+  // Toggle user status (Active/Inactive) via live API
+  const handleToggleStatus = async (user: UserRecord) => {
     const newStatus = user.status === 1 ? 0 : 1;
-    setUsers((prev) =>
-      prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
-    );
+    try {
+      const res = await fetch("/api/users", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user.id, status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showNotification("error", data.error || "Failed to update status");
+        return;
+      }
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
+      );
+      showNotification("success", `User "${user.name}" status set to ${newStatus === 1 ? "Active" : "Inactive"}.`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to toggle status";
+      showNotification("error", msg);
+    }
   };
 
-  // Submit form
-  const handleSubmitForm = (e: React.FormEvent) => {
+  // Submit form to live API
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateInitials(formData.initials)) return;
     if (!validateUsername(formData.username)) return;
 
-    // Role assignment using Phase 1 roles table definition via getRoleForUserType
-    // Source: UserController.php store() lines 81-95 mapped cleanly to roles table
-    const assignedRole = getRoleForUserType(formData.usertype);
-
-    // Auto-set usersubtype check
-    const finalSubtype =
-      getAutoUserSubtype(formData.usertype) || formData.usersubtype;
-
-    if (modalMode === "add") {
-      const newUser: UserRecord = {
-        id: Math.max(...users.map((u) => u.id), 0) + 1,
-        name: formData.name.trim(),
-        username: formData.username.trim(),
-        initials: formData.initials.trim().toUpperCase(),
-        email: formData.email.trim(),
-        usertype: formData.usertype,
-        usersubtype: finalSubtype,
-        role_id: assignedRole.id, // Using roles table foreign key
-        status: formData.status,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setUsers([newUser, ...users]);
-    } else if (modalMode === "edit" && selectedUser) {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === selectedUser.id
-            ? {
-                ...u,
-                name: formData.name.trim(),
-                username: formData.username.trim(),
-                initials: formData.initials.trim().toUpperCase(),
-                email: formData.email.trim(),
-                usertype: formData.usertype,
-                usersubtype: finalSubtype,
-                role_id: assignedRole.id,
-                status: formData.status,
-                updated_at: new Date().toISOString(),
-              }
-            : u
-        )
-      );
+    try {
+      setIsSubmitting(true);
+      if (modalMode === "add") {
+        const res = await fetch("/api/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          showNotification("error", result.error || "Failed to create user");
+          return;
+        }
+        setUsers((prev) => [...prev, result.user]);
+        showNotification("success", `User "${result.user.name}" created successfully.`);
+        setIsModalOpen(false);
+      } else if (modalMode === "edit" && selectedUser) {
+        const res = await fetch("/api/users", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          showNotification("error", result.error || "Failed to update user");
+          return;
+        }
+        setUsers((prev) =>
+          prev.map((u) => (u.id === selectedUser.id ? result.user : u))
+        );
+        showNotification("success", `User "${result.user.name}" updated successfully.`);
+        setIsModalOpen(false);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error saving user";
+      showNotification("error", msg);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  // Soft delete user
-  const handleConfirmDelete = () => {
+  // Soft delete user via live API
+  const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/users?id=${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showNotification("error", result.error || "Failed to delete user");
+        return;
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      showNotification("success", `User "${deleteTarget.name}" deleted successfully.`);
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error deleting user";
+      showNotification("error", msg);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Export CSV (Never includes passwords!)
@@ -351,12 +380,12 @@ export default function UserManagementPage() {
       const roleDef = getRoleById(u.role_id);
       return [
         u.id,
-        `"${u.name.replace(/"/g, '""')}"`,
-        `"${u.username.replace(/"/g, '""')}"`,
-        `"${u.initials}"`,
-        `"${u.usertype}"`,
-        `"${u.usersubtype}"`,
-        `"${u.email}"`,
+        `"${(u.name || "").replace(/"/g, '""')}"`,
+        `"${(u.username || "").replace(/"/g, '""')}"`,
+        `"${u.initials || ""}"`,
+        `"${u.usertype || ""}"`,
+        `"${u.usersubtype || ""}"`,
+        `"${u.email || ""}"`,
         `"${roleDef.display_name} (id:${roleDef.id})"`,
         u.status === 1 ? "Active" : "Inactive",
       ];
@@ -381,6 +410,30 @@ export default function UserManagementPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Toast Notification */}
+        {notification && (
+          <div
+            className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
+              notification.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                : "bg-rose-50 dark:bg-rose-950/80 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+            }`}
+          >
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            )}
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Module Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -392,8 +445,9 @@ export default function UserManagementPage() {
             </div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               User Management
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300">
-                `users` & `roles` Tables
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Live `users` Table
               </span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -401,6 +455,7 @@ export default function UserManagementPage() {
             </p>
           </div>
         </div>
+
         {/* Top Control Bar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* User Type / Role Filter Pills */}
@@ -438,6 +493,15 @@ export default function UserManagementPage() {
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={fetchUsers}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
+              title="Refresh users list from database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
             <button
               onClick={handleExportCSV}
               className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm"
@@ -532,7 +596,7 @@ export default function UserManagementPage() {
           </div>
         </div>
 
-        {/* User Table (Replicates legacy datatable-buttons5 without plaintext passwords) */}
+        {/* User Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -549,7 +613,16 @@ export default function UserManagementPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                {paginatedUsers.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="py-16 text-center text-slate-400">
+                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
+                      <p className="font-medium text-slate-600 dark:text-slate-300">
+                        Loading users from database...
+                      </p>
+                    </td>
+                  </tr>
+                ) : paginatedUsers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-400">
                       <User className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -574,7 +647,7 @@ export default function UserManagementPage() {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[11px] shrink-0 border border-blue-200/60 dark:border-blue-900">
-                              {u.initials.slice(0, 2) || "U"}
+                              {(u.initials || "U").slice(0, 2)}
                             </div>
                             <div>
                               <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
@@ -600,7 +673,7 @@ export default function UserManagementPage() {
                         {/* Initials */}
                         <td className="py-3 px-3 text-center">
                           <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            {u.initials}
+                            {u.initials || "—"}
                           </span>
                         </td>
 
@@ -725,7 +798,7 @@ export default function UserManagementPage() {
                     {modalMode === "add" ? "Add New User" : "Edit User Profile"}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Source: user.store / user.updatedata
+                    Source: UserController.php store() / updateuser()
                   </p>
                 </div>
                 <button
@@ -837,7 +910,7 @@ export default function UserManagementPage() {
                   />
                 </div>
 
-                {/* Password: WRITE-ONLY. Replaces the old plaintext password2 security flaw! */}
+                {/* Password: WRITE-ONLY */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
@@ -892,7 +965,6 @@ export default function UserManagementPage() {
                     <label className="font-medium text-slate-700 dark:text-slate-300">
                       User Type <span className="text-rose-500">*</span>
                     </label>
-                    {/* Role mapping badge using Phase 1 roles table */}
                     {(() => {
                       const assigned = getRoleForUserType(formData.usertype);
                       return (
@@ -901,8 +973,7 @@ export default function UserManagementPage() {
                         >
                           <Shield className="w-3 h-3" />
                           <span>
-                            Mapped to Roles Table: {assigned.display_name} (id:
-                            {assigned.id})
+                            Mapped to Roles Table: {assigned.display_name} (id: {assigned.id})
                           </span>
                         </span>
                       );
@@ -935,7 +1006,7 @@ export default function UserManagementPage() {
                   </div>
                 </div>
 
-                {/* User Subtype (Auto-forced to 'Skilled MP' when usertype is Admin/Manager/Supervisor/Designer) */}
+                {/* User Subtype */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="font-medium text-slate-700 dark:text-slate-300">
@@ -1029,9 +1100,11 @@ export default function UserManagementPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    {modalMode === "add" ? "Create User" : "Update Profile"}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{modalMode === "add" ? "Create User" : "Update Profile"}</span>
                   </button>
                 </div>
               </form>
@@ -1063,8 +1136,7 @@ export default function UserManagementPage() {
                 <span className="font-semibold text-slate-900 dark:text-white">
                   "{deleteTarget.name}"
                 </span>{" "}
-                (@{deleteTarget.username})? This user will be soft deleted and
-                marked with a timestamp.
+                (@{deleteTarget.username})? This user will be soft deleted and marked with a timestamp.
               </p>
               <div className="flex items-center justify-end gap-2">
                 <button
@@ -1076,10 +1148,12 @@ export default function UserManagementPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={isDeleting}
                   onClick={handleConfirmDelete}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg shadow-sm"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  Yes, Delete User
+                  {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Yes, Delete User</span>
                 </button>
               </div>
             </div>

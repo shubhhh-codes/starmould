@@ -21,11 +21,6 @@ import {
   Wrench,
   ChevronRight,
 } from "lucide-react";
-import rawWorklogs from "@/lib/mock-worklogs.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawScans from "@/lib/mock-scans.json";
-import rawSubplates from "@/lib/mock-subplates.json";
-import rawUsers from "@/lib/mock-users.json";
 import type {
   Worklog,
   Customer,
@@ -47,13 +42,13 @@ const formatDateStr = (dateVal: string | null | undefined): string => {
 // Helper to parse HH:MM:SS to total minutes
 const parseDurationMinutes = (duration: string | null | undefined): number => {
   if (!duration) return 0;
-  const parts = duration.split(":");
+  const parts = String(duration).split(":");
   if (parts.length >= 2) {
     const hours = parseInt(parts[0], 10) || 0;
     const minutes = parseInt(parts[1], 10) || 0;
     return hours * 60 + minutes;
   }
-  return 0;
+  return Number(duration) * 60 || 0;
 };
 
 // Helper to format minutes to HH:MM (Source: WorkController.php:53-55)
@@ -64,13 +59,15 @@ const formatMinutesToHHMM = (totalMinutes: number): string => {
 };
 
 export default function WorkPage() {
-  const [worklogs, setWorklogs] = useState<Worklog[]>(
-    rawWorklogs as unknown as Worklog[]
-  );
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [scans] = useState<ScanProject[]>(rawScans as unknown as ScanProject[]);
-  const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
-  const [users] = useState<User[]>(rawUsers as unknown as User[]);
+  const [worklogs, setWorklogs] = useState<Worklog[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [scans, setScans] = useState<ScanProject[]>([]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [kpis, setKpis] = useState<Record<string, any>>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Active Tab: 1. Daily Worklog, 2. Master Worklist (workdata), 3. Dept Breakdown (pendingwork)
   const [activeTab, setActiveTab] = useState<"daily" | "history" | "breakdown">(
@@ -106,9 +103,33 @@ export default function WorkPage() {
     qc_hr: "0",
   });
 
+  const fetchWorklogs = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/worklog");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load worklogs");
+      setWorklogs(data.worklogs || []);
+      setCustomers(data.customers || []);
+      setUsers(data.users || []);
+      setScans(data.scans || []);
+      setSubplates(data.subplates || []);
+      if (data.kpis) setKpis(data.kpis);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to fetch worklogs");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchWorklogs();
+  }, []);
+
   // Active staff
   const activeStaff = useMemo(() => {
-    return users.filter((u) => u.status === 1 || (u.status as unknown as string) === "1");
+    return users.filter((u) => String(u.status) === "1");
   }, [users]);
 
   // Moulds filtered for selected customer in modal
@@ -117,7 +138,7 @@ export default function WorkPage() {
     return scans.filter(
       (s) =>
         String(s.cname) === modalForm.customerid ||
-        s.customername === modalForm.customerid
+        (s as any).customername === modalForm.customerid
     );
   }, [modalForm.customerid, scans]);
 
@@ -183,7 +204,8 @@ export default function WorkPage() {
         w.projectid?.toLowerCase().includes(q) ||
         w.subplateid?.toLowerCase().includes(q) ||
         w.workdescription?.toLowerCase().includes(q) ||
-        w.customername?.toLowerCase().includes(q) ||
+        (w as any).customername?.toLowerCase().includes(q) ||
+        (w as any).workername?.toLowerCase().includes(q) ||
         w.username?.toLowerCase().includes(q);
 
       const matchCust =
@@ -219,8 +241,8 @@ export default function WorkPage() {
       const uid = w.userid || 0;
       const current = userMap.get(uid) || {
         userId: uid,
-        username: w.username || `User #${uid}`,
-        userinitials: w.userinitials || "SM",
+        username: (w as any).workername || w.username || `User #${uid}`,
+        userinitials: (w as any).worker_initials || w.userinitials || "SM",
         workMinutes: 0,
         designHr: 0,
         programHr: 0,
@@ -244,60 +266,47 @@ export default function WorkPage() {
     return Array.from(userMap.values());
   }, [worklogs]);
 
-  // Handle Add Work Form Submit (Source: WorkController.php:1340-1389)
-  const handleCreate = (e: React.FormEvent) => {
+  // Handle Add Work Form Submit (Live API POST)
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalForm.customerid || !modalForm.projectid) return;
 
-    const selectedCust = customers.find(
-      (c) => String(c.id) === modalForm.customerid
-    );
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/worklog", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...modalForm,
+          work_hr: calculatedDuration,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create worklog");
 
-    const newId = Math.max(...worklogs.map((x) => x.id), 0) + 1;
-    const newEntry: Worklog = {
-      id: newId,
-      scan_print_id: selectedMould?.id || 0,
-      customerid: Number(modalForm.customerid),
-      customername: selectedCust?.customername || "Client",
-      projectid: modalForm.projectid,
-      subplateid: modalForm.subplateid || null,
-      work_hr: `${calculatedDuration}:00`,
-      sdate: `${modalForm.sdate}T${modalForm.starttime}:00.000Z`,
-      edate: `${modalForm.edate}T${modalForm.endtime}:00.000Z`,
-      starttime: `${modalForm.starttime}:00`,
-      endtime: `${modalForm.endtime}:00`,
-      workdescription: modalForm.workdescription,
-      design_hr: parseFloat(modalForm.design_hr) || 0,
-      program_hr: parseFloat(modalForm.program_hr) || 0,
-      machine_hr: parseFloat(modalForm.machine_hr) || 0,
-      driltap_hr: parseFloat(modalForm.driltap_hr) || 0,
-      qc_hr: parseFloat(modalForm.qc_hr) || 0,
-      userid: 1, // Current active user / admin
-      rdate: `${modalForm.rdate}T00:00:00.000Z`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      username: "Administrator",
-      userinitials: "ADM",
-    };
-
-    setWorklogs([newEntry, ...worklogs]);
-    setIsModalOpen(false);
-    setModalForm({
-      rdate: new Date().toISOString().split("T")[0],
-      customerid: "",
-      projectid: "",
-      subplateid: "",
-      workdescription: "",
-      sdate: new Date().toISOString().split("T")[0],
-      edate: new Date().toISOString().split("T")[0],
-      starttime: "09:00",
-      endtime: "17:30",
-      design_hr: "0",
-      program_hr: "0",
-      machine_hr: "0",
-      driltap_hr: "0",
-      qc_hr: "0",
-    });
+      await fetchWorklogs();
+      setIsModalOpen(false);
+      setModalForm({
+        rdate: new Date().toISOString().split("T")[0],
+        customerid: "",
+        projectid: "",
+        subplateid: "",
+        workdescription: "",
+        sdate: new Date().toISOString().split("T")[0],
+        edate: new Date().toISOString().split("T")[0],
+        starttime: "09:00",
+        endtime: "17:30",
+        design_hr: "0",
+        program_hr: "0",
+        machine_hr: "0",
+        driltap_hr: "0",
+        qc_hr: "0",
+      });
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Export CSV

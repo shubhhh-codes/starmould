@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   FileDown,
@@ -13,6 +13,7 @@ import {
   Briefcase,
   CheckCircle2,
   DownloadCloud,
+  RefreshCw,
 } from "lucide-react";
 
 export interface ExportDataset {
@@ -22,7 +23,6 @@ export interface ExportDataset {
   filename: string;
   description: string;
   queryFilter: string;
-  recordCount: number;
   icon: React.ElementType;
   columns: string[];
 }
@@ -33,10 +33,9 @@ export const exportDatasets: ExportDataset[] = [
     id: "export",
     method: "export()",
     title: "Active Purchases",
-    filename: "purchase.xlsx",
+    filename: "purchase.csv",
     description: "Purchase orders with purchaseItems and customer data where status = '1'.",
     queryFilter: "PurchaseModel::with('purchaseItems','customer')->where('status', '1')",
-    recordCount: 2946,
     icon: ShoppingCart,
     columns: ["PO No", "Customer", "Vendor", "Order Date", "Material", "Type", "Qty", "Status"],
   },
@@ -44,10 +43,9 @@ export const exportDatasets: ExportDataset[] = [
     id: "exportmould",
     method: "exportmould()",
     title: "Pending Mould Dashboard",
-    filename: "dashboard.xlsx",
+    filename: "dashboard.csv",
     description: "Active moulds with subPlates where worktype <> 'Sample' and status = 'pending'.",
     queryFilter: "ScanningModel::with('subPlates')->where('worktype','<>','Sample')->where('status','pending')",
-    recordCount: 1359,
     icon: Layers,
     columns: ["ID", "Project Code", "Customer", "Description", "Work Type", "RDate", "CDate", "Plates Count"],
   },
@@ -55,10 +53,9 @@ export const exportDatasets: ExportDataset[] = [
     id: "exportmouldreg",
     method: "exportmouldreg()",
     title: "Project Register",
-    filename: "project register.xlsx",
+    filename: "project_register.csv",
     description: "Registered projects with subPlates and customer where worktype <> 'Sample' and status = 'registered'.",
     queryFilter: "ScanningModel::with(['subPlates','customer'])->where('worktype','<>','Sample')->where('status','registered')",
-    recordCount: 842,
     icon: Briefcase,
     columns: ["ID", "Project Code", "Customer", "Description", "Amount", "QC By", "Status"],
   },
@@ -66,10 +63,9 @@ export const exportDatasets: ExportDataset[] = [
     id: "exportpurchaserec",
     method: "exportpurchaserec()",
     title: "Pending Purchase Receive",
-    filename: "pending purchase receive.xlsx",
+    filename: "pending_purchase_receive.csv",
     description: "PO Inward items with purchaseinwardItems and customer where pending_qty != 0 (`view_po_pending_inward_qty`).",
     queryFilter: "ViewPurchaseModel::with('purchaseinwardItems','customer')->where('pending_qty','!=', 0)->groupBy('id')",
-    recordCount: 428,
     icon: PackagePlus,
     columns: ["PO ID", "Customer", "Vendor", "Material", "Ordered Qty", "Inward Qty", "Pending Qty"],
   },
@@ -77,10 +73,9 @@ export const exportDatasets: ExportDataset[] = [
     id: "exportoutward",
     method: "exportoutward()",
     title: "Outward Challan",
-    filename: "outward.xlsx",
+    filename: "outward.csv",
     description: "Outward delivery challans with outwardItems where status = '1'.",
     queryFilter: "ChallanModel::with('outwardItems')->where('status','1')",
-    recordCount: 1667,
     icon: ArrowUpRight,
     columns: ["Challan ID", "Challan No", "Customer", "Vendor", "Transporter", "Date", "Items Qty"],
   },
@@ -88,10 +83,9 @@ export const exportDatasets: ExportDataset[] = [
     id: "exportdispatchchallan",
     method: "exportdispatchchallan()",
     title: "Dispatch Challan",
-    filename: "DispatchChallan.xlsx",
+    filename: "DispatchChallan.csv",
     description: "Finished goods dispatch challans with outwardItems where status = '1'.",
     queryFilter: "DispatchModel::with('outwardItems')->where('status','1')",
-    recordCount: 143,
     icon: Truck,
     columns: ["ID", "Challan No", "Invoice No", "Customer", "Vehicle No", "Delivery Type", "Cases", "Status"],
   },
@@ -99,10 +93,9 @@ export const exportDatasets: ExportDataset[] = [
     id: "exportpendingoutward",
     method: "exportpendingoutward()",
     title: "Pending Outward (Inward Return)",
-    filename: "pending outward.xlsx",
+    filename: "pending_outward.csv",
     description: "Jobwork items with pendingoutwardItems and customer where pending_qty != 0 (`view_pending_inward_qty`).",
     queryFilter: "ViewModel::with('pendingoutwardItems','customer')->where('pending_qty','!=', 0)->groupBy('id')",
-    recordCount: 312,
     icon: Layers,
     columns: ["Challan ID", "Challan No", "Customer", "Vendor", "Plate Name", "Sent Qty", "Received Qty", "Pending Qty"],
   },
@@ -111,25 +104,52 @@ export const exportDatasets: ExportDataset[] = [
 export default function ExportPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [isLoadingCounts, setIsLoadingCounts] = useState(true);
 
-  const handleExport = (dataset: ExportDataset) => {
+  const fetchCounts = async () => {
+    try {
+      setIsLoadingCounts(true);
+      const res = await fetch("/api/export?type=counts");
+      const data = await res.json();
+      if (data.counts) {
+        setCounts(data.counts);
+      }
+    } catch (e) {
+      console.error("Failed to fetch export counts:", e);
+    } finally {
+      setIsLoadingCounts(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCounts();
+  }, []);
+
+  const handleExport = async (dataset: ExportDataset) => {
     setDownloadingId(dataset.id);
-    setTimeout(() => {
-      // Generate clean CSV representation
-      const headers = dataset.columns.join(",");
-      const sampleRow = dataset.columns.map((col) => `"${col} Sample"`).join(",");
-      const csvData = "data:text/csv;charset=utf-8," + [headers, sampleRow, sampleRow].join("\n");
-      const link = document.createElement("a");
-      link.setAttribute("href", encodeURI(csvData));
-      link.setAttribute("download", dataset.filename.replace(".xlsx", ".csv"));
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    try {
+      const response = await fetch(`/api/export?type=${dataset.id}`);
+      if (!response.ok) throw new Error("Export failed");
 
-      setDownloadingId(null);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = dataset.filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
       setDownloadSuccess(dataset.id);
       setTimeout(() => setDownloadSuccess(null), 2500);
-    }, 500);
+    } catch (err) {
+      console.error("Export error:", err);
+      alert("Failed to download export from database.");
+    } finally {
+      setDownloadingId(null);
+    }
   };
 
   return (
@@ -141,18 +161,28 @@ export default function ExportPage() {
             <FileDown className="h-3.5 w-3.5 text-blue-600" />
             <span>Reports & Exports</span>
             <span>/</span>
-            <span className="text-slate-600">Export Center</span>
+            <span className="text-slate-600 dark:text-slate-300">Export Center</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             Data Exports
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono">
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               7 Standard Exports (ExportController.php)
             </span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Exact 1:1 parity with legacy `ExportController.php` methods and target spreadsheet filenames.
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Exact 1:1 parity with legacy `ExportController.php` methods and target spreadsheet datasets.
           </p>
         </div>
+
+        <button
+          onClick={fetchCounts}
+          disabled={isLoadingCounts}
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoadingCounts ? "animate-spin" : ""}`} />
+          <span>Refresh Counts</span>
+        </button>
       </div>
 
       {/* Grid of the 7 Exact Exports */}
@@ -161,43 +191,44 @@ export default function ExportPage() {
           const Icon = dataset.icon;
           const isDownloading = downloadingId === dataset.id;
           const isSuccess = downloadSuccess === dataset.id;
+          const recordCount = counts[dataset.id];
 
           return (
             <div
               key={dataset.id}
-              className="bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between"
+              className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between"
             >
               <div>
                 {/* Header */}
                 <div className="flex items-start justify-between gap-3 mb-2.5">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex-shrink-0">
+                    <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900 flex-shrink-0">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
                         {dataset.title}
                       </h3>
-                      <span className="font-mono text-[10px] text-blue-600 font-medium">
+                      <span className="font-mono text-[10px] text-blue-600 dark:text-blue-400 font-medium">
                         {dataset.method}
                       </span>
                     </div>
                   </div>
-                  <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-semibold">
-                    {dataset.filename}
+                  <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-semibold">
+                    {isLoadingCounts ? "..." : `${recordCount ?? 0} rows`}
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-600 mb-3 leading-relaxed">
+                <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 leading-relaxed">
                   {dataset.description}
                 </p>
 
                 {/* Underlying Query Info */}
-                <div className="p-2 rounded bg-slate-50 border border-slate-100 mb-4">
+                <div className="p-2 rounded bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 mb-4">
                   <div className="text-[10px] font-semibold text-slate-400 uppercase">
                     Query Filter Contract
                   </div>
-                  <code className="text-[10px] text-slate-700 font-mono break-all block mt-0.5">
+                  <code className="text-[10px] text-slate-700 dark:text-slate-300 font-mono break-all block mt-0.5">
                     {dataset.queryFilter}
                   </code>
                 </div>
@@ -210,7 +241,7 @@ export default function ExportPage() {
                 className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-xs font-semibold transition-all shadow-xs cursor-pointer ${
                   isSuccess
                     ? "bg-emerald-600 text-white"
-                    : "bg-slate-900 hover:bg-slate-800 text-white"
+                    : "bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 text-white"
                 }`}
               >
                 {isSuccess ? (
@@ -221,7 +252,7 @@ export default function ExportPage() {
                 ) : isDownloading ? (
                   <>
                     <DownloadCloud className="h-3.5 w-3.5 animate-bounce" />
-                    <span>Generating {dataset.filename}...</span>
+                    <span>Streaming {dataset.filename}...</span>
                   </>
                 ) : (
                   <>

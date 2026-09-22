@@ -18,24 +18,21 @@ import {
   Layers,
   ArrowRight,
 } from "lucide-react";
-import rawSamples from "@/lib/mock-samples.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawUsers from "@/lib/mock-users.json";
 import type { ScanProject, Customer, User } from "@/lib/supabase/types";
 
 export default function SampleReworkPage() {
-  const [projects, setProjects] = useState<ScanProject[]>(
-    rawSamples as unknown as ScanProject[]
-  );
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [users] = useState<User[]>(rawUsers as unknown as User[]);
+  const [projects, setProjects] = useState<ScanProject[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<"Sample" | "Rework">("Sample");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [customerFilter, setCustomerFilter] = useState<string>("ALL");
 
-  // Modal State for Add Sample / Rework Project
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalForm, setModalForm] = useState({
     rdate: new Date().toISOString().split("T")[0],
@@ -47,7 +44,30 @@ export default function SampleReworkPage() {
     qc_by: "0",
     modeldesign_by: "0",
     amount: "0",
+    note: "",
+    subnote: "",
   });
+
+  const fetchSampleData = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/sample");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load projects");
+      setProjects(data.projects || []);
+      setCustomers(data.customers || []);
+      setUsers(data.users || []);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to fetch sample data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchSampleData();
+  }, []);
 
   // Filtered by active tab (Sample vs Rework) (Source: SampleController.php:45, 37)
   const tabProjects = useMemo(() => {
@@ -82,75 +102,91 @@ export default function SampleReworkPage() {
 
   // Active workers for assignment (Source: SampleController.php:75, 93)
   const activeStaff = useMemo(() => {
-    return users.filter((u) => Number(u.status) === 1);
+    return users.filter((u) => String(u.status) === "1");
   }, [users]);
 
-  // Handle Quick Status Change
-  const handleStatusChange = (
+  // Handle Quick Status Change (Live API PATCH)
+  const handleStatusChange = async (
     id: number,
     newStatus: "pending" | "registered" | "completed"
   ) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
-    );
+    try {
+      const res = await fetch("/api/sample", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field: "status", value: newStatus }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update status");
+      }
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
   };
 
-  // Handle Staff Assignment Change
-  const handleStaffChange = (
+  // Handle Staff Assignment Change (Live API PATCH - changestatusscan)
+  const handleStaffChange = async (
     id: number,
     field: "scan_by" | "qc_by" | "modeldesign_by",
     userId: number
   ) => {
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, [field]: userId } : p))
-    );
+    try {
+      const res = await fetch("/api/sample", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field, value: userId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update staff assignment");
+      }
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, [field]: userId } : p))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
   };
 
-  // Handle Add Form Submit
-  const handleCreate = (e: React.FormEvent) => {
+  // Handle Add Form Submit (Live API POST)
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalForm.cname || !modalForm.description) return;
 
-    const selectedCust = customers.find(
-      (c) => String(c.id) === modalForm.cname || c.customername === modalForm.cname
-    );
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/sample", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modalForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create order");
 
-    const newId = Math.max(...projects.map((x) => x.id), 0) + 1;
-    const prefix = modalForm.worktype === "Sample" ? "SMP" : "RWK";
-    const generatedProjectId = `${String(newId).padStart(4, "0")}_${
-      selectedCust?.initials || "GEN"
-    }_001`;
-
-    const newRecord: ScanProject = {
-      id: newId,
-      projectid: generatedProjectId,
-      cname: modalForm.cname,
-      customername: selectedCust?.customername || "Direct Client",
-      description: modalForm.description,
-      worktype: modalForm.worktype,
-      rdate: modalForm.rdate,
-      cdate: modalForm.cdate,
-      dispatchdate: modalForm.cdate,
-      scan_by: Number(modalForm.scan_by),
-      qc_by: Number(modalForm.qc_by),
-      modeldesign_by: Number(modalForm.modeldesign_by),
-      payment: 0,
-      mail_done: 0,
-      scan_hr: 0,
-      model_hr: 0,
-      sr_scanhr: 0,
-      sr_modelhr: 0,
-      amount: parseFloat(modalForm.amount) || 0,
-      status: "pending",
-      subnote: null,
-      note: null,
-      created_at: new Date().toISOString(),
-      created_by: 2,
-      updated_at: new Date().toISOString(),
-    };
-
-    setProjects([newRecord, ...projects]);
-    setIsModalOpen(false);
+      await fetchSampleData();
+      setIsModalOpen(false);
+      setModalForm({
+        rdate: new Date().toISOString().split("T")[0],
+        cdate: new Date().toISOString().split("T")[0],
+        cname: "",
+        description: "",
+        worktype: activeTab,
+        scan_by: "0",
+        qc_by: "0",
+        modeldesign_by: "0",
+        amount: "0",
+        note: "",
+        subnote: "",
+      });
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

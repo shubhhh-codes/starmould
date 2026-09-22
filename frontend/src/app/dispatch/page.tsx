@@ -23,10 +23,6 @@ import {
   BadgePercent,
   Compass,
 } from "lucide-react";
-import rawDispatches from "@/lib/mock-dispatches.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawSubplates from "@/lib/mock-subplates.json";
-import rawScans from "@/lib/mock-scans.json";
 import type {
   Dispatch,
   DispatchItem,
@@ -36,14 +32,44 @@ import type {
 } from "@/lib/supabase/types";
 
 export default function DispatchPage() {
-  const [dispatches, setDispatches] = useState<Dispatch[]>(rawDispatches as unknown as Dispatch[]);
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
-  const [scans] = useState<ScanProject[]>(rawScans as unknown as ScanProject[]);
+  const [dispatches, setDispatches] = useState<Dispatch[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
+  const [scans, setScans] = useState<ScanProject[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [customerFilter, setCustomerFilter] = useState("ALL");
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+
+  // Live Supabase fetch for dispatches, customers, subplates, scans
+  const fetchDispatchData = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/dispatch?limit=200");
+      const data = await res.json();
+      if (data.dispatches) {
+        setDispatches(data.dispatches);
+      }
+      if (data.customers) {
+        setCustomers(data.customers);
+      }
+      if (data.subplates) {
+        setSubplates(data.subplates);
+      }
+      if (data.scans) {
+        setScans(data.scans);
+      }
+    } catch (err) {
+      console.error("Failed to load live dispatch data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchDispatchData();
+  }, []);
 
   // Add Dispatch Challan Modal State (Source: dispatch/index.blade.php lines 96-280)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -193,7 +219,7 @@ export default function DispatchPage() {
     });
   };
 
-  const handleSubmitDispatch = (e: React.FormEvent) => {
+  const handleSubmitDispatch = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -242,69 +268,67 @@ export default function DispatchPage() {
       }
     }
 
-    // Sequence format: SM/DC/0001, SM/DC/0147 (DispatchController.php lines 341-344)
-    const nextId = dispatches.length + 1;
-    const challanno = `SM/DC/${String(nextId).padStart(4, "0")}`;
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/dispatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chdate: modalForm.chdate,
+          customerid: Number(modalForm.customerid),
+          vendortid: Number(modalForm.vendortid),
+          projectid: modalForm.projectid,
+          invoiceno: modalForm.invoiceno,
+          vehicleno: modalForm.vehicleno,
+          deliverytype: modalForm.deliverytype,
+          freightmode: modalForm.freightmode,
+          freightcharge: modalForm.freightcharge,
+          noofcases: modalForm.noofcases,
+          items: modalForm.items,
+        }),
+      });
 
-    const customer = customers.find((c) => c.id === Number(modalForm.customerid));
-    const transporter = customers.find((c) => c.id === Number(modalForm.vendortid));
+      if (!res.ok) {
+        const data = await res.json();
+        setFormError(data.error || "Failed to create dispatch challan");
+        return;
+      }
 
-    const newDispatch: Dispatch = {
-      id: Date.now(),
-      challanno,
-      customerid: Number(modalForm.customerid),
-      vendorid: null,
-      vendortid: Number(modalForm.vendortid),
-      projectid: modalForm.projectid,
-      chdate: modalForm.chdate,
-      invoiceno: modalForm.invoiceno,
-      vehicleno: modalForm.vehicleno,
-      deliverytype: modalForm.deliverytype,
-      freightmode: modalForm.freightmode,
-      freightcharge: modalForm.freightcharge,
-      noofcases: modalForm.noofcases,
-      status: "1",
-      created_by: "Akshay",
-      customername: customer?.customername || `Customer #${modalForm.customerid}`,
-      transportername: transporter?.customername || `Transporter #${modalForm.vendortid}`,
-      items: modalForm.items.map((it, idx) => {
-        const foundPlate = subplates.find((p) => String(p.id) === String(it.plateid));
-        return {
-          id: Date.now() + idx,
-          dispatchid: Date.now(),
-          plateid: it.itemType === "regular" ? Number(it.plateid) : null,
-          custom_plate_name: it.itemType === "custom" ? it.custom_plate_name : null,
-          custom_plate_qty: it.itemType === "custom" ? Number(it.qty) : null,
-          particulars: it.particulars,
-          condition: it.condition,
-          work: it.work,
-          customer: Number(modalForm.customerid),
-          project: modalForm.projectid,
-          qty: Number(it.qty),
-          platename:
-            it.itemType === "custom"
-              ? it.custom_plate_name
-              : foundPlate?.platename || `Plate #${it.plateid}`,
-          customername: customer?.customername,
-        };
-      }),
-    };
+      setIsModalOpen(false);
+      setModalForm({
+        chdate: new Date().toISOString().slice(0, 10),
+        customerid: "",
+        vendortid: "",
+        projectid: "",
+        invoiceno: "",
+        vehicleno: "",
+        deliverytype: "Door Delivery",
+        freightmode: "To Pay",
+        freightcharge: "N/A",
+        noofcases: "1",
+        items: [],
+      });
+      await fetchDispatchData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error creating dispatch";
+      setFormError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    setDispatches([newDispatch, ...dispatches]);
-    setIsModalOpen(false);
-    setModalForm({
-      chdate: new Date().toISOString().slice(0, 10),
-      customerid: "",
-      vendortid: "",
-      projectid: "",
-      invoiceno: "",
-      vehicleno: "",
-      deliverytype: "Door Delivery",
-      freightmode: "To Pay",
-      freightcharge: "N/A",
-      noofcases: "1",
-      items: [],
-    });
+  const handleDeleteDispatch = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this dispatch challan?")) return;
+    try {
+      const res = await fetch(`/api/dispatch?id=${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setDispatches((prev) => prev.filter((d) => d.id !== id));
+      }
+    } catch (err) {
+      console.error("Failed to delete dispatch:", err);
+    }
   };
 
   return (
@@ -436,12 +460,13 @@ export default function DispatchPage() {
                   <th className="px-4 py-3.5">Freight Mode</th>
                   <th className="px-4 py-3.5 text-center">Cases</th>
                   <th className="px-4 py-3.5">Created By</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredDispatches.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="text-center py-12 text-slate-400">
+                    <td colSpan={12} className="text-center py-12 text-slate-400">
                       No finished mould dispatches found matching your search.
                     </td>
                   </tr>
@@ -517,12 +542,22 @@ export default function DispatchPage() {
                           <td className="px-4 py-3.5 text-xs text-slate-500">
                             {d.created_by}
                           </td>
+
+                          <td className="px-4 py-3.5 text-right">
+                            <button
+                              onClick={() => handleDeleteDispatch(d.id)}
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition"
+                              title="Delete Challan"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
                         </tr>
 
                         {/* Child Rows: Sub-table for Dispatched Line Items */}
                         {isExpanded && (
                           <tr className="bg-slate-50/80 border-y border-slate-200">
-                            <td colSpan={11} className="p-4 pl-14">
+                            <td colSpan={12} className="p-4 pl-14">
                               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">

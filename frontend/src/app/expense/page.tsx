@@ -21,19 +21,50 @@ import {
   Trash2,
   ShieldAlert,
 } from "lucide-react";
-import rawExpenses from "@/lib/mock-expenses.json";
-import rawCustomers from "@/lib/mock-customers.json";
 import type { Expense, Customer } from "@/lib/supabase/types";
 
 export default function ExpensePage() {
-  const [expenses, setExpenses] = useState<Expense[]>(rawExpenses as unknown as Expense[]);
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [kpis, setKpis] = useState({
+    totalCredit: 0,
+    totalDebit: 0,
+    totalOutstanding: 0,
+    currentBalance: 0,
+    totalCount: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [accountFilter, setAccountFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const fetchExpenses = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/expense");
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load expenses");
+      }
+      setExpenses(data.expenses || []);
+      setCustomers(data.accounts || []);
+      if (data.kpis) setKpis(data.kpis);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to load expenses");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchExpenses();
+  }, []);
 
   // Modal State - Add
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -94,69 +125,66 @@ export default function ExpensePage() {
     });
   }, [expenses, searchQuery, accountFilter, typeFilter, startDate, endDate]);
 
-  // KPI Calculations (Source: ExpenseController.php:39-44)
+  // KPI Calculations (Live DB & Filter-aware)
   const totalCredit = useMemo(() => {
-    return expenses
-      .filter((e) => e.payment_type === "Credit")
-      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  }, [expenses]);
+    if (searchQuery || accountFilter !== "ALL" || typeFilter !== "ALL" || startDate || endDate) {
+      return filteredExpenses
+        .filter((e) => e.payment_type === "Credit")
+        .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    }
+    return kpis.totalCredit;
+  }, [filteredExpenses, kpis.totalCredit, searchQuery, accountFilter, typeFilter, startDate, endDate]);
 
   const totalDebit = useMemo(() => {
-    return expenses
-      .filter((e) => e.payment_type === "Debit")
-      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  }, [expenses]);
+    if (searchQuery || accountFilter !== "ALL" || typeFilter !== "ALL" || startDate || endDate) {
+      return filteredExpenses
+        .filter((e) => e.payment_type === "Debit")
+        .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    }
+    return kpis.totalDebit;
+  }, [filteredExpenses, kpis.totalDebit, searchQuery, accountFilter, typeFilter, startDate, endDate]);
 
   const currentBalance = useMemo(() => {
-    // Current live balance is latest balance entry (Source: ExpenseController.php:44)
-    if (expenses.length > 0) {
-      return Number(expenses[0]?.balance ?? (totalCredit - totalDebit));
+    if (searchQuery || accountFilter !== "ALL" || typeFilter !== "ALL" || startDate || endDate) {
+      return filteredExpenses[0]?.balance ?? (totalCredit - totalDebit);
     }
-    return totalCredit - totalDebit;
-  }, [expenses, totalCredit, totalDebit]);
+    return kpis.currentBalance;
+  }, [filteredExpenses, kpis.currentBalance, totalCredit, totalDebit, searchQuery, accountFilter, typeFilter, startDate, endDate]);
 
   const latestExpenseId = useMemo(() => {
     return expenses.length > 0 ? Math.max(...expenses.map((x) => x.id)) : 0;
   }, [expenses]);
 
-  // Handle Add Expense Submit (Source: ExpenseController store)
-  const handleSubmit = (e: React.FormEvent) => {
+  // Handle Add Expense Submit (Live API)
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalForm.amount || !modalForm.customerid) return;
 
-    const amt = parseFloat(modalForm.amount);
-    const selectedAccount = customers.find(
-      (c) => String(c.id) === modalForm.customerid
-    );
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/expense", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modalForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create expense");
 
-    const newBalance =
-      modalForm.payment_type === "Credit"
-        ? currentBalance + amt
-        : currentBalance - amt;
-
-    const newEntry: Expense = {
-      id: Math.max(...expenses.map((x) => x.id), 0) + 1,
-      customerid: Number(modalForm.customerid),
-      customername: selectedAccount?.customername || "General Account",
-      description: modalForm.description,
-      payment_mode: modalForm.payment_mode,
-      payment_type: modalForm.payment_type,
-      amount: amt,
-      balance: newBalance,
-      rdate: modalForm.rdate,
-      created_at: new Date().toISOString(),
-    };
-
-    setExpenses([newEntry, ...expenses]);
-    setIsModalOpen(false);
-    setModalForm({
-      rdate: new Date().toISOString().split("T")[0],
-      customerid: "",
-      description: "",
-      payment_type: "Debit",
-      payment_mode: "Cash",
-      amount: "",
-    });
+      await fetchExpenses();
+      setIsModalOpen(false);
+      setModalForm({
+        rdate: new Date().toISOString().split("T")[0],
+        customerid: "",
+        description: "",
+        payment_type: "Debit",
+        payment_mode: "Cash",
+        amount: "",
+      });
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const openEditModal = (expense: Expense) => {
@@ -175,71 +203,43 @@ export default function ExpensePage() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditSubmit = (e: React.FormEvent) => {
+  const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingExpense) return;
 
-    if (!editForm.isLatest) {
-      // Historical edit: Only description is updated (Source: ExpenseController.php / index.blade.php Editdata)
-      setExpenses(
-        expenses.map((item) =>
-          item.id === editingExpense.id
-            ? { ...item, description: editForm.description }
-            : item
-        )
-      );
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/expense", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update expense");
+
+      await fetchExpenses();
       setIsEditModalOpen(false);
-      return;
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Latest entry edit: Full update & balance adjustment (Source: ExpenseController.php:467-481)
-    const oldAmount = Number(editingExpense.amount || 0);
-    const oldType = editingExpense.payment_type;
-    const newAmt = parseFloat(editForm.amount) || 0;
-    const newType = editForm.payment_type;
-    let adjustedBalance = Number(editingExpense.balance || 0);
-
-    if (oldType === "Credit" && newType === "Credit") {
-      adjustedBalance = adjustedBalance - oldAmount + newAmt;
-    } else if (oldType === "Credit" && newType === "Debit") {
-      adjustedBalance = adjustedBalance - oldAmount - newAmt;
-    } else if (oldType === "Debit" && newType === "Credit") {
-      adjustedBalance = adjustedBalance + oldAmount + newAmt;
-    } else if (oldType === "Debit" && newType === "Debit") {
-      adjustedBalance = adjustedBalance + oldAmount - newAmt;
-    }
-
-    const selectedAccount = customers.find(
-      (c) => String(c.id) === editForm.customerid
-    );
-
-    setExpenses(
-      expenses.map((item) =>
-        item.id === editingExpense.id
-          ? {
-              ...item,
-              rdate: editForm.rdate,
-              customerid: Number(editForm.customerid),
-              customername: selectedAccount?.customername || item.customername,
-              description: editForm.description,
-              payment_type: newType,
-              payment_mode: editForm.payment_mode,
-              amount: newAmt,
-              balance: adjustedBalance,
-            }
-          : item
-      )
-    );
-    setIsEditModalOpen(false);
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
     if (id !== latestExpenseId) {
       alert("Only the latest expense entry can be deleted to maintain balance integrity.");
       return;
     }
     if (window.confirm("Do you really want to delete this latest expense entry?")) {
-      setExpenses(expenses.filter((e) => e.id !== id));
+      try {
+        const res = await fetch(`/api/expense?id=${id}`, { method: "DELETE" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to delete expense");
+        await fetchExpenses();
+      } catch (err: any) {
+        alert("Error: " + err.message);
+      }
     }
   };
 

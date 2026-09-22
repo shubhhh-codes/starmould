@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   BarChart3,
@@ -20,11 +20,15 @@ import {
   PenTool,
   Radio,
   Plane,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
+  Package,
 } from "lucide-react";
 
 // Exact 7 downtime/hour categories tracked in ReportController.php
 export interface MonthDowntimeHourRecord {
-  month: string; // e.g., 'Oct, 2025'
+  month: string;
   vmc: number; // 0113_STM_002 VMC Fault Maintenance
   electric: number; // 0114_STM_003 Electric Fault
   setting: number; // 0115_STM_004 Setting Time
@@ -35,134 +39,78 @@ export interface MonthDowntimeHourRecord {
   totalHours: number;
 }
 
-// Exact workflow counts tracked in ReportController.php
-export interface WorkflowTaskCounts {
-  scancount: number;
-  recount: number; // Recheck / Rework
-  inspcount: number; // Inspection
-  designcount: number;
-  lrscount: number;
-  dronecount: number;
-}
-
-const mockDowntimeRecords: MonthDowntimeHourRecord[] = [
-  {
-    month: "Oct, 2025",
-    vmc: 12.5,
-    electric: 4.0,
-    setting: 18.0,
-    chhol: 8.5,
-    operator: 6.0,
-    lunch: 26.0,
-    noanywork: 9.0,
-    totalHours: 84.0,
-  },
-  {
-    month: "Nov, 2025",
-    vmc: 15.0,
-    electric: 6.5,
-    setting: 22.0,
-    chhol: 11.0,
-    operator: 4.5,
-    lunch: 26.0,
-    noanywork: 12.0,
-    totalHours: 97.0,
-  },
-  {
-    month: "Dec, 2025",
-    vmc: 9.0,
-    electric: 3.0,
-    setting: 19.5,
-    chhol: 7.0,
-    operator: 5.0,
-    lunch: 26.0,
-    noanywork: 8.0,
-    totalHours: 77.5,
-  },
-  {
-    month: "Jan, 2026",
-    vmc: 14.0,
-    electric: 5.0,
-    setting: 21.0,
-    chhol: 9.5,
-    operator: 3.5,
-    lunch: 26.0,
-    noanywork: 11.0,
-    totalHours: 90.0,
-  },
-  {
-    month: "Feb, 2026",
-    vmc: 11.5,
-    electric: 2.5,
-    setting: 17.0,
-    chhol: 6.5,
-    operator: 4.0,
-    lunch: 24.0,
-    noanywork: 7.5,
-    totalHours: 73.0,
-  },
-  {
-    month: "Mar, 2026",
-    vmc: 8.0,
-    electric: 2.0,
-    setting: 16.5,
-    chhol: 6.0,
-    operator: 3.0,
-    lunch: 26.0,
-    noanywork: 5.5,
-    totalHours: 67.0,
-  },
-];
-
-const mockWorkflowCounts: WorkflowTaskCounts = {
-  scancount: 142,
-  recount: 28,
-  inspcount: 85,
-  designcount: 116,
-  lrscount: 19,
-  dronecount: 14,
-};
-
 export default function ReportPage() {
-  const [startDate, setStartDate] = useState("2025-10");
-  const [endDate, setEndDate] = useState("2026-03");
-  const [records] = useState<MonthDowntimeHourRecord[]>(mockDowntimeRecords);
-  const [workflowCounts, setWorkflowCounts] = useState<WorkflowTaskCounts>(mockWorkflowCounts);
+  const [records, setRecords] = useState<MonthDowntimeHourRecord[]>([]);
+  const [workflowCounts, setWorkflowCounts] = useState<{
+    pulpMould: number;
+    tf: number;
+    rework: number;
+    machinePart: number;
+    accessories: number;
+    sample: number;
+    other: number;
+    totalProjects: number;
+  }>({
+    pulpMould: 0,
+    tf: 0,
+    rework: 0,
+    machinePart: 0,
+    accessories: 0,
+    sample: 0,
+    other: 0,
+    totalProjects: 0,
+  });
+  const [totalSubplates, setTotalSubplates] = useState(0);
+  const [totalWorklogs, setTotalWorklogs] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Live Supabase fetch for report pipeline counts
-  React.useEffect(() => {
-    fetch(`/api/report?month=${endDate}`)
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.pipelineCounts) {
-          setWorkflowCounts({
-            scancount: d.pipelineCounts.totalPlates || 142,
-            recount: 28,
-            inspcount: d.pipelineCounts.finalQcPending || 85,
-            designcount: d.pipelineCounts.designPending || 116,
-            lrscount: 19,
-            dronecount: 14,
-          });
+  const fetchReportData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/report");
+      const data = await res.json();
+      if (res.ok) {
+        if (Array.isArray(data.downtimeRecords)) {
+          setRecords(data.downtimeRecords);
         }
-      })
-      .catch((err) => console.error("Report fetch err:", err));
-  }, [endDate]);
+        if (data.workflowCounts) {
+          setWorkflowCounts(data.workflowCounts);
+        }
+        if (data.totalSubplates !== undefined) {
+          setTotalSubplates(data.totalSubplates);
+        }
+        if (data.totalWorklogs !== undefined) {
+          setTotalWorklogs(data.totalWorklogs);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load report data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  // Totals for the pie / summary breakdown
-  const totalVmc = records.reduce((acc, r) => acc + r.vmc, 0);
-  const totalElectric = records.reduce((acc, r) => acc + r.electric, 0);
-  const totalSetting = records.reduce((acc, r) => acc + r.setting, 0);
-  const totalChhol = records.reduce((acc, r) => acc + r.chhol, 0);
-  const totalOperator = records.reduce((acc, r) => acc + r.operator, 0);
-  const totalLunch = records.reduce((acc, r) => acc + r.lunch, 0);
-  const totalNoAnyWork = records.reduce((acc, r) => acc + r.noanywork, 0);
-  const grandTotalHours = records.reduce((acc, r) => acc + r.totalHours, 0);
+  useEffect(() => {
+    fetchReportData();
+  }, [fetchReportData]);
+
+  // Totals for summary breakdown
+  const totalVmc = records.reduce((acc, r) => acc + (r.vmc || 0), 0);
+  const totalElectric = records.reduce((acc, r) => acc + (r.electric || 0), 0);
+  const totalSetting = records.reduce((acc, r) => acc + (r.setting || 0), 0);
+  const totalChhol = records.reduce((acc, r) => acc + (r.chhol || 0), 0);
+  const totalOperator = records.reduce((acc, r) => acc + (r.operator || 0), 0);
+  const totalLunch = records.reduce((acc, r) => acc + (r.lunch || 0), 0);
+  const totalNoAnyWork = records.reduce((acc, r) => acc + (r.noanywork || 0), 0);
+  const grandTotalHours = Math.round(
+    records.reduce((acc, r) => acc + (r.totalHours || 0), 0) * 100
+  ) / 100;
 
   const downtimeCategories = [
     {
       name: "VMC Fault Maintenance",
       code: "0113_STM_002",
-      hours: totalVmc,
+      hours: Math.round(totalVmc * 100) / 100,
       color: "bg-purple-600 text-purple-600 border-purple-200",
       barColor: "bg-purple-600",
       icon: Wrench,
@@ -170,7 +118,7 @@ export default function ReportPage() {
     {
       name: "Electric Fault",
       code: "0114_STM_003",
-      hours: totalElectric,
+      hours: Math.round(totalElectric * 100) / 100,
       color: "bg-amber-500 text-amber-600 border-amber-200",
       barColor: "bg-amber-500",
       icon: Zap,
@@ -178,7 +126,7 @@ export default function ReportPage() {
     {
       name: "Setting Time",
       code: "0115_STM_004",
-      hours: totalSetting,
+      hours: Math.round(totalSetting * 100) / 100,
       color: "bg-blue-600 text-blue-600 border-blue-200",
       barColor: "bg-blue-600",
       icon: Sliders,
@@ -186,7 +134,7 @@ export default function ReportPage() {
     {
       name: "Chhol Clearing",
       code: "0116_STM_005",
-      hours: totalChhol,
+      hours: Math.round(totalChhol * 100) / 100,
       color: "bg-pink-500 text-pink-600 border-pink-200",
       barColor: "bg-pink-500",
       icon: Sparkles,
@@ -194,7 +142,7 @@ export default function ReportPage() {
     {
       name: "Operator Fault",
       code: "0117_STM_006",
-      hours: totalOperator,
+      hours: Math.round(totalOperator * 100) / 100,
       color: "bg-rose-600 text-rose-600 border-rose-200",
       barColor: "bg-rose-600",
       icon: UserX,
@@ -202,7 +150,7 @@ export default function ReportPage() {
     {
       name: "Lunch Time",
       code: "0120_STM_007",
-      hours: totalLunch,
+      hours: Math.round(totalLunch * 100) / 100,
       color: "bg-cyan-600 text-cyan-600 border-cyan-200",
       barColor: "bg-cyan-600",
       icon: Coffee,
@@ -210,7 +158,7 @@ export default function ReportPage() {
     {
       name: "No Any Work",
       code: "0130_STM_008",
-      hours: totalNoAnyWork,
+      hours: Math.round(totalNoAnyWork * 100) / 100,
       color: "bg-emerald-600 text-emerald-600 border-emerald-200",
       barColor: "bg-emerald-600",
       icon: Ban,
@@ -218,17 +166,13 @@ export default function ReportPage() {
   ];
 
   const workflowCards = [
-    { label: "Scan Tasks", count: workflowCounts.scancount, icon: Scan, color: "text-blue-600 bg-blue-50" },
-    { label: "Recheck / Rework", count: workflowCounts.recount, icon: RotateCcw, color: "text-amber-600 bg-amber-50" },
-    { label: "Inspection (Insp)", count: workflowCounts.inspcount, icon: CheckCircle, color: "text-emerald-600 bg-emerald-50" },
-    { label: "Design Work", count: workflowCounts.designcount, icon: PenTool, color: "text-indigo-600 bg-indigo-50" },
-    { label: "LRS Tasks", count: workflowCounts.lrscount, icon: Radio, color: "text-violet-600 bg-violet-50" },
-    { label: "Drone Projects", count: workflowCounts.dronecount, icon: Plane, color: "text-rose-600 bg-rose-50" },
+    { label: "Pulp Mould Projects", count: workflowCounts.pulpMould, icon: Scan, color: "text-blue-600 bg-blue-50 dark:bg-blue-950/40" },
+    { label: "Rework / R.E.", count: workflowCounts.rework, icon: RotateCcw, color: "text-amber-600 bg-amber-50 dark:bg-amber-950/40" },
+    { label: "Thermoforming (TF)", count: workflowCounts.tf, icon: CheckCircle, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40" },
+    { label: "Machine Parts", count: workflowCounts.machinePart, icon: PenTool, color: "text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40" },
+    { label: "Accessories & Tools", count: workflowCounts.accessories, icon: Radio, color: "text-violet-600 bg-violet-50 dark:bg-violet-950/40" },
+    { label: "Sample Work", count: workflowCounts.sample, icon: Plane, color: "text-rose-600 bg-rose-50 dark:bg-rose-950/40" },
   ];
-
-  const handleUpdateChart = () => {
-    alert(`Fetching getmonthwisedata for range ${startDate} to ${endDate}`);
-  };
 
   return (
     <AppLayout>
@@ -239,176 +183,158 @@ export default function ReportPage() {
             <BarChart3 className="h-3.5 w-3.5 text-blue-600" />
             <span>Reports & Analytics</span>
             <span>/</span>
-            <span className="text-slate-600">ReportController.php</span>
+            <span className="text-slate-600 dark:text-slate-300">ReportController.php</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             Month-Wise Hours & Workflow Report
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-mono">
-              getmonthwisedata()
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-center gap-1 font-mono">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live Supabase Aggregation
             </span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Surfaces the exact 7 machine/floor hour categories and 6 workflow task counts from the Laravel controller.
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Real downtime analysis (7 legacy codes) and scan workflow volume from `worklog` & `scan` tables.
           </p>
         </div>
 
-        {/* Date Filter Controls matching index.blade.php */}
-        <div className="flex items-center gap-2.5">
-          <div className="flex items-center gap-2 bg-white border border-slate-300 rounded-lg px-3 py-1.5 shadow-2xs">
-            <Calendar className="h-3.5 w-3.5 text-slate-400" />
-            <span className="text-xs text-slate-500 font-medium">From:</span>
-            <input
-              type="month"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none"
-            />
-            <span className="text-xs text-slate-400">To:</span>
-            <input
-              type="month"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="text-xs font-semibold text-slate-800 bg-transparent focus:outline-none"
-            />
-          </div>
-
-          <button
-            onClick={handleUpdateChart}
-            className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
-          >
-            Update Chart
-          </button>
-        </div>
+        <button
+          onClick={fetchReportData}
+          disabled={isLoading}
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? "animate-spin" : ""}`} />
+          <span>Refresh Report</span>
+        </button>
       </div>
 
-      {/* 6 Workflow Task Count Summary Cards */}
+      {/* Top Stat Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-        {workflowCards.map((card, idx) => {
-          const Icon = card.icon;
+        {workflowCards.map((c, i) => {
+          const Icon = c.icon;
           return (
             <div
-              key={idx}
-              className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs flex items-center gap-3"
+              key={i}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-xs flex items-center gap-3"
             >
-              <div className={`p-2 rounded-lg ${card.color} flex-shrink-0`}>
-                <Icon className="h-4 w-4" />
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${c.color}`}>
+                <Icon className="w-4 h-4" />
               </div>
-              <div>
-                <div className="text-base font-bold text-slate-900 font-mono leading-tight">
-                  {card.count}
-                </div>
-                <div className="text-[10px] text-slate-500 font-medium truncate">
-                  {card.label}
-                </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 truncate">
+                  {c.label}
+                </p>
+                <p className="text-lg font-bold text-slate-900 dark:text-white font-mono">
+                  {isLoading ? "..." : c.count}
+                </p>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Main Breakdown: 7 Hour Categories by Month Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden mb-6">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
-          <div>
-            <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Month-Wise Hour Tracking (Customer ID: 112)
+      {/* Main Grid: Downtime Breakdown + Monthly Table */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left: 7 Downtime Category Breakdown */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+              7 Downtime Categories
             </h2>
-            <span className="text-[11px] text-slate-400">
-              Computed via `WorkModel::selectRaw(&quot;SEC_TO_TIME(SUM(TIME_TO_SEC(work_hr)))&quot;)`
+            <span className="text-xs font-mono font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+              {grandTotalHours} hrs total
             </span>
           </div>
-          <span className="text-xs font-bold font-mono text-slate-700 bg-slate-200/70 px-2.5 py-1 rounded">
-            Total Logged: {grandTotalHours.toFixed(1)} hrs
-          </span>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="erp-table">
-            <thead>
-              <tr>
-                <th>Month</th>
-                <th>VMC Fault (0113)</th>
-                <th>Electric (0114)</th>
-                <th>Setting (0115)</th>
-                <th>Chhol (0116)</th>
-                <th>Operator (0117)</th>
-                <th>Lunch (0120)</th>
-                <th>No Any Work (0130)</th>
-                <th className="font-bold">Total Hours</th>
-              </tr>
-            </thead>
-            <tbody>
-              {records.map((r, idx) => (
-                <tr key={idx}>
-                  <td className="font-semibold text-slate-900 text-xs font-mono">
-                    {r.month}
-                  </td>
-                  <td className="font-mono text-xs text-purple-700 font-medium">
-                    {r.vmc}h
-                  </td>
-                  <td className="font-mono text-xs text-amber-600 font-medium">
-                    {r.electric}h
-                  </td>
-                  <td className="font-mono text-xs text-blue-600 font-medium">
-                    {r.setting}h
-                  </td>
-                  <td className="font-mono text-xs text-pink-600 font-medium">
-                    {r.chhol}h
-                  </td>
-                  <td className="font-mono text-xs text-rose-600 font-medium">
-                    {r.operator}h
-                  </td>
-                  <td className="font-mono text-xs text-cyan-700 font-medium">
-                    {r.lunch}h
-                  </td>
-                  <td className="font-mono text-xs text-emerald-700 font-medium">
-                    {r.noanywork}h
-                  </td>
-                  <td className="font-mono text-xs font-bold text-slate-900 bg-slate-50/80">
-                    {r.totalHours.toFixed(1)}h
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Aggregate Proportion Breakdown */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-5">
-        <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-          Category Distribution (Total {grandTotalHours.toFixed(1)} Hours)
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {downtimeCategories.map((cat, idx) => {
-            const Icon = cat.icon;
-            const percent = ((cat.hours / (grandTotalHours || 1)) * 100).toFixed(1);
-            return (
-              <div key={idx} className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Icon className={`h-4 w-4 ${cat.color.split(" ")[1]}`} />
-                    <span className="font-semibold text-xs text-slate-800 truncate max-w-[140px]">
-                      {cat.name}
-                    </span>
+          <div className="space-y-3">
+            {downtimeCategories.map((cat, idx) => {
+              const Icon = cat.icon;
+              const percentage = grandTotalHours > 0 ? ((cat.hours / grandTotalHours) * 100).toFixed(1) : "0";
+              return (
+                <div key={idx} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <Icon className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">{cat.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">({cat.code})</span>
+                    </div>
+                    <span className="font-mono font-bold text-slate-900 dark:text-white">{cat.hours} hrs</span>
                   </div>
-                  <span className="font-mono text-xs font-bold text-slate-900">
-                    {cat.hours.toFixed(1)}h
-                  </span>
+                  <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${cat.barColor}`}
+                      style={{ width: `${Math.min(100, Number(percentage))}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full ${cat.barColor} rounded-full`}
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
-                  <span>{cat.code}</span>
-                  <span>{percent}%</span>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right: Monthly Downtime Hours Data Table */}
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-xs">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between">
+            <div>
+              <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                Monthly Downtime Breakdown
+              </h2>
+              <span className="text-[11px] text-slate-400">
+                Aggregated from {totalWorklogs} live `worklog` records
+              </span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="py-3 px-3">Month</th>
+                  <th className="py-3 px-2 text-right">VMC</th>
+                  <th className="py-3 px-2 text-right">Electric</th>
+                  <th className="py-3 px-2 text-right">Setting</th>
+                  <th className="py-3 px-2 text-right">Chhol</th>
+                  <th className="py-3 px-2 text-right">Operator</th>
+                  <th className="py-3 px-2 text-right">Lunch</th>
+                  <th className="py-3 px-2 text-right">No Work</th>
+                  <th className="py-3 px-3 text-right font-bold">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-slate-400">
+                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
+                      <p>Calculating monthly report from live worklogs...</p>
+                    </td>
+                  </tr>
+                ) : records.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} className="py-10 text-center text-slate-400">
+                      No downtime records found in worklog data.
+                    </td>
+                  </tr>
+                ) : (
+                  records.map((r, i) => (
+                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                      <td className="py-2.5 px-3 font-semibold text-slate-800 dark:text-slate-200 font-mono">
+                        {r.month}
+                      </td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400">{r.vmc}h</td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400">{r.electric}h</td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400">{r.setting}h</td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400">{r.chhol}h</td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400">{r.operator}h</td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400">{r.lunch}h</td>
+                      <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-400">{r.noanywork}h</td>
+                      <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white bg-slate-50/50 dark:bg-slate-800/20">
+                        {r.totalHours}h
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </AppLayout>

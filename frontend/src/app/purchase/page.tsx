@@ -23,16 +23,12 @@ import {
   ArrowUpRight,
   Filter,
 } from "lucide-react";
-import rawPurchases from "@/lib/mock-purchases.json";
-import rawSubplates from "@/lib/mock-subplates.json";
-import rawCustomers from "@/lib/mock-customers.json";
 import type { PurchaseOrder, PurchaseItem, Subplate, Customer } from "@/lib/supabase/types";
 
 export default function PurchasePage() {
-  const [purchases, setPurchases] = useState<PurchaseOrder[]>(rawPurchases as unknown as PurchaseOrder[]);
-
-  const [subplates, setSubplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
-  const [customers, setCustomers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
+  const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
 
   // Navigation Tabs: All Purchase Orders vs. Pending Purchase (needing PO)
   const [activeTab, setActiveTab] = useState<"orders" | "pending_plates">("orders");
@@ -40,21 +36,21 @@ export default function PurchasePage() {
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Live Supabase fetch for purchases, customers, and subplates
   const fetchPurchases = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch("/api/purchases?limit=100&includePlates=true");
+      const res = await fetch("/api/purchases?limit=200&includePlates=true");
       const data = await res.json();
-      if (data.purchases && data.purchases.length > 0) {
+      if (data.purchases) {
         setPurchases(data.purchases);
       }
-      if (data.customers && data.customers.length > 0) {
+      if (data.customers) {
         setCustomers(data.customers);
       }
-      if (data.subplates && data.subplates.length > 0) {
+      if (data.subplates) {
         setSubplates(data.subplates);
       }
     } catch (err) {
@@ -308,7 +304,7 @@ export default function PurchasePage() {
   };
 
   // Submit Purchase Order (Source: PurchaseController.php store() lines 403-561)
-  const handleSubmitPO = (e: React.FormEvent) => {
+  const handleSubmitPO = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.vname) {
       setFormError("Please select a supplier/vendor.");
@@ -327,51 +323,53 @@ export default function PurchasePage() {
       return;
     }
 
-    // Auto-generate PO sequence: PO-xxxx
-    const maxPurchaseId = Math.max(...purchases.map((p) => p.purchaseid || 0), 1010);
-    const newPurchaseId = maxPurchaseId + 1;
-    const newSrno = `PO-${newPurchaseId}`;
-    const newId = Math.max(...purchases.map((p) => p.id), 0) + 1;
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/purchases", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          odate: formData.odate,
+          vname: Number(formData.vname),
+          cname: Number(formData.cname),
+          projectid: formData.projectid,
+          items: formData.items,
+        }),
+      });
 
-    const newPO: PurchaseOrder = {
-      id: newId,
-      srno: newSrno,
-      purchaseid: newPurchaseId,
-      pno: null,
-      vname: Number(formData.vname),
-      cname: Number(formData.cname),
-      odate: formData.odate,
-      projectid: formData.projectid,
-      status: "1",
-      created_by: "Admin",
-      created_at: new Date().toISOString(),
-      items: formData.items.map((it, idx) => {
-        const matchingPlate = subplates.find((sp) => sp.id === Number(it.plateid));
-        return {
-          id: newId * 10 + idx,
-          pid: newId,
-          plateid: Number(it.plateid),
-          material: it.material,
-          materialtype: it.materialtype,
-          qty: Number(it.qty),
-          platename: matchingPlate ? matchingPlate.platename : `Plate #${it.plateid}`,
-        };
-      }),
-    };
+      if (!res.ok) {
+        const data = await res.json();
+        setFormError(data.error || "Failed to create PO");
+        return;
+      }
 
-    setPurchases([newPO, ...purchases]);
-    setIsModalOpen(false);
-    // Expand newly created PO
-    setExpandedRows((prev) => ({ ...prev, [newId]: true }));
+      setIsModalOpen(false);
+      await fetchPurchases();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error creating PO";
+      setFormError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle Soft Delete
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    setPurchases((prev) =>
-      prev.map((p) => (p.id === deleteTarget.id ? { ...p, status: "0" } : p))
-    );
-    setDeleteTarget(null);
+    try {
+      const res = await fetch(`/api/purchases?id=${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setPurchases((prev) =>
+          prev.map((p) => (p.id === deleteTarget.id ? { ...p, status: "0" } : p))
+        );
+      }
+    } catch (err) {
+      console.error("Failed to delete PO:", err);
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   // Export CSV

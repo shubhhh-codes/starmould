@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   Scale,
@@ -13,9 +13,11 @@ import {
   ArrowUpDown,
   X,
   Info,
+  RefreshCw,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import rawGramCalc from "@/lib/mock-gram-calc.json";
 
 export interface GramTier {
   id: number;
@@ -26,10 +28,18 @@ export interface GramTier {
 }
 
 export default function GramMasterPage() {
-  const [tiers, setTiers] = useState<GramTier[]>(rawGramCalc as unknown as GramTier[]);
+  const [tiers, setTiers] = useState<GramTier[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [testWeight, setTestWeight] = useState<number>(240);
   const [showModal, setShowModal] = useState(false);
   const [editingTier, setEditingTier] = useState<GramTier | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GramTier | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   // Form State
   const [formMin, setFormMin] = useState<number>(0);
@@ -37,13 +47,43 @@ export default function GramMasterPage() {
   const [formFix, setFormFix] = useState<number>(0);
   const [formMultiply, setFormMultiply] = useState<number>(0);
 
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => {
+      setNotification((curr) => (curr?.message === message ? null : curr));
+    }, 4000);
+  };
+
+  // Live fetch from Supabase gram_calc table
+  const fetchTiers = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/gram");
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.tiers)) {
+        setTiers(data.tiers);
+      } else {
+        showNotification("error", data.error || "Failed to load gram tiers");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load gram tiers";
+      showNotification("error", msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTiers();
+  }, [fetchTiers]);
+
   // Price Calculation Logic matching legacy PrintingController store formula:
   // if ($fix != 0) { $amount = $fix; } else { $amount = $multiply * $gram; }
   const calculatePrice = (weight: number) => {
     const matched = tiers.find(
       (t) => weight >= t.graterthan && weight <= t.lessthan
     );
-    if (!matched) return { total: 0, tier: null, method: "Out of range" };
+    if (!matched) return { total: 0, tier: null, method: "Out of range / No tier matched" };
     if (matched.fix > 0) {
       return { total: matched.fix, tier: matched, method: `Fixed tier fee (₹${matched.fix})` };
     }
@@ -76,51 +116,113 @@ export default function GramMasterPage() {
     setShowModal(true);
   };
 
-  const handleSaveTier = (e: React.FormEvent) => {
+  const handleSaveTier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formMin > formMax) {
-      alert("Minimum weight cannot be greater than maximum weight.");
+      showNotification("error", "Minimum weight cannot be greater than maximum weight.");
       return;
     }
 
-    if (editingTier) {
-      setTiers(
-        tiers.map((t) =>
-          t.id === editingTier.id
-            ? {
-                ...t,
-                graterthan: formMin,
-                lessthan: formMax,
-                fix: formFix,
-                multiply: formMultiply,
-              }
-            : t
-        )
-      );
-    } else {
-      const newId = Math.max(...tiers.map((t) => t.id), 0) + 1;
-      setTiers([
-        ...tiers,
-        {
-          id: newId,
-          graterthan: formMin,
-          lessthan: formMax,
-          fix: formFix,
-          multiply: formMultiply,
-        },
-      ]);
+    try {
+      setIsSubmitting(true);
+      if (editingTier) {
+        const res = await fetch("/api/gram", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: editingTier.id,
+            graterthan: formMin,
+            lessthan: formMax,
+            fix: formFix,
+            multiply: formMultiply,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          showNotification("error", result.error || "Failed to update tier");
+          return;
+        }
+        setTiers((prev) =>
+          prev.map((t) => (t.id === editingTier.id ? result.tier : t))
+        );
+        showNotification("success", "Gram tier updated successfully.");
+      } else {
+        const res = await fetch("/api/gram", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            graterthan: formMin,
+            lessthan: formMax,
+            fix: formFix,
+            multiply: formMultiply,
+          }),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          showNotification("error", result.error || "Failed to create tier");
+          return;
+        }
+        setTiers((prev) => [...prev, result.tier].sort((a, b) => a.graterthan - b.graterthan));
+        showNotification("success", "Gram pricing tier added successfully.");
+      }
+      setShowModal(false);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save tier";
+      showNotification("error", msg);
+    } finally {
+      setIsSubmitting(false);
     }
-    setShowModal(false);
   };
 
-  const handleDeleteTier = (id: number) => {
-    if (confirm("Are you sure you want to delete this weight tier?")) {
-      setTiers(tiers.filter((t) => t.id !== id));
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/gram?id=${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showNotification("error", result.error || "Failed to delete tier");
+        return;
+      }
+      setTiers((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+      showNotification("success", "Weight tier deleted successfully.");
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete tier";
+      showNotification("error", msg);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
     <AppLayout>
+      {/* Toast Notification */}
+      {notification && (
+        <div
+          className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
+            notification.type === "success"
+              ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+              : "bg-rose-50 dark:bg-rose-950/80 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+          }`}
+        >
+          {notification.type === "success" ? (
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+          )}
+          <span>{notification.message}</span>
+          <button
+            onClick={() => setNotification(null)}
+            className="ml-2 text-slate-400 hover:text-slate-600"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
@@ -128,56 +230,75 @@ export default function GramMasterPage() {
             <Scale className="h-3.5 w-3.5 text-blue-600" />
             <span>Master Data</span>
             <span>/</span>
-            <span className="text-slate-600">Gram Pricing Matrix</span>
+            <span className="text-slate-600 dark:text-slate-300">Gram Pricing Matrix</span>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             Material Weight Rate Tiers
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-              `gram_calc` Table
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live `gram_calc` Table
             </span>
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             Configures dynamic 3D print and mould material cost lookups applied across Scanning and Printing modules.
           </p>
         </div>
 
-        <button
-          onClick={openAddModal}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Weight Tier</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchTiers}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
+            title="Refresh tiers from database"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? "animate-spin" : ""}`} />
+            <span>Refresh</span>
+          </button>
+          <button
+            onClick={openAddModal}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Weight Tier</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Tiers Table Grid */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40 flex items-center justify-between">
             <div>
-              <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              <h2 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
                 Configured Weight Tiers ({tiers.length})
               </h2>
               <span className="text-[11px] text-slate-400">
-                Ordered by ascending gram ranges
+                Source: `gram_calc` table in live Supabase database
               </span>
             </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="erp-table">
-              <thead>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th>Tier ID</th>
-                  <th>Weight Range (g)</th>
-                  <th>Fixed Charge</th>
-                  <th>Multiplier (Rate / g)</th>
-                  <th>Pricing Mode</th>
-                  <th className="text-right">Actions</th>
+                  <th className="py-3 px-4">Tier ID</th>
+                  <th className="py-3 px-4">Weight Range (g)</th>
+                  <th className="py-3 px-4">Fixed Charge</th>
+                  <th className="py-3 px-4">Multiplier (Rate / g)</th>
+                  <th className="py-3 px-4">Pricing Mode</th>
+                  <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {tiers.length === 0 ? (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
+                      <p>Loading gram calculation tiers from database...</p>
+                    </td>
+                  </tr>
+                ) : tiers.length === 0 ? (
                   <tr>
                     <td
                       colSpan={6}
@@ -185,11 +306,11 @@ export default function GramMasterPage() {
                     >
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Scale className="w-8 h-8 text-slate-300" />
-                        <p className="font-semibold text-slate-700">
+                        <p className="font-semibold text-slate-700 dark:text-slate-200">
                           No Gram Pricing Tiers Configured
                         </p>
                         <p className="text-xs text-slate-400 max-w-sm">
-                          `gram_calc` has 0 rows in the database. Click &ldquo;Add Tier&rdquo; above to create the first weight bracket.
+                          `gram_calc` has 0 rows in production database. Click &ldquo;Add Weight Tier&rdquo; above to configure rate brackets.
                         </p>
                       </div>
                     </td>
@@ -198,45 +319,45 @@ export default function GramMasterPage() {
                   tiers.map((tier) => {
                     const isFixed = tier.fix > 0;
                     return (
-                      <tr key={tier.id}>
-                        <td className="font-mono text-xs font-semibold text-slate-600">
+                      <tr key={tier.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td className="py-3 px-4 font-mono text-xs font-semibold text-slate-600 dark:text-slate-400">
                           #{tier.id}
                         </td>
-                        <td className="font-semibold text-slate-800 text-xs">
+                        <td className="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200 text-xs">
                           <span className="font-mono">{tier.graterthan}g</span>
                           <span className="text-slate-400 mx-1.5">to</span>
                           <span className="font-mono">{tier.lessthan}g</span>
                         </td>
-                        <td className="font-semibold text-slate-900 text-xs">
+                        <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 text-xs">
                           {tier.fix > 0 ? formatCurrency(tier.fix) : "-"}
                         </td>
-                        <td className="text-slate-700 text-xs font-medium">
+                        <td className="py-3 px-4 text-slate-700 dark:text-slate-300 text-xs font-medium">
                           {tier.multiply > 0 ? `₹${tier.multiply} / g` : "-"}
                         </td>
-                        <td>
+                        <td className="py-3 px-4">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
                               isFixed
-                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
+                                : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800"
                             }`}
                           >
                             {isFixed ? "Fixed Flat Fee" : "Weight Multiplier"}
                           </span>
                         </td>
-                        <td className="text-right">
+                        <td className="py-3 px-4 text-right">
                           <div className="inline-flex items-center gap-1">
                             <button
                               onClick={() => openEditModal(tier)}
                               title="Edit Tier"
-                              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+                              className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-blue-600 transition-colors"
                             >
                               <Edit2 className="h-3.5 w-3.5" />
                             </button>
                             <button
-                              onClick={() => handleDeleteTier(tier.id)}
+                              onClick={() => setDeleteTarget(tier)}
                               title="Delete Tier"
-                              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-rose-600 transition-colors"
+                              className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 hover:text-rose-600 transition-colors"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -263,7 +384,7 @@ export default function GramMasterPage() {
               </h3>
             </div>
             <p className="text-xs text-slate-400 mb-4">
-              Enter any mould or print part weight in grams to test price calculation against active tiers.
+              Enter any mould or print part weight in grams to test price calculation against live database tiers.
             </p>
 
             <div className="space-y-4">
@@ -298,128 +419,146 @@ export default function GramMasterPage() {
                   <span className="font-mono text-[11px]">{testResult.method}</span>
                 </div>
                 {testResult.tier && (
-                  <div className="text-[10px] text-slate-400">
-                    Matched Tier #{testResult.tier.id} ({testResult.tier.graterthan}g – {testResult.tier.lessthan}g)
+                  <div className="text-[10px] text-slate-400 font-mono">
+                    Tier Range: {testResult.tier.graterthan}g - {testResult.tier.lessthan}g
                   </div>
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Quick Rules Helper Card */}
-          <div className="bg-white rounded-xl border border-slate-200 p-4 text-xs text-slate-600 shadow-xs space-y-2">
-            <div className="flex items-center gap-1.5 font-bold text-slate-800">
-              <Info className="h-3.5 w-3.5 text-blue-600" />
-              <span>Business Calculation Rules</span>
-            </div>
-            <ul className="list-disc pl-4 space-y-1 text-slate-500 text-[11px]">
-              <li>If <strong>Fixed Charge</strong> is greater than zero, it takes absolute precedence.</li>
-              <li>Otherwise, <strong>Multiplier × Gram Weight</strong> is automatically applied.</li>
-              <li>Ranges should be continuous without gaps to ensure every part is priced.</li>
-            </ul>
           </div>
         </div>
       </div>
 
       {/* Add / Edit Tier Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden text-slate-800 animate-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/60">
-              <div className="flex items-center gap-2 font-bold text-sm text-slate-900">
-                <Scale className="h-4 w-4 text-blue-600" />
-                {editingTier ? "Edit Weight Tier" : "Add New Weight Tier"}
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                {editingTier ? "Edit Weight Tier" : "Add Weight Tier"}
+              </h3>
               <button
                 onClick={() => setShowModal(false)}
-                className="text-slate-400 hover:text-slate-700"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
               >
-                <X className="h-4 w-4" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveTier} className="p-5 space-y-4 text-xs">
+            <form onSubmit={handleSaveTier} className="p-6 space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Min Weight (g)
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Min Weight (graterthan)
                   </label>
                   <input
                     type="number"
                     required
-                    min="0"
                     value={formMin}
                     onChange={(e) => setFormMin(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Max Weight (g)
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Max Weight (lessthan)
                   </label>
                   <input
                     type="number"
                     required
-                    min="1"
                     value={formMax}
                     onChange={(e) => setFormMax(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:text-white"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Fixed Charge (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formFix}
-                  onChange={(e) => setFormFix(Number(e.target.value))}
-                  placeholder="e.g. 500 (Set 0 if using multiplier)"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <span className="text-[10px] text-slate-400">
-                  Overrides multiplier when set to a non-zero value.
-                </span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Fixed Charge (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={formFix}
+                    onChange={(e) => setFormFix(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Multiplier (₹ / g)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formMultiply}
+                    onChange={(e) => setFormMultiply(Number(e.target.value))}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:text-white"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">
-                  Rate Multiplier (₹ / gram)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={formMultiply}
-                  onChange={(e) => setFormMultiply(Number(e.target.value))}
-                  placeholder="e.g. 5.5 (Used if fixed charge is 0)"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <span className="text-[10px] text-slate-400">
-                  Multiplied by exact weight in grams when fixed charge is 0.
-                </span>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 font-semibold"
+                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold shadow-xs shadow-blue-600/30"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  Save Weight Tier
+                  {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Tier</span>
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 text-xs">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  Confirm Tier Deletion
+                </h4>
+                <p className="text-slate-500">
+                  Delete Tier #{deleteTarget.id} ({deleteTarget.graterthan}g - {deleteTarget.lessthan}g)
+                </p>
+              </div>
+            </div>
+            <p className="text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+              Are you sure you want to delete this weight tier from the database?
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>Yes, Delete Tier</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

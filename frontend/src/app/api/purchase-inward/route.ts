@@ -60,7 +60,44 @@ export async function GET(req: NextRequest) {
       source: "view_po_pending_inward_qty",
       pendingReceiveItems: pendingReceiveList,
       receipts: enrichedReceipts,
+      customers: customers || [],
+      subplates: inSubplates || [],
     });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// DELETE /api/purchase-inward?id=123
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Receipt ID required" }, { status: 400 });
+    }
+
+    const { error: itErr } = await supabaseAdmin
+      .from("purchase_inward_items")
+      .delete()
+      .eq("inpid", Number(id));
+
+    if (itErr) {
+      return NextResponse.json({ error: itErr.message }, { status: 500 });
+    }
+
+    const { error } = await supabaseAdmin
+      .from("po_inward")
+      .delete()
+      .eq("id", Number(id));
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

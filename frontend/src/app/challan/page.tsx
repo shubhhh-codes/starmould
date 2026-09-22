@@ -24,10 +24,6 @@ import {
   Box,
   FileText,
 } from "lucide-react";
-import rawChallans from "@/lib/mock-challans.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawSubplates from "@/lib/mock-subplates.json";
-import rawScans from "@/lib/mock-scans.json";
 import type {
   Challan,
   ChallanItem,
@@ -37,10 +33,14 @@ import type {
 } from "@/lib/supabase/types";
 
 export default function ChallanPage() {
-  const [challans, setChallans] = useState<Challan[]>(rawChallans as unknown as Challan[]);
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
-  const [scans] = useState<ScanProject[]>(rawScans as unknown as ScanProject[]);
+  const [challans, setChallans] = useState<Challan[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
+  const [scans, setScans] = useState<ScanProject[]>([]);
+  const [kpis, setKpis] = useState({ totalChallans: 0, activeCount: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Navigation Tabs: Job Work Challan Register vs Pending Outward Items
   const [activeTab, setActiveTab] = useState<"challan_list" | "pending_outward">("challan_list");
@@ -78,6 +78,28 @@ export default function ChallanPage() {
 
   const [formError, setFormError] = useState<string | null>(null);
 
+  const fetchChallans = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/challan");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load challans");
+      setChallans(data.challans || []);
+      setCustomers(data.customers || []);
+      setSubplates(data.subplates || []);
+      if (data.kpis) setKpis(data.kpis);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to fetch challan data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchChallans();
+  }, []);
+
   // Filtered dropdown lists strictly based on legacy usertype
   const vendors = useMemo(() => customers.filter((c) => c.usertype === "Vendor"), [customers]);
   const customersList = useMemo(() => customers.filter((c) => c.usertype === "Customer"), [customers]);
@@ -106,7 +128,7 @@ export default function ChallanPage() {
   };
 
   // KPI Calculations
-  const totalChallans = challans.length;
+  const totalChallans = kpis.totalChallans || challans.length;
   const activeChallans = challans.filter((c) => c.status === "1").length;
   const totalPlatesDispatched = challans.reduce(
     (acc, c) => acc + (c.items?.reduce((sum, it) => sum + (it.qty || 0), 0) || 0),
@@ -237,7 +259,7 @@ export default function ChallanPage() {
     });
   };
 
-  const handleSubmitChallan = (e: React.FormEvent) => {
+  const handleSubmitChallan = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -278,50 +300,46 @@ export default function ChallanPage() {
       }
     }
 
-    // Generate next Challan sequence: SM/JW/xx
-    const nextSeq = challans.length + 1;
-    const challanno = nextSeq < 10 ? `SM/JW/0${nextSeq}` : `SM/JW/${nextSeq}`;
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/challan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modalForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create challan");
 
-    const vendor = customers.find((c) => c.id === Number(modalForm.vendorid));
-    const customer = customers.find((c) => c.id === Number(modalForm.customerid));
-    const transporter = customers.find((c) => c.id === Number(modalForm.vendortid));
+      await fetchChallans();
+      setIsModalOpen(false);
+      setModalForm({
+        chdate: new Date().toISOString().slice(0, 10),
+        vendorid: "",
+        vendortid: "",
+        customerid: "",
+        projectid: "",
+        items: [],
+      });
+    } catch (err: any) {
+      setFormError(err.message || "Failed to save challan");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-    const newChallan: Challan = {
-      id: Date.now(),
-      challanno,
-      customerid: Number(modalForm.customerid),
-      vendorid: Number(modalForm.vendorid),
-      vendortid: Number(modalForm.vendortid),
-      projectid: modalForm.projectid,
-      chdate: modalForm.chdate,
-      status: "1",
-      created_by: "Admin",
-      customername: customer?.customername || `Customer #${modalForm.customerid}`,
-      vendorname: vendor?.customername || `Vendor #${modalForm.vendorid}`,
-      transportername: transporter?.customername || `Transporter #${modalForm.vendortid}`,
-      items: modalForm.items.map((it, idx) => ({
-        id: Date.now() + idx,
-        challanid: Date.now(),
-        plateid: Number(it.plateid),
-        particulars: it.particulars,
-        customer: Number(modalForm.customerid),
-        project: modalForm.projectid,
-        qty: Number(it.qty),
-        platename: it.platename,
-        customername: customer?.customername,
-      })),
-    };
-
-    setChallans([newChallan, ...challans]);
-    setIsModalOpen(false);
-    setModalForm({
-      chdate: new Date().toISOString().slice(0, 10),
-      vendorid: "",
-      vendortid: "",
-      customerid: "",
-      projectid: "",
-      items: [],
-    });
+  const handleCancelChallan = async (id: number) => {
+    if (window.confirm("Are you sure you want to cancel this outward challan?")) {
+      try {
+        const res = await fetch(`/api/challan?id=${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to cancel challan");
+        }
+        await fetchChallans();
+      } catch (err: any) {
+        alert("Error: " + err.message);
+      }
+    }
   };
 
   return (

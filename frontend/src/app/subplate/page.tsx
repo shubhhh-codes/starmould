@@ -19,9 +19,6 @@ import {
   ShieldCheck,
   Tag,
 } from "lucide-react";
-import rawSubplates from "@/lib/mock-subplates.json";
-import rawScans from "@/lib/mock-scans.json";
-import rawUsers from "@/lib/mock-users.json";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 
 // The 23 authentic materials extracted from resources/views/scanning/index.blade.php
@@ -54,11 +51,17 @@ const REAL_MATERIALS = [
 const SHAPES = ["Plate", "Round Bar"];
 
 export default function SubplatePage() {
-  const [subplates, setSubplates] = useState<Subplate[]>(
-    rawSubplates as unknown as Subplate[]
-  );
-  const [scans] = useState<ScanProject[]>(rawScans as unknown as ScanProject[]);
-  const [users] = useState<User[]>(rawUsers as unknown as User[]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
+  const [scans, setScans] = useState<ScanProject[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [kpis, setKpis] = useState({
+    totalCount: 0,
+    inHouseCount: 0,
+    vendorCount: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [materialFilter, setMaterialFilter] = useState("ALL");
@@ -81,6 +84,28 @@ export default function SubplatePage() {
     sqty: "1",
     location: "SM",
   });
+
+  const fetchSubplates = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/subplate");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load subplates");
+      setSubplates(data.subplates || []);
+      setScans(data.scans || []);
+      setUsers(data.users || []);
+      if (data.kpis) setKpis(data.kpis);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to load subplates");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchSubplates();
+  }, []);
 
   // Filter subplates
   const filteredSubplates = useMemo(() => {
@@ -109,74 +134,56 @@ export default function SubplatePage() {
   }, [subplates, searchQuery, materialFilter, locationFilter, projectFilter]);
 
   // KPI Calculations
-  const totalCount = subplates.length;
-  const inHouseCount = subplates.filter(
+  const totalCount = kpis.totalCount || subplates.length;
+  const inHouseCount = kpis.inHouseCount || subplates.filter(
     (sp) => sp.location === "SM" || !sp.location
   ).length;
-  const vendorCount = subplates.filter(
+  const vendorCount = kpis.vendorCount || subplates.filter(
     (sp) => sp.location && sp.location !== "SM"
   ).length;
   const uniqueProjects = new Set(subplates.map((sp) => sp.projectid)).size;
 
   // Active staff
   const activeStaff = useMemo(() => {
-    return users.filter((u) => Number(u.status) === 1);
+    return users.filter((u) => String(u.status) === "1");
   }, [users]);
 
-  // Handle Create Subplate
-  const handleCreate = (e: React.FormEvent) => {
+  // Handle Create Subplate (Live API POST)
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalForm.platename || !modalForm.projectid) return;
 
-    const newId = Math.max(...subplates.map((s) => s.id), 0) + 1;
-    const subProjId =
-      modalForm.subprojectid || `${modalForm.projectid}_${String(newId).padStart(3, "0")}`;
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/subplate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modalForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create subplate");
 
-    const newPlate: Subplate = {
-      id: newId,
-      platename: modalForm.platename,
-      projectid: String(modalForm.projectid),
-      subprojectid: subProjId,
-      shape: modalForm.shape,
-      width: parseFloat(modalForm.width) || 0,
-      height: parseFloat(modalForm.height) || 0,
-      length: parseFloat(modalForm.length) || 0,
-      weight: parseFloat(modalForm.weight) || 0,
-      unit: modalForm.unit,
-      material: modalForm.material,
-      sqty: parseInt(modalForm.sqty, 10) || 1,
-      location: modalForm.location || "SM",
-      photo: null,
-      design_by: null,
-      order_by: null,
-      received_workby: null,
-      received_qcby: null,
-      vmc_workby: null,
-      vmc_qcby: null,
-      drilltap_workby: null,
-      final_qcby: null,
-      packing_workby: null,
-      packing_photo: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    setSubplates([newPlate, ...subplates]);
-    setIsModalOpen(false);
-    setModalForm({
-      platename: "",
-      projectid: "",
-      subprojectid: "",
-      shape: "Plate",
-      width: "",
-      height: "",
-      length: "",
-      weight: "",
-      unit: "mm",
-      material: "MS-Bright",
-      sqty: "1",
-      location: "SM",
-    });
+      await fetchSubplates();
+      setIsModalOpen(false);
+      setModalForm({
+        platename: "",
+        projectid: "",
+        subprojectid: "",
+        shape: "Plate",
+        width: "",
+        height: "",
+        length: "",
+        weight: "",
+        unit: "mm",
+        material: "MS-Bright",
+        sqty: "1",
+        location: "SM",
+      });
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleExportCSV = () => {

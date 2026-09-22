@@ -21,19 +21,23 @@ import {
   Eye,
   Filter,
 } from "lucide-react";
-import rawScans from "@/lib/mock-scans.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawUsers from "@/lib/mock-users.json";
-import rawSubplates from "@/lib/mock-subplates.json";
 import type { ScanProject, Customer, User, Subplate } from "@/lib/supabase/types";
 
 export default function ScanningPage() {
-  const [scans, setScans] = useState<ScanProject[]>(
-    rawScans as unknown as ScanProject[]
-  );
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [users] = useState<User[]>(rawUsers as unknown as User[]);
-  const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
+  const [scans, setScans] = useState<ScanProject[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [kpis, setKpis] = useState({
+    totalScans: 0,
+    pendingScans: 0,
+    missingScanner: 0,
+    missingQC: 0,
+    missingDesigner: 0,
+    totalRevenue: 0,
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Role Toggle: Worker vs Admin (Merged ScanningController + ScanAdminController)
   const [viewMode, setViewMode] = useState<"admin" | "worker">("admin");
@@ -58,6 +62,28 @@ export default function ScanningPage() {
     amount: "0",
   });
 
+  const fetchScans = async () => {
+    try {
+      setIsLoading(true);
+      setFetchError(null);
+      const res = await fetch("/api/scanning");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to load scan projects");
+      setScans(data.scans || []);
+      setCustomers(data.customers || []);
+      setUsers(data.users || []);
+      if (data.kpis) setKpis(data.kpis);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to fetch scan projects");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchScans();
+  }, []);
+
   // Filtered scans
   const filteredScans = useMemo(() => {
     return scans.filter((s) => {
@@ -66,7 +92,8 @@ export default function ScanningPage() {
         !searchQuery ||
         s.projectid?.toLowerCase().includes(q) ||
         s.description?.toLowerCase().includes(q) ||
-        s.cname?.toLowerCase().includes(q);
+        s.cname?.toLowerCase().includes(q) ||
+        s.customername?.toLowerCase().includes(q);
 
       const matchStatus =
         statusFilter === "ALL" || s.status === statusFilter;
@@ -78,117 +105,154 @@ export default function ScanningPage() {
     });
   }, [scans, searchQuery, statusFilter, customerFilter]);
 
-  // KPI Calculations (Source: ScanAdminController.php:30-33 & ScanningController.php:38)
-  const totalScans = scans.length;
-  const pendingScans = scans.filter((s) => s.status === "pending").length;
-  const missingScanner = scans.filter(
+  // KPI Calculations (Live DB KPIs & Filter-aware)
+  const totalScans = kpis.totalScans || scans.length;
+  const pendingScans = kpis.pendingScans || scans.filter((s) => s.status === "pending").length;
+  const missingScanner = kpis.missingScanner || scans.filter(
     (s) => (s.scan_by === 0 || !s.scan_by) && s.status === "pending"
   ).length;
-  const missingQC = scans.filter(
+  const missingQC = kpis.missingQC || scans.filter(
     (s) => (s.qc_by === 0 || !s.qc_by) && s.status === "pending"
   ).length;
-  const missingDesigner = scans.filter(
+  const missingDesigner = kpis.missingDesigner || scans.filter(
     (s) => (s.modeldesign_by === 0 || !s.modeldesign_by) && s.status === "pending"
   ).length;
-  const totalRevenue = scans.reduce((sum, s) => sum + Number(s.amount || 0), 0);
+  const totalRevenue = kpis.totalRevenue || scans.reduce((sum, s) => sum + Number(s.amount || 0), 0);
 
   // Active staff
   const activeStaff = useMemo(() => {
-    return users.filter((u) => Number(u.status) === 1);
+    return users.filter((u) => String(u.status) === "1");
   }, [users]);
 
-  // Handle Quick Payment Toggle (Admin Only) (Source: ScanAdminController)
-  const togglePayment = (id: number) => {
-    setScans((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, payment: s.payment === 1 ? 0 : 1 } : s
-      )
-    );
+  // Handle Quick Payment Toggle (Admin Only) (Live API PATCH)
+  const togglePayment = async (id: number) => {
+    const current = scans.find((s) => s.id === id);
+    if (!current) return;
+    const newPayment = current.payment === 1 ? 0 : 1;
+    try {
+      const res = await fetch("/api/scanning", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field: "payment", value: newPayment }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update payment");
+      }
+      setScans((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, payment: newPayment } : s))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
   };
 
-  // Handle Quick Status Change
-  const handleStatusChange = (
+  // Handle Quick Status Change (Live API PATCH)
+  const handleStatusChange = async (
     id: number,
     newStatus: "pending" | "registered" | "completed"
   ) => {
-    setScans((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s))
-    );
+    try {
+      const res = await fetch("/api/scanning", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field: "status", value: newStatus }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update status");
+      }
+      setScans((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
   };
 
-  // Handle Staff Assignment Change (Source: ScanningController.php:74-126)
-  const handleStaffChange = (
+  // Handle Staff Assignment Change (Live API PATCH - changestatusscan)
+  const handleStaffChange = async (
     id: number,
     field: "scan_by" | "qc_by" | "modeldesign_by",
     userId: number
   ) => {
-    setScans((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, [field]: userId } : s))
-    );
+    try {
+      const res = await fetch("/api/scanning", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field, value: userId }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to assign staff");
+      }
+      setScans((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, [field]: userId } : s))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
   };
 
-  // Handle Inline Amount Update (Source: ScanAdminController.php:185)
-  const updateAmount = (id: number, newAmount: number) => {
-    setScans((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, amount: newAmount } : s))
-    );
+  // Handle Inline Amount Update (Live API PATCH)
+  const updateAmount = async (id: number, newAmount: number) => {
+    try {
+      const res = await fetch("/api/scanning", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, field: "amount", value: newAmount }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update amount");
+      }
+      setScans((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, amount: newAmount } : s))
+      );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
   };
 
-  // Create Project Submit
-  const handleCreate = (e: React.FormEvent) => {
+  // Create Project Submit (Live API POST)
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!modalForm.cname || !modalForm.description) return;
 
-    const selectedCust = customers.find(
-      (c) => String(c.id) === modalForm.cname || c.customername === modalForm.cname
-    );
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/scanning", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(modalForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create project");
 
-    const newId = Math.max(...scans.map((x) => x.id), 0) + 1;
-    const generatedProjectId = `${String(newId).padStart(4, "0")}_${
-      selectedCust?.initials || "GEN"
-    }_001`;
-
-    const newRecord: ScanProject = {
-      id: newId,
-      projectid: generatedProjectId,
-      cname: modalForm.cname,
-      customername: selectedCust?.customername || "Client",
-      description: modalForm.description,
-      worktype: null,
-      rdate: modalForm.rdate,
-      cdate: modalForm.cdate,
-      dispatchdate: modalForm.cdate,
-      scan_by: Number(modalForm.scan_by),
-      qc_by: Number(modalForm.qc_by),
-      modeldesign_by: Number(modalForm.modeldesign_by),
-      payment: 0,
-      mail_done: 0,
-      scan_hr: 0,
-      model_hr: 0,
-      sr_scanhr: 0,
-      sr_modelhr: 0,
-      amount: parseFloat(modalForm.amount) || 0,
-      status: "pending",
-      subnote: null,
-      note: null,
-      created_at: new Date().toISOString(),
-      created_by: 2,
-      updated_at: new Date().toISOString(),
-    };
-
-    setScans([newRecord, ...scans]);
-    setIsModalOpen(false);
+      await fetchScans();
+      setIsModalOpen(false);
+      setModalForm({
+        rdate: new Date().toISOString().split("T")[0],
+        cdate: new Date().toISOString().split("T")[0],
+        cname: "",
+        description: "",
+        scan_by: "0",
+        qc_by: "0",
+        modeldesign_by: "0",
+        amount: "0",
+      });
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Linked subplates for selected project
-  const projectSubplates = useMemo(() => {
+  const projectSubplates = useMemo<Subplate[]>(() => {
     if (!selectedProject) return [];
-    return subplates.filter(
-      (sp) =>
-        String(sp.projectid) === String(selectedProject.projectid) ||
-        String(sp.projectid) === String(selectedProject.id)
-    );
-  }, [selectedProject, subplates]);
+    return (selectedProject as any).subplates || [];
+  }, [selectedProject]);
 
   return (
     <AppLayout>

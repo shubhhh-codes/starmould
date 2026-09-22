@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   Users,
@@ -19,10 +19,9 @@ import {
   CheckCircle2,
   Truck,
   Layers,
-  ArrowUpDown,
-  Filter,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
-import rawCustomers from "@/lib/mock-customers.json";
 import type { Customer } from "@/lib/supabase/types";
 
 // Supported exact usertypes derived directly from legacy customer/index.blade.php & CustomerController.php
@@ -55,32 +54,47 @@ const USERTYPE_CONFIG: Record<
 };
 
 export default function CustomerPage() {
-  const [customers, setCustomers] = useState<Customer[]>(rawCustomers as Customer[]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [activeTab, setActiveTab] = useState<"All" | UsertypeOption>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   // Live Supabase fetch
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       setIsLoading(true);
       const res = await fetch("/api/customers");
       const data = await res.json();
-      if (data.customers && data.customers.length > 0) {
+      if (res.ok && Array.isArray(data.customers)) {
         setCustomers(data.customers);
+      } else {
+        showNotification("error", data.error || "Failed to load customers.");
       }
-    } catch (err) {
-      console.error("Failed to load live customers from Supabase:", err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load customers";
+      showNotification("error", msg);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  React.useEffect(() => {
-    fetchCustomers();
   }, []);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, [fetchCustomers]);
+
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => {
+      setNotification((curr) => (curr?.message === message ? null : curr));
+    }, 4000);
+  };
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -113,6 +127,7 @@ export default function CustomerPage() {
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Filter and search
   const filteredCustomers = useMemo(() => {
@@ -125,8 +140,8 @@ export default function CustomerPage() {
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       return (
-        c.customername.toLowerCase().includes(q) ||
-        c.initials.toLowerCase().includes(q) ||
+        (c.customername && c.customername.toLowerCase().includes(q)) ||
+        (c.initials && c.initials.toLowerCase().includes(q)) ||
         (c.mobile && c.mobile.toLowerCase().includes(q)) ||
         (c.mobile1 && c.mobile1.toLowerCase().includes(q)) ||
         (c.email && c.email.toLowerCase().includes(q)) ||
@@ -183,8 +198,8 @@ export default function CustomerPage() {
     setSelectedCustomer(customer);
     setFormData({
       id: customer.id,
-      customername: customer.customername,
-      initials: customer.initials,
+      customername: customer.customername || "",
+      initials: customer.initials || "",
       mobile: customer.mobile || "",
       mobile1: customer.mobile1 || "",
       email: customer.email || "",
@@ -208,7 +223,7 @@ export default function CustomerPage() {
     // On Add: cannot conflict with existing
     if (modalMode === "add") {
       const exists = customers.some(
-        (c) => c.initials.toUpperCase() === clean
+        (c) => c.initials && c.initials.toUpperCase() === clean
       );
       if (exists) {
         setInitialError("Initial already exists!");
@@ -230,6 +245,7 @@ export default function CustomerPage() {
     const currentId = selectedCustomer?.id;
     const exists = customers.some(
       (c) =>
+        c.customername &&
         c.customername.trim().toLowerCase() === clean.toLowerCase() &&
         c.id !== currentId
     );
@@ -241,8 +257,8 @@ export default function CustomerPage() {
     return true;
   };
 
-  // Handle form submission (Add / Update)
-  const handleSubmitForm = (e: React.FormEvent) => {
+  // Handle form submission (Add / Update via live Supabase API)
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     const isNameValid = validateCustomerName(formData.customername);
     const isInitialValid =
@@ -250,46 +266,69 @@ export default function CustomerPage() {
 
     if (!isNameValid || !isInitialValid) return;
 
-    if (modalMode === "add") {
-      const newCustomer: Customer = {
-        id: Math.max(...customers.map((c) => c.id), 0) + 1,
-        customername: formData.customername.trim(),
-        initials: formData.initials.trim().toUpperCase(),
-        mobile: formData.mobile.trim() || null,
-        mobile1: formData.mobile1.trim() || null,
-        email: formData.email.trim() || null,
-        address: formData.address.trim() || null,
-        usertype: formData.usertype,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setCustomers([newCustomer, ...customers]);
-    } else if (modalMode === "edit" && selectedCustomer) {
-      setCustomers((prev) =>
-        prev.map((c) =>
-          c.id === selectedCustomer.id
-            ? {
-                ...c,
-                customername: formData.customername.trim(),
-                mobile: formData.mobile.trim() || null,
-                mobile1: formData.mobile1.trim() || null,
-                email: formData.email.trim() || null,
-                address: formData.address.trim() || null,
-                usertype: formData.usertype,
-                updated_at: new Date().toISOString(),
-              }
-            : c
-        )
-      );
+    try {
+      setIsSubmitting(true);
+      if (modalMode === "add") {
+        const res = await fetch("/api/customers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          showNotification("error", result.error || "Failed to add customer");
+          return;
+        }
+        setCustomers((prev) => [result.customer, ...prev]);
+        showNotification("success", `Customer "${result.customer.customername}" added successfully.`);
+        setIsModalOpen(false);
+      } else if (modalMode === "edit" && selectedCustomer) {
+        const res = await fetch("/api/customers", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        const result = await res.json();
+        if (!res.ok) {
+          showNotification("error", result.error || "Failed to update customer");
+          return;
+        }
+        setCustomers((prev) =>
+          prev.map((c) => (c.id === selectedCustomer.id ? result.customer : c))
+        );
+        showNotification("success", `Customer "${result.customer.customername}" updated successfully.`);
+        setIsModalOpen(false);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error saving customer";
+      showNotification("error", msg);
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsModalOpen(false);
   };
 
-  // Handle soft delete
-  const handleConfirmDelete = () => {
+  // Handle soft delete via live Supabase API
+  const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    try {
+      setIsDeleting(true);
+      const res = await fetch(`/api/customers?id=${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+      if (!res.ok) {
+        showNotification("error", result.error || "Failed to delete customer");
+        return;
+      }
+      setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      showNotification("success", `Customer "${deleteTarget.customername}" deleted successfully.`);
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error deleting customer";
+      showNotification("error", msg);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Export CSV function (replicates legacy DataTable buttons Excel/CSV)
@@ -306,13 +345,13 @@ export default function CustomerPage() {
     ];
     const rows = filteredCustomers.map((c) => [
       c.id,
-      `"${c.customername.replace(/"/g, '""')}"`,
-      `"${c.initials}"`,
+      `"${(c.customername || "").replace(/"/g, '""')}"`,
+      `"${c.initials || ""}"`,
       `"${c.mobile || ""}"`,
       `"${c.mobile1 || ""}"`,
       `"${c.email || ""}"`,
       `"${(c.address || "").replace(/"/g, '""')}"`,
-      `"${c.usertype}"`,
+      `"${c.usertype || ""}"`,
     ]);
     const csvContent =
       "data:text/csv;charset=utf-8," +
@@ -332,6 +371,30 @@ export default function CustomerPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
+        {/* Toast Notification */}
+        {notification && (
+          <div
+            className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
+              notification.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                : "bg-rose-50 dark:bg-rose-950/80 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+            }`}
+          >
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            )}
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* Module Header */}
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -343,8 +406,9 @@ export default function CustomerPage() {
             </div>
             <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
               Customer / Vendor Management
-              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300">
-                `customers` Table
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Live Supabase Connected
               </span>
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -352,6 +416,7 @@ export default function CustomerPage() {
             </p>
           </div>
         </div>
+
         {/* Top Action Bar & Stat Cards */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Filter Category Tabs */}
@@ -373,7 +438,7 @@ export default function CustomerPage() {
                         : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                     }`}
                   >
-                    <span>{tab === "Transport" ? "Transport" : tab}</span>
+                    <span>{tab}</span>
                     <span
                       className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
                         isActive
@@ -389,8 +454,17 @@ export default function CustomerPage() {
             )}
           </div>
 
-          {/* Action Buttons: Add Customer, Export */}
+          {/* Action Buttons: Refresh, Add Customer, Export */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={fetchCustomers}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
+              title="Refresh customer data from Supabase"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
             <button
               onClick={handleExportCSV}
               className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm"
@@ -480,7 +554,16 @@ export default function CustomerPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                {paginatedCustomers.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={8} className="py-16 text-center text-slate-400">
+                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
+                      <p className="font-medium text-slate-600 dark:text-slate-300">
+                        Loading customer records from Supabase...
+                      </p>
+                    </td>
+                  </tr>
+                ) : paginatedCustomers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-400">
                       <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -502,7 +585,7 @@ export default function CustomerPage() {
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2.5">
                             <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[11px] shrink-0 border border-blue-200/60 dark:border-blue-900">
-                              {c.initials.slice(0, 2) || "CO"}
+                              {(c.initials || "CO").slice(0, 2)}
                             </div>
                             <span className="font-semibold text-slate-800 dark:text-slate-200 line-clamp-1">
                               {c.customername}
@@ -513,7 +596,7 @@ export default function CustomerPage() {
                         {/* Initials */}
                         <td className="py-3 px-3 text-center">
                           <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            {c.initials}
+                            {c.initials || "—"}
                           </span>
                         </td>
 
@@ -659,7 +742,7 @@ export default function CustomerPage() {
                       : "Edit Customer / Vendor"}
                   </h3>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Source: customer.store / customer.updatedata
+                    Source: CustomerController.php store() / updatecustomer()
                   </p>
                 </div>
                 <button
@@ -872,9 +955,11 @@ export default function CustomerPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm"
+                    disabled={isSubmitting}
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                   >
-                    {modalMode === "add" ? "Save Customer" : "Update Customer"}
+                    {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{modalMode === "add" ? "Save Customer" : "Update Customer"}</span>
                   </button>
                 </div>
               </form>
@@ -922,10 +1007,12 @@ export default function CustomerPage() {
                 </button>
                 <button
                   type="button"
+                  disabled={isDeleting}
                   onClick={handleConfirmDelete}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg shadow-sm"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg shadow-sm disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  Yes, Delete Record
+                  {isDeleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Yes, Delete Record</span>
                 </button>
               </div>
             </div>

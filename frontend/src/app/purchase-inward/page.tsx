@@ -22,10 +22,6 @@ import {
   ArrowRight,
   ShoppingCart,
 } from "lucide-react";
-import rawPurchases from "@/lib/mock-purchases.json";
-import rawPoInwards from "@/lib/mock-po-inwards.json";
-import rawCustomers from "@/lib/mock-customers.json";
-import rawSubplates from "@/lib/mock-subplates.json";
 import type {
   PurchaseOrder,
   PurchaseInwardReceipt,
@@ -35,12 +31,12 @@ import type {
 } from "@/lib/supabase/types";
 
 export default function PurchaseInwardPage() {
-  const [purchases, setPurchases] = useState<PurchaseOrder[]>(rawPurchases as unknown as PurchaseOrder[]);
-  const [poInwards, setPoInwards] = useState<PurchaseInwardReceipt[]>(rawPoInwards as unknown as PurchaseInwardReceipt[]);
-  const [customers] = useState<Customer[]>(rawCustomers as unknown as Customer[]);
-  const [subplates] = useState<Subplate[]>(rawSubplates as unknown as Subplate[]);
+  const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
+  const [poInwards, setPoInwards] = useState<PurchaseInwardReceipt[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
   const [livePendingItems, setLivePendingItems] = useState<ViewPoPendingInwardQty[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Live Supabase fetch for pending inward items and inward receipts
   const fetchInwardData = async () => {
@@ -51,8 +47,14 @@ export default function PurchaseInwardPage() {
       if (data.pendingReceiveItems) {
         setLivePendingItems(data.pendingReceiveItems);
       }
-      if (data.receipts && data.receipts.length > 0) {
+      if (data.receipts) {
         setPoInwards(data.receipts);
+      }
+      if (data.customers) {
+        setCustomers(data.customers);
+      }
+      if (data.subplates) {
+        setSubplates(data.subplates);
       }
     } catch (err) {
       console.error("Failed to load live purchase inward from Supabase:", err);
@@ -221,7 +223,7 @@ export default function PurchaseInwardPage() {
 
   // Submit Inward Receipt
   // Source: PurchaseInwardController.php store() lines 91-140
-  const handleSubmitReceive = (e: React.FormEvent) => {
+  const handleSubmitReceive = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPendingPO) return;
 
@@ -235,40 +237,45 @@ export default function PurchaseInwardPage() {
       return;
     }
 
-    const nextInwardNum = poInwards.length + 1;
-    const newInsrno = nextInwardNum < 10 ? `SM/PR/0${nextInwardNum}` : `SM/PR/${nextInwardNum}`;
-    const newInwardId = Math.max(...poInwards.map((i) => i.id), 0) + 1;
-
-    const newReceipt: PurchaseInwardReceipt = {
-      id: newInwardId,
-      pid: selectedPendingPO.id,
-      insrno: newInsrno,
-      inpono: receiveForm.inpono.trim() || null,
-      cname: selectedPendingPO.cname,
-      vname: selectedPendingPO.vname,
-      projectid: selectedPendingPO.projectid,
-      odate: receiveForm.odate,
-      status: "1",
-      created_at: new Date().toISOString(),
-      items: [
-        {
-          id: newInwardId * 10,
+    try {
+      setIsLoading(true);
+      const res = await fetch("/api/purchase-inward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           pid: selectedPendingPO.id,
-          inpid: newInwardId,
-          plateid: selectedPendingPO.plateid,
-          imaterial: selectedPendingPO.material,
-          material: selectedPendingPO.material,
-          materialtype: selectedPendingPO.materialtype,
-          qty: selectedPendingPO.qty,
-          inward_qty: receivingQty,
-          pending_qty: selectedPendingPO.pending_qty - receivingQty,
-          platename: selectedPendingPO.platename,
-        },
-      ],
-    };
+          inpono: receiveForm.inpono.trim() || null,
+          cname: selectedPendingPO.cname,
+          vname: selectedPendingPO.vname,
+          projectid: selectedPendingPO.projectid,
+          odate: receiveForm.odate,
+          items: [
+            {
+              plateid: selectedPendingPO.plateid,
+              material: selectedPendingPO.material,
+              imaterial: selectedPendingPO.material,
+              materialtype: selectedPendingPO.materialtype,
+              qty: selectedPendingPO.qty,
+              inward_qty: receivingQty,
+            },
+          ],
+        }),
+      });
 
-    setPoInwards([newReceipt, ...poInwards]);
-    setIsReceiveModalOpen(false);
+      if (!res.ok) {
+        const data = await res.json();
+        setReceiveError(data.error || "Failed to record receipt");
+        return;
+      }
+
+      setIsReceiveModalOpen(false);
+      await fetchInwardData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error saving receipt";
+      setReceiveError(message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Toggle inward receipt child expansion
