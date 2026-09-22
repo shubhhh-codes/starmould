@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/purchase-inward - fetch open pending items directly from view_po_pending_inward_qty
+// GET /api/purchase-inward - fetch open pending items directly from view_po_pending_inward_qty (Admin, Manager only)
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     // 1. Query view_po_pending_inward_qty directly (single source of truth)
     const { data: viewData, error: viewErr } = await supabaseAdmin
@@ -69,8 +75,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// DELETE /api/purchase-inward?id=123
+// DELETE /api/purchase-inward?id=123 (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -104,8 +115,13 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-// POST /api/purchase-inward - record an inward receipt against a PO
+// POST /api/purchase-inward - record an inward receipt against a PO (Admin, Manager only)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { pid, inpono, cname, vname, projectid, odate, items } = body;

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/gram - fetch all gram pricing rules from gram_calc
-export async function GET() {
+// GET /api/gram - fetch all gram pricing rules from gram_calc (Admin, Manager only)
+export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { data, error } = await supabaseAdmin
       .from("gram_calc")
@@ -20,8 +26,13 @@ export async function GET() {
   }
 }
 
-// POST /api/gram - create new gram pricing tier
+// POST /api/gram - create new gram pricing tier (Admin, Manager only)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { graterthan, lessthan, fix, multiply } = body;
@@ -62,8 +73,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT /api/gram - update gram tier (replicates GramController.php:38-62 updategramdata)
+// PUT /api/gram - update gram tier (Admin, Manager only)
 export async function PUT(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, graterthan, lessthan, fix, multiply } = body;
@@ -105,8 +121,13 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE /api/gram - delete gram tier
+// DELETE /api/gram - delete gram tier (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

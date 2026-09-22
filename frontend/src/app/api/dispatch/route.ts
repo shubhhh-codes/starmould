@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/dispatch - fetch dispatches, customers, subplates, scans
+// GET /api/dispatch - fetch dispatches, customers, subplates, scans (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "100");
@@ -79,8 +85,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/dispatch - create dispatch challan and line items
+// POST /api/dispatch - create dispatch challan and line items (Roles 0, 1, 2)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const {
@@ -128,7 +139,7 @@ export async function POST(req: NextRequest) {
           freightcharge: freightcharge || "N/A",
           noofcases: noofcases || "1",
           status: "1",
-          created_by: "Admin",
+          created_by: auth.user.name || "Admin",
           created_at: new Date().toISOString(),
         },
       ])
@@ -176,8 +187,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/dispatch?id=123 - soft delete dispatch
+// DELETE /api/dispatch?id=123 - soft delete dispatch (Roles 0, 1, 2)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");

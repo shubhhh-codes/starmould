@@ -469,7 +469,8 @@ export default function PurchaseInwardPage() {
         {/* ========================================================================= */}
         {activeTab === "pending_receive" && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
@@ -565,6 +566,67 @@ export default function PurchaseInwardPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card-List Fallback (< md) */}
+            <div className="block md:hidden p-3 space-y-3">
+              {paginatedPendingItems.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  No open purchase orders with pending quantities.
+                </div>
+              ) : (
+                paginatedPendingItems.map((item, idx) => (
+                  <div
+                    key={`${item.id}_${item.plateid}_${idx}`}
+                    className="p-3.5 bg-slate-50/80 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
+                        {item.srno}
+                      </span>
+                      <span className="font-mono text-[10px] text-slate-400">
+                        {item.odate}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                        {item.platename || `Plate #${item.plateid}`}
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-mono">
+                        Mould: {item.projectid} {item.materialtype ? `(${item.materialtype})` : ""}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Supplier:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                          {item.vendorname || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Customer:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                          {item.customername || "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                      <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                        Pending Qty: {item.pending_qty}
+                      </span>
+                      <button
+                        onClick={() => handleOpenReceiveModal(item)}
+                        className="min-h-[40px] px-4 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/60 transition flex items-center justify-center cursor-pointer"
+                      >
+                        Receive
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
 
             {/* Pagination */}
@@ -692,44 +754,46 @@ export default function PurchaseInwardPage() {
                                   <div className="px-4 py-2 bg-slate-100/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300">
                                     Received Items for {inw.insrno}
                                   </div>
-                                  <table className="w-full text-xs text-left">
-                                    <thead className="text-[10px] text-slate-500 uppercase bg-slate-50 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-800">
-                                      <tr>
-                                        <th className="py-2 px-4">Plate Name</th>
-                                        <th className="py-2 px-4">Dimensions / Material</th>
-                                        <th className="py-2 px-4">Material Type</th>
-                                        <th className="py-2 px-4 text-center">Inward Qty</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                      {inw.items && inw.items.length > 0 ? (
-                                        inw.items.map((it, idx) => (
-                                          <tr key={idx} className="hover:bg-slate-50/50">
-                                            <td className="py-2 px-4 font-semibold text-slate-800 dark:text-slate-200">
-                                              {it.platename || getSubplateName(it.plateid)}
-                                            </td>
-                                            <td className="py-2 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                              {it.imaterial || it.material || "—"}
-                                            </td>
-                                            <td className="py-2 px-4">
-                                              <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                                {it.materialtype}
-                                              </span>
-                                            </td>
-                                            <td className="py-2 px-4 text-center font-bold text-emerald-700 dark:text-emerald-400">
-                                              +{it.inward_qty}
+                                  <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-xs text-left">
+                                      <thead className="text-[10px] text-slate-500 uppercase bg-slate-50 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-800">
+                                        <tr>
+                                          <th className="py-2 px-4">Plate Name</th>
+                                          <th className="py-2 px-4">Dimensions / Material</th>
+                                          <th className="py-2 px-4">Material Type</th>
+                                          <th className="py-2 px-4 text-center">Inward Qty</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {inw.items && inw.items.length > 0 ? (
+                                          inw.items.map((it, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/50">
+                                              <td className="py-2 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                                                {it.platename || getSubplateName(it.plateid)}
+                                              </td>
+                                              <td className="py-2 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                                {it.imaterial || it.material || "—"}
+                                              </td>
+                                              <td className="py-2 px-4">
+                                                <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                  {it.materialtype}
+                                                </span>
+                                              </td>
+                                              <td className="py-2 px-4 text-center font-bold text-emerald-700 dark:text-emerald-400">
+                                                +{it.inward_qty}
+                                              </td>
+                                            </tr>
+                                          ))
+                                        ) : (
+                                          <tr>
+                                            <td colSpan={4} className="py-3 text-center text-slate-400 text-xs">
+                                              No line items.
                                             </td>
                                           </tr>
-                                        ))
-                                      ) : (
-                                        <tr>
-                                          <td colSpan={4} className="py-3 text-center text-slate-400 text-xs">
-                                            No line items.
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
                                 </div>
                               </td>
                             </tr>

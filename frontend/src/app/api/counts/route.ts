@@ -1,7 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   const tables = [
     "customers",
     "subplate",

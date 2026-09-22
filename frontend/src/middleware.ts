@@ -14,9 +14,9 @@ const ROUTE_PERMISSIONS: Record<string, number[]> = {
   "/gram": [0, 1],
   "/customer": [0, 1],
   "/export": [0, 1],
+  "/purchase": [0, 1], // Restricted to Admin/Manager per legacy topbar.blade.php:80
+  "/purchase-inward": [0, 1], // Restricted to Admin/Manager
   "/printing": [0, 1, 2],
-  "/purchase": [0, 1, 2],
-  "/purchase-inward": [0, 1, 2],
   "/challan": [0, 1, 2],
   "/dispatch": [0, 1, 2],
   "/inward": [0, 1, 2],
@@ -28,10 +28,22 @@ const ROUTE_PERMISSIONS: Record<string, number[]> = {
   "/": [0, 1, 2, 3, 4],
 };
 
+function parseSessionToken(token: string): { id: number; role_id: number; role: string } | null {
+  if (!token || !token.includes(".")) return null;
+  const [payload] = token.split(".");
+  if (!payload) return null;
+  try {
+    const jsonStr = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(jsonStr);
+  } catch {
+    return null;
+  }
+}
+
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow static files, api routes, and login
+  // Allow static files, api routes, favicon, and login
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
@@ -44,16 +56,19 @@ export function middleware(req: NextRequest) {
 
   // Get session cookie
   const sessionCookie = req.cookies.get("sm_session");
-  let roleId = 0; // Default fallback for offline/direct intranet access
-
-  if (sessionCookie?.value) {
-    try {
-      const user = JSON.parse(sessionCookie.value);
-      roleId = Number(user.role_id ?? 0);
-    } catch {
-      roleId = 0;
-    }
+  if (!sessionCookie?.value) {
+    // REDIRECT TO LOGIN IF NO SESSION (NO ADMIN FALLBACK)
+    const loginUrl = new URL("/login", req.url);
+    return NextResponse.redirect(loginUrl);
   }
+
+  const session = parseSessionToken(sessionCookie.value);
+  if (!session || session.role_id === undefined || session.role_id === null) {
+    const loginUrl = new URL("/login", req.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const roleId = Number(session.role_id);
 
   // Check matching route permission
   for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
@@ -71,13 +86,6 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     "/((?!api|_next/static|_next/image|favicon.ico).*)",
   ],
 };

@@ -283,9 +283,9 @@ export function MouldProjectsTable({
       {/* Table Action & Filter Toolbar */}
       <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
         {/* Left: Filter Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+        <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[280px]">
           {/* Search Input */}
-          <div className="relative w-56">
+          <div className="relative w-full sm:w-56">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <input
               type="text"
@@ -388,8 +388,8 @@ export function MouldProjectsTable({
         </div>
       </div>
 
-      {/* Main Table Grid */}
-      <div className="overflow-x-auto">
+      {/* Main Table Grid (Desktop: hidden below md) */}
+      <div className="hidden md:block overflow-x-auto">
         <table className="erp-table">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -446,6 +446,69 @@ export function MouldProjectsTable({
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile Card-List Fallback (block below md, hidden on md+) */}
+      <div className="block md:hidden p-3 space-y-3">
+        {table.getRowModel().rows.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 text-xs">
+            No moulds or projects match the selected filter.
+          </div>
+        ) : (
+          table.getRowModel().rows.map((row) => {
+            const m = row.original;
+            return (
+              <div
+                key={row.id}
+                className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono font-bold text-blue-600">
+                    {m.projectid}
+                  </span>
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      m.status === "completed"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+                </div>
+                <div className="font-medium text-slate-800 line-clamp-2">
+                  {m.description || "No description"}
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                  <div>
+                    <span className="text-slate-400">Customer: </span>
+                    <span className="font-medium text-slate-700 truncate block">
+                      {m.customername || m.cname || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Worktype: </span>
+                    <span className="font-medium text-slate-700 block">
+                      {m.worktype || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">R-Date: </span>
+                    <span className="font-medium text-slate-700 block">
+                      {m.rdate ? formatDate(m.rdate) : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Plates: </span>
+                    <span className="font-medium text-slate-700 block">
+                      {m.total_plates ?? 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Pagination Footer */}

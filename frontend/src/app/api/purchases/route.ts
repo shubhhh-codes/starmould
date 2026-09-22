@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/purchases - fetch POs with items and pending subplates
+// GET /api/purchases - fetch POs with items and pending subplates (Admin, Manager only)
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "100");
@@ -78,8 +84,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/purchases - create new PO with line items
+// POST /api/purchases - create new PO with line items (Admin, Manager only)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { odate, vname, cname, projectid, items } = body;
@@ -110,7 +121,7 @@ export async function POST(req: NextRequest) {
           cname,
           projectid,
           status: "1",
-          created_by: "Admin",
+          created_by: auth.user.name || "Admin",
           created_at: new Date().toISOString(),
         },
       ])
@@ -153,8 +164,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/purchases?id=123 - soft delete PO
+// DELETE /api/purchases?id=123 - soft delete PO (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -178,4 +194,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

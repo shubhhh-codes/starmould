@@ -561,7 +561,8 @@ export default function PurchasePage() {
         {/* ========================================================================= */}
         {activeTab === "orders" && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
@@ -690,44 +691,46 @@ export default function PurchasePage() {
                                       {itemCount} subplates ordered
                                     </span>
                                   </div>
-                                  <table className="w-full text-xs text-left">
-                                    <thead className="text-[10px] text-slate-500 uppercase bg-slate-50 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-800">
-                                      <tr>
-                                        <th className="py-2 px-4">Plate Name</th>
-                                        <th className="py-2 px-4">Material / Dimensions</th>
-                                        <th className="py-2 px-4">Material Type</th>
-                                        <th className="py-2 px-4 text-center">Ordered Qty</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                      {po.items && po.items.length > 0 ? (
-                                        po.items.map((item) => (
-                                          <tr key={item.id} className="hover:bg-slate-50/50">
-                                            <td className="py-2 px-4 font-semibold text-slate-800 dark:text-slate-200">
-                                              {item.platename || `Plate #${item.plateid}`}
-                                            </td>
-                                            <td className="py-2 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                              {item.material || "—"}
-                                            </td>
-                                            <td className="py-2 px-4 text-slate-600 dark:text-slate-400">
-                                              <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                                                {item.materialtype}
-                                              </span>
-                                            </td>
-                                            <td className="py-2 px-4 text-center font-bold text-slate-800 dark:text-slate-200">
-                                              {item.qty}
+                                  <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-xs text-left">
+                                      <thead className="text-[10px] text-slate-500 uppercase bg-slate-50 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-800">
+                                        <tr>
+                                          <th className="py-2 px-4">Plate Name</th>
+                                          <th className="py-2 px-4">Material / Dimensions</th>
+                                          <th className="py-2 px-4">Material Type</th>
+                                          <th className="py-2 px-4 text-center">Ordered Qty</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                        {po.items && po.items.length > 0 ? (
+                                          po.items.map((item) => (
+                                            <tr key={item.id} className="hover:bg-slate-50/50">
+                                              <td className="py-2 px-4 font-semibold text-slate-800 dark:text-slate-200">
+                                                {item.platename || `Plate #${item.plateid}`}
+                                              </td>
+                                              <td className="py-2 px-4 font-mono text-[11px] text-slate-600 dark:text-slate-400">
+                                                {item.material || "—"}
+                                              </td>
+                                              <td className="py-2 px-4 text-slate-600 dark:text-slate-400">
+                                                <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                  {item.materialtype}
+                                                </span>
+                                              </td>
+                                              <td className="py-2 px-4 text-center font-bold text-slate-800 dark:text-slate-200">
+                                                {item.qty}
+                                              </td>
+                                            </tr>
+                                          ))
+                                        ) : (
+                                          <tr>
+                                            <td colSpan={4} className="py-4 text-center text-slate-400 italic">
+                                              No line items attached to this order.
                                             </td>
                                           </tr>
-                                        ))
-                                      ) : (
-                                        <tr>
-                                          <td colSpan={4} className="py-3 text-center text-slate-400 text-xs">
-                                            No line items attached to this order.
-                                          </td>
-                                        </tr>
-                                      )}
-                                    </tbody>
-                                  </table>
+                                        )}
+                                      </tbody>
+                                    </table>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -738,6 +741,102 @@ export default function PurchasePage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card-List Fallback (< md) */}
+            <div className="block md:hidden p-3 space-y-3">
+              {paginatedPurchases.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  No purchase orders found.
+                </div>
+              ) : (
+                paginatedPurchases.map((po) => {
+                  const isExpanded = Boolean(expandedRows[po.id]);
+                  const vendorName = getCustomerName(po.vname);
+                  const clientName = getCustomerName(po.cname);
+                  const itemCount = po.items ? po.items.length : 0;
+
+                  return (
+                    <div
+                      key={po.id}
+                      className="p-3.5 bg-slate-50/80 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2.5 text-xs shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
+                            {po.srno}
+                          </span>
+                          <span className="text-[10px] text-slate-400 ml-2 font-mono">
+                            {po.odate}
+                          </span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded font-mono font-semibold text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          {po.projectid}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-400">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Supplier:</span>
+                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                            {vendorName}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Customer:</span>
+                          <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                            {clientName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                        <span className="text-[11px] text-slate-500">
+                          {itemCount} {itemCount === 1 ? "subplate" : "subplates"}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => toggleRow(po.id)}
+                            className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-950/60 transition flex items-center justify-center cursor-pointer"
+                          >
+                            {isExpanded ? "Hide Items" : "View Items"}
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(po)}
+                            className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/60 transition flex items-center justify-center cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Mobile Expanded Items */}
+                      {isExpanded && po.items && po.items.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+                          {po.items.map((it) => (
+                            <div
+                              key={it.id}
+                              className="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-semibold text-slate-800 dark:text-slate-200 block">
+                                  {it.platename || `Plate #${it.plateid}`}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {it.material || "—"} ({it.materialtype})
+                                </span>
+                              </div>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">
+                                Qty: {it.qty}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             {/* Pagination Footer */}
@@ -911,8 +1010,8 @@ export default function PurchasePage() {
         {/* Source: purchase/index.blade.php lines 76-161 & PurchaseController::store */}
         {/* ========================================================================= */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="w-full max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="w-full h-full sm:h-auto sm:max-w-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-screen sm:max-h-[90vh]">
               {/* Modal Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800 shrink-0">
                 <div>

@@ -539,7 +539,8 @@ export default function CustomerPage() {
 
         {/* Data Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
@@ -686,6 +687,94 @@ export default function CustomerPage() {
             </table>
           </div>
 
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {isLoading ? (
+              <div className="py-12 text-center text-slate-400">
+                <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
+                <p className="text-xs">Loading customer records...</p>
+              </div>
+            ) : paginatedCustomers.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No customer or vendor records found.
+              </div>
+            ) : (
+              paginatedCustomers.map((c) => {
+                const typeCfg =
+                  USERTYPE_CONFIG[c.usertype] || USERTYPE_CONFIG["Other"];
+                const TypeIcon = typeCfg.icon;
+
+                return (
+                  <div
+                    key={c.id}
+                    className="p-3.5 bg-slate-50/80 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[11px] shrink-0 border border-blue-200/60 dark:border-blue-900">
+                          {(c.initials || "CO").slice(0, 2)}
+                        </div>
+                        <span className="font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">
+                          {c.customername}
+                        </span>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${typeCfg.badge}`}
+                      >
+                        <TypeIcon className="w-2.5 h-2.5 shrink-0" />
+                        <span>{typeCfg.label}</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Mobile:</span>
+                        <span className="font-mono text-slate-700 dark:text-slate-300">
+                          {c.mobile || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Alt Mobile:</span>
+                        <span className="font-mono text-slate-700 dark:text-slate-300">
+                          {c.mobile1 || "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {c.email && (
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
+                        <span className="text-slate-400 text-[10px]">Email: </span>
+                        {c.email}
+                      </div>
+                    )}
+
+                    {c.address && (
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">
+                        <span className="text-slate-400 text-[10px]">Address: </span>
+                        {c.address}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                      <button
+                        onClick={() => handleOpenEdit(c)}
+                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(c)}
+                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           {/* Table Footer / Pagination */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
             <div>
@@ -732,8 +821,8 @@ export default function CustomerPage() {
         {/* ADD / EDIT MODAL (Replicates legacy #exampleModalScrollable1 & form logic) */}
         {/* ========================================================================= */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="w-full h-full sm:h-auto sm:max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none sm:rounded-2xl shadow-2xl overflow-y-auto max-h-screen sm:max-h-[90vh]">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">

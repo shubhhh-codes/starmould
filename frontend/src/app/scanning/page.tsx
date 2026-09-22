@@ -405,8 +405,8 @@ export default function ScanningPage() {
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
-            <div className="relative flex-1 min-w-[240px]">
+          <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[300px]">
+            <div className="relative flex-1 w-full sm:w-auto sm:min-w-[240px]">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -447,7 +447,8 @@ export default function ScanningPage() {
 
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -641,6 +642,91 @@ export default function ScanningPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {filteredScans.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No scanning projects found.
+              </div>
+            ) : (
+              filteredScans.map((row) => (
+                <div
+                  key={row.id}
+                  className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-blue-600">
+                      {row.projectid || `#${row.id}`}
+                    </span>
+                    <select
+                      value={row.status}
+                      onChange={(e) =>
+                        handleStatusChange(
+                          row.id,
+                          e.target.value as any
+                        )
+                      }
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        row.status === "completed"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : row.status === "registered"
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      <option value="pending">pending</option>
+                      <option value="registered">registered</option>
+                      <option value="completed">completed</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <span className="font-semibold text-slate-900 block">
+                      {row.customername || `Customer #${row.cname}`}
+                    </span>
+                    <p className="text-[11px] text-slate-600 line-clamp-1">
+                      {row.description || "—"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Dates:</span>
+                      <span className="font-mono">
+                        {row.rdate || "—"} → {row.cdate || "—"}
+                      </span>
+                    </div>
+                    {viewMode === "admin" && (
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Amount / Payment:</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          ₹{(row.amount ?? 0).toLocaleString("en-IN")}{" "}
+                          <span className={`text-[10px] ${row.payment === 1 ? "text-emerald-600" : "text-rose-600"}`}>
+                            ({row.payment === 1 ? "Paid" : "Unpaid"})
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                    <span className="text-slate-500 text-[11px]">
+                      {row.total_plates ?? 0} subplates
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProject(row)}
+                      className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Layers className="w-4 h-4" />
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

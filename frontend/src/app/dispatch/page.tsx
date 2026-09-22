@@ -445,7 +445,8 @@ export default function DispatchPage() {
 
         {/* Main Dispatches Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                 <tr>
@@ -568,40 +569,42 @@ export default function DispatchPage() {
                                   </span>
                                 </div>
 
-                                <table className="w-full text-xs text-left">
-                                  <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
-                                    <tr>
-                                      <th className="px-3 py-2">Component / Tooling Set</th>
-                                      <th className="px-3 py-2">Condition</th>
-                                      <th className="px-3 py-2">Nature of Work</th>
-                                      <th className="px-3 py-2">Particulars / Specifications</th>
-                                      <th className="px-3 py-2 text-right">Qty</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {(d.items || []).map((it, idx) => (
-                                      <tr key={idx} className="hover:bg-slate-50">
-                                        <td className="px-3 py-2 font-semibold text-slate-900">
-                                          {it.custom_plate_name || it.platename || `Plate #${it.plateid}`}
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700">
-                                            {it.condition || "NEW"}
-                                          </span>
-                                        </td>
-                                        <td className="px-3 py-2 text-slate-600 font-medium">
-                                          {it.work || "NEW MADE"}
-                                        </td>
-                                        <td className="px-3 py-2 text-slate-700">
-                                          {it.particulars}
-                                        </td>
-                                        <td className="px-3 py-2 text-right font-bold text-slate-900">
-                                          {it.qty}
-                                        </td>
+                                <div className="overflow-x-auto w-full">
+                                  <table className="w-full text-xs text-left">
+                                    <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
+                                      <tr>
+                                        <th className="px-3 py-2">Component / Tooling Set</th>
+                                        <th className="px-3 py-2">Condition</th>
+                                        <th className="px-3 py-2">Nature of Work</th>
+                                        <th className="px-3 py-2">Particulars / Specifications</th>
+                                        <th className="px-3 py-2 text-right">Qty</th>
                                       </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {(d.items || []).map((it, idx) => (
+                                        <tr key={idx} className="hover:bg-slate-50">
+                                          <td className="px-3 py-2 font-semibold text-slate-900">
+                                            {it.custom_plate_name || it.platename || `Plate #${it.plateid}`}
+                                          </td>
+                                          <td className="px-3 py-2">
+                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700">
+                                              {it.condition || "NEW"}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2 text-slate-600 font-medium">
+                                            {it.work || "NEW MADE"}
+                                          </td>
+                                          <td className="px-3 py-2 text-slate-700">
+                                            {it.particulars}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-bold text-slate-900">
+                                            {it.qty}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -613,12 +616,97 @@ export default function DispatchPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {filteredDispatches.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No finished mould dispatches found matching your search.
+              </div>
+            ) : (
+              filteredDispatches.map((d) => {
+                const isExpanded = !!expandedRows[d.id];
+                return (
+                  <div
+                    key={d.id}
+                    className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-indigo-600 font-mono">
+                        {d.challanno}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        {d.chdate}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="font-semibold text-slate-900 block">
+                        {d.customername}
+                      </span>
+                      {d.transportername && (
+                        <p className="text-[11px] text-slate-500">
+                          Transporter: {d.transportername}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Invoice No:</span>
+                        <span className="font-mono text-slate-700">{d.invoiceno || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Vehicle No:</span>
+                        <span className="font-mono text-slate-700">{d.vehicleno || "—"}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                      <span className="text-slate-500 text-[11px]">
+                        {(d.items || []).length} items
+                      </span>
+                      <button
+                        onClick={() => toggleRow(d.id)}
+                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition flex items-center justify-center cursor-pointer"
+                      >
+                        {isExpanded ? "Hide Items" : "View Items"}
+                      </button>
+                    </div>
+
+                    {isExpanded && (d.items || []).length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
+                        {d.items?.map((it, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2 rounded bg-white border border-slate-200 text-[11px] flex items-center justify-between"
+                          >
+                            <div>
+                              <span className="font-semibold text-slate-800 block">
+                                {it.custom_plate_name || it.platename || `Plate #${it.plateid}`}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {it.condition || "NEW"} • {it.work || "NEW MADE"}
+                              </span>
+                            </div>
+                            <span className="font-bold text-slate-800">
+                              Qty: {it.qty}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Add Dispatch Challan Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-up">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-w-4xl sm:max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-up">
               {/* Modal Header */}
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-3">

@@ -17,6 +17,7 @@ import {
 
 interface TopbarProps {
   onToggleSidebar?: () => void;
+  onToggleMobileMenu?: () => void;
   currentUser?: {
     name: string;
     email: string;
@@ -27,6 +28,7 @@ interface TopbarProps {
 
 export function Topbar({
   onToggleSidebar,
+  onToggleMobileMenu,
   currentUser = {
     name: "Akshay",
     email: "akshay@star.in",
@@ -59,12 +61,19 @@ export function Topbar({
 
   return (
     <>
-      <header className="sticky top-0 z-30 h-16 bg-slate-900 border-b border-slate-800 text-slate-200 px-4 md:px-6 flex items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-30 h-16 bg-slate-900 border-b border-slate-800 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shadow-sm">
         {/* Left Section: Menu toggle & Brand */}
         <div className="flex items-center gap-3">
           <button
-            onClick={onToggleSidebar}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.innerWidth < 768) {
+                if (onToggleMobileMenu) onToggleMobileMenu();
+                else if (onToggleSidebar) onToggleSidebar();
+              } else {
+                onToggleSidebar?.();
+              }
+            }}
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
             aria-label="Toggle Menu"
           >
             <Menu className="h-5 w-5" />

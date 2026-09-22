@@ -598,7 +598,8 @@ export default function UserManagementPage() {
 
         {/* User Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
@@ -744,6 +745,103 @@ export default function UserManagementPage() {
             </table>
           </div>
 
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {isLoading ? (
+              <div className="py-12 text-center text-slate-400">
+                <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
+                <p className="text-xs">Loading user records...</p>
+              </div>
+            ) : paginatedUsers.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No user records found matching criteria.
+              </div>
+            ) : (
+              paginatedUsers.map((u) => {
+                const roleDef = getRoleById(u.role_id);
+                const isActive = u.status === 1;
+
+                return (
+                  <div
+                    key={u.id}
+                    className={`p-3.5 rounded-xl border space-y-2 text-xs shadow-2xs ${
+                      isActive
+                        ? "bg-slate-50/80 dark:bg-slate-800/50 border-slate-200 dark:border-slate-800"
+                        : "bg-slate-100/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 opacity-75"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-[11px] shrink-0 border border-blue-200/60 dark:border-blue-900">
+                          {(u.initials || "U").slice(0, 2)}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-slate-900 dark:text-slate-100 block">
+                            {u.name}
+                          </span>
+                          <span className="font-mono text-[10px] text-slate-400">
+                            @{u.username}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          isActive
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-slate-100 text-slate-500 border border-slate-200"
+                        }`}
+                      >
+                        {isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 dark:text-slate-400 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Role:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                          {roleDef.display_name}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Type / Subtype:</span>
+                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate block">
+                          {u.usertype || "User"} {u.usersubtype ? `(${u.usersubtype})` : ""}
+                        </span>
+                      </div>
+                    </div>
+
+                    {u.email && (
+                      <div className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
+                        <span className="text-slate-400 text-[10px]">Email: </span>
+                        {u.email}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                      <button
+                        onClick={() => handleOpenEdit(u)}
+                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleToggleStatus(u)}
+                        className={`min-h-[40px] px-3.5 py-2 text-xs font-semibold border rounded-lg transition flex items-center justify-center cursor-pointer ${
+                          isActive
+                            ? "text-amber-600 border-amber-200 hover:bg-amber-50"
+                            : "text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                        }`}
+                      >
+                        {isActive ? "Deactivate" : "Activate"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           {/* Table Footer */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 dark:bg-slate-800/40 border-t border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
             <div>
@@ -790,8 +888,8 @@ export default function UserManagementPage() {
         {/* ADD / EDIT USER MODAL (Strictly NO password2 column; write-only password) */}
         {/* ========================================================================= */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
-            <div className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-150">
+            <div className="w-full h-full sm:h-auto sm:max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-none sm:rounded-2xl shadow-2xl overflow-y-auto max-h-screen sm:max-h-[90vh]">
               <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-800">
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">

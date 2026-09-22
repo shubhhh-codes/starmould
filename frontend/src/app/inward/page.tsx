@@ -377,7 +377,8 @@ export default function InwardPage() {
 
         {/* Main Inward Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                 <tr>
@@ -474,48 +475,50 @@ export default function InwardPage() {
                                   </span>
                                 </div>
 
-                                <table className="w-full text-xs text-left">
-                                  <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
-                                    <tr>
-                                      <th className="px-3 py-2">Plate Name</th>
-                                      <th className="px-3 py-2">Mould</th>
-                                      <th className="px-3 py-2">Particulars / Status</th>
-                                      <th className="px-3 py-2 text-right">Dispatched Qty</th>
-                                      <th className="px-3 py-2 text-right">Inward Qty Received</th>
-                                      <th className="px-3 py-2 text-right">Pending Qty</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {(i.items || []).map((it, idx) => (
-                                      <tr key={idx} className="hover:bg-slate-50">
-                                        <td className="px-3 py-2 font-semibold text-slate-900">
-                                          {it.platename || `Plate #${it.plateid}`}
-                                        </td>
-                                        <td className="px-3 py-2 text-slate-500 font-mono">
-                                          {it.project || i.projectid}
-                                        </td>
-                                        <td className="px-3 py-2 text-slate-700">
-                                          {it.particulars}
-                                        </td>
-                                        <td className="px-3 py-2 text-right font-medium text-slate-600">
-                                          {it.qty}
-                                        </td>
-                                        <td className="px-3 py-2 text-right font-bold text-emerald-600">
-                                          {it.inward_qty}
-                                        </td>
-                                        <td className="px-3 py-2 text-right font-semibold">
-                                          {(it.pending_qty ?? 0) > 0 ? (
-                                            <span className="text-amber-600 font-bold">
-                                              {it.pending_qty}
-                                            </span>
-                                          ) : (
-                                            <span className="text-slate-400">0 (Completed)</span>
-                                          )}
-                                        </td>
+                                <div className="overflow-x-auto w-full">
+                                  <table className="w-full text-xs text-left">
+                                    <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
+                                      <tr>
+                                        <th className="px-3 py-2">Plate Name</th>
+                                        <th className="px-3 py-2">Mould</th>
+                                        <th className="px-3 py-2">Particulars / Status</th>
+                                        <th className="px-3 py-2 text-right">Dispatched Qty</th>
+                                        <th className="px-3 py-2 text-right">Inward Qty Received</th>
+                                        <th className="px-3 py-2 text-right">Pending Qty</th>
                                       </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {(i.items || []).map((it, idx) => (
+                                        <tr key={idx} className="hover:bg-slate-50">
+                                          <td className="px-3 py-2 font-semibold text-slate-900">
+                                            {it.platename || `Plate #${it.plateid}`}
+                                          </td>
+                                          <td className="px-3 py-2 text-slate-500 font-mono">
+                                            {it.project || i.projectid}
+                                          </td>
+                                          <td className="px-3 py-2 text-slate-700">
+                                            {it.particulars}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-medium text-slate-600">
+                                            {it.qty}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-bold text-emerald-600">
+                                            {it.inward_qty}
+                                          </td>
+                                          <td className="px-3 py-2 text-right font-semibold">
+                                            {(it.pending_qty ?? 0) > 0 ? (
+                                              <span className="text-amber-600 font-bold">
+                                                {it.pending_qty}
+                                              </span>
+                                            ) : (
+                                              <span className="text-slate-400">0 (Completed)</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -527,12 +530,96 @@ export default function InwardPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {filteredInwards.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No inward jobwork receipts found matching your search.
+              </div>
+            ) : (
+              filteredInwards.map((i) => {
+                const isExpanded = !!expandedRows[i.id];
+                return (
+                  <div
+                    key={i.id}
+                    className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-emerald-600 font-mono">
+                          {i.inchallanno}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          (Ref: {i.challanno})
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-400">
+                        {i.chdate}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="font-semibold text-slate-900 block">
+                        {i.vendorname}
+                      </span>
+                      <p className="text-[11px] text-slate-500">
+                        Customer: {i.customername || "—"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                      <span className="text-slate-500 text-[11px]">
+                        {(i.items || []).length} received plates
+                      </span>
+                      <button
+                        onClick={() => toggleRow(i.id)}
+                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition flex items-center justify-center cursor-pointer"
+                      >
+                        {isExpanded ? "Hide Plates" : "View Plates"}
+                      </button>
+                    </div>
+
+                    {isExpanded && (i.items || []).length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
+                        {i.items?.map((it, idx) => (
+                          <div
+                            key={idx}
+                            className="p-2 rounded bg-white border border-slate-200 text-[11px] flex items-center justify-between"
+                          >
+                            <div>
+                              <span className="font-semibold text-slate-800 block">
+                                {it.platename || `Plate #${it.plateid}`}
+                              </span>
+                              <span className="text-[10px] text-slate-400">
+                                {it.particulars || "Jobwork Done"}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="font-bold text-emerald-600 block">
+                                Inward: {it.inward_qty}
+                              </span>
+                              {(it.pending_qty ?? 0) > 0 && (
+                                <span className="text-[10px] text-amber-600">
+                                  Pending: {it.pending_qty}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Inward Challan Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-up">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-w-4xl sm:max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-up">
               {/* Modal Header */}
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-3">

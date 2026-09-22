@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
 // GET /api/worklog - Fetch worklogs with customer, user, scan, and subplate lookups + department statistics
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "1000");
@@ -46,7 +52,7 @@ export async function GET(req: NextRequest) {
     // Fetch users lookup
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("id, username, initials, status, role")
+      .select("id, username, initials, status, role_id")
       .is("deleted_at", null);
 
     const userMap = new Map((users || []).map((u) => [u.id, u]));
@@ -135,6 +141,11 @@ export async function GET(req: NextRequest) {
 
 // POST /api/worklog - Create new worklog entry (matches WorkController.php store)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const {
@@ -193,7 +204,7 @@ export async function POST(req: NextRequest) {
           machine_hr: Number(machine_hr) || 0,
           driltap_hr: Number(driltap_hr) || 0,
           qc_hr: Number(qc_hr) || 0,
-          userid: userid ? Number(userid) : 1,
+          userid: userid ? Number(userid) : auth.user.id,
           created_at: now,
           updated_at: now,
         },
@@ -215,8 +226,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/worklog - Remove worklog entry
+// DELETE /api/worklog - Remove worklog entry (Admin, Manager, or owner)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

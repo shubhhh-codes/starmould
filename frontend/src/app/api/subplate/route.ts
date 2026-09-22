@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/subplate - fetch subplates with project and staff lookups
+// GET /api/subplate - fetch subplates with project and staff lookups (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "1000");
@@ -89,8 +95,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/subplate - Create new subplate entry
+// POST /api/subplate - Create new subplate entry (Roles 0, 1, 2, 3)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const {
@@ -161,8 +172,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT /api/subplate - Update subplate
+// PUT /api/subplate - Update subplate (Roles 0, 1, 2, 3)
 export async function PUT(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, updates } = body;
@@ -195,8 +211,13 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE /api/subplate - Soft delete subplate
+// DELETE /api/subplate - Soft delete subplate (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

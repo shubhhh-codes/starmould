@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type"); // "challan" | "inward" | "purchase" | "dispatch" | "work"
@@ -23,7 +29,7 @@ export async function GET(req: NextRequest) {
 
       const { data: vendor } = await supabaseAdmin
         .from("customers")
-        .select("id, customername, mobile, address, gst")
+        .select("id, customername, mobile, mobile1, address, email")
         .eq("id", challan.vendorid)
         .single();
 
@@ -113,7 +119,7 @@ export async function GET(req: NextRequest) {
 
       const { data: vendor } = await supabaseAdmin
         .from("customers")
-        .select("id, customername, mobile, address, gst")
+        .select("id, customername, mobile, mobile1, address, email")
         .eq("id", purchase.vname)
         .single();
 
@@ -149,7 +155,7 @@ export async function GET(req: NextRequest) {
 
       const { data: customer } = await supabaseAdmin
         .from("customers")
-        .select("id, customername, mobile, address, gst")
+        .select("id, customername, mobile, mobile1, address, email")
         .eq("id", dispatch.customerid)
         .single();
 
@@ -183,6 +189,89 @@ export async function GET(req: NextRequest) {
           work: it.work || "NEW MADE",
           qty: it.qty || 1,
         })),
+      });
+    }
+
+    // 5. Work Log / Work Order Manufacturing Document (Derived from legacy work.printlist & worklog schema)
+    if (type === "work") {
+      const { data: worklog, error: wErr } = await supabaseAdmin
+        .from("worklog")
+        .select("id, scan_print_id, customerid, projectid, subplateid, work_hr, sdate, edate, starttime, endtime, workdescription, design_hr, program_hr, machine_hr, driltap_hr, qc_hr, userid, rdate, created_at")
+        .eq("id", Number(id))
+        .single();
+
+      if (wErr || !worklog) {
+        return NextResponse.json({ error: "Work Order record not found" }, { status: 404 });
+      }
+
+      const { data: customer } = await supabaseAdmin
+        .from("customers")
+        .select("id, customername, mobile, mobile1, address, email")
+        .eq("id", worklog.customerid)
+        .single();
+
+      const { data: operator } = await supabaseAdmin
+        .from("users")
+        .select("id, name, username, usertype, usersubtype")
+        .eq("id", worklog.userid)
+        .single();
+
+      const { data: scan } = await supabaseAdmin
+        .from("scan")
+        .select("id, projectid, description, worktype, cname")
+        .eq("projectid", worklog.projectid)
+        .limit(1)
+        .maybeSingle();
+
+      const { data: subplates } = await supabaseAdmin
+        .from("subplate")
+        .select("id, platename, subprojectid, material, width, height, length, unit")
+        .or(`id.eq.${Number(worklog.subplateid) || 0},subprojectid.eq.${worklog.subplateid}`)
+        .limit(1);
+
+      const subplate = subplates?.[0];
+
+      return NextResponse.json({
+        docType: "MANUFACTURING WORK ORDER & LOG",
+        docNumber: `WO-${worklog.id} (${worklog.projectid || "N/A"})`,
+        docDate: worklog.rdate || worklog.sdate,
+        party: customer,
+        operator: operator?.name || operator?.username || `User #${worklog.userid}`,
+        projectCode: worklog.projectid,
+        workType: scan?.worktype || "Machining",
+        shiftTiming: {
+          startDate: worklog.sdate,
+          endDate: worklog.edate,
+          startTime: worklog.starttime,
+          endTime: worklog.endtime,
+        },
+        hoursBreakdown: {
+          work_hr: worklog.work_hr || "00:00:00",
+          design_hr: worklog.design_hr || 0,
+          program_hr: worklog.program_hr || 0,
+          machine_hr: worklog.machine_hr || 0,
+          driltap_hr: worklog.driltap_hr || 0,
+          qc_hr: worklog.qc_hr || 0,
+        },
+        items: [
+          {
+            srNo: 1,
+            particulars: `${subplate?.platename || worklog.subplateid || "Mould Plate"} — ${worklog.workdescription || scan?.description || "Machining / Operation"}`,
+            subplateId: subplate?.subprojectid || worklog.subplateid || "—",
+            dimensions: subplate && subplate.width && subplate.height && subplate.length
+              ? `${subplate.width}x${subplate.height}x${subplate.length} ${subplate.unit || "mm"}`
+              : "—",
+            material: subplate?.material || "Tool Steel",
+            workDescription: worklog.workdescription || scan?.description || "—",
+            work_hr: worklog.work_hr || "00:00:00",
+            design_hr: worklog.design_hr || 0,
+            program_hr: worklog.program_hr || 0,
+            machine_hr: worklog.machine_hr || 0,
+            driltap_hr: worklog.driltap_hr || 0,
+            qc_hr: worklog.qc_hr || 0,
+            qty: 1,
+          },
+        ],
       });
     }
 

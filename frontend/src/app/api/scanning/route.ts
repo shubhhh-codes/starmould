@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
 // GET /api/scanning - Fetch scan projects, linked subplates, worklog hours, and KPIs
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "1000");
@@ -34,7 +40,7 @@ export async function GET(req: NextRequest) {
     // Fetch active users for staff dropdown
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("id, username, initials, status, role")
+      .select("id, username, initials, status, role_id")
       .is("deleted_at", null);
 
     const userMap = new Map((users || []).map((u) => [u.id, u]));
@@ -58,6 +64,7 @@ export async function GET(req: NextRequest) {
 
     // Fetch worklog hours aggregated per scan_print_id
     let worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
+
     if (scanIds.length > 0) {
       const { data: worklogs } = await supabaseAdmin
         .from("worklog")
@@ -158,6 +165,11 @@ export async function GET(req: NextRequest) {
 
 // POST /api/scanning - Create new Scanning project (matches ScanningController.php store)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const {
@@ -242,6 +254,11 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/scanning - Update status, staff assignment, payment toggle, or metadata
 export async function PATCH(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, field, value, updates } = body;
@@ -278,8 +295,13 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/scanning - Remove scan project
+// DELETE /api/scanning - Remove scan project (Admin, Manager only: roles 0, 1)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

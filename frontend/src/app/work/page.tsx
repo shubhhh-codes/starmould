@@ -481,7 +481,8 @@ export default function WorkPage() {
 
             {/* Daily Table */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -545,6 +546,65 @@ export default function WorkPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Mobile Card-List Fallback (< md) */}
+              <div className="block md:hidden p-3 space-y-3">
+                {dailyWorklogs.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs">
+                    No daily work records found for this selection.
+                  </div>
+                ) : (
+                  dailyWorklogs.map((row) => (
+                    <div
+                      key={row.id}
+                      className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
+                          <span className="font-bold text-slate-900">
+                            {row.username || `User #${row.userid}`}
+                          </span>
+                        </div>
+                        <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
+                          {row.work_hr} hrs
+                        </span>
+                      </div>
+
+                      <div className="text-slate-800 font-medium">
+                        {row.workdescription || "No description"}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                        <div>
+                          <span className="text-slate-400">Mould: </span>
+                          <span className="font-mono font-medium text-indigo-600">
+                            {row.projectid}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Customer: </span>
+                          <span className="font-medium text-slate-700 truncate block">
+                            {row.customername || "—"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Timing: </span>
+                          <span className="font-mono text-slate-700">
+                            {row.starttime} – {row.endtime}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400">Subplate: </span>
+                          <span className="font-mono text-slate-700">
+                            {row.subplateid || "—"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -553,8 +613,8 @@ export default function WorkPage() {
         {activeTab === "history" && (
           <div className="space-y-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
-                <div className="relative flex-1 min-w-[220px]">
+              <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[300px]">
+                <div className="relative flex-1 w-full sm:w-auto sm:min-w-[220px]">
                   <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
@@ -737,9 +797,9 @@ export default function WorkPage() {
 
         {/* Modal: Add Work Entry */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-xl overflow-hidden max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white sm:rounded-2xl shadow-xl border border-slate-200 w-full h-full sm:h-auto sm:max-w-xl overflow-hidden max-h-screen sm:max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
                     <Plus className="w-5 h-5" />
@@ -763,9 +823,9 @@ export default function WorkPage() {
 
               <form
                 onSubmit={handleCreate}
-                className="p-6 space-y-4 overflow-y-auto flex-1"
+                className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1"
               >
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Submission Date
@@ -810,7 +870,7 @@ export default function WorkPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Mould Name / Code <span className="text-rose-500">*</span>
@@ -875,7 +935,7 @@ export default function WorkPage() {
 
                 {/* Read-Only Details from selected mould matching legacy work/index.blade.php:158-173 */}
                 {selectedMould && (
-                  <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs">
                     <div>
                       <span className="font-semibold text-slate-400 uppercase">
                         Work Type:
@@ -914,7 +974,7 @@ export default function WorkPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Start Date & Time

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/expense - fetch expenses with customers lookup and summary KPIs
+// GET /api/expense - fetch expenses with customers lookup and summary KPIs (Admin, Manager only)
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "1000");
@@ -66,8 +72,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/expense - create new expense entry (matches ExpenseController.php:392-450 addexpense)
+// POST /api/expense - create new expense entry (Admin, Manager only)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { rdate, customerid, description, payment_type, payment_mode, amount } = body;
@@ -120,8 +131,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT /api/expense - update expense entry
+// PUT /api/expense - update expense entry (Admin, Manager only)
 export async function PUT(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, rdate, customerid, description, payment_type, payment_mode, amount } = body;
@@ -159,8 +175,13 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE /api/expense - delete expense entry
+// DELETE /api/expense - delete expense entry (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

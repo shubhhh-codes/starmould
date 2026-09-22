@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
+import { signSession, SessionUser } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,22 +27,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
     }
 
-    // Verify bcrypt hash
+    if (user.status !== null && user.status !== undefined && (String(user.status).toLowerCase() === "inactive" || String(user.status) === "0")) {
+      return NextResponse.json({ error: "User account is deactivated" }, { status: 403 });
+    }
+
+    // Verify bcrypt hash (strictly from database, 100% bcrypt.compare, zero backdoors or plaintext fallback)
     const storedHash = user.password_hash || user.password;
-    let passwordMatches = false;
 
-    if (storedHash && (storedHash.startsWith("$2y$") || storedHash.startsWith("$2a$") || storedHash.startsWith("$2b$"))) {
-      // Laravel uses $2y$, which is compatible with $2a$/$2b$
-      const normalizedHash = storedHash.replace(/^\$2y\$/, "$2a$");
-      passwordMatches = await bcrypt.compare(password, normalizedHash);
-    } else if (storedHash === password) {
-      passwordMatches = true;
+    if (!storedHash || (!storedHash.startsWith("$2y$") && !storedHash.startsWith("$2a$") && !storedHash.startsWith("$2b$"))) {
+      return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
     }
 
-    // Also support default development admin credentials if initial factory password
-    if (!passwordMatches && (password === "admin123" || password === "password" || password === "secret")) {
-      passwordMatches = true;
-    }
+    // Laravel uses $2y$ prefix, which bcryptjs evaluates under $2a$ prefix
+    const normalizedHash = storedHash.replace(/^\$2y\$/, "$2a$");
+    const passwordMatches = await bcrypt.compare(password, normalizedHash);
 
     if (!passwordMatches) {
       return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
@@ -49,7 +48,7 @@ export async function POST(req: NextRequest) {
 
     // Role definitions:
     // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker
-    const roleId = user.role_id !== null && user.role_id !== undefined ? Number(user.role_id) : 0;
+    const roleId = user.role_id !== null && user.role_id !== undefined ? Number(user.role_id) : 4;
     const roleNames: Record<number, string> = {
       0: "Admin",
       1: "Manager",
@@ -58,26 +57,28 @@ export async function POST(req: NextRequest) {
       4: "Worker",
     };
 
-    const sessionUser = {
+    const sessionUser: SessionUser = {
       id: user.id,
       name: user.name,
       email: user.email,
       username: user.username,
       role_id: roleId,
-      role: roleNames[roleId] || "User",
+      role: roleNames[roleId] || "Worker",
       usertype: user.usertype,
       usersubtype: user.usersubtype,
       initials: user.initials,
     };
+
+    const signedToken = signSession(sessionUser);
 
     const res = NextResponse.json({
       success: true,
       user: sessionUser,
     });
 
-    // Set auth cookie
-    res.cookies.set("sm_session", JSON.stringify(sessionUser), {
-      httpOnly: false,
+    // Set signed, HttpOnly, secure auth cookie
+    res.cookies.set("sm_session", signedToken, {
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",

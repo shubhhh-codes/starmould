@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
 // GET /api/customers - fetch active customers/vendors from Supabase
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const usertype = searchParams.get("usertype");
@@ -73,8 +79,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/customers - create customer in Supabase (replicates store / addcustomer)
+// POST /api/customers - create customer in Supabase (Admin, Manager only)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { customername, mobile, mobile1, email, initials, address, usertype } = body;
@@ -130,8 +141,8 @@ export async function POST(req: NextRequest) {
           usertype,
           created_at: now,
           updated_at: now,
-          created_by: 0,
-          updated_by: 0,
+          created_by: auth.user.id,
+          updated_by: auth.user.id,
         },
       ])
       .select()
@@ -148,8 +159,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT /api/customers - update customer in Supabase (replicates updatecustomer / updatedata)
+// PUT /api/customers - update customer in Supabase (Admin, Manager only)
 export async function PUT(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, customername, mobile, mobile1, email, address, usertype } = body;
@@ -184,6 +200,7 @@ export async function PUT(req: NextRequest) {
       email: email?.trim() || null,
       address: address?.trim() || null,
       updated_at: now,
+      updated_by: auth.user.id,
     };
 
     if (usertype) {
@@ -208,8 +225,13 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE /api/customers - soft-delete customer in Supabase (replicates deletecustomer / destroy)
+// DELETE /api/customers - soft-delete customer in Supabase (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");
@@ -228,6 +250,7 @@ export async function DELETE(req: NextRequest) {
       .from("customers")
       .update({
         deleted_at: new Date().toISOString(),
+        updated_by: auth.user.id,
       })
       .eq("id", id);
 

@@ -321,8 +321,8 @@ export default function SampleReworkPage() {
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
-            <div className="relative flex-1 min-w-[240px]">
+          <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[300px]">
+            <div className="relative flex-1 w-full sm:w-auto sm:min-w-[240px]">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -363,7 +363,8 @@ export default function SampleReworkPage() {
 
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -518,6 +519,77 @@ export default function SampleReworkPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {filteredProjects.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No {activeTab.toLowerCase()} orders found.
+              </div>
+            ) : (
+              filteredProjects.map((row) => (
+                <div
+                  key={row.id}
+                  className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-mono font-bold text-purple-600">
+                        {row.projectid || `#${row.id}`}
+                      </span>
+                      <span className="ml-2 px-2 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200/50">
+                        {row.worktype || activeTab}
+                      </span>
+                    </div>
+                    <select
+                      value={row.status}
+                      onChange={(e) =>
+                        handleStatusChange(
+                          row.id,
+                          e.target.value as any
+                        )
+                      }
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        row.status === "completed"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : row.status === "registered"
+                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      <option value="pending">pending</option>
+                      <option value="registered">registered</option>
+                      <option value="completed">completed</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <span className="font-semibold text-slate-900 block">
+                      {row.customername || `Client #${row.cname}`}
+                    </span>
+                    <p className="text-[11px] text-slate-600 line-clamp-1">
+                      {row.description || "—"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Dates:</span>
+                      <span className="font-mono">
+                        {row.rdate || "—"} → {row.cdate || "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Hours (SM/USM):</span>
+                      <span className="font-mono font-medium text-slate-800">
+                        {row.scan_hr ?? 0}h / {row.model_hr ?? 0}h
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="py-3 px-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">

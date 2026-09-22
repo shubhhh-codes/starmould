@@ -518,8 +518,8 @@ export default function PrintingPage() {
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[300px]">
-            <div className="relative flex-1 min-w-[240px]">
+          <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[300px]">
+            <div className="relative flex-1 w-full sm:w-auto sm:min-w-[240px]">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -560,7 +560,8 @@ export default function PrintingPage() {
 
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -724,6 +725,78 @@ export default function PrintingPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {filteredPrints.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No 3D printing orders found.
+              </div>
+            ) : (
+              filteredPrints.map((row) => (
+                <div
+                  key={row.id}
+                  className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono font-bold text-teal-600">
+                      {row.projectid || `#${row.id}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleDispatchToggle(row.id)}
+                      className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                        row.dispatch === 1
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      {row.dispatch === 1 ? "Dispatched" : "Pending"}
+                    </button>
+                  </div>
+
+                  <div>
+                    <span className="font-semibold text-slate-900 block">
+                      {row.cname}
+                    </span>
+                    <p className="text-[11px] text-slate-600 line-clamp-1">
+                      {row.description || "—"}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Grams / Hours:</span>
+                      <span className="font-mono font-medium text-slate-800">
+                        {row.gram ?? 0}g / {row.hr ?? 0}h
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Dates:</span>
+                      <span className="font-mono">
+                        {row.tdate || "—"} → {row.cdate || "—"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {viewMode === "admin" && (
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                      <span className="font-mono font-bold text-slate-900">
+                        ₹{(row.ramount || row.amount || 0).toLocaleString("en-IN")}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(row.id)}
+                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
 

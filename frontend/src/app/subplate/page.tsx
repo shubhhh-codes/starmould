@@ -318,8 +318,8 @@ export default function SubplatePage() {
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[320px]">
-            <div className="relative flex-1 min-w-[240px]">
+          <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[320px]">
+            <div className="relative flex-1 w-full sm:w-auto sm:min-w-[240px]">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -359,7 +359,8 @@ export default function SubplatePage() {
 
         {/* Subplates Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -438,6 +439,66 @@ export default function SubplatePage() {
             </table>
           </div>
 
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {filteredSubplates.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No subplates found matching your filter criteria.
+              </div>
+            ) : (
+              filteredSubplates.map((row) => (
+                <div
+                  key={row.id}
+                  className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
+                      <span className="font-bold text-slate-900">{row.platename}</span>
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                        row.location === "SM" || !row.location
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          : "bg-amber-50 text-amber-700 border border-amber-200"
+                      }`}
+                    >
+                      <MapPin className="w-2.5 h-2.5" />
+                      {row.location || "SM"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                    <div>
+                      <span className="text-slate-400">Project: </span>
+                      <span className="font-mono font-medium text-indigo-600 truncate block">
+                        {row.projectid || "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Material: </span>
+                      <span className="font-medium text-slate-700 block">
+                        {row.material || "MS-Bright"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Dims: </span>
+                      <span className="font-mono font-medium text-slate-700 block">
+                        {row.length || 0}×{row.width || 0}×{row.height || 0} {row.unit || "mm"}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Qty / Shape: </span>
+                      <span className="font-medium text-slate-700 block">
+                        {row.sqty || 1} ({row.shape || "Plate"})
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
           <div className="py-3 px-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
             <span>Showing {filteredSubplates.length} subplates</span>
             <span>All dimensions and material grades derived from factory inventory</span>
@@ -446,9 +507,9 @@ export default function SubplatePage() {
 
         {/* Modal: Add Subplate */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b border-slate-100">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
+            <div className="bg-white sm:rounded-2xl shadow-xl border border-slate-200 w-full h-full sm:h-auto sm:max-w-lg overflow-y-auto max-h-screen sm:max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
                     <Plus className="w-5 h-5" />
@@ -470,8 +531,8 @@ export default function SubplatePage() {
                 </button>
               </div>
 
-              <form onSubmit={handleCreate} className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleCreate} className="p-4 sm:p-6 space-y-4 flex-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Plate Name
@@ -516,7 +577,7 @@ export default function SubplatePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Shape
@@ -575,7 +636,7 @@ export default function SubplatePage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Length

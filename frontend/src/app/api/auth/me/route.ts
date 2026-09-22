@@ -1,32 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authenticateRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-  const cookie = req.cookies.get("sm_session");
-  if (!cookie?.value) {
-    // Default fallback admin user for development / offline intranet access
-    return NextResponse.json({
-      user: {
-        id: 1,
-        name: "Admin",
-        username: "admin",
-        role_id: 0,
-        role: "Admin",
-      },
-    });
+  const auth = await authenticateRequest(req);
+  if ("error" in auth) {
+    return NextResponse.json({ user: null, error: auth.error }, { status: 401 });
   }
 
-  try {
-    const user = JSON.parse(cookie.value);
-    return NextResponse.json({ user });
-  } catch {
-    return NextResponse.json({
-      user: {
-        id: 1,
-        name: "Admin",
-        username: "admin",
-        role_id: 0,
-        role: "Admin",
-      },
-    });
-  }
+  return NextResponse.json({ user: auth.user });
 }

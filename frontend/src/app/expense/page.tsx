@@ -367,9 +367,9 @@ export default function ExpensePage() {
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[320px]">
+          <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[320px]">
             {/* Search Input */}
-            <div className="relative flex-1 min-w-[240px]">
+            <div className="relative flex-1 w-full sm:w-auto sm:min-w-[240px]">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
@@ -440,7 +440,8 @@ export default function ExpensePage() {
 
         {/* Expenses Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -551,6 +552,93 @@ export default function ExpensePage() {
             </table>
           </div>
 
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {filteredExpenses.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No expense records found matching your filters.
+              </div>
+            ) : (
+              filteredExpenses.map((row) => {
+                const isCredit = row.payment_type === "Credit";
+                return (
+                  <div
+                    key={row.id}
+                    className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
+                        <span className="font-medium text-slate-600">{row.rdate || "—"}</span>
+                      </div>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          isCredit
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-rose-50 text-rose-700 border-rose-200"
+                        }`}
+                      >
+                        {row.payment_type}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="font-bold text-slate-900 block">
+                        {row.customername || "Other / Miscellaneous"}
+                      </span>
+                      <p className="text-[11px] text-slate-600 line-clamp-1">
+                        {row.description || "—"}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-[11px] pt-1.5 border-t border-slate-200/60">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Credit:</span>
+                        <span className="font-mono font-medium text-emerald-600">
+                          {isCredit ? `₹${Number(row.amount).toLocaleString("en-IN")}` : "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Debit:</span>
+                        <span className="font-mono font-medium text-rose-600">
+                          {!isCredit ? `₹${Number(row.amount).toLocaleString("en-IN")}` : "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Balance:</span>
+                        <span className="font-mono font-bold text-slate-900">
+                          ₹{Number(row.balance || 0).toLocaleString("en-IN")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                      <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                        {row.payment_mode || "Cash"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openEditModal(row)}
+                          className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        {row.id === latestExpenseId && (
+                          <button
+                            onClick={() => handleDelete(row.id)}
+                            className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           <div className="py-3 px-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
             <span>Showing {filteredExpenses.length} entries</span>
             <span>All amounts formatted in INR (₹)</span>
@@ -559,8 +647,8 @@ export default function ExpensePage() {
 
         {/* Modal: Add Expense */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-xl border border-slate-200 w-full h-full sm:h-auto sm:max-w-lg max-h-screen sm:max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-6 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
@@ -751,8 +839,8 @@ export default function ExpensePage() {
 
         {/* Modal: Edit Expense (Strict rule from ExpenseController.php / index.blade.php) */}
         {isEditModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-xl border border-slate-200 w-full h-full sm:h-auto sm:max-w-lg max-h-screen sm:max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-6 border-b border-slate-100">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">

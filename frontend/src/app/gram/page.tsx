@@ -278,7 +278,8 @@ export default function GramMasterPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
@@ -369,6 +370,75 @@ export default function GramMasterPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {isLoading ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
+                <p>Loading tiers...</p>
+              </div>
+            ) : tiers.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No Gram Pricing Tiers Configured.
+              </div>
+            ) : (
+              tiers.map((tier) => {
+                const isFixed = tier.fix > 0;
+                return (
+                  <div
+                    key={tier.id}
+                    className="p-3.5 bg-slate-50/80 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono text-slate-500 font-bold">
+                        Tier #{tier.id}
+                      </span>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          isFixed
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
+                        }`}
+                      >
+                        {isFixed ? "Fixed Flat Fee" : "Multiplier"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 dark:text-slate-300 pt-1 border-t border-slate-200/60 dark:border-slate-800">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Range:</span>
+                        <span className="font-mono font-semibold">
+                          {tier.graterthan}g – {tier.lessthan}g
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Charge / Rate:</span>
+                        <span className="font-semibold text-slate-900 dark:text-slate-100">
+                          {tier.fix > 0 ? formatCurrency(tier.fix) : `₹${tier.multiply}/g`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                      <button
+                        onClick={() => openEditModal(tier)}
+                        className="px-3 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(tier)}
+                        className="px-3 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
 

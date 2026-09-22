@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
+import { authenticateRequest } from "@/lib/auth";
 
 // Helper to determine role_id based on usertype (matches UserController.php:81-95)
 function getRoleIdFromUsertype(usertype: string): number {
@@ -20,6 +21,11 @@ function getRoleIdFromUsertype(usertype: string): number {
 
 // GET /api/users - fetch users from Supabase users table with roles
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const checkInitial = searchParams.get("checkInitial");
@@ -86,6 +92,11 @@ export async function GET(req: NextRequest) {
 
 // POST /api/users - create user in Supabase (matches UserController.php:66-109 store / adduser)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { name, email, username, initials, usertype, usersubtype, status, role_id } = body;
@@ -167,6 +178,11 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/users - update user in Supabase (matches UserController.php:161-240 updatedata / updateuser)
 export async function PUT(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, name, email, username, initials, usertype, usersubtype, status, role_id } = body;
@@ -234,6 +250,11 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/users - soft delete user (matches UserController.php:305-334 destroy / deleteuser)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

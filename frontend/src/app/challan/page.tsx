@@ -504,7 +504,8 @@ export default function ChallanPage() {
         {/* TAB 1: Challan Register Table */}
         {activeTab === "challan_list" && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                   <tr>
@@ -605,38 +606,40 @@ export default function ChallanPage() {
                                     </span>
                                   </div>
 
-                                  <table className="w-full text-xs text-left">
-                                    <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
-                                      <tr>
-                                        <th className="px-3 py-2">Plate Name</th>
-                                        <th className="px-3 py-2">Customer</th>
-                                        <th className="px-3 py-2">Mould</th>
-                                        <th className="px-3 py-2">Particulars / Instructions</th>
-                                        <th className="px-3 py-2 text-right">Qty</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-100">
-                                      {(c.items || []).map((it, idx) => (
-                                        <tr key={idx} className="hover:bg-slate-50">
-                                          <td className="px-3 py-2 font-semibold text-slate-900">
-                                            {it.platename || `Plate #${it.plateid}`}
-                                          </td>
-                                          <td className="px-3 py-2 text-slate-600">
-                                            {it.customername || c.customername}
-                                          </td>
-                                          <td className="px-3 py-2 text-slate-500">
-                                            {it.project || c.projectid}
-                                          </td>
-                                          <td className="px-3 py-2 text-slate-700 font-medium">
-                                            {it.particulars}
-                                          </td>
-                                          <td className="px-3 py-2 text-right font-bold text-slate-900">
-                                            {it.qty}
-                                          </td>
+                                  <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-xs text-left">
+                                      <thead className="bg-slate-50 text-slate-600 uppercase border-b border-slate-200">
+                                        <tr>
+                                          <th className="px-3 py-2">Plate Name</th>
+                                          <th className="px-3 py-2">Customer</th>
+                                          <th className="px-3 py-2">Mould</th>
+                                          <th className="px-3 py-2">Particulars / Instructions</th>
+                                          <th className="px-3 py-2 text-right">Qty</th>
                                         </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                                      </thead>
+                                      <tbody className="divide-y divide-slate-100">
+                                        {(c.items || []).map((it, idx) => (
+                                          <tr key={idx} className="hover:bg-slate-50">
+                                            <td className="px-3 py-2 font-semibold text-slate-900">
+                                              {it.platename || `Plate #${it.plateid}`}
+                                            </td>
+                                            <td className="px-3 py-2 text-slate-600">
+                                              {it.customername || c.customername}
+                                            </td>
+                                            <td className="px-3 py-2 text-slate-500">
+                                              {it.project || c.projectid}
+                                            </td>
+                                            <td className="px-3 py-2 text-slate-700 font-medium">
+                                              {it.particulars}
+                                            </td>
+                                            <td className="px-3 py-2 text-right font-bold text-slate-900">
+                                              {it.qty}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
@@ -647,6 +650,89 @@ export default function ChallanPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card-List Fallback (< md) */}
+            <div className="block md:hidden p-3 space-y-3">
+              {filteredChallans.length === 0 ? (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  No outward jobwork challans found matching your search.
+                </div>
+              ) : (
+                filteredChallans.map((c) => {
+                  const isExpanded = !!expandedRows[c.id];
+                  return (
+                    <div
+                      key={c.id}
+                      className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-blue-600 font-mono">
+                            {c.challanno}
+                          </span>
+                          <span className="text-[10px] text-slate-400 ml-2">
+                            {c.chdate}
+                          </span>
+                        </div>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Outward
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Vendor:</span>
+                          <span className="font-medium text-slate-800 truncate block">
+                            {c.vendorname}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Transport:</span>
+                          <span className="font-medium text-slate-800 truncate block">
+                            {c.transportername || "Self"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                        <span className="text-slate-500 text-[11px]">
+                          {(c.items || []).length} plates
+                        </span>
+                        <button
+                          onClick={() => toggleRow(c.id)}
+                          className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
+                        >
+                          {isExpanded ? "Hide Plates" : "View Plates"}
+                        </button>
+                      </div>
+
+                      {isExpanded && (c.items || []).length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
+                          {c.items?.map((it, idx) => (
+                            <div
+                              key={idx}
+                              className="p-2 rounded bg-white border border-slate-200 text-[11px] flex items-center justify-between"
+                            >
+                              <div>
+                                <span className="font-semibold text-slate-800 block">
+                                  {it.platename || `Plate #${it.plateid}`}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {it.particulars || "Standard Jobwork"}
+                                </span>
+                              </div>
+                              <span className="font-bold text-slate-800">
+                                Qty: {it.qty}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         )}
@@ -713,8 +799,8 @@ export default function ChallanPage() {
 
         {/* Add Delivery / Job Work Challan Modal */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-up">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+            <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-w-4xl sm:max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-up">
               {/* Modal Header */}
               <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                 <div className="flex items-center gap-3">

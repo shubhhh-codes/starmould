@@ -284,7 +284,8 @@ export default function ReportPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
@@ -334,6 +335,63 @@ export default function ReportPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card-List Fallback (< md) */}
+          <div className="block md:hidden p-3 space-y-3">
+            {isLoading ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
+                <p>Calculating monthly report...</p>
+              </div>
+            ) : records.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No downtime records found.
+              </div>
+            ) : (
+              records.map((r, i) => (
+                <div
+                  key={i}
+                  className="p-3.5 bg-slate-50/80 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 text-xs shadow-2xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-900 dark:text-slate-100 font-mono text-sm">
+                      {r.month}
+                    </span>
+                    <span className="font-mono font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full text-xs border border-rose-200 dark:border-rose-900">
+                      {r.totalHours} hrs total
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-600 dark:text-slate-400 pt-1.5 border-t border-slate-200/60 dark:border-slate-800">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">VMC:</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{r.vmc}h</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Electric:</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{r.electric}h</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Setting:</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{r.setting}h</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Chhol:</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{r.chhol}h</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Operator:</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{r.operator}h</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Lunch / Idle:</span>
+                      <span className="font-mono font-medium text-slate-800 dark:text-slate-200">{r.lunch + r.noanywork}h</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

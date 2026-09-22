@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
 // Exact 7 downtime project codes tracked in ReportController.php:
 // 0113_STM_002: VMC Fault
@@ -30,6 +31,11 @@ function parseTimeToHours(timeStr: string | null | undefined): number {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const year = searchParams.get("year") || "2023";

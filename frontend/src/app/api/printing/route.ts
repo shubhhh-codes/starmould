@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
 // Helper: Calculate amount from grams using dynamic gram_calc table
 async function calculateGramAmount(gram: number): Promise<number> {
@@ -25,8 +26,13 @@ async function calculateGramAmount(gram: number): Promise<number> {
   return 0;
 }
 
-// GET /api/printing - Fetch 3D print orders, customer lookups, staff assignments, gram tiers, and KPIs
+// GET /api/printing - Fetch 3D print orders, customer lookups, staff assignments, gram tiers, and KPIs (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "1000");
@@ -58,7 +64,7 @@ export async function GET(req: NextRequest) {
     // Fetch active users for staff dropdown
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("id, username, initials, status, role")
+      .select("id, username, initials, status, role_id")
       .is("deleted_at", null);
 
     const userMap = new Map((users || []).map((u) => [u.id, u]));
@@ -110,8 +116,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/printing - Create new 3D printing project (matches PrintingController.php store)
+// POST /api/printing - Create new 3D printing project (Roles 0, 1, 2)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const {
@@ -188,8 +199,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH /api/printing - Update dispatch, payment, staff assignment, or ramount
+// PATCH /api/printing - Update dispatch, payment, staff assignment, or ramount (Roles 0, 1, 2)
 export async function PATCH(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, field, value, updates } = body;
@@ -232,8 +248,13 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/printing - Remove print project
+// DELETE /api/printing - Remove print project (Roles 0, 1, 2)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

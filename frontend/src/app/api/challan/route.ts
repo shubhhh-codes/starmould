@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
 // GET /api/challan - Fetch outward challans, child items, pending return status from view_pending_inward_qty, and lookups
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "1000");
@@ -126,6 +132,11 @@ export async function GET(req: NextRequest) {
 
 // POST /api/challan - Create new outward challan with child items (matches ChallanController.php:store)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const {
@@ -172,7 +183,7 @@ export async function POST(req: NextRequest) {
           chdate: chdate || now.slice(0, 10),
           status: "1",
           created_at: now,
-          created_by: created_by || "Admin",
+          created_by: created_by || auth.user.name || "Admin",
           updated_at: now,
         },
       ])
@@ -228,6 +239,11 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/challan - Invalidate/cancel outward challan (matches status = '0')
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");

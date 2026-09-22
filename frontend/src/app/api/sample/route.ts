@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/sample - Fetch Sample and Rework projects with customer and staff lookups + work hours
+// GET /api/sample - Fetch Sample and Rework projects (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const worktype = searchParams.get("worktype"); // "Sample" | "Rework" | null (all)
@@ -39,7 +45,6 @@ export async function GET(req: NextRequest) {
     let worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
 
     if (scanIds.length > 0) {
-      // Fetch in chunks if needed or up to 2000
       const { data: worklogs } = await supabaseAdmin
         .from("worklog")
         .select("scan_print_id, scan_hr, model_hr, rework_hr, qc_hr, insp_hr")
@@ -101,8 +106,13 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/sample - Create new Sample / Rework entry
+// POST /api/sample - Create new Sample / Rework entry (Roles 0, 1, 2, 3)
 export async function POST(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const {
@@ -127,7 +137,6 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    // Auto-generate project ID format e.g. SM-SMP-001 or RW-001
     const prefix = worktype === "Sample" ? "SMP" : "RWK";
     const { count } = await supabaseAdmin
       .from("scan")
@@ -175,8 +184,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH /api/sample - Update status, staff assignment, or details
+// PATCH /api/sample - Update status, staff assignment, or details (Roles 0, 1, 2, 3)
 export async function PATCH(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const body = await req.json();
     const { id, field, value, updates } = body;
@@ -190,7 +204,6 @@ export async function PATCH(req: NextRequest) {
     };
 
     if (field && value !== undefined) {
-      // Direct single field update (e.g. changestatusscan)
       updatePayload[field] = value === "0" || value === "" ? null : value;
     } else if (updates && typeof updates === "object") {
       Object.assign(updatePayload, updates);
@@ -214,8 +227,13 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/sample - Remove project
+// DELETE /api/sample - Remove project (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     let id = searchParams.get("id");
