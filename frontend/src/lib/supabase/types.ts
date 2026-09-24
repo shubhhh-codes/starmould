@@ -91,6 +91,16 @@ export interface Subplate {
   drilltap_workby: number | null;
   final_qcby: number | null;
   packing_workby: number | null;
+  // Stage timestamps (auto-set when *_by is assigned)
+  design_at: string | null;
+  order_at: string | null;
+  received_work_at: string | null;
+  received_qc_at: string | null;
+  vmc_work_at: string | null;
+  vmc_qc_at: string | null;
+  drilltap_at: string | null;
+  final_qc_at: string | null;
+  packing_at: string | null;
   packing_photo: string | null;
   location: string;
   created_at: string;

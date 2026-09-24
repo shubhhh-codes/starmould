@@ -944,13 +944,18 @@ export default function WorkPage() {
                       required
                       disabled={!modalForm.customerid}
                       value={modalForm.projectid}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const newProjectId = e.target.value;
+                        const matchMould = customerMoulds.find(
+                          (m) => m.projectid === newProjectId || String(m.id) === newProjectId
+                        );
                         setModalForm({
                           ...modalForm,
-                          projectid: e.target.value,
+                          projectid: newProjectId,
                           subplateid: "",
-                        })
-                      }
+                          workdescription: matchMould?.description || modalForm.workdescription,
+                        });
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">Select Mould</option>
@@ -973,12 +978,32 @@ export default function WorkPage() {
                       required
                       disabled={!modalForm.projectid}
                       value={modalForm.subplateid}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const chosenVal = e.target.value;
+                        const foundPlate = mouldSubplates.find(
+                          (sp) => sp.subprojectid === chosenVal || String(sp.id) === chosenVal
+                        );
+
+                        let autoDesc = modalForm.workdescription;
+                        if (foundPlate) {
+                          const mouldDesc = selectedMould?.description ? `${selectedMould.description} - ` : "";
+                          const dims = foundPlate.length && foundPlate.width && foundPlate.height
+                            ? ` (${foundPlate.length}×${foundPlate.width}×${foundPlate.height} ${foundPlate.unit || "mm"})`
+                            : "";
+                          const mat = foundPlate.material ? ` [${foundPlate.material}]` : "";
+                          autoDesc = `${mouldDesc}Plate: ${foundPlate.platename}${dims}${mat}`;
+                        } else if (chosenVal === "GENERAL") {
+                          autoDesc = selectedMould?.description
+                            ? `${selectedMould.description} - Main Plate Work`
+                            : "Main Plate Work";
+                        }
+
                         setModalForm({
                           ...modalForm,
-                          subplateid: e.target.value,
-                        })
-                      }
+                          subplateid: chosenVal,
+                          workdescription: autoDesc,
+                        });
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                       <option value="">Select Subplate</option>

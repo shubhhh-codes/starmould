@@ -22,6 +22,9 @@ import {
   Loader2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  UserCheck,
+  CheckCheck,
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 
@@ -54,6 +57,35 @@ const REAL_MATERIALS = [
 
 const SHAPES = ["Plate", "Round Bar"];
 
+// 9 Production Stages configuration
+export const STAGE_DEFINITIONS = [
+  { key: "design_by", atKey: "design_at", nameKey: "design_by_name", short: "DES", label: "1. Design Order", step: 1, color: "blue" },
+  { key: "order_by", atKey: "order_at", nameKey: "order_by_name", short: "ORD", label: "2. Mat. Order", step: 2, color: "amber" },
+  { key: "received_workby", atKey: "received_work_at", nameKey: "received_workby_name", short: "REC", label: "3. Mat. Inward", step: 3, color: "emerald" },
+  { key: "received_qcby", atKey: "received_qc_at", nameKey: "received_qcby_name", short: "RQC", label: "4. Inward QC", step: 4, color: "teal" },
+  { key: "vmc_workby", atKey: "vmc_work_at", nameKey: "vmc_workby_name", short: "VMC", label: "5. VMC Work", step: 5, color: "indigo" },
+  { key: "vmc_qcby", atKey: "vmc_qc_at", nameKey: "vmc_qcby_name", short: "VQC", label: "6. VMC QC", step: 6, color: "purple" },
+  { key: "drilltap_workby", atKey: "drilltap_at", nameKey: "drilltap_workby_name", short: "D&T", label: "7. Drill & Tap", step: 7, color: "violet" },
+  { key: "final_qcby", atKey: "final_qc_at", nameKey: "final_qcby_name", short: "FQC", label: "8. Final QC", step: 8, color: "cyan" },
+  { key: "packing_workby", atKey: "packing_at", nameKey: "packing_workby_name", short: "PAK", label: "9. Packing", step: 9, color: "rose" },
+] as const;
+
+// Helper to format ISO timestamp to human-readable date/time
+const formatTimestamp = (ts: string | null | undefined): string => {
+  if (!ts) return "";
+  try {
+    const d = new Date(ts);
+    return d.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return String(ts);
+  }
+};
+
 export default function SubplatePage() {
   const [subplates, setSubplates] = useState<Subplate[]>([]);
   const [scans, setScans] = useState<ScanProject[]>([]);
@@ -71,6 +103,8 @@ export default function SubplatePage() {
   const [materialFilter, setMaterialFilter] = useState("ALL");
   const [locationFilter, setLocationFilter] = useState("ALL");
   const [projectFilter, setProjectFilter] = useState("ALL");
+  const [stageFilter, setStageFilter] = useState("ALL");
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const [pageSize, setPageSize] = useState<number>(50);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
@@ -113,6 +147,77 @@ export default function SubplatePage() {
     fetchSubplates();
   }, []);
 
+  // Toggle row expansion for detailed 9-stage stepper
+  const toggleRow = (id: number) => {
+    setExpandedRows((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Helper to count completed stages on a subplate
+  const countCompletedStages = (sp: Subplate) => {
+    let count = 0;
+    if (sp.design_by) count++;
+    if (sp.order_by) count++;
+    if (sp.received_workby) count++;
+    if (sp.received_qcby) count++;
+    if (sp.vmc_workby) count++;
+    if (sp.vmc_qcby) count++;
+    if (sp.drilltap_workby) count++;
+    if (sp.final_qcby) count++;
+    if (sp.packing_workby) count++;
+    return count;
+  };
+
+  // Active staff
+  const activeStaff = useMemo(() => {
+    return users.filter((u) => String(u.status) === "1" || u.status === 1);
+  }, [users]);
+
+  // Handle stage staff assignment change (Live API PATCH)
+  const handleStageStaffChange = async (
+    subplateId: number,
+    field: string,
+    userId: number
+  ) => {
+    const newUserId = userId === 0 ? null : userId;
+    const now = newUserId ? new Date().toISOString() : null;
+    const stageDef = STAGE_DEFINITIONS.find((s) => s.key === field);
+    const atField = stageDef?.atKey;
+
+    // Optimistic UI update
+    setSubplates((prev) =>
+      prev.map((sp) => {
+        if (sp.id !== subplateId) return sp;
+        const user = activeStaff.find((u) => u.id === newUserId);
+        return {
+          ...sp,
+          [field]: newUserId,
+          ...(atField ? { [atField]: now } : {}),
+          ...(stageDef ? { [stageDef.nameKey]: user ? (user.name || user.initials) : "—" } : {}),
+        };
+      })
+    );
+
+    try {
+      const res = await fetch("/api/subplate", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: subplateId,
+          updates: {
+            [field]: newUserId,
+          },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update stage assignment");
+      }
+    } catch (err: any) {
+      alert("Stage Update Error: " + err.message);
+      fetchSubplates();
+    }
+  };
+
   // Filter subplates
   const filteredSubplates = useMemo(() => {
     return subplates.filter((sp) => {
@@ -135,14 +240,18 @@ export default function SubplatePage() {
       const matchProject =
         projectFilter === "ALL" || String(sp.projectid) === projectFilter;
 
-      return matchQuery && matchMaterial && matchLocation && matchProject;
-    });
-  }, [subplates, searchQuery, materialFilter, locationFilter, projectFilter]);
+      let matchStage = true;
+      if (stageFilter === "completed") {
+        matchStage = countCompletedStages(sp) === 9;
+      } else if (stageFilter === "pending") {
+        matchStage = countCompletedStages(sp) < 9;
+      } else if (stageFilter !== "ALL") {
+        matchStage = Boolean((sp as any)[stageFilter]);
+      }
 
-  // Reset to page 1 on filter or search changes
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, materialFilter, locationFilter, projectFilter, pageSize]);
+      return matchQuery && matchMaterial && matchLocation && matchProject && matchStage;
+    });
+  }, [subplates, searchQuery, materialFilter, locationFilter, projectFilter, stageFilter]);
 
   const totalPages = Math.ceil(filteredSubplates.length / pageSize) || 1;
   const paginatedSubplates = useMemo(() => {
@@ -178,11 +287,6 @@ export default function SubplatePage() {
     (sp) => sp.location && sp.location !== "SM"
   ).length;
   const uniqueProjects = new Set(subplates.map((sp) => sp.projectid)).size;
-
-  // Active staff
-  const activeStaff = useMemo(() => {
-    return users.filter((u) => String(u.status) === "1" || u.status === 1);
-  }, [users]);
 
   // Handle Create Subplate (Live API POST)
   const handleCreate = async (e: React.FormEvent) => {
@@ -390,6 +494,26 @@ export default function SubplatePage() {
               <option value="SM">In-House Only (SM)</option>
               <option value="VENDOR">At Vendor Only</option>
             </select>
+
+            {/* 9-Stage Production Filter */}
+            <select
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium"
+            >
+              <option value="ALL">All Stages (9/9 Pipeline)</option>
+              <option value="pending">In-Progress (&lt; 9 Stages Done)</option>
+              <option value="completed">Completed (All 9 Stages Done)</option>
+              <option value="design_by">1. Design Assigned</option>
+              <option value="order_by">2. Mat. Order Assigned</option>
+              <option value="received_workby">3. Mat. Inward Assigned</option>
+              <option value="received_qcby">4. Inward QC Assigned</option>
+              <option value="vmc_workby">5. VMC Machining Assigned</option>
+              <option value="vmc_qcby">6. VMC QC Assigned</option>
+              <option value="drilltap_workby">7. Drill &amp; Tap Assigned</option>
+              <option value="final_qcby">8. Final QC Assigned</option>
+              <option value="packing_workby">9. Packing Assigned</option>
+            </select>
           </div>
         </div>
 
@@ -400,16 +524,16 @@ export default function SubplatePage() {
             <table className="w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-4"># ID</th>
+                  <th className="py-3.5 px-3 w-10 text-center"></th>
+                  <th className="py-3.5 px-3"># ID</th>
                   <th className="py-3.5 px-4">Plate Name</th>
-                  <th className="py-3.5 px-4">Mould / Project</th>
-                  <th className="py-3.5 px-4">Subproject ID</th>
-                  <th className="py-3.5 px-4">Shape</th>
-                  <th className="py-3.5 px-4">Dimensions (L × W × H)</th>
-                  <th className="py-3.5 px-4">Material</th>
-                  <th className="py-3.5 px-4 text-center">Qty</th>
-                  <th className="py-3.5 px-4 text-center">Location</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-3">Mould / Project</th>
+                  <th className="py-3.5 px-3">Dimensions</th>
+                  <th className="py-3.5 px-3">Material</th>
+                  <th className="py-3.5 px-2 text-center">Qty</th>
+                  <th className="py-3.5 px-3 text-center">Location</th>
+                  <th className="py-3.5 px-4">9-Stage Production Tracking</th>
+                  <th className="py-3.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -435,64 +559,305 @@ export default function SubplatePage() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedSubplates.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="hover:bg-slate-50/60 transition group"
-                    >
-                      <td className="py-3 px-4 font-mono text-xs text-slate-400">
-                        #{row.id}
-                      </td>
-                      <td className="py-3 px-4 font-bold text-slate-900">
-                        {row.platename}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-indigo-600">
-                        {row.projectid || "—"}
-                      </td>
-                      <td className="py-3 px-4 font-mono text-xs text-slate-500">
-                        {row.subprojectid || "—"}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-600">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                          {row.shape || "Plate"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs font-mono text-slate-700 whitespace-nowrap">
-                        {row.length || 0} × {row.width || 0} × {row.height || 0}{" "}
-                        {row.unit || "mm"}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
-                          {row.material || "MS-Bright"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center font-bold text-slate-800">
-                        {row.sqty || 1}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                            row.location === "SM" || !row.location
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-amber-50 text-amber-700 border border-amber-200"
-                          }`}
-                        >
-                          <MapPin className="w-3 h-3" />
-                          {row.location || "SM"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteSubplate(row.id, row.platename)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                          title="Delete subplate"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))
+                  paginatedSubplates.map((row) => {
+                    const isExpanded = Boolean(expandedRows[row.id]);
+                    const completedCount = countCompletedStages(row);
+
+                    return (
+                      <React.Fragment key={row.id}>
+                        {/* Main Subplate Row */}
+                        <tr className="hover:bg-slate-50/60 transition group">
+                          {/* Row Expand Toggle */}
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              type="button"
+                              onClick={() => toggleRow(row.id)}
+                              className="p-1 rounded text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition cursor-pointer"
+                              title="Toggle 9-Stage Details"
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-cyan-600" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                              )}
+                            </button>
+                          </td>
+
+                          {/* ID */}
+                          <td className="py-3 px-3 font-mono text-xs text-slate-400">
+                            #{row.id}
+                          </td>
+
+                          {/* Plate Name */}
+                          <td className="py-3 px-4">
+                            <div className="font-bold text-slate-900">{row.platename}</div>
+                            {row.subprojectid && (
+                              <div className="font-mono text-[10px] text-slate-400">
+                                {row.subprojectid}
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Mould Project */}
+                          <td className="py-3 px-3">
+                            <span className="font-mono text-xs text-indigo-600 font-semibold px-2 py-0.5 rounded bg-indigo-50 border border-indigo-100">
+                              {(row as any).mould_project_code || row.projectid || "—"}
+                            </span>
+                          </td>
+
+                          {/* Dimensions */}
+                          <td className="py-3 px-3 text-xs font-mono text-slate-700 whitespace-nowrap">
+                            {row.length || 0} × {row.width || 0} × {row.height || 0}{" "}
+                            {row.unit || "mm"}
+                          </td>
+
+                          {/* Material */}
+                          <td className="py-3 px-3">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/60 whitespace-nowrap">
+                              {row.material || "MS-Bright"}
+                            </span>
+                          </td>
+
+                          {/* Qty */}
+                          <td className="py-3 px-2 text-center font-bold text-slate-800">
+                            {row.sqty || 1}
+                          </td>
+
+                          {/* Location */}
+                          <td className="py-3 px-3 text-center">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                row.location === "SM" || !row.location
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : "bg-amber-50 text-amber-700 border border-amber-200"
+                              }`}
+                            >
+                              <MapPin className="w-2.5 h-2.5" />
+                              {row.location || "SM"}
+                            </span>
+                          </td>
+
+                          {/* 9-Stage Production Tracking Column */}
+                          <td className="py-3 px-4">
+                            <div className="space-y-1.5 min-w-[340px]">
+                              {/* Stage summary badge + Quick Expand */}
+                              <div className="flex items-center justify-between gap-2">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    completedCount === 9
+                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                                      : completedCount > 0
+                                      ? "bg-blue-100 text-blue-800 border border-blue-200"
+                                      : "bg-slate-100 text-slate-600 border border-slate-200"
+                                  }`}
+                                >
+                                  {completedCount === 9 ? (
+                                    <CheckCheck className="w-3 h-3 text-emerald-600" />
+                                  ) : (
+                                    <Clock className="w-3 h-3 text-blue-600" />
+                                  )}
+                                  {completedCount}/9 Stages Assigned
+                                </span>
+
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRow(row.id)}
+                                  className="text-[11px] text-cyan-600 hover:text-cyan-800 font-medium hover:underline flex items-center gap-0.5"
+                                >
+                                  <span>{isExpanded ? "Hide Stages" : "Edit Stages"}</span>
+                                  {isExpanded ? (
+                                    <ChevronDown className="w-3 h-3" />
+                                  ) : (
+                                    <ChevronRight className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+
+                              {/* 9 Compact Stage Pills Chain */}
+                              <div className="flex items-center gap-1 overflow-x-auto py-0.5">
+                                {STAGE_DEFINITIONS.map((stage) => {
+                                  const val = (row as any)[stage.key];
+                                  const name = (row as any)[stage.nameKey];
+                                  const timestamp = (row as any)[stage.atKey];
+                                  const isAssigned = Boolean(val && val !== 0);
+
+                                  return (
+                                    <div
+                                      key={stage.key}
+                                      className="relative group/pill"
+                                      title={`${stage.label}: ${isAssigned ? `${name || "Assigned"} (${formatTimestamp(timestamp)})` : "Unassigned"}`}
+                                    >
+                                      <select
+                                        value={val || 0}
+                                        onChange={(e) =>
+                                          handleStageStaffChange(
+                                            row.id,
+                                            stage.key,
+                                            Number(e.target.value)
+                                          )
+                                        }
+                                        className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border transition cursor-pointer appearance-none text-center ${
+                                          isAssigned
+                                            ? "bg-cyan-50 border-cyan-300 text-cyan-800 hover:bg-cyan-100 font-semibold"
+                                            : "bg-slate-50 border-slate-200 text-slate-400 hover:border-slate-300"
+                                        }`}
+                                      >
+                                        <option value={0}>{stage.short}: —</option>
+                                        {activeStaff.map((u) => (
+                                          <option key={u.id} value={u.id}>
+                                            {stage.short}: {u.initials || u.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Actions */}
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => toggleRow(row.id)}
+                                className="px-2.5 py-1 text-[11px] font-medium text-cyan-600 bg-cyan-50 border border-cyan-200 rounded hover:bg-cyan-100 transition cursor-pointer"
+                              >
+                                {isExpanded ? "Close" : "Track"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteSubplate(row.id, row.platename)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                title="Delete subplate"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Expanded 9-Stage Timeline Stepper */}
+                        {isExpanded && (
+                          <tr className="bg-slate-50/90 dark:bg-slate-900/50">
+                            <td colSpan={10} className="p-4 pl-12 border-y border-slate-200">
+                              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
+                                      <Layers className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <h4 className="text-xs font-bold text-slate-900">
+                                        9-Stage Production Tracking for "{row.platename}"
+                                      </h4>
+                                      <p className="text-[11px] text-slate-500">
+                                        Assign staff to each stage. Timestamp is automatically recorded on assignment.
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className="font-semibold text-slate-600">
+                                      Progress: {completedCount}/9 Completed
+                                    </span>
+                                    <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                                      <div
+                                        className="h-full bg-cyan-600 transition-all duration-300"
+                                        style={{ width: `${(completedCount / 9) * 100}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* 9-Stage Cards Grid */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-2.5">
+                                  {STAGE_DEFINITIONS.map((stage) => {
+                                    const val = (row as any)[stage.key];
+                                    const name = (row as any)[stage.nameKey];
+                                    const timestamp = (row as any)[stage.atKey];
+                                    const isAssigned = Boolean(val && val !== 0);
+
+                                    return (
+                                      <div
+                                        key={stage.key}
+                                        className={`p-2.5 rounded-xl border transition space-y-2 flex flex-col justify-between ${
+                                          isAssigned
+                                            ? "bg-cyan-50/50 border-cyan-200 shadow-2xs"
+                                            : "bg-slate-50/60 border-slate-200"
+                                        }`}
+                                      >
+                                        <div>
+                                          {/* Step Header */}
+                                          <div className="flex items-center justify-between gap-1 mb-1">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase">
+                                              Stage {stage.step}
+                                            </span>
+                                            {isAssigned ? (
+                                              <CheckCircle2 className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
+                                            ) : (
+                                              <span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+                                            )}
+                                          </div>
+                                          <div className="text-xs font-bold text-slate-800 leading-tight">
+                                            {stage.label.replace(/^\d+\.\s*/, "")}
+                                          </div>
+                                        </div>
+
+                                        {/* Staff Dropdown */}
+                                        <div className="space-y-1">
+                                          <label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider block">
+                                            Assigned Staff
+                                          </label>
+                                          <select
+                                            value={val || 0}
+                                            onChange={(e) =>
+                                              handleStageStaffChange(
+                                                row.id,
+                                                stage.key,
+                                                Number(e.target.value)
+                                              )
+                                            }
+                                            className={`w-full px-2 py-1 text-xs rounded border transition focus:ring-1 focus:ring-cyan-500 cursor-pointer ${
+                                              isAssigned
+                                                ? "bg-white border-cyan-300 font-semibold text-slate-900"
+                                                : "bg-white border-slate-200 text-slate-500"
+                                            }`}
+                                          >
+                                            <option value={0}>Unassigned</option>
+                                            {activeStaff.map((u) => (
+                                              <option key={u.id} value={u.id}>
+                                                {u.name || u.initials} ({u.initials})
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </div>
+
+                                        {/* Timestamp Display */}
+                                        <div className="pt-1 border-t border-slate-200/60 text-[10px] text-slate-500">
+                                          {isAssigned && timestamp ? (
+                                            <div className="flex items-center gap-1 text-cyan-800 font-mono text-[9px]">
+                                              <Clock className="w-2.5 h-2.5 shrink-0" />
+                                              <span>{formatTimestamp(timestamp)}</span>
+                                            </div>
+                                          ) : isAssigned ? (
+                                            <span className="text-cyan-700 text-[9px]">Assigned</span>
+                                          ) : (
+                                            <span className="text-slate-400 italic text-[9px]">Pending</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -510,66 +875,132 @@ export default function SubplatePage() {
                 No subplates found matching your filter criteria.
               </div>
             ) : (
-              paginatedSubplates.map((row) => (
-                <div
-                  key={row.id}
-                  className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
-                      <span className="font-bold text-slate-900">{row.platename}</span>
+              paginatedSubplates.map((row) => {
+                const isExpanded = Boolean(expandedRows[row.id]);
+                const completedCount = countCompletedStages(row);
+
+                return (
+                  <div
+                    key={row.id}
+                    className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
+                        <span className="font-bold text-slate-900">{row.platename}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                            row.location === "SM" || !row.location
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}
+                        >
+                          <MapPin className="w-2.5 h-2.5" />
+                          {row.location || "SM"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubplate(row.id, row.platename)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                          title="Delete subplate"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                          row.location === "SM" || !row.location
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}
-                      >
-                        <MapPin className="w-2.5 h-2.5" />
-                        {row.location || "SM"}
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                      <div>
+                        <span className="text-slate-400">Project: </span>
+                        <span className="font-mono font-medium text-indigo-600 truncate block">
+                          {(row as any).mould_project_code || row.projectid || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Material: </span>
+                        <span className="font-medium text-slate-700 block">
+                          {row.material || "MS-Bright"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Dims: </span>
+                        <span className="font-mono font-medium text-slate-700 block">
+                          {row.length || 0}×{row.width || 0}×{row.height || 0} {row.unit || "mm"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Qty / Shape: </span>
+                        <span className="font-medium text-slate-700 block">
+                          {row.sqty || 1} ({row.shape || "Plate"})
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Mobile 9-Stage Progress Bar & Trigger */}
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-700">
+                        {completedCount}/9 Stages Done
                       </span>
                       <button
                         type="button"
-                        onClick={() => handleDeleteSubplate(row.id, row.platename)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-                        title="Delete subplate"
+                        onClick={() => toggleRow(row.id)}
+                        className="px-2.5 py-1 text-xs font-semibold text-cyan-600 bg-cyan-50 border border-cyan-200 rounded-lg hover:bg-cyan-100 transition"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        {isExpanded ? "Hide Stages" : "Edit 9 Stages"}
                       </button>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
-                    <div>
-                      <span className="text-slate-400">Project: </span>
-                      <span className="font-mono font-medium text-indigo-600 truncate block">
-                        {row.projectid || "—"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Material: </span>
-                      <span className="font-medium text-slate-700 block">
-                        {row.material || "MS-Bright"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Dims: </span>
-                      <span className="font-mono font-medium text-slate-700 block">
-                        {row.length || 0}×{row.width || 0}×{row.height || 0} {row.unit || "mm"}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400">Qty / Shape: </span>
-                      <span className="font-medium text-slate-700 block">
-                        {row.sqty || 1} ({row.shape || "Plate"})
-                      </span>
-                    </div>
+                    {/* Mobile Expanded Stepper */}
+                    {isExpanded && (
+                      <div className="mt-2 pt-2 border-t border-slate-200 space-y-2">
+                        {STAGE_DEFINITIONS.map((stage) => {
+                          const val = (row as any)[stage.key];
+                          const timestamp = (row as any)[stage.atKey];
+                          const isAssigned = Boolean(val && val !== 0);
+
+                          return (
+                            <div
+                              key={stage.key}
+                              className="p-2 rounded-lg bg-white border border-slate-200 flex items-center justify-between gap-2"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-bold text-slate-800 truncate">
+                                  {stage.label}
+                                </div>
+                                {isAssigned && timestamp && (
+                                  <div className="text-[9px] text-cyan-700 font-mono">
+                                    {formatTimestamp(timestamp)}
+                                  </div>
+                                )}
+                              </div>
+                              <select
+                                value={val || 0}
+                                onChange={(e) =>
+                                  handleStageStaffChange(
+                                    row.id,
+                                    stage.key,
+                                    Number(e.target.value)
+                                  )
+                                }
+                                className="px-2 py-1 text-xs rounded border border-slate-200 bg-slate-50 font-medium"
+                              >
+                                <option value={0}>Unassigned</option>
+                                {activeStaff.map((u) => (
+                                  <option key={u.id} value={u.id}>
+                                    {u.initials || u.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     let subplateQuery = supabaseAdmin
       .from("subplate")
-      .select("id, platename, projectid, subprojectid, material, location, width, height, length, unit, sqty, design_by, vmc_workby, final_qcby, packing_workby, created_at, updated_at")
+      .select("id, platename, projectid, subprojectid, material, location, width, height, length, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
       .is("deleted_at", null)
       .order("id", { ascending: false })
       .limit(limit);
@@ -85,7 +85,12 @@ export async function GET(req: NextRequest) {
         mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
         mould_description: scan?.description || "",
         design_by_name: userMap.get(Number(sp.design_by))?.name || userMap.get(Number(sp.design_by))?.initials || "—",
+        order_by_name: userMap.get(Number(sp.order_by))?.name || userMap.get(Number(sp.order_by))?.initials || "—",
+        received_workby_name: userMap.get(Number(sp.received_workby))?.name || userMap.get(Number(sp.received_workby))?.initials || "—",
+        received_qcby_name: userMap.get(Number(sp.received_qcby))?.name || userMap.get(Number(sp.received_qcby))?.initials || "—",
         vmc_workby_name: userMap.get(Number(sp.vmc_workby))?.name || userMap.get(Number(sp.vmc_workby))?.initials || "—",
+        vmc_qcby_name: userMap.get(Number(sp.vmc_qcby))?.name || userMap.get(Number(sp.vmc_qcby))?.initials || "—",
+        drilltap_workby_name: userMap.get(Number(sp.drilltap_workby))?.name || userMap.get(Number(sp.drilltap_workby))?.initials || "—",
         final_qcby_name: userMap.get(Number(sp.final_qcby))?.name || userMap.get(Number(sp.final_qcby))?.initials || "—",
         packing_workby_name: userMap.get(Number(sp.packing_workby))?.name || userMap.get(Number(sp.packing_workby))?.initials || "—",
       };
@@ -182,7 +187,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT /api/subplate - Update subplate (Roles 0, 1, 2, 3)
+// PUT/PATCH /api/subplate - Update subplate (Roles 0, 1, 2, 3)
 export async function PUT(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 2, 3]);
   if ("error" in auth) {
@@ -197,11 +202,38 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Missing subplate id" }, { status: 400 });
     }
 
+    const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {
       ...(updates || body),
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     };
     delete updatePayload.id;
+
+    // Auto-set per-stage timestamp when the corresponding *_by assignment is set/changed
+    const stageTimestampMap: Record<string, string> = {
+      design_by: "design_at",
+      order_by: "order_at",
+      received_workby: "received_work_at",
+      received_qcby: "received_qc_at",
+      vmc_workby: "vmc_work_at",
+      vmc_qcby: "vmc_qc_at",
+      drilltap_workby: "drilltap_at",
+      final_qcby: "final_qc_at",
+      packing_workby: "packing_at",
+    };
+
+    for (const [byField, atField] of Object.entries(stageTimestampMap)) {
+      if (byField in updatePayload) {
+        const val = updatePayload[byField];
+        if (val && Number(val) > 0) {
+          if (!updatePayload[atField]) {
+            updatePayload[atField] = now;
+          }
+        } else if (val === null || val === 0 || val === "") {
+          updatePayload[atField] = null;
+        }
+      }
+    }
 
     const { data, error } = await supabaseAdmin
       .from("subplate")
@@ -220,6 +252,8 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+export const PATCH = PUT;
 
 // DELETE /api/subplate - Soft delete subplate (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {

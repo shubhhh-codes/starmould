@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PipelineStatGrid } from "@/components/dashboard/pipeline-stat-card";
 import { MouldProjectsTable } from "@/components/dashboard/mould-projects-table";
@@ -10,23 +10,32 @@ import {
   FolderKanban,
 } from "lucide-react";
 import Link from "next/link";
-import type { ScanProject } from "@/lib/supabase/types";
+import type { ScanProject, Subplate } from "@/lib/supabase/types";
 
 export default function DashboardPage() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const [projects, setProjects] = useState<ScanProject[]>([]);
+  const [subplates, setSubplates] = useState<Subplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
-      const res = await fetch("/api/scanning?limit=100");
-      const data = await res.json();
-      if (data.scans) {
-        setProjects(data.scans);
+      const [scansRes, subplatesRes] = await Promise.all([
+        fetch("/api/scanning?limit=200"),
+        fetch("/api/subplate?limit=2000"),
+      ]);
+      const scansData = await scansRes.json();
+      const subplatesData = await subplatesRes.json();
+
+      if (scansData.scans) {
+        setProjects(scansData.scans);
+      }
+      if (subplatesData.subplates) {
+        setSubplates(subplatesData.subplates);
       }
     } catch (err) {
-      console.error("Failed to fetch dashboard projects:", err);
+      console.error("Failed to fetch dashboard projects and subplates:", err);
     } finally {
       setIsLoading(false);
     }
@@ -36,17 +45,44 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, []);
 
-  // Pipeline summary numbers computed from live project data
-  const stats = {
-    scantotal: projects.filter((p) => p.status !== "completed").length,
-    designby: projects.filter((p) => p.modeldesign_by && p.modeldesign_by !== 0).length,
-    orderbytotal: projects.filter((p) => p.status === "pending").length,
-    receivedqcby: projects.filter((p) => p.qc_by && p.qc_by !== 0).length,
-    vmcworkby: projects.filter((p) => (p.model_hr || 0) > 0).length,
-    drilltapworkby: projects.filter((p) => (p.scan_hr || 0) > 0).length,
-    finalqcby: projects.filter((p) => p.status === "completed").length,
-    packingworkby: projects.filter((p) => p.dispatchdate != null).length,
-  };
+  // Real pipeline metrics computed from subplate tracking records & active projects
+  const stats = useMemo(() => {
+    const activeProjects = projects.filter((p) => p.status !== "completed");
+    
+    // Subplates with stage assignments (NOT NULL & > 0)
+    const platesWithDesign = subplates.filter((sp) => sp.design_by && Number(sp.design_by) > 0);
+    const platesWithOrder = subplates.filter((sp) => sp.order_by && Number(sp.order_by) > 0);
+    const platesWithRecQC = subplates.filter((sp) => (sp.received_qcby && Number(sp.received_qcby) > 0) || (sp.received_workby && Number(sp.received_workby) > 0));
+    const platesWithVMC = subplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0);
+    const platesWithDrillTap = subplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0);
+    const platesWithFinalQC = subplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0);
+    const platesWithPacking = subplates.filter((sp) => sp.packing_workby && Number(sp.packing_workby) > 0);
+
+    // Count distinct mould projects per stage
+    const countDistinctMoulds = (platesList: Subplate[]) => {
+      const set = new Set(platesList.map((sp) => sp.projectid).filter(Boolean));
+      return set.size;
+    };
+
+    return {
+      scantotal: activeProjects.length,
+      designby: platesWithDesign.length,
+      orderbytotal: platesWithOrder.length,
+      receivedqcby: platesWithRecQC.length,
+      vmcworkby: platesWithVMC.length,
+      drilltapworkby: platesWithDrillTap.length,
+      finalqcby: platesWithFinalQC.length,
+      packingworkby: platesWithPacking.length,
+      // Real per-stage mould counts
+      designMoulds: countDistinctMoulds(platesWithDesign) || activeProjects.length,
+      orderMoulds: countDistinctMoulds(platesWithOrder) || activeProjects.length,
+      programmingMoulds: countDistinctMoulds(platesWithRecQC) || activeProjects.length,
+      vmcMoulds: countDistinctMoulds(platesWithVMC) || activeProjects.length,
+      drilltapMoulds: countDistinctMoulds(platesWithDrillTap) || activeProjects.length,
+      finalqcMoulds: countDistinctMoulds(platesWithFinalQC) || activeProjects.length,
+      packingMoulds: countDistinctMoulds(platesWithPacking) || activeProjects.length,
+    };
+  }, [projects, subplates]);
 
   return (
     <AppLayout>

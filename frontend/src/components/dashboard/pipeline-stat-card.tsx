@@ -37,6 +37,13 @@ interface PipelineStatGridProps {
     drilltapworkby: number;
     finalqcby: number;
     packingworkby: number;
+    designMoulds?: number;
+    orderMoulds?: number;
+    programmingMoulds?: number;
+    vmcMoulds?: number;
+    drilltapMoulds?: number;
+    finalqcMoulds?: number;
+    packingMoulds?: number;
   };
   activeStage?: string | null;
   onSelectStage?: (stageId: string | null) => void;
@@ -51,7 +58,7 @@ export function PipelineStatGrid({
     {
       id: "design",
       label: "Design Order",
-      mouldsCount: stats.scantotal,
+      mouldsCount: stats.designMoulds ?? stats.scantotal,
       platesCount: stats.designby,
       icon: PenTool,
       colorTheme: {
@@ -65,7 +72,7 @@ export function PipelineStatGrid({
     {
       id: "order",
       label: "Material Order",
-      mouldsCount: stats.scantotal,
+      mouldsCount: stats.orderMoulds ?? stats.scantotal,
       platesCount: stats.orderbytotal,
       icon: Boxes,
       colorTheme: {
@@ -79,7 +86,7 @@ export function PipelineStatGrid({
     {
       id: "programming",
       label: "Programming",
-      mouldsCount: stats.scantotal,
+      mouldsCount: stats.programmingMoulds ?? stats.scantotal,
       platesCount: stats.receivedqcby,
       icon: Cpu,
       colorTheme: {
@@ -93,7 +100,7 @@ export function PipelineStatGrid({
     {
       id: "machining",
       label: "Machining (VMC)",
-      mouldsCount: stats.scantotal,
+      mouldsCount: stats.vmcMoulds ?? stats.scantotal,
       platesCount: stats.vmcworkby,
       icon: Wrench,
       colorTheme: {
@@ -107,7 +114,7 @@ export function PipelineStatGrid({
     {
       id: "drilltap",
       label: "Drill & Tap",
-      mouldsCount: stats.scantotal,
+      mouldsCount: stats.drilltapMoulds ?? stats.scantotal,
       platesCount: stats.drilltapworkby,
       icon: Disc,
       colorTheme: {
@@ -121,7 +128,7 @@ export function PipelineStatGrid({
     {
       id: "finalqc",
       label: "Final QC",
-      mouldsCount: stats.scantotal,
+      mouldsCount: stats.finalqcMoulds ?? stats.scantotal,
       platesCount: stats.finalqcby,
       icon: CheckCheck,
       colorTheme: {
@@ -135,7 +142,7 @@ export function PipelineStatGrid({
     {
       id: "packing",
       label: "Packing",
-      mouldsCount: stats.scantotal,
+      mouldsCount: stats.packingMoulds ?? stats.scantotal,
       platesCount: stats.packingworkby,
       icon: PackageCheck,
       colorTheme: {

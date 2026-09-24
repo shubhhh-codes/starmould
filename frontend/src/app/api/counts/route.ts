@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     "dispatch_items",
     "expense",
     "worklog",
-    "profiles",
+    "users",
   ];
 
   const counts = await getCached("api_counts_all", 15, async () => {
