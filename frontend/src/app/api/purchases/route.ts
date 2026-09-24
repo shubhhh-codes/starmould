@@ -12,16 +12,25 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const limit = Number(searchParams.get("limit") || "100");
+    const page = searchParams.get("page") ? Number(searchParams.get("page")) : null;
+    const limit = Number(searchParams.get("limit") || "50");
     const includePlates = searchParams.get("includePlates") === "true";
+
+    let poQuery = supabaseAdmin
+      .from("purchase")
+      .select("id, srno, purchaseid, pno, vname, cname, odate, projectid, idate, imaterial, status, created_at, created_by, updated_at", { count: "exact" })
+      .order("id", { ascending: false });
+
+    if (page && page > 0) {
+      const start = (page - 1) * limit;
+      poQuery = poQuery.range(start, start + limit - 1);
+    } else {
+      poQuery = poQuery.limit(limit);
+    }
 
     // 1. Batch fetch recent purchases and subplates concurrently, using cached customers & scans
     const [posRes, customers, scans, subplatesRes] = await Promise.all([
-      supabaseAdmin
-        .from("purchase")
-        .select("*")
-        .order("id", { ascending: false })
-        .limit(limit),
+      poQuery,
       getCachedCustomers(),
       getCachedScansLookup(),
       includePlates
@@ -29,7 +38,7 @@ export async function GET(req: NextRequest) {
             .from("subplate")
             .select("id, platename, projectid, subprojectid, material, width, height, length, unit, sqty")
             .is("deleted_at", null)
-            .limit(1000)
+            .limit(500)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -50,7 +59,7 @@ export async function GET(req: NextRequest) {
     if (pids.length > 0) {
       const { data: itemRows, error: itErr } = await supabaseAdmin
         .from("purchase_items")
-        .select("*")
+        .select("id, pid, plateid, material, materialtype, qty, created_at, updated_at")
         .in("pid", pids);
 
       if (itErr) {

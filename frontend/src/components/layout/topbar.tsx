@@ -23,18 +23,13 @@ interface TopbarProps {
     email: string;
     role: string;
     initials: string;
-  };
+  } | null;
 }
 
 export function Topbar({
   onToggleSidebar,
   onToggleMobileMenu,
-  currentUser = {
-    name: "Akshay",
-    email: "akshay@star.in",
-    role: "Admin",
-    initials: "AKS",
-  },
+  currentUser,
 }: TopbarProps) {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -159,29 +154,39 @@ export function Topbar({
             <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-slate-900" />
           </button>
 
-          {/* User Profile Menu */}
+          {/* User Profile Menu / Loading Skeleton */}
           <div className="relative">
-            <button
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="flex items-center gap-2.5 p-1 pl-2 rounded-lg hover:bg-slate-800 transition-colors text-left"
-            >
-              <div className="flex flex-col text-right hidden sm:flex">
-                <span className="text-xs font-semibold text-white leading-tight">
-                  {currentUser.name}
-                </span>
-                <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1">
-                  <Shield className="h-2.5 w-2.5 text-blue-400" />
-                  {currentUser.role}
-                </span>
+            {!currentUser ? (
+              <div className="flex items-center gap-2.5 p-1 pl-2 animate-pulse">
+                <div className="flex flex-col items-end gap-1 hidden sm:flex">
+                  <div className="h-3 w-16 bg-slate-700 rounded" />
+                  <div className="h-2.5 w-10 bg-slate-800 rounded" />
+                </div>
+                <div className="h-8 w-8 rounded-lg bg-slate-800 border border-slate-700" />
               </div>
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-xs">
-                {currentUser.initials}
-              </div>
-              <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
-            </button>
+            ) : (
+              <button
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
+                className="flex items-center gap-2.5 p-1 pl-2 rounded-lg hover:bg-slate-800 transition-colors text-left cursor-pointer"
+              >
+                <div className="flex flex-col text-right hidden sm:flex">
+                  <span className="text-xs font-semibold text-white leading-tight">
+                    {currentUser.name}
+                  </span>
+                  <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1">
+                    <Shield className="h-2.5 w-2.5 text-blue-400" />
+                    {currentUser.role}
+                  </span>
+                </div>
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-xs">
+                  {currentUser.initials}
+                </div>
+                <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
+              </button>
+            )}
 
             {/* Dropdown Menu */}
-            {showUserDropdown && (
+            {currentUser && showUserDropdown && (
               <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-xl py-1 text-xs text-slate-300 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="px-4 py-2.5 border-b border-slate-800">
                   <p className="font-semibold text-white">{currentUser.name}</p>

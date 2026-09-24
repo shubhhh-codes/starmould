@@ -184,14 +184,17 @@ export function Sidebar({
       .catch((err) => console.error("Error loading session:", err));
   }, [propUser]);
 
-  // If user is loaded, use their role_id. If propUser is explicitly passed, use it.
-  const activeUser = propUser || currentUser;
-  const userRoleId = activeUser?.role_id ?? 0;
+  // If user is loaded, use their role_id.
+  const activeUser = propUser !== undefined ? propUser : currentUser;
+  const isLoadingUser = activeUser === null;
+  const userRoleId = activeUser?.role_id;
 
-  // Filter menu items by user role
-  const visibleItems = navigationItems.filter((item) =>
-    item.allowedRoles.includes(userRoleId)
-  );
+  // Filter menu items by user role (or empty/skeleton while loading)
+  const visibleItems = isLoadingUser
+    ? []
+    : navigationItems.filter((item) =>
+        userRoleId !== undefined && item.allowedRoles.includes(userRoleId)
+      );
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -254,82 +257,105 @@ export function Sidebar({
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Core Modules
                 </p>
-                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
-                  {currentUser?.role || "Admin"}
-                </span>
+                {!isLoadingUser && activeUser?.role && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                    {activeUser.role}
+                  </span>
+                )}
               </>
             )}
           </div>
 
-          {visibleItems.map((item) => {
-            const isActive = pathname === item.href;
-            const Icon = item.icon;
+          {isLoadingUser ? (
+            <div className="space-y-2 px-2 py-2 animate-pulse">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-2 py-2 rounded-lg bg-slate-800/40">
+                  <div className="h-4 w-4 rounded bg-slate-700/60 shrink-0" />
+                  {(!collapsed || mobileOpen) && <div className="h-3.5 w-24 rounded bg-slate-700/50" />}
+                </div>
+              ))}
+            </div>
+          ) : (
+            visibleItems.map((item) => {
+              const isActive = pathname === item.href;
+              const Icon = item.icon;
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => onMobileClose?.()}
-                title={collapsed && !mobileOpen ? item.title : undefined}
-                className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 relative ${
-                  isActive
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
-                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/70"
-                }`}
-              >
-                <Icon
-                  className={`h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-105 ${
-                    isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => onMobileClose?.()}
+                  title={collapsed && !mobileOpen ? item.title : undefined}
+                  className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 relative ${
+                    isActive
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                      : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/70"
                   }`}
-                />
-                {(!collapsed || mobileOpen) && (
-                  <span className="truncate flex-1">{item.title}</span>
-                )}
-                {(!collapsed || mobileOpen) && isActive && (
-                  <ChevronRight className="h-3 w-3 text-white/70" />
-                )}
-              </Link>
-            );
-          })}
+                >
+                  <Icon
+                    className={`h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-105 ${
+                      isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
+                    }`}
+                  />
+                  {(!collapsed || mobileOpen) && (
+                    <span className="truncate flex-1">{item.title}</span>
+                  )}
+                  {(!collapsed || mobileOpen) && isActive && (
+                    <ChevronRight className="h-3 w-3 text-white/70" />
+                  )}
+                </Link>
+              );
+            })
+          )}
         </div>
 
-      {/* Sidebar Footer / User Profile & Logout */}
-      <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
-        {!collapsed ? (
-          <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-800/50 text-xs">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="h-7 w-7 rounded-full bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300 flex-shrink-0">
-                <UserIcon className="h-3.5 w-3.5" />
-              </div>
-              <div className="overflow-hidden">
-                <p className="font-semibold text-white truncate text-[11px]">
-                  {currentUser?.name || "Administrator"}
-                </p>
-                <p className="text-[10px] text-slate-400 truncate">
-                  Role {userRoleId}: {currentUser?.role || "Admin"}
-                </p>
-              </div>
+        {/* Sidebar Footer / User Profile & Logout */}
+        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
+          {!collapsed ? (
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-800/50 text-xs">
+              {isLoadingUser ? (
+                <div className="flex items-center gap-2 overflow-hidden animate-pulse">
+                  <div className="h-7 w-7 rounded-full bg-slate-700/60 flex-shrink-0" />
+                  <div className="space-y-1">
+                    <div className="h-3 w-20 bg-slate-700/60 rounded" />
+                    <div className="h-2 w-14 bg-slate-800 rounded" />
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="h-7 w-7 rounded-full bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300 flex-shrink-0">
+                    <UserIcon className="h-3.5 w-3.5" />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="font-semibold text-white truncate text-[11px]">
+                      {activeUser?.name || "User"}
+                    </p>
+                    <p className="text-[10px] text-slate-400 truncate">
+                      {activeUser?.role || "Worker"}
+                    </p>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={handleLogout}
+                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded transition cursor-pointer"
+                title="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              onClick={handleLogout}
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded transition cursor-pointer"
-              title="Logout"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <div className="flex justify-center">
-            <button
-              onClick={handleLogout}
-              className="p-2 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
-              title="Logout"
-            >
-              <LogOut className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="flex justify-center">
+              <button
+                onClick={handleLogout}
+                className="p-2 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
+                title="Logout"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
     </aside>
     </>
   );

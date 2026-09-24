@@ -12,15 +12,22 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const limit = Number(searchParams.get("limit") || "1000");
+    const page = searchParams.get("page") ? Number(searchParams.get("page")) : null;
+    const limit = Number(searchParams.get("limit") || "100");
     const status = searchParams.get("status");
 
     let scanQuery = supabaseAdmin
       .from("scan")
-      .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, amount, payment, note, subnote, created_at, updated_at")
+      .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, amount, payment, note, subnote, created_at, updated_at", { count: "exact" })
       .or("worktype.is.null,worktype.not.in.(Sample,Rework)")
-      .order("id", { ascending: false })
-      .limit(limit);
+      .order("id", { ascending: false });
+
+    if (page && page > 0) {
+      const start = (page - 1) * limit;
+      scanQuery = scanQuery.range(start, start + limit - 1);
+    } else {
+      scanQuery = scanQuery.limit(limit);
+    }
 
     if (status && status !== "ALL") {
       scanQuery = scanQuery.eq("status", status);
@@ -31,33 +38,27 @@ export async function GET(req: NextRequest) {
       scanQuery,
       getCachedCustomers(),
       getCachedUsers(),
-      getCached("scanning_kpi_metrics", 20, async () => {
+      getCached("scanning_kpi_metrics_v2", 30, async () => {
         const [
           totalScansRes,
           pendingScansRes,
           missingScannerRes,
           missingQCRes,
           missingDesignerRes,
-          allAmountsRes,
         ] = await Promise.all([
-          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }),
-          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending"),
+          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
+          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
           supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("scan_by.eq.0,scan_by.is.null"),
           supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("qc_by.eq.0,qc_by.is.null"),
           supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("modeldesign_by.eq.0,modeldesign_by.is.null"),
-          supabaseAdmin.from("scan").select("amount"),
         ]);
-        const totalRevenue = (allAmountsRes.data || []).reduce(
-          (sum: number, row: any) => sum + Number(row.amount || 0),
-          0
-        );
         return {
           totalScans: totalScansRes.count || 0,
           pendingScans: pendingScansRes.count || 0,
           missingScanner: missingScannerRes.count || 0,
           missingQC: missingQCRes.count || 0,
           missingDesigner: missingDesignerRes.count || 0,
-          totalRevenue,
+          totalRevenue: 0,
         };
       }),
     ]);
@@ -78,14 +79,14 @@ export async function GET(req: NextRequest) {
         ? supabaseAdmin
             .from("subplate")
             .select("id, platename, projectid, subprojectid, material, location, sqty")
-            .in("projectid", scanIds.slice(0, 300))
+            .in("projectid", scanIds)
             .is("deleted_at", null)
         : Promise.resolve({ data: [] }),
       scanIds.length > 0
         ? supabaseAdmin
             .from("worklog")
             .select("scan_print_id, scan_hr, model_hr, rework_hr, qc_hr, insp_hr")
-            .in("scan_print_id", scanIds.slice(0, 300))
+            .in("scan_print_id", scanIds)
         : Promise.resolve({ data: [] }),
     ]);
 
