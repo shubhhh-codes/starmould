@@ -38,6 +38,7 @@ export default function DispatchPage() {
   const [subplates, setSubplates] = useState<Subplate[]>([]);
   const [scans, setScans] = useState<ScanProject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [customerFilter, setCustomerFilter] = useState("ALL");
@@ -47,22 +48,16 @@ export default function DispatchPage() {
   const fetchDispatchData = async () => {
     try {
       setIsLoading(true);
+      setFetchError(null);
       const res = await fetch("/api/dispatch?limit=200");
       const data = await res.json();
-      if (data.dispatches) {
-        setDispatches(data.dispatches);
-      }
-      if (data.customers) {
-        setCustomers(data.customers);
-      }
-      if (data.subplates) {
-        setSubplates(data.subplates);
-      }
-      if (data.scans) {
-        setScans(data.scans);
-      }
-    } catch (err) {
-      console.error("Failed to load live dispatch data:", err);
+      if (!res.ok) throw new Error(data.error || "Failed to load dispatch data");
+      setDispatches(data.dispatches || []);
+      setCustomers(data.customers || []);
+      setSubplates(data.subplates || []);
+      setScans(data.scans || []);
+    } catch (err: any) {
+      setFetchError(err.message || "Failed to load live dispatch data");
     } finally {
       setIsLoading(false);
     }
@@ -334,7 +329,22 @@ export default function DispatchPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+        {fetchError && (
+          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{fetchError}</span>
+            </div>
+            <button
+              onClick={fetchDispatchData}
+              className="px-3 py-1 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Header Title & Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
           <div>

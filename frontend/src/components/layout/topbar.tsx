@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Menu,
   Search,
@@ -31,12 +32,22 @@ export function Topbar({
   onToggleMobileMenu,
   currentUser,
 }: TopbarProps) {
+  const pathname = usePathname();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const topNavLinks = [
+    { href: "/", label: "Live Projects" },
+    { href: "/purchase", label: "Purchase" },
+    { href: "/challan", label: "Outward Challan" },
+    { href: "/dispatch", label: "Dispatch" },
+    { href: "/inward", label: "Inward" },
+    { href: "/customer", label: "Customers" },
+  ];
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,44 +95,28 @@ export function Topbar({
             <Menu className="h-5 w-5" />
           </button>
 
-          {/* Quick Module Navigation Tabs (recreating topbar shortcuts from legacy app) */}
+          {/* Quick Module Navigation Tabs */}
           <nav className="hidden lg:flex items-center gap-1 text-xs">
-            <Link
-              href="/"
-              className="px-3 py-1.5 rounded-md font-medium text-white bg-blue-600/90 hover:bg-blue-600 transition-colors shadow-xs"
-            >
-              Live Projects
-            </Link>
-            <Link
-              href="/purchase"
-              className="px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              Purchase
-            </Link>
-            <Link
-              href="/challan"
-              className="px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              Outward Challan
-            </Link>
-            <Link
-              href="/dispatch"
-              className="px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              Dispatch
-            </Link>
-            <Link
-              href="/inward"
-              className="px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              Inward
-            </Link>
-            <Link
-              href="/customer"
-              className="px-3 py-1.5 rounded-md font-medium text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
-            >
-              Customers
-            </Link>
+            {topNavLinks.map((link) => {
+              const isActive =
+                link.href === "/"
+                  ? pathname === "/"
+                  : pathname === link.href || pathname.startsWith(link.href + "/");
+
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                    isActive
+                      ? "text-white bg-blue-600 shadow-xs font-semibold"
+                      : "text-slate-300 hover:text-white hover:bg-slate-800"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </nav>
         </div>
 

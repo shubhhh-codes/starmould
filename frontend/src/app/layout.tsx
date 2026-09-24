@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { AuthProvider } from "@/components/providers/auth-provider";
 
 export const metadata: Metadata = {
   title: "Star Mould ERP — Precision Tooling & Manufacturing",
@@ -18,7 +19,9 @@ export default function RootLayout({
         className="antialiased min-h-screen bg-slate-100 text-slate-900"
         suppressHydrationWarning
       >
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

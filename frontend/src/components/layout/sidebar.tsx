@@ -141,6 +141,8 @@ export const navigationItems: NavItem[] = [
   },
 ];
 
+import { useAuth } from "@/components/providers/auth-provider";
+
 interface SidebarProps {
   collapsed?: boolean;
   mobileOpen?: boolean;
@@ -161,44 +163,19 @@ export function Sidebar({
   currentUser: propUser,
 }: SidebarProps) {
   const pathname = usePathname();
-  const [currentUser, setCurrentUser] = useState<{
-    id?: number;
-    name?: string;
-    username?: string;
-    role_id?: number;
-    role?: string;
-  } | null>(propUser || null);
-
-  useEffect(() => {
-    if (propUser) {
-      setCurrentUser(propUser);
-      return;
-    }
-    fetch("/api/auth/me")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.user) {
-          setCurrentUser(data.user);
-        }
-      })
-      .catch((err) => console.error("Error loading session:", err));
-  }, [propUser]);
-
-  // If user is loaded, use their role_id.
-  const activeUser = propUser !== undefined ? propUser : currentUser;
-  const isLoadingUser = activeUser === null;
+  const { currentUser: authUser, isSessionLoaded, logout } = useAuth();
+  const activeUser = propUser !== undefined ? propUser : authUser;
+  const isLoadingUser = !isSessionLoaded && propUser === undefined;
   const userRoleId = activeUser?.role_id;
 
-  // Filter menu items by user role (or empty/skeleton while loading)
-  const visibleItems = isLoadingUser
-    ? []
-    : navigationItems.filter((item) =>
-        userRoleId !== undefined && item.allowedRoles.includes(userRoleId)
-      );
+  // Filter menu items by user role. If not yet resolved on first cold tick, show default navigationItems
+  const visibleItems =
+    userRoleId !== undefined
+      ? navigationItems.filter((item) => item.allowedRoles.includes(userRoleId))
+      : navigationItems;
 
   const handleLogout = async () => {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
+    await logout();
   };
 
   return (

@@ -7,6 +7,8 @@ import { Topbar } from "./topbar";
 import { FullPageTableSkeleton } from "@/components/ui/skeleton";
 import { ShieldAlert } from "lucide-react";
 
+import { useAuth } from "@/components/providers/auth-provider";
+
 interface AppLayoutProps {
   children: React.ReactNode;
 }
@@ -38,40 +40,13 @@ export function AppLayout({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{
-    id?: number;
-    name: string;
-    email: string;
-    role: string;
-    initials: string;
-    role_id?: number;
-  } | null>(null);
-  const [isSessionLoaded, setIsSessionLoaded] = useState(false);
+  const { currentUser, isSessionLoaded } = useAuth();
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((res) => {
-        if (res.status === 401) {
-          router.push("/login");
-          return null;
-        }
-        return res.json();
-      })
-      .then((data) => {
-        if (data?.user) {
-          setCurrentUser({
-            id: data.user.id,
-            name: data.user.name || data.user.username || "User",
-            email: data.user.email || "",
-            role: data.user.role || "Worker",
-            initials: data.user.initials || data.user.name?.slice(0, 2).toUpperCase() || "SM",
-            role_id: data.user.role_id,
-          });
-        }
-      })
-      .catch((err) => console.error("Error loading session:", err))
-      .finally(() => setIsSessionLoaded(true));
-  }, [router]);
+    if (isSessionLoaded && !currentUser && pathname !== "/login") {
+      router.push("/login");
+    }
+  }, [isSessionLoaded, currentUser, pathname, router]);
 
   // Determine if current user is authorized for current route before rendering
   const isAuthorized = React.useMemo(() => {

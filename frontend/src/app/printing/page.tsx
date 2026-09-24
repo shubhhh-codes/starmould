@@ -340,6 +340,21 @@ export default function PrintingPage() {
   return (
     <AppLayout>
       <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
+        {fetchError && (
+          <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{fetchError}</span>
+            </div>
+            <button
+              onClick={fetchPrints}
+              className="px-3 py-1 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Header with View Switcher */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
