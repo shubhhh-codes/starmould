@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getCached } from "@/lib/cache";
 
 export interface SessionUser {
   id: number;
@@ -78,15 +79,18 @@ export async function authenticateRequest(
     return { error: "Invalid or expired session", status: 401 };
   }
 
-  // Verify against database in real-time
-  const { data: user, error } = await supabaseAdmin
-    .from("users")
-    .select("id, name, email, username, role_id, usertype, usersubtype, initials, status")
-    .eq("id", session.id)
-    .is("deleted_at", null)
-    .single();
+  // Verify against database (cached in-memory for 60s per user to eliminate redundant DB round-trips)
+  const user = await getCached(`auth_user_record_${session.id}`, 60, async () => {
+    const { data } = await supabaseAdmin
+      .from("users")
+      .select("id, name, email, username, role_id, usertype, usersubtype, initials, status")
+      .eq("id", session.id)
+      .is("deleted_at", null)
+      .single();
+    return data;
+  });
 
-  if (error || !user) {
+  if (!user) {
     return { error: "User account not found or deactivated", status: 401 };
   }
 

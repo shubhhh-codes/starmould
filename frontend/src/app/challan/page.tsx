@@ -88,6 +88,7 @@ export default function ChallanPage() {
       setChallans(data.challans || []);
       setCustomers(data.customers || []);
       setSubplates(data.subplates || []);
+      if (data.scans) setScans(data.scans || []);
       if (data.kpis) setKpis(data.kpis);
     } catch (err: any) {
       setFetchError(err.message || "Failed to fetch challan data");
@@ -109,18 +110,46 @@ export default function ChallanPage() {
   const availableProjects = useMemo(() => {
     if (!modalForm.customerid) return [];
     const custId = String(modalForm.customerid);
-    return scans.filter((s) => String(s.cname) === custId || s.cname === "0" || !s.cname);
+    return scans.filter((s) => String(s.cname) === custId || String(s.cname) === "0" || !s.cname);
   }, [scans, modalForm.customerid]);
+
+  // Selected scan record for subplate resolution
+  const selectedScan = useMemo(() => {
+    if (!modalForm.projectid) return null;
+    return scans.find((s) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
+  }, [scans, modalForm.projectid]);
 
   // Available subplates for selected project with pending outward quantity
   const availablePlates = useMemo(() => {
     if (!modalForm.projectid) return [];
+    const scanIdStr = selectedScan ? String(selectedScan.id) : "";
     return subplates.filter(
       (sp) =>
         String(sp.projectid) === String(modalForm.projectid) ||
-        sp.subprojectid?.includes(modalForm.projectid)
+        (scanIdStr && String(sp.projectid) === scanIdStr) ||
+        (sp.subprojectid && sp.subprojectid.includes(modalForm.projectid))
     );
-  }, [subplates, modalForm.projectid]);
+  }, [subplates, modalForm.projectid, selectedScan]);
+
+  // Dynamically load subplates for chosen mould if not present in client cache
+  React.useEffect(() => {
+    if (!modalForm.projectid) return;
+    const scan = selectedScan || scans.find((s) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
+    const lookupId = scan ? scan.id : modalForm.projectid;
+    
+    fetch(`/api/subplate?projectid=${lookupId}&limit=500`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.subplates && data.subplates.length > 0) {
+          setSubplates((prev) => {
+            const existing = new Set(prev.map((p) => p.id));
+            const fresh = data.subplates.filter((p: any) => !existing.has(p.id));
+            return fresh.length > 0 ? [...prev, ...fresh] : prev;
+          });
+        }
+      })
+      .catch((err) => console.error("Error loading project subplates:", err));
+  }, [modalForm.projectid, selectedScan, scans]);
 
   // Expand / collapse child items row
   const toggleRow = (id: number) => {
@@ -129,7 +158,7 @@ export default function ChallanPage() {
 
   // KPI Calculations
   const totalChallans = kpis.totalChallans || challans.length;
-  const activeChallans = challans.filter((c) => c.status === "1").length;
+  const activeChallans = challans.filter((c) => String(c.status) === "1" || (c as any).status === 1).length;
   const totalPlatesDispatched = challans.reduce(
     (acc, c) => acc + (c.items?.reduce((sum, it) => sum + (it.qty || 0), 0) || 0),
     0
@@ -517,12 +546,13 @@ export default function ChallanPage() {
                     <th className="px-4 py-3.5 text-center">Items</th>
                     <th className="px-4 py-3.5">Created By</th>
                     <th className="px-4 py-3.5 text-center">Status</th>
+                    <th className="px-4 py-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
                   {filteredChallans.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-12 text-slate-400">
+                      <td colSpan={9} className="text-center py-12 text-slate-400">
                         No outward jobwork challans found matching your search.
                       </td>
                     </tr>
@@ -579,7 +609,7 @@ export default function ChallanPage() {
                             </td>
 
                             <td className="px-4 py-3.5 text-center">
-                              {c.status === "1" ? (
+                              {String(c.status) === "1" || (c as any).status === 1 ? (
                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
                                   Active
@@ -590,12 +620,23 @@ export default function ChallanPage() {
                                 </span>
                               )}
                             </td>
+
+                            <td className="px-4 py-3.5 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleCancelChallan(c.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                title="Cancel / Delete Challan"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
                           </tr>
 
                           {/* Sub-table / Child Rows (matching challan/index.blade.php childTable) */}
                           {isExpanded && (
                             <tr className="bg-slate-50/80 border-y border-slate-200">
-                              <td colSpan={8} className="p-4 pl-14">
+                              <td colSpan={9} className="p-4 pl-14">
                                 <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                                   <div className="flex items-center justify-between mb-3">
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -675,9 +716,19 @@ export default function ChallanPage() {
                             {c.chdate}
                           </span>
                         </div>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          Outward
-                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Outward
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCancelChallan(c.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                            title="Cancel / Delete Challan"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">

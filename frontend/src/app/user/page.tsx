@@ -270,7 +270,7 @@ export default function UserManagementPage() {
 
   // Toggle user status (Active/Inactive) via live API
   const handleToggleStatus = async (user: UserRecord) => {
-    const newStatus = user.status === 1 ? 0 : 1;
+    const newStatus = Number(user.status) === 1 ? 0 : 1;
     try {
       const res = await fetch("/api/users", {
         method: "PUT",
@@ -285,7 +285,7 @@ export default function UserManagementPage() {
       setUsers((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
       );
-      showNotification("success", `User "${user.name}" status set to ${newStatus === 1 ? "Active" : "Inactive"}.`);
+      showNotification("success", `User "${user.name}" status set to ${Number(newStatus) === 1 ? "Active" : "Inactive"}.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to toggle status";
       showNotification("error", msg);
@@ -387,7 +387,7 @@ export default function UserManagementPage() {
         `"${u.usersubtype || ""}"`,
         `"${u.email || ""}"`,
         `"${roleDef.display_name} (id:${roleDef.id})"`,
-        u.status === 1 ? "Active" : "Inactive",
+        Number(u.status) === 1 ? "Active" : "Inactive",
       ];
     });
     const csvContent =
@@ -633,7 +633,7 @@ export default function UserManagementPage() {
                 ) : (
                   paginatedUsers.map((u) => {
                     const roleDef = getRoleById(u.role_id);
-                    const isActive = u.status === 1;
+                    const isActive = Number(u.status) === 1;
 
                     return (
                       <tr
@@ -759,7 +759,7 @@ export default function UserManagementPage() {
             ) : (
               paginatedUsers.map((u) => {
                 const roleDef = getRoleById(u.role_id);
-                const isActive = u.status === 1;
+                const isActive = Number(u.status) === 1;
 
                 return (
                   <div
@@ -1164,16 +1164,16 @@ export default function UserManagementPage() {
                     onClick={() =>
                       setFormData((p) => ({
                         ...p,
-                        status: p.status === 1 ? 0 : 1,
+                        status: Number(p.status) === 1 ? 0 : 1,
                       }))
                     }
                     className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
-                      formData.status === 1
+                      Number(formData.status) === 1
                         ? "bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800"
                         : "bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700"
                     }`}
                   >
-                    {formData.status === 1 ? (
+                    {Number(formData.status) === 1 ? (
                       <>
                         <ToggleRight className="w-4 h-4 text-emerald-600" />
                         <span>Active (1)</span>

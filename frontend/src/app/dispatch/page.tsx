@@ -119,7 +119,7 @@ export default function DispatchPage() {
   const availableProjects = useMemo(() => {
     if (!modalForm.customerid) return [];
     const custId = String(modalForm.customerid);
-    return scans.filter((s) => String(s.cname) === custId || s.cname === "0" || !s.cname);
+    return scans.filter((s) => String(s.cname) === custId || String(s.cname) === "0" || !s.cname);
   }, [scans, modalForm.customerid]);
 
   // Available subplates for selected project that are ready for dispatch (location = 'SM')
@@ -139,7 +139,7 @@ export default function DispatchPage() {
 
   // KPI Calculations
   const totalDispatches = dispatches.length;
-  const activeDispatches = dispatches.filter((d) => d.status === "1").length;
+  const activeDispatches = dispatches.filter((d) => String(d.status) === "1" || (d as any).status === 1).length;
   const totalItemsDispatched = dispatches.reduce(
     (acc, d) => acc + (d.items?.reduce((sum, it) => sum + (it.qty || 0), 0) || 0),
     0

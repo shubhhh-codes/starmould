@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     // Fetch customers lookup
     const { data: customers } = await supabaseAdmin
       .from("customers")
-      .select("id, customername, initials")
+      .select("id, customername, initials, usertype")
       .is("deleted_at", null);
 
     const custMap = new Map((customers || []).map((c) => [c.id, c]));
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     // Fetch active users for staff dropdown
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("id, username, initials, status, role_id")
+      .select("id, name, username, initials, status, role_id")
       .is("deleted_at", null);
 
     const userMap = new Map((users || []).map((u) => [u.id, u]));
@@ -66,18 +66,18 @@ export async function GET(req: NextRequest) {
 
     const enriched = (scanRows || []).map((row) => {
       const cust = custMap.get(row.cname);
-      const scanUser = userMap.get(row.scan_by);
-      const qcUser = userMap.get(row.qc_by);
-      const modelUser = userMap.get(row.modeldesign_by);
+      const scanUser = userMap.get(Number(row.scan_by));
+      const qcUser = userMap.get(Number(row.qc_by));
+      const modelUser = userMap.get(Number(row.modeldesign_by));
       const hours = worklogMap[row.id] || { scan_hr: 0, model_hr: 0 };
 
       return {
         ...row,
         customername: cust?.customername || `Customer #${row.cname}`,
         customer_initials: cust?.initials || "",
-        scan_by_name: scanUser?.initials || scanUser?.username || "—",
-        qc_by_name: qcUser?.initials || qcUser?.username || "—",
-        modeldesign_by_name: modelUser?.initials || modelUser?.username || "—",
+        scan_by_name: scanUser?.name || scanUser?.initials || scanUser?.username || "—",
+        qc_by_name: qcUser?.name || qcUser?.initials || qcUser?.username || "—",
+        modeldesign_by_name: modelUser?.name || modelUser?.initials || modelUser?.username || "—",
         calc_scan_hr: hours.scan_hr || row.scan_hr || 0,
         calc_model_hr: hours.model_hr || row.model_hr || 0,
       };
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       projects: enriched,
       customers: customers || [],
-      users: (users || []).filter((u) => u.status === "1"),
+      users: (users || []).filter((u) => String(u.status) === "1" || u.status === 1),
       kpis: {
         samplePending,
         sampleTotal,
@@ -204,7 +204,12 @@ export async function PATCH(req: NextRequest) {
     };
 
     if (field && value !== undefined) {
-      updatePayload[field] = value === "0" || value === "" ? null : value;
+      updatePayload[field] =
+        value === 0 || value === "0" || value === "" || value === null
+          ? null
+          : ["scan_by", "qc_by", "modeldesign_by", "amount"].includes(field)
+          ? Number(value)
+          : value;
     } else if (updates && typeof updates === "object") {
       Object.assign(updatePayload, updates);
     }

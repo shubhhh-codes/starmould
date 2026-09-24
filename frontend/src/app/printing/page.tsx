@@ -102,7 +102,7 @@ export default function PrintingPage() {
 
   // Filter active staff for assignment
   const activeStaff = useMemo(() => {
-    return users.filter((u) => String(u.status) === "1");
+    return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
 
   // Filtered prints
@@ -321,8 +321,8 @@ export default function PrintingPage() {
       p.hr,
       p.amount,
       p.ramount,
-      p.payment === 1 ? "Paid" : "Unpaid",
-      p.dispatch === 1 ? "Dispatched" : "Pending",
+      Number(p.payment) === 1 ? "Paid" : "Unpaid",
+      Number(p.dispatch) === 1 ? "Dispatched" : "Pending",
       p.status,
     ]);
     const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -670,7 +670,7 @@ export default function PrintingPage() {
                       <td className="py-3 px-4 text-center">
                         <input
                           type="checkbox"
-                          checked={row.dispatch === 1}
+                          checked={Number(row.dispatch) === 1}
                           onChange={() => handleDispatchToggle(row.id)}
                           className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500 cursor-pointer"
                         />
@@ -684,12 +684,12 @@ export default function PrintingPage() {
                               type="button"
                               onClick={() => handlePaymentToggle(row.id)}
                               className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition ${
-                                row.payment === 1
+                                Number(row.payment) === 1
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-300"
                                   : "bg-rose-50 text-rose-700 border-rose-300"
                               }`}
                             >
-                              {row.payment === 1 ? "Paid" : "Unpaid"}
+                              {Number(row.payment) === 1 ? "Paid" : "Unpaid"}
                             </button>
                           </td>
                           <td className="py-3 px-4 text-right">
@@ -747,12 +747,12 @@ export default function PrintingPage() {
                       type="button"
                       onClick={() => handleDispatchToggle(row.id)}
                       className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
-                        row.dispatch === 1
+                        Number(row.dispatch) === 1
                           ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                           : "bg-amber-50 text-amber-700 border-amber-200"
                       }`}
                     >
-                      {row.dispatch === 1 ? "Dispatched" : "Pending"}
+                      {Number(row.dispatch) === 1 ? "Dispatched" : "Pending"}
                     </button>
                   </div>
 

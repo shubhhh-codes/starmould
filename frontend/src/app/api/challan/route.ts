@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCachedCustomers, getCachedScansLookup } from "@/lib/cache";
 
 // GET /api/challan - Fetch outward challans, child items, pending return status from view_pending_inward_qty, and lookups
 export async function GET(req: NextRequest) {
@@ -30,54 +31,47 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: cErr.message }, { status: 500 });
     }
 
-    // 2. Fetch Customers lookup
-    const { data: customers } = await supabaseAdmin
-      .from("customers")
-      .select("id, customername, initials, usertype, mobile, mobile1")
-      .is("deleted_at", null);
-
-    const custMap = new Map((customers || []).map((c) => [c.id, c]));
-
-    // 3. Fetch Challan Items for these challans
     const challanIds = (challans || []).map((c) => c.id);
+
+    // 2. Fetch Customers, Challan Items, Subplates, and Pending Qtys in PARALLEL
+    const [customers, itemsRes, subplatesRes, pendingRowsRes] = await Promise.all([
+      getCachedCustomers(),
+      challanIds.length > 0
+        ? supabaseAdmin
+            .from("challan_items")
+            .select("*")
+            .in("challanid", challanIds.slice(0, 500))
+        : Promise.resolve({ data: [] }),
+      supabaseAdmin
+        .from("subplate")
+        .select("id, platename, subprojectid, projectid, material, location")
+        .is("deleted_at", null)
+        .limit(2000),
+      challanIds.length > 0
+        ? supabaseAdmin
+            .from("view_pending_inward_qty")
+            .select("id, inward_qty, pending_qty")
+            .in("id", challanIds.slice(0, 500))
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
+    const subplates = subplatesRes.data || [];
+    const subMap = new Map(subplates.map((sp: any) => [sp.id, sp]));
+
     let itemsMap: Record<number, any[]> = {};
-
-    if (challanIds.length > 0) {
-      const { data: items } = await supabaseAdmin
-        .from("challan_items")
-        .select("*")
-        .in("challanid", challanIds.slice(0, 500));
-
-      for (const item of items || []) {
-        if (!itemsMap[item.challanid]) itemsMap[item.challanid] = [];
-        itemsMap[item.challanid].push(item);
-      }
+    for (const item of itemsRes.data || []) {
+      if (!itemsMap[item.challanid]) itemsMap[item.challanid] = [];
+      itemsMap[item.challanid].push(item);
     }
 
-    // 4. Fetch Subplates lookup
-    const { data: subplates } = await supabaseAdmin
-      .from("subplate")
-      .select("id, platename, subprojectid, projectid, material, location")
-      .is("deleted_at", null)
-      .limit(2000);
-
-    const subMap = new Map((subplates || []).map((sp) => [sp.id, sp]));
-
-    // 5. Query PostgreSQL view_pending_inward_qty for live pending quantities
     let pendingMap: Record<number, { inward_qty: number; pending_qty: number }> = {};
-    if (challanIds.length > 0) {
-      const { data: pendingRows } = await supabaseAdmin
-        .from("view_pending_inward_qty")
-        .select("id, inward_qty, pending_qty")
-        .in("id", challanIds.slice(0, 500));
-
-      for (const pr of pendingRows || []) {
-        if (!pendingMap[pr.id]) {
-          pendingMap[pr.id] = { inward_qty: 0, pending_qty: 0 };
-        }
-        pendingMap[pr.id].inward_qty += Number(pr.inward_qty || 0);
-        pendingMap[pr.id].pending_qty += Number(pr.pending_qty || 0);
+    for (const pr of pendingRowsRes.data || []) {
+      if (!pendingMap[pr.id]) {
+        pendingMap[pr.id] = { inward_qty: 0, pending_qty: 0 };
       }
+      pendingMap[pr.id].inward_qty += Number(pr.inward_qty || 0);
+      pendingMap[pr.id].pending_qty += Number(pr.pending_qty || 0);
     }
 
     const enriched = (challans || []).map((c) => {
@@ -115,15 +109,21 @@ export async function GET(req: NextRequest) {
       .select("id", { count: "exact", head: true })
       .eq("status", "1");
 
-    return NextResponse.json({
+    // 6. Fetch scans lookup for mould projects (cached)
+    const scans = await getCachedScansLookup();
+
+    const response = NextResponse.json({
       challans: enriched,
       customers: customers || [],
       subplates: subplates || [],
+      scans: scans || [],
       kpis: {
         totalChallans: totalActive || 0,
         activeCount: enriched.length,
       },
     });
+    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -209,21 +209,41 @@ export async function POST(req: NextRequest) {
 
       await supabaseAdmin.from("challan_items").insert(itemsToInsert);
 
-      // Update subplate location
+      // Update subplate location matching PHP ChallanController:881-899
       const { data: vendorData } = await supabaseAdmin
         .from("customers")
         .select("initials, customername")
         .eq("id", Number(vendorid))
         .single();
 
-      const vendorLocation = vendorData?.initials || vendorData?.customername || "Vendor";
+      const vendorInitials = vendorData?.initials || vendorData?.customername || "Vendor";
       const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
 
       if (plateIds.length > 0) {
-        await supabaseAdmin
+        const { data: plates } = await supabaseAdmin
           .from("subplate")
-          .update({ location: vendorLocation, updated_at: now })
+          .select("id, location")
           .in("id", plateIds);
+
+        for (const sp of plates || []) {
+          const rawLoc = sp.location || "SM";
+          const parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
+          const smFound = parts.includes("SM");
+          const vendorFound = parts.includes(vendorInitials);
+
+          let newLoc = vendorInitials;
+          if (vendorInitials === "SM" || smFound || vendorFound) {
+            newLoc = vendorInitials;
+          } else {
+            parts.push(vendorInitials);
+            newLoc = parts.join(",");
+          }
+
+          await supabaseAdmin
+            .from("subplate")
+            .update({ location: newLoc, updated_at: now })
+            .eq("id", sp.id);
+        }
       }
     }
 

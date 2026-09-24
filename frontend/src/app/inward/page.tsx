@@ -116,7 +116,7 @@ export default function InwardPage() {
 
   // KPI Calculations
   const totalInwards = kpis.totalInwards || inwards.length;
-  const activeInwards = inwards.filter((i) => i.status === "1").length;
+  const activeInwards = inwards.filter((i) => String(i.status) === "1" || (i as any).status === 1).length;
   const totalPlatesReceived = inwards.reduce(
     (acc, i) => acc + (i.items?.reduce((sum, it) => sum + (it.inward_qty || 0), 0) || 0),
     0
@@ -388,15 +388,16 @@ export default function InwardPage() {
                   <th className="px-4 py-3.5">Outward Challan</th>
                   <th className="px-4 py-3.5">Vendor Name</th>
                   <th className="px-4 py-3.5">Customer Name</th>
-                  <th className="px-4 py-3.5">Transporter</th>
+                  <th className="px-4 py-3.5 text-slate-600">Transporter</th>
                   <th className="px-4 py-3.5 text-center">Items Received</th>
                   <th className="px-4 py-3.5">Received By</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredInwards.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="text-center py-12 text-slate-400">
+                    <td colSpan={11} className="text-center py-12 text-slate-400">
                       No inward jobwork receipts found matching your search.
                     </td>
                   </tr>
@@ -459,12 +460,23 @@ export default function InwardPage() {
                           <td className="px-4 py-3.5 text-xs text-slate-500">
                             {i.created_by}
                           </td>
+
+                          <td className="px-4 py-3.5 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleCancelInward(i.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Cancel / Delete Inward"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
                         </tr>
 
                         {/* Child Rows: Sub-table for Received Inward Items */}
                         {isExpanded && (
                           <tr className="bg-slate-50/80 border-y border-slate-200">
-                            <td colSpan={9} className="p-4 pl-14">
+                            <td colSpan={11} className="p-4 pl-14">
                               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -554,9 +566,19 @@ export default function InwardPage() {
                           (Ref: {i.challanno})
                         </span>
                       </div>
-                      <span className="text-[10px] text-slate-400">
-                        {i.chdate}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400">
+                          {i.chdate}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCancelInward(i.id)}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                          title="Cancel / Delete Inward"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div>

@@ -145,23 +145,35 @@ interface SidebarProps {
   collapsed?: boolean;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
+  currentUser?: {
+    id?: number;
+    name?: string;
+    username?: string;
+    role_id?: number;
+    role?: string;
+  } | null;
 }
 
 export function Sidebar({
   collapsed = false,
   mobileOpen = false,
   onMobileClose,
+  currentUser: propUser,
 }: SidebarProps) {
   const pathname = usePathname();
   const [currentUser, setCurrentUser] = useState<{
-    id: number;
-    name: string;
-    username: string;
-    role_id: number;
-    role: string;
-  } | null>(null);
+    id?: number;
+    name?: string;
+    username?: string;
+    role_id?: number;
+    role?: string;
+  } | null>(propUser || null);
 
   useEffect(() => {
+    if (propUser) {
+      setCurrentUser(propUser);
+      return;
+    }
     fetch("/api/auth/me")
       .then((res) => res.json())
       .then((data) => {
@@ -170,9 +182,11 @@ export function Sidebar({
         }
       })
       .catch((err) => console.error("Error loading session:", err));
-  }, []);
+  }, [propUser]);
 
-  const userRoleId = currentUser?.role_id ?? 0;
+  // If user is loaded, use their role_id. If propUser is explicitly passed, use it.
+  const activeUser = propUser || currentUser;
+  const userRoleId = activeUser?.role_id ?? 0;
 
   // Filter menu items by user role
   const visibleItems = navigationItems.filter((item) =>

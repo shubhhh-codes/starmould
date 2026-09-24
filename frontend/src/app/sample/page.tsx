@@ -17,6 +17,8 @@ import {
   Filter,
   Layers,
   ArrowRight,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import type { ScanProject, Customer, User } from "@/lib/supabase/types";
 
@@ -102,7 +104,7 @@ export default function SampleReworkPage() {
 
   // Active workers for assignment (Source: SampleController.php:75, 93)
   const activeStaff = useMemo(() => {
-    return users.filter((u) => String(u.status) === "1");
+    return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
 
   // Handle Quick Status Change (Live API PATCH)
@@ -147,6 +149,25 @@ export default function SampleReworkPage() {
       setProjects((prev) =>
         prev.map((p) => (p.id === id ? { ...p, [field]: userId } : p))
       );
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+  };
+
+  // Handle Delete Project (Live API DELETE)
+  const handleDeleteProject = async (id: number, projectid?: string | null) => {
+    if (!confirm(`Are you sure you want to delete ${activeTab} project "${projectid || `#${id}`}"?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/sample?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete project");
+      }
+      setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -380,13 +401,26 @@ export default function SampleReworkPage() {
                   <th className="py-3.5 px-4">QC By</th>
                   <th className="py-3.5 px-4">Model Design</th>
                   <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredProjects.length === 0 ? (
+                {isLoading ? (
                   <tr>
                     <td
-                      colSpan={12}
+                      colSpan={13}
+                      className="py-16 text-center text-slate-400 text-sm"
+                    >
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
+                        <span>Loading {activeTab.toLowerCase()} orders...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredProjects.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={13}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       No {activeTab.toLowerCase()} orders found.
@@ -441,7 +475,7 @@ export default function SampleReworkPage() {
                           <option value={0}>Select</option>
                           {activeStaff.map((u) => (
                             <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
+                              {u.initials || u.name || u.username}
                             </option>
                           ))}
                         </select>
@@ -463,7 +497,7 @@ export default function SampleReworkPage() {
                           <option value={0}>Select</option>
                           {activeStaff.map((u) => (
                             <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
+                              {u.initials || u.name || u.username}
                             </option>
                           ))}
                         </select>
@@ -485,7 +519,7 @@ export default function SampleReworkPage() {
                           <option value={0}>Select</option>
                           {activeStaff.map((u) => (
                             <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
+                              {u.initials || u.name || u.username}
                             </option>
                           ))}
                         </select>
@@ -513,6 +547,16 @@ export default function SampleReworkPage() {
                           <option value="registered">registered</option>
                           <option value="completed">completed</option>
                         </select>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProject(row.id, row.projectid)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          title="Delete order"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -542,26 +586,36 @@ export default function SampleReworkPage() {
                         {row.worktype || activeTab}
                       </span>
                     </div>
-                    <select
-                      value={row.status}
-                      onChange={(e) =>
-                        handleStatusChange(
-                          row.id,
-                          e.target.value as any
-                        )
-                      }
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                        row.status === "completed"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : row.status === "registered"
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
-                    >
-                      <option value="pending">pending</option>
-                      <option value="registered">registered</option>
-                      <option value="completed">completed</option>
-                    </select>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={row.status}
+                        onChange={(e) =>
+                          handleStatusChange(
+                            row.id,
+                            e.target.value as any
+                          )
+                        }
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          row.status === "completed"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : row.status === "registered"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}
+                      >
+                        <option value="pending">pending</option>
+                        <option value="registered">registered</option>
+                        <option value="completed">completed</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteProject(row.id, row.projectid)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                        title="Delete order"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -738,7 +792,7 @@ export default function SampleReworkPage() {
                       <option value="0">Unassigned</option>
                       {activeStaff.map((u) => (
                         <option key={u.id} value={String(u.id)}>
-                          {u.initials}
+                          {u.initials || u.name || u.username}
                         </option>
                       ))}
                     </select>
@@ -758,7 +812,7 @@ export default function SampleReworkPage() {
                       <option value="0">Unassigned</option>
                       {activeStaff.map((u) => (
                         <option key={u.id} value={String(u.id)}>
-                          {u.initials}
+                          {u.initials || u.name || u.username}
                         </option>
                       ))}
                     </select>

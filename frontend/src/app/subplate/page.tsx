@@ -18,6 +18,10 @@ import {
   Wrench,
   ShieldCheck,
   Tag,
+  Trash2,
+  Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 
@@ -67,6 +71,8 @@ export default function SubplatePage() {
   const [materialFilter, setMaterialFilter] = useState("ALL");
   const [locationFilter, setLocationFilter] = useState("ALL");
   const [projectFilter, setProjectFilter] = useState("ALL");
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Modal State for Add / Edit Subplate
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -133,6 +139,36 @@ export default function SubplatePage() {
     });
   }, [subplates, searchQuery, materialFilter, locationFilter, projectFilter]);
 
+  // Reset to page 1 on filter or search changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, materialFilter, locationFilter, projectFilter, pageSize]);
+
+  const totalPages = Math.ceil(filteredSubplates.length / pageSize) || 1;
+  const paginatedSubplates = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSubplates.slice(start, start + pageSize);
+  }, [filteredSubplates, currentPage, pageSize]);
+
+  // Handle Delete Subplate (Soft Delete)
+  const handleDeleteSubplate = async (id: number, platename: string) => {
+    if (!confirm(`Are you sure you want to delete subplate "${platename || `#${id}`}"? This will soft-delete the record.`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/subplate?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete subplate");
+      }
+      setSubplates((prev) => prev.filter((sp) => sp.id !== id));
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+  };
+
   // KPI Calculations
   const totalCount = kpis.totalCount || subplates.length;
   const inHouseCount = kpis.inHouseCount || subplates.filter(
@@ -145,7 +181,7 @@ export default function SubplatePage() {
 
   // Active staff
   const activeStaff = useMemo(() => {
-    return users.filter((u) => String(u.status) === "1");
+    return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
 
   // Handle Create Subplate (Live API POST)
@@ -373,20 +409,33 @@ export default function SubplatePage() {
                   <th className="py-3.5 px-4">Material</th>
                   <th className="py-3.5 px-4 text-center">Qty</th>
                   <th className="py-3.5 px-4 text-center">Location</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredSubplates.length === 0 ? (
+                {isLoading ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
+                      className="py-16 text-center text-slate-400 text-sm"
+                    >
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
+                        <span>Loading subplate master database records...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredSubplates.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={10}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       No subplates found matching your filter criteria.
                     </td>
                   </tr>
                 ) : (
-                  filteredSubplates.map((row) => (
+                  paginatedSubplates.map((row) => (
                     <tr
                       key={row.id}
                       className="hover:bg-slate-50/60 transition group"
@@ -432,6 +481,16 @@ export default function SubplatePage() {
                           {row.location || "SM"}
                         </span>
                       </td>
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSubplate(row.id, row.platename)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          title="Delete subplate"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -441,12 +500,17 @@ export default function SubplatePage() {
 
           {/* Mobile Card-List Fallback (< md) */}
           <div className="block md:hidden p-3 space-y-3">
-            {filteredSubplates.length === 0 ? (
+            {isLoading ? (
+              <div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-cyan-600" />
+                <span>Loading subplates...</span>
+              </div>
+            ) : filteredSubplates.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
                 No subplates found matching your filter criteria.
               </div>
             ) : (
-              filteredSubplates.map((row) => (
+              paginatedSubplates.map((row) => (
                 <div
                   key={row.id}
                   className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
@@ -456,16 +520,26 @@ export default function SubplatePage() {
                       <span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
                       <span className="font-bold text-slate-900">{row.platename}</span>
                     </div>
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                        row.location === "SM" || !row.location
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                          : "bg-amber-50 text-amber-700 border border-amber-200"
-                      }`}
-                    >
-                      <MapPin className="w-2.5 h-2.5" />
-                      {row.location || "SM"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          row.location === "SM" || !row.location
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
+                        }`}
+                      >
+                        <MapPin className="w-2.5 h-2.5" />
+                        {row.location || "SM"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteSubplate(row.id, row.platename)}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                        title="Delete subplate"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
@@ -498,6 +572,55 @@ export default function SubplatePage() {
               ))
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {!isLoading && filteredSubplates.length > 0 && (
+            <div className="px-4 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 bg-slate-50/50">
+              <div className="flex items-center gap-2">
+                <span>Show</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-cyan-500"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span>
+                  per page • Showing {((currentPage - 1) * pageSize) + 1} to{" "}
+                  {Math.min(currentPage * pageSize, filteredSubplates.length)} of {filteredSubplates.length} subplates
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  title="Previous page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <span className="px-3 py-1 font-semibold text-slate-700">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  title="Next page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="py-3 px-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
             <span>Showing {filteredSubplates.length} subplates</span>

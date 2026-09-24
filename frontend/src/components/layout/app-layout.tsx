@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 
@@ -9,8 +10,41 @@ interface AppLayoutProps {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
+  const router = useRouter();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{
+    id?: number;
+    name: string;
+    email: string;
+    role: string;
+    initials: string;
+    role_id?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => {
+        if (res.status === 401) {
+          router.push("/login");
+          return null;
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data?.user) {
+          setCurrentUser({
+            id: data.user.id,
+            name: data.user.name || data.user.username || "User",
+            email: data.user.email || "",
+            role: data.user.role || "Worker",
+            initials: data.user.initials || data.user.name?.slice(0, 2).toUpperCase() || "SM",
+            role_id: data.user.role_id,
+          });
+        }
+      })
+      .catch((err) => console.error("Error loading session:", err));
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
@@ -19,6 +53,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         collapsed={sidebarCollapsed}
         mobileOpen={mobileDrawerOpen}
         onMobileClose={() => setMobileDrawerOpen(false)}
+        currentUser={currentUser as any}
       />
 
       {/* Main Content Area */}
@@ -31,12 +66,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         <Topbar
           onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
           onToggleMobileMenu={() => setMobileDrawerOpen(!mobileDrawerOpen)}
-          currentUser={{
-            name: "Akshay",
-            email: "akshay@star.in",
-            role: "Admin",
-            initials: "AKS",
-          }}
+          currentUser={currentUser || undefined}
         />
 
         {/* Dynamic Page Content */}

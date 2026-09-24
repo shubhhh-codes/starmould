@@ -15,8 +15,8 @@ import {
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("password");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,20 +46,6 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const demoRoles = [
-    { label: "Role 0 — Admin", username: "admin", role: "Full ERP System Access" },
-    { label: "Role 1 — Manager", username: "manager", role: "Operations & Movement" },
-    { label: "Role 2 — Supervisor", username: "supervisor", role: "Floor QC & Approvals" },
-    { label: "Role 3 — Designer", username: "designer", role: "CAD / Subplate Pipeline" },
-    { label: "Role 4 — Worker", username: "worker", role: "Worklog & Machine Tasks" },
-  ];
-
-  const selectDemoRole = (user: string) => {
-    setUsername(user);
-    setPassword("password");
-    setError(null);
   };
 
   return (

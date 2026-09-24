@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCached, getCachedScansLookup, getCachedUsers } from "@/lib/cache";
 
 // GET /api/subplate - fetch subplates with project and staff lookups (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
@@ -14,81 +15,90 @@ export async function GET(req: NextRequest) {
     const limit = Number(searchParams.get("limit") || "1000");
     const projectid = searchParams.get("projectid");
 
-    let query = supabaseAdmin
+    let subplateQuery = supabaseAdmin
       .from("subplate")
-      .select("*")
+      .select("id, platename, projectid, subprojectid, material, location, width, height, length, unit, sqty, design_by, vmc_workby, final_qcby, packing_workby, created_at, updated_at")
       .is("deleted_at", null)
       .order("id", { ascending: false })
       .limit(limit);
 
     if (projectid && projectid !== "ALL") {
-      query = query.eq("projectid", projectid);
+      if (/^\d+$/.test(projectid)) {
+        subplateQuery = subplateQuery.eq("projectid", projectid);
+      } else {
+        const { data: matchedScan } = await supabaseAdmin
+          .from("scan")
+          .select("id")
+          .eq("projectid", projectid)
+          .maybeSingle();
+        if (matchedScan) {
+          subplateQuery = subplateQuery.or(`projectid.eq.${matchedScan.id},subprojectid.ilike.${projectid}%`);
+        } else {
+          subplateQuery = subplateQuery.ilike("subprojectid", `${projectid}%`);
+        }
+      }
     }
 
-    const { data: subplates, error: spErr } = await query;
-    if (spErr) {
-      return NextResponse.json({ error: spErr.message }, { status: 500 });
+    // Batch subplates query with cached scans, users, and KPI counts
+    const [subplatesRes, scans, users, kpis] = await Promise.all([
+      subplateQuery,
+      getCachedScansLookup(),
+      getCachedUsers(),
+      getCached("subplate_kpi_counts", 30, async () => {
+        const [totalActiveRes, inHouseRes, vendorRes] = await Promise.all([
+          supabaseAdmin
+            .from("subplate")
+            .select("id", { count: "exact", head: true })
+            .is("deleted_at", null),
+          supabaseAdmin
+            .from("subplate")
+            .select("id", { count: "exact", head: true })
+            .is("deleted_at", null)
+            .or("location.eq.SM,location.is.null"),
+          supabaseAdmin
+            .from("subplate")
+            .select("id", { count: "exact", head: true })
+            .is("deleted_at", null)
+            .neq("location", "SM")
+            .not("location", "is", null),
+        ]);
+        return {
+          totalCount: totalActiveRes.count || 0,
+          inHouseCount: inHouseRes.count || 0,
+          vendorCount: vendorRes.count || 0,
+        };
+      }),
+    ]);
+
+    if (subplatesRes.error) {
+      return NextResponse.json({ error: subplatesRes.error.message }, { status: 500 });
     }
 
-    // Fetch scans lookup
-    const { data: scans } = await supabaseAdmin
-      .from("scan")
-      .select("id, projectid, description, cname")
-      .order("id", { ascending: false })
-      .limit(1000);
+    const subplates = subplatesRes.data || [];
+    const scanMap = new Map((scans || []).map((s: any) => [s.id, s]));
+    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
 
-    const scanMap = new Map((scans || []).map((s) => [s.id, s]));
-
-    // Fetch active users for staff assignment lookup
-    const { data: users } = await supabaseAdmin
-      .from("users")
-      .select("id, username, initials, status, role_id")
-      .is("deleted_at", null);
-
-    const userMap = new Map((users || []).map((u) => [u.id, u]));
-
-    const enriched = (subplates || []).map((sp) => {
+    const enriched = subplates.map((sp: any) => {
       const scan = scanMap.get(sp.projectid);
       return {
         ...sp,
         mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
         mould_description: scan?.description || "",
-        design_by_name: userMap.get(sp.design_by)?.initials || "—",
-        vmc_workby_name: userMap.get(sp.vmc_workby)?.initials || "—",
-        final_qcby_name: userMap.get(sp.final_qcby)?.initials || "—",
-        packing_workby_name: userMap.get(sp.packing_workby)?.initials || "—",
+        design_by_name: userMap.get(Number(sp.design_by))?.name || userMap.get(Number(sp.design_by))?.initials || "—",
+        vmc_workby_name: userMap.get(Number(sp.vmc_workby))?.name || userMap.get(Number(sp.vmc_workby))?.initials || "—",
+        final_qcby_name: userMap.get(Number(sp.final_qcby))?.name || userMap.get(Number(sp.final_qcby))?.initials || "—",
+        packing_workby_name: userMap.get(Number(sp.packing_workby))?.name || userMap.get(Number(sp.packing_workby))?.initials || "—",
       };
     });
 
-    // Counts for KPIs
-    const { count: totalActive } = await supabaseAdmin
-      .from("subplate")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null);
-
-    const { count: inHouseCount } = await supabaseAdmin
-      .from("subplate")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null)
-      .or("location.eq.SM,location.is.null");
-
-    const { count: vendorCount } = await supabaseAdmin
-      .from("subplate")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null)
-      .neq("location", "SM")
-      .not("location", "is", null);
-
-    return NextResponse.json({
+    const response = NextResponse.json({
       subplates: enriched,
-      scans: scans || [],
-      users: (users || []).filter((u) => u.status === "1"),
-      kpis: {
-        totalCount: totalActive || 0,
-        inHouseCount: inHouseCount || 0,
-        vendorCount: vendorCount || 0,
-      },
+      scans: scans,
+      users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
+      kpis,
     });
+    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -59,6 +59,16 @@ export function Topbar({
     }, 1200);
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      window.location.href = "/login";
+    }
+  };
+
   return (
     <>
       <header className="sticky top-0 z-30 h-16 bg-slate-900 border-b border-slate-800 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shadow-sm">
@@ -197,9 +207,7 @@ export function Topbar({
 
                 <div className="pt-1 border-t border-slate-800">
                   <button
-                    onClick={() => {
-                      alert("Logged out successfully");
-                    }}
+                    onClick={handleLogout}
                     className="w-full flex items-center gap-2.5 px-4 py-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
                   >
                     <LogOut className="h-3.5 w-3.5" />

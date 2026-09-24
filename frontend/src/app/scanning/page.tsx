@@ -16,10 +16,13 @@ import {
   Shield,
   Layers,
   ChevronRight,
+  ChevronLeft,
+  Loader2,
   X,
   FileSpreadsheet,
   Eye,
   Filter,
+  Trash2,
 } from "lucide-react";
 import type { ScanProject, Customer, User, Subplate } from "@/lib/supabase/types";
 
@@ -105,6 +108,20 @@ export default function ScanningPage() {
     });
   }, [scans, searchQuery, statusFilter, customerFilter]);
 
+  // Pagination state & slice
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, customerFilter]);
+
+  const totalPages = Math.ceil(filteredScans.length / pageSize) || 1;
+  const paginatedScans = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredScans.slice(start, start + pageSize);
+  }, [filteredScans, currentPage, pageSize]);
+
   // KPI Calculations (Live DB KPIs & Filter-aware)
   const totalScans = kpis.totalScans || scans.length;
   const pendingScans = kpis.pendingScans || scans.filter((s) => s.status === "pending").length;
@@ -121,14 +138,14 @@ export default function ScanningPage() {
 
   // Active staff
   const activeStaff = useMemo(() => {
-    return users.filter((u) => String(u.status) === "1");
+    return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
 
   // Handle Quick Payment Toggle (Admin Only) (Live API PATCH)
   const togglePayment = async (id: number) => {
     const current = scans.find((s) => s.id === id);
     if (!current) return;
-    const newPayment = current.payment === 1 ? 0 : 1;
+    const newPayment = Number(current.payment) === 1 ? 0 : 1;
     try {
       const res = await fetch("/api/scanning", {
         method: "PATCH",
@@ -355,7 +372,7 @@ export default function ScanningPage() {
                 Total Scan Projects
               </p>
               <p className="text-2xl font-black text-slate-900">
-                {totalScans.toLocaleString()}
+                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : totalScans.toLocaleString()}
               </p>
             </div>
           </div>
@@ -369,7 +386,7 @@ export default function ScanningPage() {
                 Pending Execution
               </p>
               <p className="text-2xl font-black text-amber-600">
-                {pendingScans.toLocaleString()}
+                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : pendingScans.toLocaleString()}
               </p>
             </div>
           </div>
@@ -383,7 +400,7 @@ export default function ScanningPage() {
                 Completed Moulds
               </p>
               <p className="text-2xl font-black text-emerald-600">
-                {(totalScans - pendingScans).toLocaleString()}
+                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : (totalScans - pendingScans).toLocaleString()}
               </p>
             </div>
           </div>
@@ -397,7 +414,7 @@ export default function ScanningPage() {
                 Total Billed Pipeline
               </p>
               <p className="text-2xl font-black text-slate-900">
-                ₹{totalRevenue.toLocaleString("en-IN")}
+                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : `₹${totalRevenue.toLocaleString("en-IN")}`}
               </p>
             </div>
           </div>
@@ -471,7 +488,19 @@ export default function ScanningPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredScans.length === 0 ? (
+                {isLoading ? (
+                  <tr>
+                    <td
+                      colSpan={viewMode === "admin" ? 12 : 10}
+                      className="py-16 text-center text-slate-500 text-sm"
+                    >
+                      <div className="flex flex-col items-center justify-center gap-2.5">
+                        <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
+                        <span className="font-semibold text-slate-700">Loading moulds from live database...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedScans.length === 0 ? (
                   <tr>
                     <td
                       colSpan={viewMode === "admin" ? 12 : 10}
@@ -481,7 +510,7 @@ export default function ScanningPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredScans.map((row) => (
+                  paginatedScans.map((row) => (
                     <tr
                       key={row.id}
                       className="hover:bg-slate-50/60 transition group"
@@ -600,12 +629,12 @@ export default function ScanningPage() {
                               type="button"
                               onClick={() => togglePayment(row.id)}
                               className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition ${
-                                row.payment === 1
+                                Number(row.payment) === 1
                                   ? "bg-emerald-50 text-emerald-700 border-emerald-300"
                                   : "bg-rose-50 text-rose-700 border-rose-300"
                               }`}
                             >
-                              {row.payment === 1 ? "Paid" : "Unpaid"}
+                              {Number(row.payment) === 1 ? "Paid" : "Unpaid"}
                             </button>
                           </td>
                           <td className="py-3 px-4 text-right">
@@ -628,30 +657,106 @@ export default function ScanningPage() {
                       )}
 
                       <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedProject(row)}
-                          className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                          title="View subplates"
-                        >
-                          <Layers className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedProject(row)}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                            title="View subplates"
+                          >
+                            <Layers className="w-4 h-4" />
+                          </button>
+                          {viewMode === "admin" && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                                try {
+                                  const res = await fetch(`/api/scanning?id=${row.id}`, { method: "DELETE" });
+                                  if (res.ok) {
+                                    setScans((prev) => prev.filter((s) => s.id !== row.id));
+                                  } else {
+                                    const err = await res.json();
+                                    alert(err.error || "Failed to delete mould");
+                                  }
+                                } catch (e) {
+                                  alert("Error deleting mould");
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Delete mould"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {!isLoading && filteredScans.length > 0 && (
+              <div className="px-4 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 bg-slate-50/50">
+                <div className="flex items-center gap-2">
+                  <span>Show</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                  <span>per page • Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, filteredScans.length)} of {filteredScans.length} moulds</span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    title="Previous page"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+
+                  <span className="px-3 py-1 font-semibold text-slate-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                    title="Next page"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Mobile Card-List Fallback (< md) */}
           <div className="block md:hidden p-3 space-y-3">
-            {filteredScans.length === 0 ? (
+            {isLoading ? (
+              <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-500 text-xs">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <span>Loading live moulds...</span>
+              </div>
+            ) : paginatedScans.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
                 No scanning projects found.
               </div>
             ) : (
-              filteredScans.map((row) => (
+              paginatedScans.map((row) => (
                 <div
                   key={row.id}
                   className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
@@ -660,26 +765,49 @@ export default function ScanningPage() {
                     <span className="font-mono font-bold text-blue-600">
                       {row.projectid || `#${row.id}`}
                     </span>
-                    <select
-                      value={row.status}
-                      onChange={(e) =>
-                        handleStatusChange(
-                          row.id,
-                          e.target.value as any
-                        )
-                      }
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                        row.status === "completed"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : row.status === "registered"
-                          ? "bg-blue-50 text-blue-700 border-blue-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
-                    >
-                      <option value="pending">pending</option>
-                      <option value="registered">registered</option>
-                      <option value="completed">completed</option>
-                    </select>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={row.status}
+                        onChange={(e) =>
+                          handleStatusChange(
+                            row.id,
+                            e.target.value as any
+                          )
+                        }
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                          row.status === "completed"
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            : row.status === "registered"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-amber-50 text-amber-700 border-amber-200"
+                        }`}
+                      >
+                        <option value="pending">pending</option>
+                        <option value="registered">registered</option>
+                        <option value="completed">completed</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                          try {
+                            const res = await fetch(`/api/scanning?id=${row.id}`, { method: "DELETE" });
+                            if (res.ok) {
+                              setScans((prev) => prev.filter((s) => s.id !== row.id));
+                            } else {
+                              const err = await res.json();
+                              alert(err.error || "Failed to delete mould");
+                            }
+                          } catch (e) {
+                            alert("Error deleting mould");
+                          }
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                        title="Delete mould"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -703,8 +831,8 @@ export default function ScanningPage() {
                         <span className="text-slate-400 block text-[10px]">Amount / Payment:</span>
                         <span className="font-mono font-bold text-slate-900">
                           ₹{(row.amount ?? 0).toLocaleString("en-IN")}{" "}
-                          <span className={`text-[10px] ${row.payment === 1 ? "text-emerald-600" : "text-rose-600"}`}>
-                            ({row.payment === 1 ? "Paid" : "Unpaid"})
+                          <span className={`text-[10px] ${Number(row.payment) === 1 ? "text-emerald-600" : "text-rose-600"}`}>
+                            ({Number(row.payment) === 1 ? "Paid" : "Unpaid"})
                           </span>
                         </span>
                       </div>

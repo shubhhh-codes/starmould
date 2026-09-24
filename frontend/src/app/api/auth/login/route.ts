@@ -11,12 +11,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Username/email and password are required" }, { status: 400 });
     }
 
-    // Query active user by username or email
+    const cleanUsername = username.trim();
+
+    // Query active user by username or email (case-insensitive)
     const { data: users, error } = await supabaseAdmin
       .from("users")
       .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, password, password_hash")
       .is("deleted_at", null)
-      .or(`username.eq.${username},email.eq.${username}`);
+      .or(`username.ilike.${cleanUsername},email.ilike.${cleanUsername}`);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -24,18 +26,21 @@ export async function POST(req: NextRequest) {
 
     const user = users?.[0];
     if (!user) {
-      return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
+      return NextResponse.json(
+        { error: "No account found with this username or email" },
+        { status: 404 }
+      );
     }
 
     if (user.status !== null && user.status !== undefined && (String(user.status).toLowerCase() === "inactive" || String(user.status) === "0")) {
-      return NextResponse.json({ error: "User account is deactivated" }, { status: 403 });
+      return NextResponse.json({ error: "User account is deactivated. Please contact administrator." }, { status: 403 });
     }
 
     // Verify bcrypt hash (strictly from database, 100% bcrypt.compare, zero backdoors or plaintext fallback)
     const storedHash = user.password_hash || user.password;
 
     if (!storedHash || (!storedHash.startsWith("$2y$") && !storedHash.startsWith("$2a$") && !storedHash.startsWith("$2b$"))) {
-      return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
+      return NextResponse.json({ error: "Account credentials misconfigured. Please reset password." }, { status: 401 });
     }
 
     // Laravel uses $2y$ prefix, which bcryptjs evaluates under $2a$ prefix
@@ -43,7 +48,7 @@ export async function POST(req: NextRequest) {
     const passwordMatches = await bcrypt.compare(password, normalizedHash);
 
     if (!passwordMatches) {
-      return NextResponse.json({ error: "Invalid username or password" }, { status: 401 });
+      return NextResponse.json({ error: "Incorrect password. Please try again." }, { status: 401 });
     }
 
     // Role definitions:

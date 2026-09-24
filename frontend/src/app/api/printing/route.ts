@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     // Fetch customers lookup
     const { data: customers } = await supabaseAdmin
       .from("customers")
-      .select("id, customername, initials")
+      .select("id, customername, initials, usertype")
       .is("deleted_at", null);
 
     const custMap = new Map((customers || []).map((c) => [c.id, c]));
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     // Fetch active users for staff dropdown
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("id, username, initials, status, role_id")
+      .select("id, name, username, initials, status, role_id")
       .is("deleted_at", null);
 
     const userMap = new Map((users || []).map((u) => [u.id, u]));
@@ -77,15 +77,15 @@ export async function GET(req: NextRequest) {
 
     const enriched = (printRows || []).map((p) => {
       const cust = custMap.get(p.cname);
-      const printUser = userMap.get(p.print_by);
-      const qcUser = userMap.get(p.qc_by);
+      const printUser = userMap.get(Number(p.print_by));
+      const qcUser = userMap.get(Number(p.qc_by));
 
       return {
         ...p,
         customername: cust?.customername || `Customer #${p.cname}`,
         customer_initials: cust?.initials || "",
-        print_by_name: printUser?.initials || "—",
-        qc_by_name: qcUser?.initials || "—",
+        print_by_name: printUser?.name || printUser?.initials || printUser?.username || "—",
+        qc_by_name: qcUser?.name || qcUser?.initials || qcUser?.username || "—",
       };
     });
 
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       prints: enriched,
       customers: customers || [],
-      users: (users || []).filter((u) => u.status === "1"),
+      users: (users || []).filter((u) => String(u.status) === "1" || u.status === 1),
       gramTiers: gramTiers || [],
       kpis: {
         totalPrints,
@@ -219,7 +219,12 @@ export async function PATCH(req: NextRequest) {
     };
 
     if (field && value !== undefined) {
-      updatePayload[field] = value === "0" || value === "" ? 0 : value;
+      updatePayload[field] =
+        value === 0 || value === "0" || value === "" || value === null
+          ? 0
+          : ["print_by", "qc_by", "cname", "gram", "dispatch"].includes(field)
+          ? Number(value)
+          : value;
       if (field === "gram") {
         updatePayload.amount = await calculateGramAmount(Number(value));
       }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCached } from "@/lib/cache";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -27,22 +28,28 @@ export async function GET(req: NextRequest) {
     "profiles",
   ];
 
-  const counts: Record<string, number | string> = {};
+  const counts = await getCached("api_counts_all", 15, async () => {
+    const resCounts: Record<string, number | string> = {};
+    await Promise.all(
+      tables.map(async (table) => {
+        try {
+          const { count, error } = await supabaseAdmin
+            .from(table)
+            .select("*", { count: "exact", head: true });
+          resCounts[table] = error ? error.message : count ?? 0;
+        } catch (err: unknown) {
+          resCounts[table] = err instanceof Error ? err.message : "error";
+        }
+      })
+    );
+    return resCounts;
+  });
 
-  for (const table of tables) {
-    try {
-      const { count, error } = await supabaseAdmin
-        .from(table)
-        .select("*", { count: "exact", head: true });
-      counts[table] = error ? error.message : count ?? 0;
-    } catch (err: unknown) {
-      counts[table] = err instanceof Error ? err.message : "error";
-    }
-  }
-
-  return NextResponse.json({
+  const response = NextResponse.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     counts,
   });
+  response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+  return response;
 }

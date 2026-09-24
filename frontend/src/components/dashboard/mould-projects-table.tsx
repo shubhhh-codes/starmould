@@ -246,6 +246,27 @@ export function MouldProjectsTable({
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
+            <button
+              onClick={async () => {
+                const item = row.original;
+                if (!confirm(`Delete mould project "${item.projectid || `#${item.id}`}"?`)) return;
+                try {
+                  const res = await fetch(`/api/scanning?id=${item.id}`, { method: "DELETE" });
+                  if (res.ok) {
+                    setData((prev) => prev.filter((d) => d.id !== item.id));
+                  } else {
+                    const err = await res.json();
+                    alert(err.error || "Failed to delete project");
+                  }
+                } catch (err) {
+                  alert("Error deleting project");
+                }
+              }}
+              title="Delete Mould"
+              className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
           </div>
         ),
       }),
@@ -343,44 +364,114 @@ export function MouldProjectsTable({
         {/* Right: Bulk Actions & Export Buttons */}
         <div className="flex items-center gap-2">
           {selectedCount > 0 && (
-            <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 font-medium">
+            <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 font-medium">
               <span>{selectedCount} selected</span>
               <button
-                onClick={() => {
-                  if (confirm(`Bulk update status for ${selectedCount} moulds?`)) {
-                    alert("Bulk status updated");
+                onClick={async () => {
+                  const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+                  if (selectedRows.length === 0) return;
+                  if (!confirm(`Mark ${selectedRows.length} selected moulds as Completed?`)) return;
+
+                  try {
+                    await Promise.all(
+                      selectedRows.map((r) =>
+                        fetch("/api/scanning", {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ id: r.id, field: "status", value: "completed" }),
+                        })
+                      )
+                    );
+                    setData((prev) =>
+                      prev.map((d) =>
+                        selectedRows.some((s) => s.id === d.id) ? { ...d, status: "completed" } : d
+                      )
+                    );
                     setRowSelection({});
+                  } catch (err) {
+                    alert("Failed to update status");
                   }
                 }}
-                className="hover:underline text-[11px] font-semibold text-blue-800"
+                className="hover:underline text-[11px] font-semibold text-blue-800 cursor-pointer"
               >
                 Mark Done
               </button>
               <span>•</span>
               <button
-                onClick={() => {
-                  if (confirm(`Delete ${selectedCount} selected items?`)) {
-                    alert("Bulk delete executed");
+                onClick={async () => {
+                  const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+                  if (selectedRows.length === 0) return;
+                  if (!confirm(`Delete ${selectedRows.length} selected moulds? This will mark them completed/soft-deleted.`)) return;
+
+                  try {
+                    await Promise.all(
+                      selectedRows.map((r) =>
+                        fetch(`/api/scanning?id=${r.id}`, {
+                          method: "DELETE",
+                        })
+                      )
+                    );
+                    setData((prev) => prev.filter((d) => !selectedRows.some((s) => s.id === d.id)));
                     setRowSelection({});
+                  } catch (err) {
+                    alert("Failed to delete moulds");
                   }
                 }}
-                className="text-rose-600 hover:text-rose-700 text-[11px]"
+                className="text-rose-600 hover:text-rose-700 text-[11px] cursor-pointer flex items-center gap-1"
+                title="Delete selected moulds"
               >
-                <Trash2 className="h-3 w-3 inline" />
+                <Trash2 className="h-3.5 w-3.5 inline" />
+                <span>Delete</span>
               </button>
             </div>
           )}
 
           <button
-            onClick={() => alert("Exporting to Excel (XLSX)...")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
+            onClick={() => {
+              const headers = [
+                "ID",
+                "Project ID",
+                "Customer",
+                "Description",
+                "Received Date",
+                "Committed Date",
+                "Status",
+                "Plates",
+                "Amount",
+                "Payment",
+              ];
+              const rows = data.map((d) => [
+                d.id,
+                `"${d.projectid}"`,
+                `"${d.customername}"`,
+                `"${(d.description || "").replace(/"/g, '""')}"`,
+                d.rdate,
+                d.cdate,
+                d.status,
+                d.total_plates || 0,
+                d.amount || 0,
+                d.payment === 1 ? "Paid" : "Unpaid",
+              ]);
+              const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+              const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.setAttribute("download", `Mould_Projects_${new Date().toISOString().split("T")[0]}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Download Excel/CSV"
           >
             <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
             <span>Excel</span>
           </button>
           <button
-            onClick={() => alert("Exporting to PDF...")}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors"
+            onClick={() => window.print()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+            title="Print / Save PDF"
           >
             <FileText className="h-3.5 w-3.5 text-rose-600" />
             <span>PDF</span>

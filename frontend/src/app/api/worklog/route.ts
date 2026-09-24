@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCached, getCachedCustomers, getCachedScansLookup, getCachedUsers } from "@/lib/cache";
 
 // GET /api/worklog - Fetch worklogs with customer, user, scan, and subplate lookups + department statistics
 export async function GET(req: NextRequest) {
@@ -17,67 +18,58 @@ export async function GET(req: NextRequest) {
     const customerid = searchParams.get("customerid");
     const projectid = searchParams.get("projectid");
 
-    let query = supabaseAdmin
+    let worklogQuery = supabaseAdmin
       .from("worklog")
       .select("*")
       .order("id", { ascending: false })
       .limit(limit);
 
-    if (userid && userid !== "ALL") {
-      query = query.eq("userid", userid);
+    // Role-based visibility matching PHP WorkController: Role 0 & 1 see all, others see only their own
+    if (auth.user.role_id > 1) {
+      worklogQuery = worklogQuery.eq("userid", auth.user.id);
+    } else if (userid && userid !== "ALL") {
+      worklogQuery = worklogQuery.eq("userid", userid);
     }
     if (date) {
-      query = query.eq("rdate", date);
+      worklogQuery = worklogQuery.eq("rdate", date);
     }
     if (customerid && customerid !== "ALL") {
-      query = query.eq("customerid", customerid);
+      worklogQuery = worklogQuery.eq("customerid", customerid);
     }
     if (projectid && projectid !== "ALL") {
-      query = query.eq("projectid", projectid);
+      worklogQuery = worklogQuery.eq("projectid", projectid);
     }
 
-    const { data: worklogs, error: wErr } = await query;
-    if (wErr) {
-      return NextResponse.json({ error: wErr.message }, { status: 500 });
+    // Execute worklog query and get cached lookups concurrently
+    const [wRes, customers, users, scans, subplates] = await Promise.all([
+      worklogQuery,
+      getCachedCustomers(),
+      getCachedUsers(),
+      getCachedScansLookup(),
+      getCached("subplates_worklog_lookup", 30, async () => {
+        const { data } = await supabaseAdmin
+          .from("subplate")
+          .select("id, platename, subprojectid, projectid")
+          .is("deleted_at", null)
+          .limit(2000);
+        return data || [];
+      }),
+    ]);
+
+    if (wRes.error) {
+      return NextResponse.json({ error: wRes.error.message }, { status: 500 });
     }
 
-    // Fetch customers lookup
-    const { data: customers } = await supabaseAdmin
-      .from("customers")
-      .select("id, customername, initials, usertype")
-      .is("deleted_at", null);
+    const worklogs = wRes.data || [];
 
-    const custMap = new Map((customers || []).map((c) => [c.id, c]));
-
-    // Fetch users lookup
-    const { data: users } = await supabaseAdmin
-      .from("users")
-      .select("id, username, initials, status, role_id")
-      .is("deleted_at", null);
-
-    const userMap = new Map((users || []).map((u) => [u.id, u]));
-
-    // Fetch scans lookup
-    const { data: scans } = await supabaseAdmin
-      .from("scan")
-      .select("id, projectid, description, worktype, cname")
-      .order("id", { ascending: false })
-      .limit(1000);
-
-    const scanMap = new Map((scans || []).map((s) => [s.projectid, s]));
-
-    // Fetch subplates lookup
-    const { data: subplates } = await supabaseAdmin
-      .from("subplate")
-      .select("id, platename, subprojectid, projectid")
-      .is("deleted_at", null)
-      .limit(2000);
-
-    const subMap = new Map((subplates || []).map((sp) => [sp.subprojectid, sp]));
+    const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
+    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+    const scanMap = new Map((scans || []).map((s: any) => [s.projectid, s]));
+    const subMap = new Map((subplates || []).map((sp: any) => [sp.subprojectid, sp]));
 
     const enriched = (worklogs || []).map((w) => {
       const cust = custMap.get(w.customerid);
-      const usr = userMap.get(w.userid);
+      const usr = userMap.get(Number(w.userid));
       const scan = scanMap.get(w.projectid);
       const sub = subMap.get(w.subplateid);
 
@@ -85,7 +77,7 @@ export async function GET(req: NextRequest) {
         ...w,
         customername: cust?.customername || `Customer #${w.customerid}`,
         customer_initials: cust?.initials || "",
-        workername: usr?.username || `User #${w.userid}`,
+        workername: usr?.name || usr?.username || `User #${w.userid}`,
         worker_initials: usr?.initials || "—",
         mould_description: scan?.description || "",
         worktype: scan?.worktype || "Scanning",
@@ -117,10 +109,10 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       worklogs: enriched,
       customers: customers || [],
-      users: (users || []).filter((u) => u.status === "1"),
+      users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
       scans: scans || [],
       subplates: subplates || [],
       kpis: {
@@ -133,6 +125,8 @@ export async function GET(req: NextRequest) {
         totalQCHours: (totalQCMinutes / 60).toFixed(1),
       },
     });
+    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -204,7 +198,7 @@ export async function POST(req: NextRequest) {
           machine_hr: Number(machine_hr) || 0,
           driltap_hr: Number(driltap_hr) || 0,
           qc_hr: Number(qc_hr) || 0,
-          userid: userid ? Number(userid) : auth.user.id,
+          userid: (auth.user.role_id <= 1 && userid) ? Number(userid) : auth.user.id,
           created_at: now,
           updated_at: now,
         },

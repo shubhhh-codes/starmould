@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCachedCustomers } from "@/lib/cache";
 
 // GET /api/inward - Fetch Job Work Inwards, items, pending return lists, and customer lookups (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
@@ -30,54 +31,46 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: inErr.message }, { status: 500 });
     }
 
-    // 2. Fetch Customers lookup
-    const { data: customers } = await supabaseAdmin
-      .from("customers")
-      .select("id, customername, initials, usertype, mobile, mobile1")
-      .is("deleted_at", null);
-
-    const custMap = new Map((customers || []).map((c) => [c.id, c]));
-
-    // 3. Fetch Linked Challans lookup
     const challanIds = Array.from(new Set((inwards || []).map((i) => i.challanid).filter(Boolean)));
-    const { data: challans } = await supabaseAdmin
-      .from("challan")
-      .select("id, challanno, chdate, vendorid, customerid, projectid")
-      .in("id", challanIds.length > 0 ? challanIds : [0]);
-
-    const challanMap = new Map((challans || []).map((c) => [c.id, c]));
-
-    // 4. Fetch Inward Items
     const inwardIds = (inwards || []).map((i) => i.id);
-    let itemsMap: Record<number, any[]> = {};
 
-    if (inwardIds.length > 0) {
-      const { data: items } = await supabaseAdmin
-        .from("inward_items")
+    // 2. Fetch Customers, Challans, Items, Subplates, and Pending concurrently
+    const [customers, challansRes, itemsRes, subplatesRes, pendingChallansRes] = await Promise.all([
+      getCachedCustomers(),
+      supabaseAdmin
+        .from("challan")
+        .select("id, challanno, chdate, vendorid, customerid, projectid")
+        .in("id", challanIds.length > 0 ? challanIds : [0]),
+      inwardIds.length > 0
+        ? supabaseAdmin
+            .from("inward_items")
+            .select("*")
+            .in("inchallanid", inwardIds.slice(0, 500))
+        : Promise.resolve({ data: [] }),
+      supabaseAdmin
+        .from("subplate")
+        .select("id, platename, subprojectid, projectid, material, location")
+        .is("deleted_at", null)
+        .limit(2000),
+      supabaseAdmin
+        .from("view_pending_inward_qty")
         .select("*")
-        .in("inchallanid", inwardIds.slice(0, 500));
+        .gt("pending_qty", 0)
+        .limit(500),
+    ]);
 
-      for (const item of items || []) {
-        if (!itemsMap[item.inchallanid]) itemsMap[item.inchallanid] = [];
-        itemsMap[item.inchallanid].push(item);
-      }
+    const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
+    const challanMap = new Map((challansRes.data || []).map((c) => [c.id, c]));
+    const subplates = subplatesRes.data || [];
+    const subMap = new Map(subplates.map((sp: any) => [sp.id, sp]));
+
+    let itemsMap: Record<number, any[]> = {};
+    for (const item of itemsRes.data || []) {
+      if (!itemsMap[item.inchallanid]) itemsMap[item.inchallanid] = [];
+      itemsMap[item.inchallanid].push(item);
     }
 
-    // 5. Fetch Subplates lookup
-    const { data: subplates } = await supabaseAdmin
-      .from("subplate")
-      .select("id, platename, subprojectid, projectid, material, location")
-      .is("deleted_at", null)
-      .limit(2000);
-
-    const subMap = new Map((subplates || []).map((sp) => [sp.id, sp]));
-
-    // 6. Query view_pending_inward_qty for challans with pending inward quantities
-    const { data: pendingChallans } = await supabaseAdmin
-      .from("view_pending_inward_qty")
-      .select("*")
-      .gt("pending_qty", 0)
-      .limit(500);
+    const pendingChallans = pendingChallansRes.data || [];
 
     const enriched = (inwards || []).map((inw) => {
       const cust = custMap.get(inw.customerid);
@@ -207,13 +200,49 @@ export async function POST(req: NextRequest) {
 
       await supabaseAdmin.from("inward_items").insert(itemsToInsert);
 
-      // Return subplates back to workshop location 'SM'
-      const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
-      if (plateIds.length > 0) {
-        await supabaseAdmin
+      // Return subplates location handling matching PHP InwardController:618-654
+      const { data: vendorData } = await supabaseAdmin
+        .from("customers")
+        .select("initials, customername")
+        .eq("id", Number(vendorid))
+        .single();
+
+      const vendorInitials = vendorData?.initials || vendorData?.customername || "";
+
+      for (const it of items) {
+        if (!it.plateid) continue;
+        const pendingQty = Math.max(0, (Number(it.qty) || 0) - (Number(it.inward_qty) || 0));
+
+        const { data: sp } = await supabaseAdmin
           .from("subplate")
-          .update({ location: "SM", updated_at: now })
-          .in("id", plateIds);
+          .select("id, location")
+          .eq("id", Number(it.plateid))
+          .single();
+
+        if (sp) {
+          const rawLoc = sp.location || "SM";
+          let parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
+
+          if (pendingQty <= 0) {
+            // Fully returned from vendor: remove vendor initials from location chain
+            parts = parts.filter((p: string) => p !== vendorInitials && p !== "SM");
+            const newLoc = parts.length > 0 ? parts.join(",") : "SM";
+            await supabaseAdmin
+              .from("subplate")
+              .update({ location: newLoc, updated_at: now })
+              .eq("id", sp.id);
+          } else {
+            // Partially returned: ensure vendor initials remain in location chain
+            if (vendorInitials && !parts.includes(vendorInitials)) {
+              parts.push(vendorInitials);
+            }
+            const newLoc = parts.join(",");
+            await supabaseAdmin
+              .from("subplate")
+              .update({ location: newLoc, updated_at: now })
+              .eq("id", sp.id);
+          }
+        }
       }
     }
 

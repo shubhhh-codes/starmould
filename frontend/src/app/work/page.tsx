@@ -20,6 +20,8 @@ import {
   AlertCircle,
   Wrench,
   ChevronRight,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import type {
   Worklog,
@@ -127,9 +129,28 @@ export default function WorkPage() {
     fetchWorklogs();
   }, []);
 
+  // Handle Delete Worklog
+  const handleDeleteWorklog = async (id: number) => {
+    if (!confirm(`Are you sure you want to delete worklog entry #${id}?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/worklog?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete worklog");
+      }
+      setWorklogs((prev) => prev.filter((w) => w.id !== id));
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+  };
+
   // Active staff
   const activeStaff = useMemo(() => {
-    return users.filter((u) => String(u.status) === "1");
+    return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
 
   // Moulds filtered for selected customer in modal
@@ -495,13 +516,26 @@ export default function WorkPage() {
                       <th className="py-3.5 px-4">Start Time</th>
                       <th className="py-3.5 px-4">End Time</th>
                       <th className="py-3.5 px-4 text-right font-bold">Duration</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {dailyWorklogs.length === 0 ? (
+                    {isLoading ? (
                       <tr>
                         <td
-                          colSpan={9}
+                          colSpan={10}
+                          className="py-16 text-center text-slate-400 text-sm"
+                        >
+                          <div className="flex flex-col items-center justify-center gap-3">
+                            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+                            <span>Loading daily worklog entries...</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : dailyWorklogs.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={10}
                           className="py-12 text-center text-slate-400 text-sm"
                         >
                           No daily work records found for this selection.
@@ -540,6 +574,16 @@ export default function WorkPage() {
                           <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                             {row.work_hr}
                           </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWorklog(row.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Delete worklog"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -566,9 +610,19 @@ export default function WorkPage() {
                             {row.username || `User #${row.userid}`}
                           </span>
                         </div>
-                        <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
-                          {row.work_hr} hrs
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded text-[11px]">
+                            {row.work_hr} hrs
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteWorklog(row.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                            title="Delete worklog"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="text-slate-800 font-medium">
@@ -671,13 +725,14 @@ export default function WorkPage() {
                       <th className="py-3.5 px-4">Subplate</th>
                       <th className="py-3.5 px-4">Work Description</th>
                       <th className="py-3.5 px-4 text-right">Hours</th>
+                      <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {historyWorklogs.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="py-12 text-center text-slate-400 text-sm"
                         >
                           No worklogs found matching your filters.
@@ -709,6 +764,16 @@ export default function WorkPage() {
                           </td>
                           <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                             {row.work_hr}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteWorklog(row.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Delete worklog"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </td>
                         </tr>
                       ))

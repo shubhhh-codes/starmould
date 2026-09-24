@@ -119,7 +119,7 @@ export default function PurchaseInwardPage() {
     });
 
     purchases.forEach((po) => {
-      if (po.status !== "0" && po.items) {
+      if (String(po.status) !== "0" && (po as any).status !== 0 && po.items) {
         po.items.forEach((item) => {
           const key = `${po.id}_${item.plateid}`;
           const receivedQty = inwardMap[key] || 0;

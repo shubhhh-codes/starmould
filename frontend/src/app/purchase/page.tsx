@@ -29,6 +29,7 @@ export default function PurchasePage() {
   const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
   const [subplates, setSubplates] = useState<Subplate[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [scans, setScans] = useState<any[]>([]);
 
   // Navigation Tabs: All Purchase Orders vs. Pending Purchase (needing PO)
   const [activeTab, setActiveTab] = useState<"orders" | "pending_plates">("orders");
@@ -38,7 +39,7 @@ export default function PurchasePage() {
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
 
-  // Live Supabase fetch for purchases, customers, and subplates
+  // Live Supabase fetch for purchases, customers, subplates, and scans
   const fetchPurchases = async () => {
     try {
       setIsLoading(true);
@@ -52,6 +53,9 @@ export default function PurchasePage() {
       }
       if (data.subplates) {
         setSubplates(data.subplates);
+      }
+      if (data.scans) {
+        setScans(data.scans);
       }
     } catch (err) {
       console.error("Failed to load live purchases from Supabase:", err);
@@ -102,25 +106,71 @@ export default function PurchasePage() {
     [customers]
   );
 
-  // Distinct projects available from subplates & purchases
+  // Available moulds for the selected customer in Add modal
+  // Source: CustomerController.php:136 (getprojectswork):
+  // ScanningModel::where("cname", $request->cid)->where('status','<>','completed')->where('status','<>','registered')->get();
+  const availableMoulds = useMemo(() => {
+    if (!formData.cname) return [];
+    return scans.filter(
+      (s) =>
+        (String(s.cname) === String(formData.cname) || s.cname === Number(formData.cname)) &&
+        s.status !== "completed"
+    );
+  }, [scans, formData.cname]);
+
+  // Selected scan for subplate resolution
+  const selectedScan = useMemo(() => {
+    if (!formData.projectid) return null;
+    return scans.find(
+      (s) => s.projectid === formData.projectid || String(s.id) === formData.projectid
+    );
+  }, [scans, formData.projectid]);
+
+  // Subplates matching the selected mould in Add modal
+  // Source: CustomerController.php:294-297 (getprojectsubplates):
+  // ScanningModel::join('subplate', 'scan.id', '=', 'subplate.projectid')->where('scan.projectid', $request->projectid)
+  const platesForSelectedProject = useMemo(() => {
+    if (!formData.projectid) return [];
+    const scanIdStr = selectedScan ? String(selectedScan.id) : "";
+    return subplates.filter(
+      (sp) =>
+        (scanIdStr && String(sp.projectid) === scanIdStr) ||
+        String(sp.projectid) === formData.projectid ||
+        (sp.subprojectid && sp.subprojectid.includes(formData.projectid))
+    );
+  }, [subplates, formData.projectid, selectedScan]);
+
+  // Dynamically load subplates for chosen mould if not present in client cache
+  React.useEffect(() => {
+    if (!formData.projectid) return;
+    const scan = selectedScan || scans.find((s) => s.projectid === formData.projectid || String(s.id) === formData.projectid);
+    const lookupId = scan ? scan.id : formData.projectid;
+    
+    fetch(`/api/subplate?projectid=${lookupId}&limit=500`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.subplates && data.subplates.length > 0) {
+          setSubplates((prev) => {
+            const existing = new Set(prev.map((p) => p.id));
+            const fresh = data.subplates.filter((p: any) => !existing.has(p.id));
+            return fresh.length > 0 ? [...prev, ...fresh] : prev;
+          });
+        }
+      })
+      .catch((err) => console.error("Error loading mould subplates in Purchase:", err));
+  }, [formData.projectid, selectedScan, scans]);
+
+  // Distinct projects available from scans & purchases for table filters
   const availableProjects = useMemo(() => {
     const set = new Set<string>();
-    subplates.forEach((sp) => {
-      if (sp.projectid) set.add(sp.projectid);
+    scans.forEach((s) => {
+      if (s.projectid) set.add(s.projectid);
     });
     purchases.forEach((p) => {
       if (p.projectid) set.add(p.projectid);
     });
     return Array.from(set);
-  }, [subplates, purchases]);
-
-  // Subplates matching the selected mould in Add modal
-  const platesForSelectedProject = useMemo(() => {
-    if (!formData.projectid) return [];
-    return subplates.filter(
-      (sp) => sp.projectid === formData.projectid || sp.subprojectid === formData.projectid
-    );
-  }, [subplates, formData.projectid]);
+  }, [scans, purchases]);
 
   // Pending Purchase List Logic
   // Source: PurchaseController.php lines 332-335:
@@ -130,7 +180,7 @@ export default function PurchasePage() {
     // Collect all plate IDs already referenced in any active purchase_items
     const orderedPlateIds = new Set<number>();
     purchases.forEach((p) => {
-      if (p.status !== "0" && p.items) {
+      if (String(p.status) !== "0" && (p as any).status !== 0 && p.items) {
         p.items.forEach((item) => orderedPlateIds.add(item.plateid));
       }
     });
@@ -151,7 +201,7 @@ export default function PurchasePage() {
   // Filtered PO records
   const filteredPurchases = useMemo(() => {
     return purchases.filter((p) => {
-      if (p.status === "0") return false; // Soft deleted
+      if (String(p.status) === "0" || (p as any).status === 0) return false; // Soft deleted
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const vendorName = getCustomerName(p.vname).toLowerCase();
@@ -267,7 +317,16 @@ export default function PurchasePage() {
 
   // Open modal for creating PO
   const handleOpenAddModal = (presetPlate?: Subplate) => {
-    const defaultMould = presetPlate ? presetPlate.projectid : availableProjects[0] || "";
+    let defaultMould = "";
+    let defaultCustomer: number | "" = "";
+    if (presetPlate) {
+      const matchingScan = scans.find(
+        (s) => String(s.id) === String(presetPlate.projectid) || s.projectid === presetPlate.projectid
+      );
+      defaultMould = matchingScan?.projectid || presetPlate.projectid || "";
+      defaultCustomer = matchingScan && matchingScan.cname ? Number(matchingScan.cname) : "";
+    }
+
     const presetDims = presetPlate
       ? [
           presetPlate.width ?? "",
@@ -278,8 +337,8 @@ export default function PurchasePage() {
 
     setFormData({
       odate: new Date().toISOString().slice(0, 10),
-      vname: vendors[0]?.id || "",
-      cname: clients[0]?.id || "",
+      vname: "",
+      cname: defaultCustomer,
       projectid: defaultMould,
       items: presetPlate
         ? [
@@ -1087,7 +1146,15 @@ export default function PurchasePage() {
                     <select
                       required
                       value={formData.cname}
-                      onChange={(e) => setFormData((p) => ({ ...p, cname: Number(e.target.value) }))}
+                      onChange={(e) => {
+                        const newCid = e.target.value ? Number(e.target.value) : "";
+                        setFormData((p) => ({
+                          ...p,
+                          cname: newCid,
+                          projectid: "",
+                          items: [{ plateid: "", material: "", materialtype: "", qty: 1 }],
+                        }));
+                      }}
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:text-white"
                     >
                       <option value="" disabled>Select Customer</option>
@@ -1118,10 +1185,16 @@ export default function PurchasePage() {
                       }}
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:text-white"
                     >
-                      <option value="" disabled>Select Mould Project</option>
-                      {availableProjects.map((p) => (
-                        <option key={p} value={p}>
-                          {p}
+                      <option value="" disabled>
+                        {!formData.cname
+                          ? "Select Customer First"
+                          : availableMoulds.length === 0
+                          ? "No active moulds found for this customer"
+                          : "Select Mould Project"}
+                      </option>
+                      {availableMoulds.map((s) => (
+                        <option key={s.id} value={s.projectid}>
+                          {s.projectid} {s.description ? `— ${s.description}` : ""}
                         </option>
                       ))}
                     </select>
@@ -1184,20 +1257,18 @@ export default function PurchasePage() {
                               }
                               className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none dark:text-white text-xs"
                             >
-                              <option value="" disabled>Select Subplate</option>
-                              {platesForSelectedProject.length > 0 ? (
-                                platesForSelectedProject.map((sp) => (
-                                  <option key={sp.id} value={sp.id}>
-                                    {sp.platename} (qty: {sp.sqty})
-                                  </option>
-                                ))
-                              ) : (
-                                subplates.slice(0, 30).map((sp) => (
-                                  <option key={sp.id} value={sp.id}>
-                                    {sp.platename} [{sp.projectid}]
-                                  </option>
-                                ))
-                              )}
+                              <option value="" disabled>
+                                {!formData.projectid
+                                  ? "Select Mould first"
+                                  : platesForSelectedProject.length === 0
+                                  ? "No plates found for this mould"
+                                  : "Select Subplate"}
+                              </option>
+                              {platesForSelectedProject.map((sp) => (
+                                <option key={sp.id} value={sp.id}>
+                                  {sp.platename} (qty: {sp.sqty})
+                                </option>
+                              ))}
                             </select>
                           </div>
 

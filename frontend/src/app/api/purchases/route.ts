@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCachedCustomers, getCachedScansLookup } from "@/lib/cache";
 
 // GET /api/purchases - fetch POs with items and pending subplates (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -14,51 +15,53 @@ export async function GET(req: NextRequest) {
     const limit = Number(searchParams.get("limit") || "100");
     const includePlates = searchParams.get("includePlates") === "true";
 
-    // 1. Fetch recent purchases
-    const { data: pos, error: poErr } = await supabaseAdmin
-      .from("purchase")
-      .select("*")
-      .order("id", { ascending: false })
-      .limit(limit);
+    // 1. Batch fetch recent purchases and subplates concurrently, using cached customers & scans
+    const [posRes, customers, scans, subplatesRes] = await Promise.all([
+      supabaseAdmin
+        .from("purchase")
+        .select("*")
+        .order("id", { ascending: false })
+        .limit(limit),
+      getCachedCustomers(),
+      getCachedScansLookup(),
+      includePlates
+        ? supabaseAdmin
+            .from("subplate")
+            .select("id, platename, projectid, subprojectid, material, width, height, length, unit, sqty")
+            .is("deleted_at", null)
+            .limit(1000)
+        : Promise.resolve({ data: [] }),
+    ]);
 
-    if (poErr) {
-      return NextResponse.json({ error: poErr.message }, { status: 500 });
+    if (posRes.error) {
+      return NextResponse.json({ error: posRes.error.message }, { status: 500 });
     }
 
-    const pids = (pos || []).map((p) => p.id);
+    const pos = posRes.data || [];
+    const plates = subplatesRes.data || [];
 
-    // 2. Fetch line items for these POs
-    const { data: items, error: itErr } = await supabaseAdmin
-      .from("purchase_items")
-      .select("*")
-      .in("pid", pids);
-
-    if (itErr) {
-      return NextResponse.json({ error: itErr.message }, { status: 500 });
-    }
-
-    // 3. Fetch customer lookup
-    const { data: customers } = await supabaseAdmin
-      .from("customers")
-      .select("id, customername, usertype, initials");
-
-    const custMap = new Map((customers || []).map((c) => [c.id, c.customername]));
-
-    // 4. Fetch subplates lookup if needed
-    let plates: any[] = [];
-    if (includePlates) {
-      const { data: subplates } = await supabaseAdmin
-        .from("subplate")
-        .select("id, platename, projectid, subprojectid, material, width, height, length, unit, sqty")
-        .limit(1000);
-      plates = subplates || [];
-    }
-
+    const custMap = new Map(customers.map((c) => [c.id, c.customername]));
     const plateMap = new Map(plates.map((p) => [p.id, p.platename]));
 
+    const pids = pos.map((p) => p.id);
+
+    // 2. Fetch line items with explicit columns for these POs
+    let items: any[] = [];
+    if (pids.length > 0) {
+      const { data: itemRows, error: itErr } = await supabaseAdmin
+        .from("purchase_items")
+        .select("*")
+        .in("pid", pids);
+
+      if (itErr) {
+        return NextResponse.json({ error: itErr.message }, { status: 500 });
+      }
+      items = itemRows || [];
+    }
+
     // Attach items and names to POs
-    const enrichedPOs = (pos || []).map((po) => {
-      const poItems = (items || [])
+    const enrichedPOs = pos.map((po) => {
+      const poItems = items
         .filter((it) => it.pid === po.id)
         .map((it) => ({
           ...it,
@@ -73,11 +76,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       purchases: enrichedPOs,
-      customers: customers || [],
+      customers: customers,
       subplates: plates,
+      scans: scans,
     });
+    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
