@@ -25,6 +25,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { ScanProject, Customer, User, Subplate } from "@/lib/supabase/types";
+import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 
 export default function ScanningPage() {
   const [scans, setScans] = useState<ScanProject[]>([]);
@@ -273,7 +274,7 @@ export default function ScanningPage() {
 
   return (
     <AppLayout>
-      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
         {/* Header with Merged Role-Based View Switcher */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -362,63 +363,67 @@ export default function ScanningPage() {
         )}
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <Scan className="w-6 h-6" />
+        {isLoading ? (
+          <KpiCardSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <Scan className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Total Scan Projects
+                </p>
+                <p className="text-2xl font-black text-slate-900">
+                  {totalScans.toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Total Scan Projects
-              </p>
-              <p className="text-2xl font-black text-slate-900">
-                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : totalScans.toLocaleString()}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-              <Clock className="w-6 h-6" />
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Pending Execution
+                </p>
+                <p className="text-2xl font-black text-amber-600">
+                  {pendingScans.toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Pending Execution
-              </p>
-              <p className="text-2xl font-black text-amber-600">
-                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : pendingScans.toLocaleString()}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <CheckCircle2 className="w-6 h-6" />
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Completed Moulds
+                </p>
+                <p className="text-2xl font-black text-emerald-600">
+                  {(totalScans - pendingScans).toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Completed Moulds
-              </p>
-              <p className="text-2xl font-black text-emerald-600">
-                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : (totalScans - pendingScans).toLocaleString()}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
-              <DollarSign className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Total Billed Pipeline
-              </p>
-              <p className="text-2xl font-black text-slate-900">
-                {isLoading ? <span className="animate-pulse text-slate-300">...</span> : `₹${totalRevenue.toLocaleString("en-IN")}`}
-              </p>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
+                <DollarSign className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Total Billed Pipeline
+                </p>
+                <p className="text-2xl font-black text-slate-900">
+                  {`₹${totalRevenue.toLocaleString("en-IN")}`}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -465,8 +470,8 @@ export default function ScanningPage() {
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[1050px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="py-3.5 px-4">Project ID</th>
@@ -489,17 +494,7 @@ export default function ScanningPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr>
-                    <td
-                      colSpan={viewMode === "admin" ? 12 : 10}
-                      className="py-16 text-center text-slate-500 text-sm"
-                    >
-                      <div className="flex flex-col items-center justify-center gap-2.5">
-                        <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
-                        <span className="font-semibold text-slate-700">Loading moulds from live database...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableSkeletonRows rows={8} columns={viewMode === "admin" ? 11 : 9} />
                 ) : paginatedScans.length === 0 ? (
                   <tr>
                     <td

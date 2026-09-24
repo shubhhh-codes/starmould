@@ -47,13 +47,42 @@ interface PipelineStatGridProps {
   };
   activeStage?: string | null;
   onSelectStage?: (stageId: string | null) => void;
+  isLoading?: boolean;
 }
 
 export function PipelineStatGrid({
   stats,
   activeStage,
   onSelectStage,
+  isLoading = false,
 }: PipelineStatGridProps) {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 shadow-xs animate-pulse space-y-2.5"
+          >
+            <div className="flex items-center justify-between">
+              <div className="h-3 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
+              <div className="w-6 h-6 bg-slate-200 dark:bg-slate-800 rounded-md" />
+            </div>
+            <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+              <div className="space-y-1">
+                <div className="h-4 w-8 mx-auto bg-slate-300 dark:bg-slate-700 rounded" />
+                <div className="h-2 w-10 mx-auto bg-slate-200 dark:bg-slate-800 rounded" />
+              </div>
+              <div className="space-y-1 border-l border-slate-100 dark:border-slate-800">
+                <div className="h-4 w-8 mx-auto bg-slate-300 dark:bg-slate-700 rounded" />
+                <div className="h-2 w-10 mx-auto bg-slate-200 dark:bg-slate-800 rounded" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
   const stages: PipelineStageItem[] = [
     {
       id: "design",

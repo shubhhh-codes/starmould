@@ -30,6 +30,7 @@ import type {
   Subplate,
   User,
 } from "@/lib/supabase/types";
+import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 
 // Helper to format ISO or datetime to YYYY-MM-DD
 const formatDateStr = (dateVal: string | null | undefined): string => {
@@ -370,7 +371,7 @@ export default function WorkPage() {
 
   return (
     <AppLayout>
-      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -521,17 +522,7 @@ export default function WorkPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {isLoading ? (
-                      <tr>
-                        <td
-                          colSpan={10}
-                          className="py-16 text-center text-slate-400 text-sm"
-                        >
-                          <div className="flex flex-col items-center justify-center gap-3">
-                            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-                            <span>Loading daily worklog entries...</span>
-                          </div>
-                        </td>
-                      </tr>
+                      <TableSkeletonRows rows={8} columns={10} />
                     ) : dailyWorklogs.length === 0 ? (
                       <tr>
                         <td
@@ -729,7 +720,9 @@ export default function WorkPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {historyWorklogs.length === 0 ? (
+                    {isLoading ? (
+                      <TableSkeletonRows rows={8} columns={8} />
+                    ) : historyWorklogs.length === 0 ? (
                       <tr>
                         <td
                           colSpan={8}

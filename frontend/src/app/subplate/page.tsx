@@ -27,6 +27,7 @@ import {
   CheckCheck,
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
+import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 
 // The 23 authentic materials extracted from resources/views/scanning/index.blade.php
 const REAL_MATERIALS = [
@@ -362,7 +363,7 @@ export default function SubplatePage() {
 
   return (
     <AppLayout>
-      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -398,63 +399,67 @@ export default function SubplatePage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-cyan-50 text-cyan-600 rounded-xl">
-              <Package className="w-6 h-6" />
+        {isLoading ? (
+          <KpiCardSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-cyan-50 text-cyan-600 rounded-xl">
+                <Package className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Total Subplates
+                </p>
+                <p className="text-2xl font-black text-slate-900">
+                  {totalCount.toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Total Subplates
-              </p>
-              <p className="text-2xl font-black text-slate-900">
-                {totalCount.toLocaleString()}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <Building2 className="w-6 h-6" />
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  In-House (At Workshop 'SM')
+                </p>
+                <p className="text-2xl font-black text-emerald-600">
+                  {inHouseCount.toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                In-House (At Workshop 'SM')
-              </p>
-              <p className="text-2xl font-black text-emerald-600">
-                {inHouseCount.toLocaleString()}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-              <MapPin className="w-6 h-6" />
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <MapPin className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  On Job Work (Vendor)
+                </p>
+                <p className="text-2xl font-black text-amber-600">
+                  {vendorCount.toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                On Job Work (Vendor)
-              </p>
-              <p className="text-2xl font-black text-amber-600">
-                {vendorCount.toLocaleString()}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-              <Compass className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Active Projects Linked
-              </p>
-              <p className="text-2xl font-black text-indigo-600">
-                {uniqueProjects}
-              </p>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Compass className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Active Projects Linked
+                </p>
+                <p className="text-2xl font-black text-indigo-600">
+                  {uniqueProjects}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -520,8 +525,8 @@ export default function SubplatePage() {
         {/* Subplates Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[1100px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="py-3.5 px-3 w-10 text-center"></th>
@@ -538,17 +543,7 @@ export default function SubplatePage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr>
-                    <td
-                      colSpan={10}
-                      className="py-16 text-center text-slate-400 text-sm"
-                    >
-                      <div className="flex flex-col items-center justify-center gap-3">
-                        <Loader2 className="w-8 h-8 animate-spin text-cyan-600" />
-                        <span>Loading subplate master database records...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableSkeletonRows rows={8} columns={10} />
                 ) : filteredSubplates.length === 0 ? (
                   <tr>
                     <td
@@ -741,7 +736,7 @@ export default function SubplatePage() {
                         {/* Expanded 9-Stage Timeline Stepper */}
                         {isExpanded && (
                           <tr className="bg-slate-50/90 dark:bg-slate-900/50">
-                            <td colSpan={10} className="p-4 pl-12 border-y border-slate-200">
+                            <td colSpan={10} className="p-3 sm:p-4 border-y border-slate-200">
                               <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
                                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
                                   <div className="flex items-center gap-2">
@@ -772,7 +767,7 @@ export default function SubplatePage() {
                                 </div>
 
                                 {/* 9-Stage Cards Grid */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-9 gap-2.5">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2.5">
                                   {STAGE_DEFINITIONS.map((stage) => {
                                     const val = (row as any)[stage.key];
                                     const name = (row as any)[stage.nameKey];

@@ -30,6 +30,7 @@ import type {
   Subplate,
   ScanProject,
 } from "@/lib/supabase/types";
+import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 
 export default function DispatchPage() {
   const [dispatches, setDispatches] = useState<Dispatch[]>([]);
@@ -372,47 +373,51 @@ export default function DispatchPage() {
         </div>
 
         {/* KPI Counter Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-              <Truck className="h-6 w-6" />
+        {isLoading ? (
+          <KpiCardSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Truck className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Dispatches</p>
+                <h3 className="text-2xl font-bold text-slate-900">{totalDispatches.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Dispatches</p>
-              <h3 className="text-2xl font-bold text-slate-900">{totalDispatches.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <CheckCircle2 className="h-6 w-6" />
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Dispatches</p>
+                <h3 className="text-2xl font-bold text-emerald-600">{activeDispatches.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Dispatches</p>
-              <h3 className="text-2xl font-bold text-emerald-600">{activeDispatches.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <Box className="h-6 w-6" />
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <Box className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Mould Sets & Plates</p>
+                <h3 className="text-2xl font-bold text-blue-600">{totalItemsDispatched.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Mould Sets & Plates</p>
-              <h3 className="text-2xl font-bold text-blue-600">{totalItemsDispatched.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-violet-50 text-violet-600 rounded-xl">
-              <Building2 className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Clients Served</p>
-              <h3 className="text-2xl font-bold text-slate-900">{uniqueCustomersCount}</h3>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-violet-50 text-violet-600 rounded-xl">
+                <Building2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Clients Served</p>
+                <h3 className="text-2xl font-bold text-slate-900">{uniqueCustomersCount}</h3>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Controls Bar: Search & Filters */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -446,8 +451,8 @@ export default function DispatchPage() {
         {/* Main Dispatches Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[1200px] text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="w-10 px-4 py-3.5"></th>
@@ -465,7 +470,9 @@ export default function DispatchPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredDispatches.length === 0 ? (
+                {isLoading ? (
+                  <TableSkeletonRows rows={8} columns={12} />
+                ) : filteredDispatches.length === 0 ? (
                   <tr>
                     <td colSpan={12} className="text-center py-12 text-slate-400">
                       No finished mould dispatches found matching your search.

@@ -22,6 +22,11 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import type { Expense, Customer } from "@/lib/supabase/types";
+import {
+  KpiCardSkeleton,
+  TableSkeletonRows,
+  CardGridSkeleton,
+} from "@/components/ui/skeleton";
 
 export default function ExpensePage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -268,18 +273,18 @@ export default function ExpensePage() {
 
   return (
     <AppLayout>
-      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+            <div className="p-3 bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 rounded-xl">
               <Wallet className="w-7 h-7" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
                 Expense & Financial Register
               </h1>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
                 Track credits, debits, cash drawer balances, and party accounts
               </p>
             </div>
@@ -287,7 +292,7 @@ export default function ExpensePage() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm"
+              className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-medium rounded-xl transition shadow-sm text-sm"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
               Export CSV
@@ -303,67 +308,71 @@ export default function ExpensePage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-              <DollarSign className="w-6 h-6" />
+        {isLoading ? (
+          <KpiCardSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                <DollarSign className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Closing Balance
+                </p>
+                <p
+                  className={`text-2xl font-black ${
+                    currentBalance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400"
+                  }`}
+                >
+                  ₹{currentBalance.toLocaleString("en-IN")}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Closing Balance
-              </p>
-              <p
-                className={`text-2xl font-black ${
-                  currentBalance >= 0 ? "text-slate-900" : "text-rose-600"
-                }`}
-              >
-                ₹{currentBalance.toLocaleString("en-IN")}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <ArrowDownLeft className="w-6 h-6" />
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                <ArrowDownLeft className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Total Credit (Inflow)
+                </p>
+                <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                  ₹{totalCredit.toLocaleString("en-IN")}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Total Credit (Inflow)
-              </p>
-              <p className="text-2xl font-black text-emerald-600">
-                ₹{totalCredit.toLocaleString("en-IN")}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
-              <ArrowUpRight className="w-6 h-6" />
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded-xl">
+                <ArrowUpRight className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Total Debit (Outflow)
+                </p>
+                <p className="text-2xl font-black text-rose-600 dark:text-rose-400">
+                  ₹{totalDebit.toLocaleString("en-IN")}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Total Debit (Outflow)
-              </p>
-              <p className="text-2xl font-black text-rose-600">
-                ₹{totalDebit.toLocaleString("en-IN")}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Entries Recorded
-              </p>
-              <p className="text-2xl font-black text-slate-900">
-                {expenses.length.toLocaleString()}
-              </p>
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 rounded-xl">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Entries Recorded
+                </p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white">
+                  {expenses.length.toLocaleString()}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -439,12 +448,12 @@ export default function ExpensePage() {
         </div>
 
         {/* Expenses Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[1000px] text-left border-collapse text-sm">
               <thead>
-                <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <tr className="bg-slate-50/75 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   <th className="py-3.5 px-4"># ID</th>
                   <th className="py-3.5 px-4">Date</th>
                   <th className="py-3.5 px-4">Account / Party</th>
@@ -457,8 +466,10 @@ export default function ExpensePage() {
                   <th className="py-3.5 px-4 text-center">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredExpenses.length === 0 ? (
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {isLoading ? (
+                  <TableSkeletonRows columns={10} rows={8} />
+                ) : filteredExpenses.length === 0 ? (
                   <tr>
                     <td
                       colSpan={10}
@@ -554,7 +565,9 @@ export default function ExpensePage() {
 
           {/* Mobile Card-List Fallback (< md) */}
           <div className="block md:hidden p-3 space-y-3">
-            {filteredExpenses.length === 0 ? (
+            {isLoading ? (
+              <CardGridSkeleton count={4} />
+            ) : filteredExpenses.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
                 No expense records found matching your filters.
               </div>

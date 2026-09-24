@@ -127,6 +127,7 @@ export default function DashboardPage() {
         stats={stats}
         activeStage={activeStage}
         onSelectStage={setActiveStage}
+        isLoading={isLoading}
       />
 
       {/* Main Dense Data Grid */}

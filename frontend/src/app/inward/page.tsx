@@ -30,6 +30,7 @@ import type {
   Customer,
   Subplate,
 } from "@/lib/supabase/types";
+import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 
 export default function InwardPage() {
   const [inwards, setInwards] = useState<Inward[]>([]);
@@ -304,47 +305,51 @@ export default function InwardPage() {
         </div>
 
         {/* Metric KPI Counters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <ArrowDownLeft className="h-6 w-6" />
+        {isLoading ? (
+          <KpiCardSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <ArrowDownLeft className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Inwards</p>
+                <h3 className="text-2xl font-bold text-slate-900">{totalInwards.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Inwards</p>
-              <h3 className="text-2xl font-bold text-slate-900">{totalInwards.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <CheckCircle2 className="h-6 w-6" />
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Receipts</p>
+                <h3 className="text-2xl font-bold text-blue-600">{activeInwards.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Receipts</p>
-              <h3 className="text-2xl font-bold text-blue-600">{activeInwards.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-              <Layers className="h-6 w-6" />
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Layers className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Plates Received</p>
+                <h3 className="text-2xl font-bold text-indigo-600">{totalPlatesReceived.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Plates Received</p>
-              <h3 className="text-2xl font-bold text-indigo-600">{totalPlatesReceived.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-              <Building2 className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Vendors</p>
-              <h3 className="text-2xl font-bold text-slate-900">{uniqueVendorsCount}</h3>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <Building2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Vendors</p>
+                <h3 className="text-2xl font-bold text-slate-900">{uniqueVendorsCount}</h3>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Controls Bar: Search & Filters */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
@@ -378,8 +383,8 @@ export default function InwardPage() {
         {/* Main Inward Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[1050px] text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="w-10 px-4 py-3.5"></th>
@@ -395,7 +400,9 @@ export default function InwardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredInwards.length === 0 ? (
+                {isLoading ? (
+                  <TableSkeletonRows rows={8} columns={10} />
+                ) : filteredInwards.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="text-center py-12 text-slate-400">
                       No inward jobwork receipts found matching your search.

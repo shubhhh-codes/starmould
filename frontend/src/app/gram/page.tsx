@@ -17,6 +17,7 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
+import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/utils";
 
 export interface GramTier {
@@ -199,40 +200,41 @@ export default function GramMasterPage() {
 
   return (
     <AppLayout>
-      {/* Toast Notification */}
-      {notification && (
-        <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
-            notification.type === "success"
-              ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
-              : "bg-rose-50 dark:bg-rose-950/80 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
-          }`}
-        >
-          {notification.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          ) : (
-            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-          )}
-          <span>{notification.message}</span>
-          <button
-            onClick={() => setNotification(null)}
-            className="ml-2 text-slate-400 hover:text-slate-600"
+      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+        {/* Toast Notification */}
+        {notification && (
+          <div
+            className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
+              notification.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-950/80 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                : "bg-rose-50 dark:bg-rose-950/80 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+            }`}
           >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-            <Scale className="h-3.5 w-3.5 text-blue-600" />
-            <span>Master Data</span>
-            <span>/</span>
-            <span className="text-slate-600 dark:text-slate-300">Gram Pricing Matrix</span>
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            )}
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+        )}
+
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
+              <Scale className="h-3.5 w-3.5 text-blue-600" />
+              <span>Master Data</span>
+              <span>/</span>
+              <span className="text-slate-600 dark:text-slate-300">Gram Pricing Matrix</span>
+            </div>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             Material Weight Rate Tiers
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -279,8 +281,8 @@ export default function GramMasterPage() {
           </div>
 
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[650px] text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4">Tier ID</th>
@@ -293,12 +295,7 @@ export default function GramMasterPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={6} className="py-12 text-center text-slate-400">
-                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
-                      <p>Loading gram calculation tiers from database...</p>
-                    </td>
-                  </tr>
+                  <TableSkeletonRows columns={6} rows={5} />
                 ) : tiers.length === 0 ? (
                   <tr>
                     <td
@@ -375,10 +372,7 @@ export default function GramMasterPage() {
           {/* Mobile Card-List Fallback (< md) */}
           <div className="block md:hidden p-3 space-y-3">
             {isLoading ? (
-              <div className="py-8 text-center text-slate-400 text-xs">
-                <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
-                <p>Loading tiers...</p>
-              </div>
+              <CardGridSkeleton count={3} />
             ) : tiers.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
                 No Gram Pricing Tiers Configured.
@@ -632,6 +626,7 @@ export default function GramMasterPage() {
           </div>
         </div>
       )}
+      </div>
     </AppLayout>
   );
 }

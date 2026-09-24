@@ -21,6 +21,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { ScanProject, Customer, User } from "@/lib/supabase/types";
+import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 
 export default function SampleReworkPage() {
   const [projects, setProjects] = useState<ScanProject[]>([]);
@@ -212,7 +213,7 @@ export default function SampleReworkPage() {
 
   return (
     <AppLayout>
-      <div className="p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -284,61 +285,65 @@ export default function SampleReworkPage() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-slate-100 text-slate-700 rounded-xl">
-              <Layers className="w-6 h-6" />
+        {isLoading ? (
+          <KpiCardSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-slate-100 text-slate-700 rounded-xl">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Total {activeTab} Orders
+                </p>
+                <p className="text-2xl font-black text-slate-900">{totalCount}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Total {activeTab} Orders
-              </p>
-              <p className="text-2xl font-black text-slate-900">{totalCount}</p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-              <Clock className="w-6 h-6" />
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Pending Execution
+                </p>
+                <p className="text-2xl font-black text-amber-600">
+                  {pendingCount}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Pending Execution
-              </p>
-              <p className="text-2xl font-black text-amber-600">
-                {pendingCount}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <UserCheck className="w-6 h-6" />
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <UserCheck className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Registered / In Progress
+                </p>
+                <p className="text-2xl font-black text-blue-600">
+                  {registeredCount}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Registered / In Progress
-              </p>
-              <p className="text-2xl font-black text-blue-600">
-                {registeredCount}
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Completed & Delivered
-              </p>
-              <p className="text-2xl font-black text-emerald-600">
-                {completedCount}
-              </p>
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Completed & Delivered
+                </p>
+                <p className="text-2xl font-black text-emerald-600">
+                  {completedCount}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
@@ -385,8 +390,8 @@ export default function SampleReworkPage() {
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[1100px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="py-3.5 px-4">Mould Code</th>
@@ -406,17 +411,7 @@ export default function SampleReworkPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <tr>
-                    <td
-                      colSpan={13}
-                      className="py-16 text-center text-slate-400 text-sm"
-                    >
-                      <div className="flex flex-col items-center justify-center gap-3">
-                        <Loader2 className="w-8 h-8 animate-spin text-purple-600" />
-                        <span>Loading {activeTab.toLowerCase()} orders...</span>
-                      </div>
-                    </td>
-                  </tr>
+                  <TableSkeletonRows rows={8} columns={13} />
                 ) : filteredProjects.length === 0 ? (
                   <tr>
                     <td

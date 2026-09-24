@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import type { ScanProject } from "@/lib/supabase/types";
+import { TableSkeletonRows } from "@/components/ui/skeleton";
 
 interface MouldProjectsTableProps {
   initialData?: ScanProject[];
@@ -509,7 +510,9 @@ export function MouldProjectsTable({
             ))}
           </thead>
           <tbody>
-            {table.getRowModel().rows.length === 0 ? (
+            {isLoading ? (
+              <TableSkeletonRows rows={8} columns={columns.length} />
+            ) : table.getRowModel().rows.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}

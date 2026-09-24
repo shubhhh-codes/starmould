@@ -24,6 +24,7 @@ import {
   Filter,
 } from "lucide-react";
 import type { PurchaseOrder, PurchaseItem, Subplate, Customer } from "@/lib/supabase/types";
+import { TableSkeletonRows } from "@/components/ui/skeleton";
 
 export default function PurchasePage() {
   const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
@@ -636,7 +637,9 @@ export default function PurchasePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {paginatedPurchases.length === 0 ? (
+                  {isLoading ? (
+                    <TableSkeletonRows rows={8} columns={8} />
+                  ) : paginatedPurchases.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-12 text-center text-slate-400">
                         <ShoppingCart className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -972,7 +975,9 @@ export default function PurchasePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {paginatedPendingPlates.length === 0 ? (
+                  {isLoading ? (
+                    <TableSkeletonRows rows={8} columns={8} />
+                  ) : paginatedPendingPlates.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-12 text-center text-slate-400">
                         <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500 opacity-60" />

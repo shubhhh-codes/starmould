@@ -23,6 +23,7 @@ import {
   Loader2,
 } from "lucide-react";
 import type { Customer } from "@/lib/supabase/types";
+import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 
 // Supported exact usertypes derived directly from legacy customer/index.blade.php & CustomerController.php
 export type UsertypeOption = "Customer" | "Vendor" | "Transport" | "Other";
@@ -370,7 +371,7 @@ export default function CustomerPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
         {/* Toast Notification */}
         {notification && (
           <div
@@ -540,8 +541,8 @@ export default function CustomerPage() {
         {/* Data Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="hidden md:block overflow-x-auto w-full">
+            <table className="w-full min-w-[950px] text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4 w-[24%]">Name</th>
@@ -556,14 +557,7 @@ export default function CustomerPage() {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={8} className="py-16 text-center text-slate-400">
-                      <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
-                      <p className="font-medium text-slate-600 dark:text-slate-300">
-                        Loading customer records from Supabase...
-                      </p>
-                    </td>
-                  </tr>
+                  <TableSkeletonRows columns={8} rows={8} />
                 ) : paginatedCustomers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-slate-400">
@@ -690,10 +684,7 @@ export default function CustomerPage() {
           {/* Mobile Card-List Fallback (< md) */}
           <div className="block md:hidden p-3 space-y-3">
             {isLoading ? (
-              <div className="py-12 text-center text-slate-400">
-                <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
-                <p className="text-xs">Loading customer records...</p>
-              </div>
+              <CardGridSkeleton count={4} />
             ) : paginatedCustomers.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-xs">
                 No customer or vendor records found.

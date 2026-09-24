@@ -31,6 +31,7 @@ import type {
   Subplate,
   ScanProject,
 } from "@/lib/supabase/types";
+import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 
 export default function ChallanPage() {
   const [challans, setChallans] = useState<Challan[]>([]);
@@ -412,47 +413,51 @@ export default function ChallanPage() {
         </div>
 
         {/* Metric KPI Counters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-              <ArrowUpRight className="h-6 w-6" />
+        {isLoading ? (
+          <KpiCardSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <ArrowUpRight className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Challans</p>
+                <h3 className="text-2xl font-bold text-slate-900">{totalChallans.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Challans</p>
-              <h3 className="text-2xl font-bold text-slate-900">{totalChallans.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-              <CheckCircle2 className="h-6 w-6" />
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Challans</p>
+                <h3 className="text-2xl font-bold text-emerald-600">{activeChallans.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Active Challans</p>
-              <h3 className="text-2xl font-bold text-emerald-600">{activeChallans.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-              <Layers className="h-6 w-6" />
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                <Layers className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Plates on Job Work</p>
+                <h3 className="text-2xl font-bold text-amber-600">{totalPlatesDispatched.toLocaleString()}</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Plates on Job Work</p>
-              <h3 className="text-2xl font-bold text-amber-600">{totalPlatesDispatched.toLocaleString()}</h3>
-            </div>
-          </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
-              <Building2 className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Partner Vendors</p>
-              <h3 className="text-2xl font-bold text-slate-900">{uniqueVendorsCount}</h3>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+              <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                <Building2 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Partner Vendors</p>
+                <h3 className="text-2xl font-bold text-slate-900">{uniqueVendorsCount}</h3>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
@@ -550,7 +555,9 @@ export default function ChallanPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {filteredChallans.length === 0 ? (
+                  {isLoading ? (
+                    <TableSkeletonRows rows={8} columns={9} />
+                  ) : filteredChallans.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="text-center py-12 text-slate-400">
                         No outward jobwork challans found matching your search.

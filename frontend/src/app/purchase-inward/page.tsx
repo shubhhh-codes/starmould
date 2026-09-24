@@ -29,6 +29,7 @@ import type {
   Subplate,
   ViewPoPendingInwardQty,
 } from "@/lib/supabase/types";
+import { TableSkeletonRows } from "@/components/ui/skeleton";
 
 export default function PurchaseInwardPage() {
   const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
@@ -485,7 +486,9 @@ export default function PurchaseInwardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {paginatedPendingItems.length === 0 ? (
+                  {isLoading ? (
+                    <TableSkeletonRows rows={8} columns={8} />
+                  ) : paginatedPendingItems.length === 0 ? (
                     <tr>
                       <td colSpan={8} className="py-12 text-center text-slate-400">
                         <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-emerald-500 opacity-60" />
@@ -690,7 +693,9 @@ export default function PurchaseInwardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/80">
-                  {paginatedInwardReceipts.length === 0 ? (
+                  {isLoading ? (
+                    <TableSkeletonRows rows={8} columns={7} />
+                  ) : paginatedInwardReceipts.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="py-12 text-center text-slate-400">
                         <PackagePlus className="w-8 h-8 mx-auto mb-2 opacity-30" />
