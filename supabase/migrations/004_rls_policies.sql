@@ -33,7 +33,7 @@ BEGIN
   RETURN COALESCE(
     (current_setting('request.jwt.claims', true)::jsonb -> 'user_metadata' ->> 'role_id')::integer,
     (current_setting('request.jwt.claims', true)::jsonb ->> 'role_id')::integer,
-    0 -- Default fallback for service/intranet
+    NULL -- Safe fallback: never default to Admin (0)
   );
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;

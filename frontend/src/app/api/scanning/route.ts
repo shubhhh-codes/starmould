@@ -293,6 +293,17 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Missing project id" }, { status: 400 });
     }
 
+    // Commercial protection: only Admin and Manager can alter pricing and payment
+    if (
+      (field === "amount" || field === "payment" || (updates && ("amount" in updates || "payment" in updates))) &&
+      auth.user.role_id > 1
+    ) {
+      return NextResponse.json(
+        { error: "Access denied: only Admin and Manager can alter pricing or payment status" },
+        { status: 403 }
+      );
+    }
+
     const updatePayload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };

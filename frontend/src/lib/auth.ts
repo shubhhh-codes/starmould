@@ -21,16 +21,20 @@ export interface SessionPayload extends SessionUser {
 }
 
 const COOKIE_NAME = "sm_session";
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  "starmould-secure-production-secret-key-3fcb64b1-ee51";
+
+function getSessionSecret(): string {
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) {
+    throw new Error("CRITICAL SECURITY CONFIGURATION ERROR: SESSION_SECRET is not configured.");
+  }
+  return secret;
+}
 
 /**
  * Signs a payload with HMAC-SHA256 and attaches issued-at (iat) and expiration (exp) timestamps (7 days)
  */
 export function signSession(user: SessionUser): string {
+  const secret = getSessionSecret();
   const now = Math.floor(Date.now() / 1000);
   const payloadData: SessionPayload = {
     ...user,
@@ -39,7 +43,7 @@ export function signSession(user: SessionUser): string {
   };
   const payload = Buffer.from(JSON.stringify(payloadData)).toString("base64url");
   const signature = crypto
-    .createHmac("sha256", SESSION_SECRET)
+    .createHmac("sha256", secret)
     .update(payload)
     .digest("base64url");
   return `${payload}.${signature}`;
@@ -49,12 +53,15 @@ export function signSession(user: SessionUser): string {
  * Verifies a signed session token. Returns null if invalid, tampered, or expired.
  */
 export function verifySessionToken(token: string): SessionUser | null {
-  if (!token || !token.includes(".")) return null;
+  if (!token || typeof token !== "string" || !token.includes(".")) return null;
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null; // Fail safely if SESSION_SECRET is not configured
+
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
 
   const expectedSignature = crypto
-    .createHmac("sha256", SESSION_SECRET)
+    .createHmac("sha256", secret)
     .update(payload)
     .digest("base64url");
 
@@ -68,8 +75,19 @@ export function verifySessionToken(token: string): SessionUser | null {
   try {
     const jsonStr = Buffer.from(payload, "base64url").toString("utf8");
     const data = JSON.parse(jsonStr) as SessionPayload;
-    // Validate expiration timestamp if present
-    if (data.exp && Math.floor(Date.now() / 1000) > data.exp) {
+    const now = Math.floor(Date.now() / 1000);
+
+    // Validation must reject: missing iat, missing exp, non-numeric iat/exp, exp <= iat, expired tokens, tokens with unreasonable future timestamps
+    if (
+      typeof data.iat !== "number" ||
+      typeof data.exp !== "number" ||
+      isNaN(data.iat) ||
+      isNaN(data.exp) ||
+      data.exp <= data.iat ||
+      now > data.exp ||
+      data.iat > now + 60 || // Max 60s future clock skew
+      data.exp > data.iat + 7 * 24 * 60 * 60 + 60 // Max 7 days + 60s
+    ) {
       return null;
     }
     return data;

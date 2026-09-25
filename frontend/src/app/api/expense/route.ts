@@ -73,6 +73,41 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// Helper to recalculate running balances across all records deterministically
+async function recalculateExpenseBalances(): Promise<number> {
+  const { data: rows } = await supabaseAdmin
+    .from("expense")
+    .select("id, payment_type, amount, balance")
+    .order("id", { ascending: true });
+
+  if (!rows || rows.length === 0) return 0;
+
+  let runningBalance = 0;
+  const updates: Array<{ id: number; balance: number }> = [];
+
+  for (const r of rows) {
+    const amt = Number(r.amount) || 0;
+    if (r.payment_type === "Credit") {
+      runningBalance += amt;
+    } else if (r.payment_type === "Debit") {
+      runningBalance -= amt;
+    }
+    if (r.balance !== runningBalance) {
+      updates.push({ id: r.id, balance: runningBalance });
+    }
+  }
+
+  if (updates.length > 0) {
+    await Promise.all(
+      updates.map((u) =>
+        supabaseAdmin.from("expense").update({ balance: u.balance }).eq("id", u.id)
+      )
+    );
+  }
+
+  return runningBalance;
+}
+
 // POST /api/expense - create new expense entry (Admin, Manager only)
 export async function POST(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1]);
@@ -89,19 +124,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid required fields (payment_type and positive amount are required)" }, { status: 400 });
     }
 
-    // Fetch latest entry to compute rolling balance
-    const { data: latestRows } = await supabaseAdmin
-      .from("expense")
-      .select("balance")
-      .order("id", { ascending: false })
-      .limit(1);
-
-    const previousBalance = latestRows?.[0]?.balance ?? 0;
-    const newBalance =
-      payment_type === "Credit"
-        ? previousBalance + numAmount
-        : previousBalance - numAmount;
-
     const now = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from("expense")
@@ -113,7 +135,7 @@ export async function POST(req: NextRequest) {
           payment_type: payment_type || "Debit",
           payment_mode: payment_mode || "Cash",
           amount: numAmount,
-          balance: newBalance,
+          balance: 0, // Computed by recalculateExpenseBalances below
           created_at: now,
           updated_at: now,
         },
@@ -125,8 +147,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Deterministically update rolling balance for this and all subsequent rows
+    await recalculateExpenseBalances();
+
+    // Fetch updated row with accurate balance
+    const { data: updatedRow } = await supabaseAdmin
+      .from("expense")
+      .select("*")
+      .eq("id", data.id)
+      .single();
+
     invalidateCachePrefix("counts:");
-    return NextResponse.json({ expense: data, message: "Expense record created successfully." }, { status: 201 });
+    return NextResponse.json({ expense: updatedRow || data, message: "Expense record created successfully." }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -170,8 +202,17 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Deterministically recalculate all downstream balances
+    await recalculateExpenseBalances();
+
+    const { data: updatedRow } = await supabaseAdmin
+      .from("expense")
+      .select("*")
+      .eq("id", id)
+      .single();
+
     invalidateCachePrefix("counts:");
-    return NextResponse.json({ expense: data, message: "Expense updated successfully." });
+    return NextResponse.json({ expense: updatedRow || data, message: "Expense updated successfully." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -206,8 +247,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Recalculate remaining balances deterministically
+    await recalculateExpenseBalances();
+
     invalidateCachePrefix("counts:");
-    return NextResponse.json({ success: true, message: "Expense record deleted." });
+    return NextResponse.json({ success: true, message: "Expense record deleted and balances adjusted." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

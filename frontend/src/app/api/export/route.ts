@@ -4,15 +4,26 @@ import { authenticateRequest } from "@/lib/auth";
 import { getCachedCustomers } from "@/lib/cache";
 
 /**
- * RFC 4180 compliant CSV cell formatter with CWE-1236 Formula Injection sanitization
+ * RFC 4180 compliant CSV cell formatter with CWE-1236 Formula Injection sanitization.
+ * Neutralizes dangerous spreadsheet formula prefixes (=, +, -, @, control chars) while
+ * preserving legitimate numeric values for accounting fidelity.
  */
 function formatCsvCell(val: any): string {
   if (val === null || val === undefined) return '""';
-  let str = String(val);
-  // Prevent spreadsheet formula execution by prepending a single quote
-  if (/^[=+\-@\t\r]/.test(str)) {
+  let str = String(val).trim();
+
+  // If value begins with =, @, tab, or carriage return: always escape
+  if (/^[=@\t\r]/.test(str)) {
     str = "'" + str;
   }
+  // If value begins with + or -: only escape if it is NOT a valid number
+  else if (/^[+\-]/.test(str)) {
+    const isPureNumber = /^[+\-]?\d+(\.\d+)?$/.test(str);
+    if (!isPureNumber) {
+      str = "'" + str;
+    }
+  }
+
   return `"${str.replace(/"/g, '""')}"`;
 }
 

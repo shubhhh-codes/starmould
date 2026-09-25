@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { invalidateCache } from "@/lib/cache";
 
 // Helper: Calculate amount from grams using dynamic gram_calc table
 async function calculateGramAmount(gram: number): Promise<number> {
@@ -189,6 +190,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("api_counts_all");
+
     return NextResponse.json(
       { print: data, message: "Print project created successfully" },
       { status: 201 }
@@ -251,6 +254,8 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("api_counts_all");
+
     return NextResponse.json({ print: data, message: "Updated successfully" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -281,6 +286,8 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true, message: "Print project deleted" });
   } catch (err: unknown) {

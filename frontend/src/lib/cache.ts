@@ -18,6 +18,9 @@ export async function getCached<T>(
   const now = Date.now();
   const entry = cache.get(key);
   if (entry && entry.expiresAt > now) {
+    // Re-insert to maintain true LRU (least recently used key moves to head of eviction queue)
+    cache.delete(key);
+    cache.set(key, entry);
     return entry.data;
   }
 
@@ -29,11 +32,12 @@ export async function getCached<T>(
   const promise = (async () => {
     try {
       const fresh = await fetcher();
-      // Evict oldest entries if cache reaches maximum limit
+      // Evict least recently used entry if cache reaches maximum limit
       if (cache.size >= MAX_CACHE_ENTRIES) {
-        const firstKey = cache.keys().next().value;
-        if (firstKey) cache.delete(firstKey);
+        const lruKey = cache.keys().next().value;
+        if (lruKey) cache.delete(lruKey);
       }
+      cache.delete(key);
       cache.set(key, {
         data: fresh,
         expiresAt: Date.now() + ttlSeconds * 1000,

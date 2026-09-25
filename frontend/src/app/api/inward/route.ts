@@ -146,7 +146,26 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
-    // Generate inward challan number if not provided (matching InwardController.php lines 494-498: SM/IW/xx)
+    // 1. Validate all child items BEFORE inserting parent
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: "At least one item is required for inward receipt" }, { status: 400 });
+    }
+
+    for (const it of items) {
+      const inQty = Number(it.inward_qty);
+      const totalQty = Number(it.qty) || 0;
+      if (isNaN(inQty) || inQty <= 0) {
+        return NextResponse.json({ error: "Inward quantity must be a positive number greater than 0" }, { status: 400 });
+      }
+      if (totalQty > 0 && inQty > totalQty) {
+        return NextResponse.json(
+          { error: `Inward quantity (${inQty}) cannot exceed outward / available quantity (${totalQty}) for ${it.particulars || it.platename || "item"}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 2. Generate inward challan number if not provided (matching InwardController.php lines 494-498: SM/IW/xx)
     let finalInChallanNo = inchallanno?.trim();
     if (!finalInChallanNo) {
       const { count } = await supabaseAdmin
@@ -156,7 +175,7 @@ export async function POST(req: NextRequest) {
       finalInChallanNo = nextId < 10 ? `SM/IW/0${nextId}` : `SM/IW/${nextId}`;
     }
 
-    // 1. Insert parent Inward record
+    // 3. Insert parent Inward record
     const { data: inwardData, error: inErr } = await supabaseAdmin
       .from("inward")
       .insert([
@@ -182,16 +201,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: inErr.message }, { status: 500 });
     }
 
-    // 2. Insert child items and update subplate location back to 'SM' (In-house)
-    if (items && Array.isArray(items) && items.length > 0) {
-      // Validate inward quantities
-      for (const it of items) {
-        const inQty = Number(it.inward_qty);
-        if (isNaN(inQty) || inQty <= 0) {
-          return NextResponse.json({ error: "Inward quantity must be greater than 0" }, { status: 400 });
-        }
-      }
-
+    // 4. Insert child items with rollback on failure
+    try {
       const itemsToInsert = items.map((it: any) => ({
         challanid: Number(challanid),
         inchallanid: inwardData.id,
@@ -206,7 +217,12 @@ export async function POST(req: NextRequest) {
         updated_at: now,
       }));
 
-      await supabaseAdmin.from("inward_items").insert(itemsToInsert);
+      const { error: itemsErr } = await supabaseAdmin.from("inward_items").insert(itemsToInsert);
+      if (itemsErr) {
+        // Roll back parent insert
+        await supabaseAdmin.from("inward").delete().eq("id", inwardData.id);
+        return NextResponse.json({ error: itemsErr.message }, { status: 500 });
+      }
 
       // Return subplates location handling
       const { data: vendorData } = await supabaseAdmin
@@ -256,6 +272,10 @@ export async function POST(req: NextRequest) {
           })
         );
       }
+    } catch (innerErr: unknown) {
+      // Roll back parent insert on unexpected error
+      await supabaseAdmin.from("inward").delete().eq("id", inwardData.id);
+      throw innerErr;
     }
 
     invalidateCache("api_counts_all");

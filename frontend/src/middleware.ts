@@ -28,13 +28,11 @@ const ROUTE_PERMISSIONS: Record<string, number[]> = {
   "/": [0, 1, 2, 3, 4],
 };
 
-const SESSION_SECRET =
-  process.env.SESSION_SECRET ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY ||
-  "starmould-secure-production-secret-key-3fcb64b1-ee51";
-
 async function verifySessionTokenEdge(token: string): Promise<{ id: number; role_id: number; role: string } | null> {
-  if (!token || !token.includes(".")) return null;
+  if (!token || typeof token !== "string" || !token.includes(".")) return null;
+  const secret = process.env.SESSION_SECRET;
+  if (!secret) return null; // Fail safely if SESSION_SECRET is not configured
+
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
 
@@ -42,7 +40,7 @@ async function verifySessionTokenEdge(token: string): Promise<{ id: number; role
     const enc = new TextEncoder();
     const key = await crypto.subtle.importKey(
       "raw",
-      enc.encode(SESSION_SECRET),
+      enc.encode(secret),
       { name: "HMAC", hash: "SHA-256" },
       false,
       ["verify"]
@@ -71,7 +69,19 @@ async function verifySessionTokenEdge(token: string): Promise<{ id: number; role
     }
     const jsonStr = atob(base64);
     const data = JSON.parse(jsonStr);
-    if (data.exp && Math.floor(Date.now() / 1000) > data.exp) {
+    const now = Math.floor(Date.now() / 1000);
+
+    // Strict validation: reject missing iat, missing exp, non-numeric timestamps, exp <= iat, expired tokens, unreasonable future timestamps
+    if (
+      typeof data.iat !== "number" ||
+      typeof data.exp !== "number" ||
+      isNaN(data.iat) ||
+      isNaN(data.exp) ||
+      data.exp <= data.iat ||
+      now > data.exp ||
+      data.iat > now + 60 || // Max 60s future clock skew
+      data.exp > data.iat + 7 * 24 * 60 * 60 + 60 // Max 7 days + 60s
+    ) {
       return null;
     }
     return data;

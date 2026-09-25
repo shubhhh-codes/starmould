@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { invalidateCache } from "@/lib/cache";
 
 // GET /api/dispatch - fetch dispatches, customers, subplates, scans (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
@@ -172,10 +173,10 @@ export async function POST(req: NextRequest) {
       .select();
 
     if (itErr) {
+      await supabaseAdmin.from("dispatch").delete().eq("id", newDispatch.id);
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
-    const { invalidateCache } = await import("@/lib/cache");
     invalidateCache("api_counts_all");
 
     return NextResponse.json({
@@ -214,7 +215,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const { invalidateCache } = await import("@/lib/cache");
     invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true });

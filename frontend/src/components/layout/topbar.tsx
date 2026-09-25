@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Menu,
   Search,
@@ -45,6 +45,7 @@ export function Topbar({
   currentUser,
 }: TopbarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -124,7 +125,8 @@ export function Topbar({
     } catch (err) {
       console.error("Logout error:", err);
     } finally {
-      window.location.href = "/login";
+      router.push("/login");
+      router.refresh();
     }
   };
 

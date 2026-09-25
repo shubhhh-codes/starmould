@@ -213,9 +213,50 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    const numId = Number(id);
+
+    // Fetch existing user to check role and status transitions
+    const { data: targetUser } = await supabaseAdmin
+      .from("users")
+      .select("id, role_id, status")
+      .eq("id", numId)
+      .is("deleted_at", null)
+      .single();
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
     let finalSubtype = usersubtype;
     if (usertype && ["Admin", "Manager", "Supervisor", "Designer"].includes(usertype)) {
       finalSubtype = "Skilled MP";
+    }
+
+    const newRoleId = usertype ? (role_id !== undefined ? Number(role_id) : getRoleIdFromUsertype(usertype)) : (role_id !== undefined ? Number(role_id) : undefined);
+    const newStatus = status !== undefined ? Number(status) : undefined;
+
+    // Self-admin protection: cannot deactivate or demote own Admin account
+    if (numId === auth.user.id && Number(targetUser.role_id) === 0) {
+      if (newStatus === 0) {
+        return NextResponse.json({ error: "Cannot deactivate your own Administrator account" }, { status: 400 });
+      }
+      if (newRoleId !== undefined && newRoleId !== 0) {
+        return NextResponse.json({ error: "Cannot demote your own Administrator account" }, { status: 400 });
+      }
+    }
+
+    // Last-admin protection: cannot deactivate or demote the only active Administrator
+    if (Number(targetUser.role_id) === 0 && (newStatus === 0 || (newRoleId !== undefined && newRoleId !== 0))) {
+      const { count: adminCount } = await supabaseAdmin
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .eq("role_id", 0)
+        .eq("status", 1)
+        .is("deleted_at", null);
+
+      if ((adminCount || 0) <= 1) {
+        return NextResponse.json({ error: "Cannot deactivate or demote the only active Administrator" }, { status: 400 });
+      }
     }
 
     const updatePayload: Record<string, any> = {
@@ -226,12 +267,10 @@ export async function PUT(req: NextRequest) {
     if (cleanUsername) updatePayload.username = cleanUsername;
     if (cleanInitials) updatePayload.initials = cleanInitials;
     if (email) updatePayload.email = email.trim();
-    if (usertype) {
-      updatePayload.usertype = usertype;
-      updatePayload.role_id = role_id !== undefined ? Number(role_id) : getRoleIdFromUsertype(usertype);
-    }
+    if (usertype) updatePayload.usertype = usertype;
+    if (newRoleId !== undefined) updatePayload.role_id = newRoleId;
     if (finalSubtype) updatePayload.usersubtype = finalSubtype;
-    if (status !== undefined) updatePayload.status = Number(status);
+    if (newStatus !== undefined) updatePayload.status = newStatus;
 
     const { data, error } = await supabaseAdmin
       .from("users")

@@ -28,9 +28,10 @@ export default function LoginPage() {
   // If user is already authenticated, redirect to dashboard
   useEffect(() => {
     if (isSessionLoaded && currentUser) {
-      window.location.href = "/";
+      router.push("/");
+      router.refresh();
     }
-  }, [isSessionLoaded, currentUser]);
+  }, [isSessionLoaded, currentUser, router]);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -55,8 +56,8 @@ export default function LoginPage() {
         setUser(data.user);
       }
 
-      // Perform full page reload to dashboard to ensure cookies and session are synchronously committed
-      window.location.href = "/";
+      router.push("/");
+      router.refresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error connecting to server";
       setError(msg);
