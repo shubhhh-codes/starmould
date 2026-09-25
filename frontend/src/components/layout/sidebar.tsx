@@ -165,14 +165,16 @@ export function Sidebar({
   const pathname = usePathname();
   const { currentUser: authUser, isSessionLoaded, logout } = useAuth();
   const activeUser = propUser !== undefined ? propUser : authUser;
-  const isLoadingUser = !isSessionLoaded && propUser === undefined;
+  // User is loading if session isn't loaded yet or activeUser is not yet resolved
+  const isLoadingUser = !isSessionLoaded || !activeUser || activeUser.role_id === undefined;
   const userRoleId = activeUser?.role_id;
 
-  // Filter menu items by user role. If not yet resolved on first cold tick, show default navigationItems
+  // Filter menu items strictly by user role.
+  // CRITICAL: NEVER fallback to full navigationItems if role is unresolved. Show empty/skeleton instead.
   const visibleItems =
-    userRoleId !== undefined
-      ? navigationItems.filter((item) => item.allowedRoles.includes(userRoleId))
-      : navigationItems;
+    userRoleId !== undefined && userRoleId !== null
+      ? navigationItems.filter((item) => item.allowedRoles.includes(Number(userRoleId)))
+      : [];
 
   const handleLogout = async () => {
     await logout();

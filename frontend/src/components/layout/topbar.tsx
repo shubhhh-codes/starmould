@@ -24,8 +24,20 @@ interface TopbarProps {
     email: string;
     role: string;
     initials: string;
+    role_id?: number;
   } | null;
 }
+
+const ALL_TOP_NAV_LINKS = [
+  { href: "/", label: "Live Projects", allowedRoles: [0, 1, 2, 3, 4] },
+  { href: "/subplate", label: "Subplate", allowedRoles: [0, 1, 2, 3] },
+  { href: "/scanning", label: "Scanning", allowedRoles: [0, 1, 2, 3, 4] },
+  { href: "/purchase", label: "Purchase", allowedRoles: [0, 1] },
+  { href: "/challan", label: "Outward Challan", allowedRoles: [0, 1, 2] },
+  { href: "/dispatch", label: "Dispatch", allowedRoles: [0, 1, 2] },
+  { href: "/inward", label: "Inward", allowedRoles: [0, 1, 2] },
+  { href: "/customer", label: "Customers", allowedRoles: [0, 1] },
+];
 
 export function Topbar({
   onToggleSidebar,
@@ -40,14 +52,11 @@ export function Topbar({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
 
-  const topNavLinks = [
-    { href: "/", label: "Live Projects" },
-    { href: "/purchase", label: "Purchase" },
-    { href: "/challan", label: "Outward Challan" },
-    { href: "/dispatch", label: "Dispatch" },
-    { href: "/inward", label: "Inward" },
-    { href: "/customer", label: "Customers" },
-  ];
+  const userRoleId = currentUser?.role_id;
+  const visibleTopNavLinks =
+    userRoleId !== undefined && userRoleId !== null
+      ? ALL_TOP_NAV_LINKS.filter((item) => item.allowedRoles.includes(Number(userRoleId)))
+      : [];
 
   const handlePasswordChange = (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,26 +106,34 @@ export function Topbar({
 
           {/* Quick Module Navigation Tabs */}
           <nav className="hidden lg:flex items-center gap-1 text-xs">
-            {topNavLinks.map((link) => {
-              const isActive =
-                link.href === "/"
-                  ? pathname === "/"
-                  : pathname === link.href || pathname.startsWith(link.href + "/");
+            {!currentUser ? (
+              <div className="flex items-center gap-1.5 animate-pulse">
+                <div className="h-7 w-20 bg-slate-800 rounded-md" />
+                <div className="h-7 w-16 bg-slate-800 rounded-md" />
+                <div className="h-7 w-18 bg-slate-800 rounded-md" />
+              </div>
+            ) : (
+              visibleTopNavLinks.map((link) => {
+                const isActive =
+                  link.href === "/"
+                    ? pathname === "/"
+                    : pathname === link.href || pathname.startsWith(link.href + "/");
 
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
-                    isActive
-                      ? "text-white bg-blue-600 shadow-xs font-semibold"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                      isActive
+                        ? "text-white bg-blue-600 shadow-xs font-semibold"
+                        : "text-slate-300 hover:text-white hover:bg-slate-800"
+                    }`}
+                  >
+                    {link.label}
+                  </Link>
+                );
+              })
+            )}
           </nav>
         </div>
 
