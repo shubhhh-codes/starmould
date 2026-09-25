@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedScansLookup } from "@/lib/cache";
+import { getCachedCustomers, getCachedScansLookup, invalidateCache } from "@/lib/cache";
 
 // GET /api/purchases - fetch POs with items and pending subplates (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const page = searchParams.get("page") ? Number(searchParams.get("page")) : null;
-    const limit = Number(searchParams.get("limit") || "50");
+    const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
+    const limit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "50");
     const includePlates = searchParams.get("includePlates") === "true";
 
     let poQuery = supabaseAdmin
@@ -85,8 +85,21 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const totalCount = posRes.count ?? enrichedPOs.length;
+    const totalPages = Math.ceil(totalCount / limit) || 1;
+    const currentPage = page || 1;
+
     const response = NextResponse.json({
       purchases: enrichedPOs,
+      data: enrichedPOs,
+      pagination: {
+        page: currentPage,
+        pageSize: limit,
+        total: totalCount,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
+      },
       customers: customers,
       subplates: plates,
       scans: scans,
@@ -167,6 +180,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
+    invalidateCache("api_counts_all");
+
     return NextResponse.json({
       purchase: {
         ...newPO,
@@ -202,6 +217,8 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

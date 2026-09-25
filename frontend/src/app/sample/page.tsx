@@ -22,15 +22,21 @@ import {
 } from "lucide-react";
 import type { ScanProject, Customer, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { StaffSelect } from "@/components/ui/staff-select";
+import { useSampleQuery, useCreateSampleMutation, useUpdateSampleMutation, useDeleteSampleMutation } from "@/lib/query/hooks";
 
 export default function SampleReworkPage() {
-  const [projects, setProjects] = useState<ScanProject[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const { data, isLoading, error: fetchQueryError, refetch } = useSampleQuery();
+  const createSampleMutation = useCreateSampleMutation();
+  const updateSampleMutation = useUpdateSampleMutation();
+  const deleteSampleMutation = useDeleteSampleMutation();
 
+  const projects = data?.projects || [];
+  const customers = data?.customers || [];
+  const users = data?.users || [];
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState<"Sample" | "Rework">("Sample");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -50,27 +56,6 @@ export default function SampleReworkPage() {
     note: "",
     subnote: "",
   });
-
-  const fetchSampleData = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/sample");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load projects");
-      setProjects(data.projects || []);
-      setCustomers(data.customers || []);
-      setUsers(data.users || []);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to fetch sample data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchSampleData();
-  }, []);
 
   // Filtered by active tab (Sample vs Rework) (Source: SampleController.php:45, 37)
   const tabProjects = useMemo(() => {
@@ -114,18 +99,7 @@ export default function SampleReworkPage() {
     newStatus: "pending" | "registered" | "completed"
   ) => {
     try {
-      const res = await fetch("/api/sample", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field: "status", value: newStatus }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update status");
-      }
-      setProjects((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: newStatus } : p))
-      );
+      await updateSampleMutation.mutateAsync({ id, field: "status", value: newStatus });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -138,18 +112,7 @@ export default function SampleReworkPage() {
     userId: number
   ) => {
     try {
-      const res = await fetch("/api/sample", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field, value: userId }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update staff assignment");
-      }
-      setProjects((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, [field]: userId } : p))
-      );
+      await updateSampleMutation.mutateAsync({ id, field, value: userId });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -161,14 +124,7 @@ export default function SampleReworkPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/sample?id=${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete project");
-      }
-      setProjects((prev) => prev.filter((p) => p.id !== id));
+      await deleteSampleMutation.mutateAsync(id);
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -181,15 +137,7 @@ export default function SampleReworkPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/sample", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modalForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create order");
-
-      await fetchSampleData();
+      await createSampleMutation.mutateAsync(modalForm);
       setIsModalOpen(false);
       setModalForm({
         rdate: new Date().toISOString().split("T")[0],
@@ -213,7 +161,7 @@ export default function SampleReworkPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -390,23 +338,23 @@ export default function SampleReworkPage() {
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full min-w-[1100px] text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full min-w-[1280px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Mould Code</th>
-                  <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4">Work Type</th>
-                  <th className="py-3.5 px-4">Description</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Rec. Date</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Committed Dt</th>
-                  <th className="py-3.5 px-4 text-right">SM Hr</th>
-                  <th className="py-3.5 px-4 text-right">USM Hr</th>
-                  <th className="py-3.5 px-4">Scanner</th>
-                  <th className="py-3.5 px-4">QC By</th>
-                  <th className="py-3.5 px-4">Model Design</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Mould Code</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Customer</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Work Type</th>
+                  <th className="py-3.5 px-3.5">Description</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Rec. Date</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Committed Dt</th>
+                  <th className="py-3.5 px-3 text-right whitespace-nowrap">SM Hr</th>
+                  <th className="py-3.5 px-3 text-right whitespace-nowrap">USM Hr</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Scanner</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">QC By</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Model Design</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Status</th>
+                  <th className="py-3.5 px-3 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -427,101 +375,74 @@ export default function SampleReworkPage() {
                       key={row.id}
                       className="hover:bg-slate-50/60 transition group"
                     >
-                      <td className="py-3 px-4 font-mono font-bold text-xs text-purple-600 whitespace-nowrap">
+                      <td className="py-3 px-3.5 font-mono font-bold text-xs text-purple-600 whitespace-nowrap">
                         {row.projectid || `#${row.id}`}
                       </td>
-                      <td className="py-3 px-4 font-medium text-slate-900 whitespace-nowrap">
+                      <td className="py-3 px-3.5 font-medium text-slate-900 whitespace-nowrap">
                         {row.customername || `Client #${row.cname}`}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-3 whitespace-nowrap">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200/50">
                           {row.worktype || activeTab}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                      <td className="py-3 px-3.5 text-slate-600 max-w-xs truncate" title={row.description}>
                         {row.description || "—"}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
                         {row.rdate || "—"}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
                         {row.cdate || "—"}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-xs font-semibold text-slate-700">
+                      <td className="py-3 px-3 text-right font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
                         {row.scan_hr ?? 0}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-xs font-semibold text-slate-700">
+                      <td className="py-3 px-3 text-right font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
                         {row.model_hr ?? 0}
                       </td>
 
                       {/* Staff Assign: Scanner (Source: SampleController.php:74-88) */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.scan_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "scan_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.scan_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "scan_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-purple-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name || u.username}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="purple"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* Staff Assign: QC (Source: SampleController.php:91-105) */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.qc_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "qc_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.qc_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "qc_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-purple-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name || u.username}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="purple"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* Staff Assign: Model Design (Source: SampleController.php:109-123) */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.modeldesign_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "modeldesign_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.modeldesign_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "modeldesign_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-purple-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name || u.username}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="purple"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* Status Selector */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-3 whitespace-nowrap">
                         <select
                           value={row.status}
                           onChange={(e) =>
@@ -543,7 +464,7 @@ export default function SampleReworkPage() {
                           <option value="completed">completed</option>
                         </select>
                       </td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3 px-3 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => handleDeleteProject(row.id, row.projectid)}
@@ -786,8 +707,14 @@ export default function SampleReworkPage() {
                     >
                       <option value="0">Unassigned</option>
                       {activeStaff.map((u) => (
-                        <option key={u.id} value={String(u.id)}>
-                          {u.initials || u.name || u.username}
+                        <option
+                          key={u.id}
+                          value={String(u.id)}
+                          title={`${u.name} (${u.initials || u.name}) ${
+                            u.usertype ? `• ${u.usertype}` : ""
+                          }`}
+                        >
+                          {u.initials ? `${u.initials} • ${u.name}` : u.name}
                         </option>
                       ))}
                     </select>
@@ -806,8 +733,14 @@ export default function SampleReworkPage() {
                     >
                       <option value="0">Unassigned</option>
                       {activeStaff.map((u) => (
-                        <option key={u.id} value={String(u.id)}>
-                          {u.initials || u.name || u.username}
+                        <option
+                          key={u.id}
+                          value={String(u.id)}
+                          title={`${u.name} (${u.initials || u.name}) ${
+                            u.usertype ? `• ${u.usertype}` : ""
+                          }`}
+                        >
+                          {u.initials ? `${u.initials} • ${u.name}` : u.name}
                         </option>
                       ))}
                     </select>

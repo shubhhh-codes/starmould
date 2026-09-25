@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { invalidateCache } from "@/lib/cache";
 
 // GET /api/customers - fetch active customers/vendors from Supabase
 export async function GET(req: NextRequest) {
@@ -11,7 +12,10 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+    const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
+    const limit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "500");
     const usertype = searchParams.get("usertype");
+    const search = searchParams.get("search")?.trim();
     const checkInitial = searchParams.get("checkInitial");
     const checkUsername = searchParams.get("checkUsername");
     const excludeId = searchParams.get("excludeId");
@@ -56,23 +60,51 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ exists: (count ?? 0) > 0 });
     }
 
-    // 3. Main listing query (replicates CustomerModel::latest()->get() with SoftDeletes)
+    // 3. Main listing query with explicit columns and server-side filtering
     let query = supabaseAdmin
       .from("customers")
-      .select("*")
+      .select("id, customername, initials, mobile, mobile1, email, address, usertype, created_at, updated_at", { count: "exact" })
       .is("deleted_at", null)
       .order("id", { ascending: false });
 
-    if (usertype && usertype !== "All") {
+    if (usertype && usertype !== "All" && usertype !== "ALL") {
       query = query.eq("usertype", usertype);
     }
+    if (search) {
+      query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
+    }
 
-    const { data, error } = await query;
+    if (page && page > 0) {
+      const start = (page - 1) * limit;
+      query = query.range(start, start + limit - 1);
+    } else {
+      query = query.limit(limit);
+    }
+
+    const { data, count, error } = await query;
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ customers: data || [] });
+    const customers = data || [];
+    const totalCount = count ?? customers.length;
+    const totalPages = Math.ceil(totalCount / limit) || 1;
+    const currentPage = page || 1;
+
+    const response = NextResponse.json({
+      customers,
+      data: customers,
+      pagination: {
+        page: currentPage,
+        pageSize: limit,
+        total: totalCount,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
+      },
+    });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -91,13 +123,13 @@ export async function POST(req: NextRequest) {
     const { customername, mobile, mobile1, email, initials, address, usertype } = body;
 
     const cleanName = customername?.trim();
-    const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 3);
+    const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
 
     if (!cleanName) {
       return NextResponse.json({ error: "Customer name is required" }, { status: 400 });
     }
     if (!cleanInitials) {
-      return NextResponse.json({ error: "Initials are required (max 3 letters)" }, { status: 400 });
+      return NextResponse.json({ error: "Initials are required (max 5 letters)" }, { status: 400 });
     }
     if (!usertype) {
       return NextResponse.json({ error: "Usertype is required" }, { status: 400 });
@@ -151,6 +183,9 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("shared_customers");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ customer: data, message: "Data added successfully" }, { status: 201 });
   } catch (err: unknown) {
@@ -218,6 +253,9 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("shared_customers");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json({ customer: data, message: "Data updated successfully" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -257,6 +295,9 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("shared_customers");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true, message: "Customer deleted successfully." });
   } catch (err: unknown) {

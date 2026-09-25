@@ -50,7 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   // Determine if current user is authorized for current route before rendering
   const isAuthorized = React.useMemo(() => {
-    if (!currentUser) return false;
+    if (!currentUser) return true; // Don't falsely block during initialization
     const roleId = currentUser.role_id ?? 4;
     for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
       if (pathname === route || (route !== "/" && pathname.startsWith(route))) {
@@ -90,11 +90,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           currentUser={currentUser}
         />
 
-        {/* Dynamic Page Content (Gated before render) */}
-        <main className="flex-1 p-3 sm:p-4 md:p-6 max-w-[1600px] w-full mx-auto">
-          {!isSessionLoaded ? (
-            <FullPageTableSkeleton />
-          ) : !isAuthorized ? (
+        {/* Dynamic Page Content (Seamless render) */}
+        <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-full">
+          {isSessionLoaded && currentUser && !isAuthorized ? (
             <div className="flex flex-col items-center justify-center py-24 text-center space-y-3 animate-in fade-in duration-200">
               <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl border border-rose-200">
                 <ShieldAlert className="w-8 h-8" />

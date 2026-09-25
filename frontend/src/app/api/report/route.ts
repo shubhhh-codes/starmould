@@ -42,12 +42,18 @@ export async function GET(req: NextRequest) {
     const year = searchParams.get("year") || "2023";
 
     // 1. Fetch downtime worklogs with high-performance cached lookup
-    const downtimeRecords = await getCached(`downtime_summary_report_${year}`, 60, async () => {
-      const { data: worklogs, error: wErr } = await supabaseAdmin
+    const { downtimeRecords, totalWorklogs } = await getCached(`downtime_summary_report_${year}`, 60, async () => {
+      let query = supabaseAdmin
         .from("worklog")
         .select("id, projectid, work_hr, rdate, customerid")
         .in("projectid", Object.keys(DOWNTIME_PROJECTS))
         .order("rdate", { ascending: true });
+
+      if (year && /^\d{4}$/.test(year)) {
+        query = query.gte("rdate", `${year}-01-01`).lte("rdate", `${year}-12-31`);
+      }
+
+      const { data: worklogs, error: wErr } = await query;
 
       if (wErr) throw new Error(wErr.message);
 
@@ -92,7 +98,7 @@ export async function GET(req: NextRequest) {
         monthsMap[monthKey].totalHours += hours;
       }
 
-      return Object.values(monthsMap).map((m) => ({
+      const records = Object.values(monthsMap).map((m) => ({
         ...m,
         vmc: Math.round(m.vmc * 100) / 100,
         electric: Math.round(m.electric * 100) / 100,
@@ -103,6 +109,11 @@ export async function GET(req: NextRequest) {
         noanywork: Math.round(m.noanywork * 100) / 100,
         totalHours: Math.round(m.totalHours * 100) / 100,
       }));
+
+      return {
+        downtimeRecords: records,
+        totalWorklogs: worklogs?.length || 0,
+      };
     });
 
     // 2. Fetch scan table task counts by worktype and subplate counts with cache
@@ -143,6 +154,7 @@ export async function GET(req: NextRequest) {
 
     const response = NextResponse.json({
       downtimeRecords,
+      totalWorklogs,
       workflowCounts,
       totalSubplates,
     });

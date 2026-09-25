@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { StaffSelect } from "@/components/ui/staff-select";
 
 // The 23 authentic materials extracted from resources/views/scanning/index.blade.php
 const REAL_MATERIALS = [
@@ -87,19 +88,21 @@ const formatTimestamp = (ts: string | null | undefined): string => {
   }
 };
 
-export default function SubplatePage() {
-  const [subplates, setSubplates] = useState<Subplate[]>([]);
-  const [scans, setScans] = useState<ScanProject[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [kpis, setKpis] = useState({
-    totalCount: 0,
-    inHouseCount: 0,
-    vendorCount: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+import { useSubplatesQuery, useCreateSubplateMutation, useUpdateSubplateMutation, useDeleteSubplateMutation } from "@/lib/query/hooks";
 
+export default function SubplatePage() {
+  const { data, isLoading, error: fetchQueryError } = useSubplatesQuery();
+  const createSubplateMutation = useCreateSubplateMutation();
+  const updateSubplateMutation = useUpdateSubplateMutation();
+  const deleteSubplateMutation = useDeleteSubplateMutation();
+
+  const subplates = data?.subplates || [];
+  const scans = data?.scans || [];
+  const users = data?.users || [];
+  const kpis = data?.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 };
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [materialFilter, setMaterialFilter] = useState("ALL");
   const [locationFilter, setLocationFilter] = useState("ALL");
@@ -125,28 +128,6 @@ export default function SubplatePage() {
     sqty: "1",
     location: "SM",
   });
-
-  const fetchSubplates = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/subplate");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load subplates");
-      setSubplates(data.subplates || []);
-      setScans(data.scans || []);
-      setUsers(data.users || []);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to load subplates");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchSubplates();
-  }, []);
 
   // Toggle row expansion for detailed 9-stage stepper
   const toggleRow = (id: number) => {
@@ -180,42 +161,15 @@ export default function SubplatePage() {
     userId: number
   ) => {
     const newUserId = userId === 0 ? null : userId;
-    const now = newUserId ? new Date().toISOString() : null;
-    const stageDef = STAGE_DEFINITIONS.find((s) => s.key === field);
-    const atField = stageDef?.atKey;
-
-    // Optimistic UI update
-    setSubplates((prev) =>
-      prev.map((sp) => {
-        if (sp.id !== subplateId) return sp;
-        const user = activeStaff.find((u) => u.id === newUserId);
-        return {
-          ...sp,
-          [field]: newUserId,
-          ...(atField ? { [atField]: now } : {}),
-          ...(stageDef ? { [stageDef.nameKey]: user ? (user.name || user.initials) : "—" } : {}),
-        };
-      })
-    );
-
     try {
-      const res = await fetch("/api/subplate", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: subplateId,
-          updates: {
-            [field]: newUserId,
-          },
-        }),
+      await updateSubplateMutation.mutateAsync({
+        id: subplateId,
+        updates: {
+          [field]: newUserId,
+        },
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update stage assignment");
-      }
     } catch (err: any) {
       alert("Stage Update Error: " + err.message);
-      fetchSubplates();
     }
   };
 
@@ -266,14 +220,7 @@ export default function SubplatePage() {
       return;
     }
     try {
-      const res = await fetch(`/api/subplate?id=${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete subplate");
-      }
-      setSubplates((prev) => prev.filter((sp) => sp.id !== id));
+      await deleteSubplateMutation.mutateAsync(id);
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -296,15 +243,7 @@ export default function SubplatePage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/subplate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modalForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create subplate");
-
-      await fetchSubplates();
+      await createSubplateMutation.mutateAsync(modalForm);
       setIsModalOpen(false);
       setModalForm({
         platename: "",
@@ -363,7 +302,7 @@ export default function SubplatePage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -423,7 +362,7 @@ export default function SubplatePage() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  In-House (At Workshop 'SM')
+                  In-House (At Workshop &apos;SM&apos;)
                 </p>
                 <p className="text-2xl font-black text-emerald-600">
                   {inHouseCount.toLocaleString()}
@@ -500,6 +439,20 @@ export default function SubplatePage() {
               <option value="VENDOR">At Vendor Only</option>
             </select>
 
+            {/* Project Selector */}
+            <select
+              value={projectFilter}
+              onChange={(e) => setProjectFilter(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium"
+            >
+              <option value="ALL">All Projects ({scans.length})</option>
+              {scans.map((s) => (
+                <option key={s.id} value={String(s.id)}>
+                  {s.projectid ? `${s.projectid} - ${s.description || "Mould"}` : `Project #${s.id}`}
+                </option>
+              ))}
+            </select>
+
             {/* 9-Stage Production Filter */}
             <select
               value={stageFilter}
@@ -525,8 +478,8 @@ export default function SubplatePage() {
         {/* Subplates Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full min-w-[1100px] text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full min-w-[1280px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="py-3.5 px-3 w-10 text-center"></th>
@@ -699,8 +652,14 @@ export default function SubplatePage() {
                                       >
                                         <option value={0}>{stage.short}: —</option>
                                         {activeStaff.map((u) => (
-                                          <option key={u.id} value={u.id}>
-                                            {stage.short}: {u.initials || u.name}
+                                          <option
+                                            key={u.id}
+                                            value={u.id}
+                                            title={`${u.name} (${u.initials || u.name}) ${
+                                              u.usertype ? `• ${u.usertype}` : ""
+                                            }`}
+                                          >
+                                            {stage.short}: {u.initials ? `${u.initials} • ${u.name}` : u.name}
                                           </option>
                                         ))}
                                       </select>
@@ -745,7 +704,7 @@ export default function SubplatePage() {
                                     </div>
                                     <div>
                                       <h4 className="text-xs font-bold text-slate-900">
-                                        9-Stage Production Tracking for "{row.platename}"
+                                        9-Stage Production Tracking for &quot;{row.platename}&quot;
                                       </h4>
                                       <p className="text-[11px] text-slate-500">
                                         Assign staff to each stage. Timestamp is automatically recorded on assignment.
@@ -970,24 +929,19 @@ export default function SubplatePage() {
                                   </div>
                                 )}
                               </div>
-                              <select
-                                value={val || 0}
-                                onChange={(e) =>
+                              <StaffSelect
+                                value={val}
+                                onChange={(userId) =>
                                   handleStageStaffChange(
                                     row.id,
                                     stage.key,
-                                    Number(e.target.value)
+                                    userId
                                   )
                                 }
-                                className="px-2 py-1 text-xs rounded border border-slate-200 bg-slate-50 font-medium"
-                              >
-                                <option value={0}>Unassigned</option>
-                                {activeStaff.map((u) => (
-                                  <option key={u.id} value={u.id}>
-                                    {u.initials || u.name}
-                                  </option>
-                                ))}
-                              </select>
+                                staff={activeStaff}
+                                color="cyan"
+                                placeholder="Unassigned"
+                              />
                             </div>
                           );
                         })}

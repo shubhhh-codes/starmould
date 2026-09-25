@@ -30,12 +30,18 @@ export async function GET(req: NextRequest) {
 
   const counts = await getCached("api_counts_all", 15, async () => {
     const resCounts: Record<string, number | string> = {};
+    const softDeletableTables = new Set(["customers", "users", "subplate"]);
+
     await Promise.all(
       tables.map(async (table) => {
         try {
-          const { count, error } = await supabaseAdmin
-            .from(table)
-            .select("*", { count: "exact", head: true });
+          let query = supabaseAdmin.from(table).select("*", { count: "exact", head: true });
+          if (softDeletableTables.has(table)) {
+            query = query.is("deleted_at", null);
+          } else if (table === "scan") {
+            query = query.neq("status", "completed");
+          }
+          const { count, error } = await query;
           resCounts[table] = error ? error.message : count ?? 0;
         } catch (err: unknown) {
           resCounts[table] = err instanceof Error ? err.message : "error";

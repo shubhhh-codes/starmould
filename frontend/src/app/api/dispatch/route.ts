@@ -130,10 +130,10 @@ export async function POST(req: NextRequest) {
           challanno,
           chdate: chdate || new Date().toISOString().slice(0, 10),
           customerid: Number(customerid),
-          vendortid: vendortid ? Number(vendortid) : null,
+          vendortid: vendortid ? Number(vendortid) : Number(customerid),
           projectid: projectid || "",
-          invoiceno: invoiceno || null,
-          vehicleno: vehicleno || null,
+          invoiceno: invoiceno || "N/A",
+          vehicleno: vehicleno || "N/A",
           deliverytype: deliverytype || "Door Delivery",
           freightmode: freightmode || "To Pay",
           freightcharge: freightcharge || "N/A",
@@ -175,6 +175,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
+    const { invalidateCache } = await import("@/lib/cache");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json({
       dispatch: {
         ...newDispatch,
@@ -210,6 +213,9 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    const { invalidateCache } = await import("@/lib/cache");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

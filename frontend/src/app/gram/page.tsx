@@ -200,7 +200,7 @@ export default function GramMasterPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Toast Notification */}
         {notification && (
           <div

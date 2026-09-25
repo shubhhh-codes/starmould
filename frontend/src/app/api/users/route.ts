@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
 import { authenticateRequest } from "@/lib/auth";
+import { invalidateCache } from "@/lib/cache";
 
 // Helper to determine role_id based on usertype (matches UserController.php:81-95)
 function getRoleIdFromUsertype(usertype: string): number {
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
 
     const cleanName = name?.trim();
     const cleanUsername = username?.trim();
-    const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 3);
+    const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
 
     if (!cleanName || !cleanUsername || !cleanInitials || !usertype) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -156,7 +157,6 @@ export async function POST(req: NextRequest) {
           usersubtype: finalSubtype,
           role_id: finalRoleId,
           status: status !== undefined ? Number(status) : 1,
-          password: passwordHash,
           password_hash: passwordHash,
           created_at: now,
           updated_at: now,
@@ -168,6 +168,9 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("shared_users");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ user: data, message: "User added successfully." }, { status: 201 });
   } catch (err: unknown) {
@@ -193,7 +196,7 @@ export async function PUT(req: NextRequest) {
 
     const cleanName = name?.trim();
     const cleanUsername = username?.trim();
-    const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 3);
+    const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
 
     // Duplicate check for username
     if (cleanUsername) {
@@ -234,12 +237,15 @@ export async function PUT(req: NextRequest) {
       .from("users")
       .update(updatePayload)
       .eq("id", id)
-      .select()
+      .select("id, name, username, initials, email, usertype, usersubtype, role_id, status, created_at, updated_at")
       .single();
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("shared_users");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ user: data, message: "User updated successfully." });
   } catch (err: unknown) {
@@ -267,6 +273,30 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing user id" }, { status: 400 });
     }
 
+    const numId = Number(id);
+    if (numId === auth.user.id) {
+      return NextResponse.json({ error: "Cannot delete your own active account" }, { status: 400 });
+    }
+
+    // Check if user is the last admin
+    const { data: targetUser } = await supabaseAdmin
+      .from("users")
+      .select("role_id")
+      .eq("id", numId)
+      .single();
+
+    if (targetUser && Number(targetUser.role_id) === 0) {
+      const { count: adminCount } = await supabaseAdmin
+        .from("users")
+        .select("id", { count: "exact", head: true })
+        .eq("role_id", 0)
+        .is("deleted_at", null);
+
+      if ((adminCount || 0) <= 1) {
+        return NextResponse.json({ error: "Cannot delete the only active Administrator" }, { status: 400 });
+      }
+    }
+
     const { error } = await supabaseAdmin
       .from("users")
       .update({
@@ -277,6 +307,9 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("shared_users");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true, message: "User deleted successfully." });
   } catch (err: unknown) {

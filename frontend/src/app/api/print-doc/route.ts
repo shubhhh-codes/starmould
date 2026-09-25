@@ -17,6 +17,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Document type and ID are required" }, { status: 400 });
     }
 
+    const userRoleId = auth.user.role_id;
+
+    // Strict role validation per document type (matches legacy ERP topbar permissions)
+    if (type === "purchase" && ![0, 1].includes(userRoleId)) {
+      return NextResponse.json({ error: "Access denied: Purchase document is restricted to Admin and Manager" }, { status: 403 });
+    }
+    if (["challan", "inward", "dispatch"].includes(type) && ![0, 1, 2].includes(userRoleId)) {
+      return NextResponse.json({ error: "Access denied: Logistics documents are restricted to Admin, Manager, and Supervisor" }, { status: 403 });
+    }
+
     // 1. Challan Document
     if (type === "challan") {
       const { data: challan, error: cErr } = await supabaseAdmin
@@ -223,10 +233,11 @@ export async function GET(req: NextRequest) {
         .limit(1)
         .maybeSingle();
 
+      const cleanSubplateId = String(worklog.subplateid || "").replace(/[(),.%]/g, "");
       const { data: subplates } = await supabaseAdmin
         .from("subplate")
         .select("id, platename, subprojectid, material, width, height, length, unit")
-        .or(`id.eq.${Number(worklog.subplateid) || 0},subprojectid.eq.${worklog.subplateid}`)
+        .or(`id.eq.${Number(cleanSubplateId) || 0},subprojectid.eq.${cleanSubplateId || "none"}`)
         .limit(1);
 
       const subplate = subplates?.[0];
@@ -270,6 +281,81 @@ export async function GET(req: NextRequest) {
             driltap_hr: worklog.driltap_hr || 0,
             qc_hr: worklog.qc_hr || 0,
             qty: 1,
+          },
+        ],
+      });
+    }
+
+    // 6. Sample Project Order Document
+    if (type === "sample") {
+      const { data: sample, error: sErr } = await supabaseAdmin
+        .from("scan")
+        .select("*")
+        .eq("id", Number(id))
+        .single();
+
+      if (sErr || !sample) return NextResponse.json({ error: "Sample project not found" }, { status: 404 });
+
+      const { data: customer } = await supabaseAdmin
+        .from("customers")
+        .select("id, customername, mobile, mobile1, address, email")
+        .eq("id", Number(sample.cname))
+        .single();
+
+      return NextResponse.json({
+        docType: "SAMPLE DEVELOPMENT JOB ORDER",
+        docNumber: sample.projectid,
+        docDate: sample.rdate || sample.cdate,
+        party: customer,
+        projectCode: sample.projectid,
+        workType: sample.worktype || "Sample",
+        items: [
+          {
+            srNo: 1,
+            particulars: sample.description || "Sample Mould / Prototype Development",
+            workDescription: sample.note || sample.subnote || "—",
+            qty: 1,
+          },
+        ],
+      });
+    }
+
+    // 7. Subplate Production Traveler Document
+    if (type === "subplate") {
+      const { data: subplate, error: spErr } = await supabaseAdmin
+        .from("subplate")
+        .select("*")
+        .eq("id", Number(id))
+        .single();
+
+      if (spErr || !subplate) return NextResponse.json({ error: "Subplate record not found" }, { status: 404 });
+
+      const { data: scan } = await supabaseAdmin
+        .from("scan")
+        .select("id, projectid, description, cname")
+        .eq("id", Number(subplate.projectid))
+        .maybeSingle();
+
+      const { data: customer } = await supabaseAdmin
+        .from("customers")
+        .select("id, customername, mobile, address")
+        .eq("id", Number(scan?.cname || 0))
+        .maybeSingle();
+
+      return NextResponse.json({
+        docType: "SUBPLATE MANUFACTURING ROUTER",
+        docNumber: subplate.subprojectid || `SP-${subplate.id}`,
+        docDate: subplate.created_at ? String(subplate.created_at).slice(0, 10) : "",
+        party: customer || { customername: "In-House" },
+        projectCode: scan?.projectid || subplate.projectid,
+        items: [
+          {
+            srNo: 1,
+            particulars: `${subplate.platename || "Subplate"} (${subplate.material || "Steel"})`,
+            dimensions: `${subplate.width || 0}x${subplate.height || 0}x${subplate.length || 0} ${subplate.unit || "mm"}`,
+            material: subplate.material || "Tool Steel",
+            location: subplate.location || "SM",
+            qty: subplate.sqty || 1,
           },
         ],
       });

@@ -30,6 +30,23 @@ body {
   overflow-x: hidden;
 }
 
+/* Universal High-Contrast Text Selection Across All Devices & Elements */
+::selection,
+*::selection {
+  background-color: #1d4ed8 !important; /* Rich contrast blue */
+  color: #ffffff !important;           /* Crisp pure white text */
+  -webkit-text-fill-color: #ffffff !important; /* Overrides gradient clips & text-transparent */
+  text-shadow: none !important;
+}
+
+::-moz-selection,
+*::-moz-selection {
+  background-color: #1d4ed8 !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  text-shadow: none !important;
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

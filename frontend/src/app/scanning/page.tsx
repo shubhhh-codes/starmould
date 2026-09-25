@@ -26,22 +26,16 @@ import {
 } from "lucide-react";
 import type { ScanProject, Customer, User, Subplate } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { StaffSelect } from "@/components/ui/staff-select";
+import {
+  useProjectsQuery,
+  useCreateProjectMutation,
+  useUpdateProjectMutation,
+  useDeleteProjectMutation,
+} from "@/lib/query/hooks";
 
 export default function ScanningPage() {
-  const [scans, setScans] = useState<ScanProject[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [kpis, setKpis] = useState({
-    totalScans: 0,
-    pendingScans: 0,
-    missingScanner: 0,
-    missingQC: 0,
-    missingDesigner: 0,
-    totalRevenue: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Role Toggle: Worker vs Admin (Merged ScanningController + ScanAdminController)
   const [viewMode, setViewMode] = useState<"admin" | "worker">("admin");
@@ -49,6 +43,33 @@ export default function ScanningPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
+
+  // TanStack Query with Tier C Operational Caching & Prefetching
+  const projectsQuery = useProjectsQuery({
+    status: statusFilter,
+    customer: customerFilter,
+    search: searchQuery,
+  });
+
+  const createProjectMutation = useCreateProjectMutation();
+  const updateProjectMutation = useUpdateProjectMutation();
+  const deleteProjectMutation = useDeleteProjectMutation();
+
+  const scans = projectsQuery.data?.scans || [];
+  const customers = (projectsQuery.data?.customers || []) as Customer[];
+  const users = (projectsQuery.data?.users || []) as User[];
+  const kpis = projectsQuery.data?.kpis || {
+    totalScans: 0,
+    pendingScans: 0,
+    missingScanner: 0,
+    missingQC: 0,
+    missingDesigner: 0,
+    totalRevenue: 0,
+  };
+
+  const isLoading = projectsQuery.isLoading;
+  const isFetching = projectsQuery.isFetching;
+  const fetchError = projectsQuery.error ? (projectsQuery.error as Error).message : null;
 
   // Selected project for subplate drawer
   const [selectedProject, setSelectedProject] = useState<ScanProject | null>(null);
@@ -66,27 +87,9 @@ export default function ScanningPage() {
     amount: "0",
   });
 
-  const fetchScans = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/scanning");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load scan projects");
-      setScans(data.scans || []);
-      setCustomers(data.customers || []);
-      setUsers(data.users || []);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to fetch scan projects");
-    } finally {
-      setIsLoading(false);
-    }
+  const fetchScans = () => {
+    projectsQuery.refetch();
   };
-
-  React.useEffect(() => {
-    fetchScans();
-  }, []);
 
   // Filtered scans
   const filteredScans = useMemo(() => {
@@ -148,18 +151,7 @@ export default function ScanningPage() {
     if (!current) return;
     const newPayment = Number(current.payment) === 1 ? 0 : 1;
     try {
-      const res = await fetch("/api/scanning", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field: "payment", value: newPayment }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update payment");
-      }
-      setScans((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, payment: newPayment } : s))
-      );
+      await updateProjectMutation.mutateAsync({ id, field: "payment", value: newPayment });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -171,18 +163,7 @@ export default function ScanningPage() {
     newStatus: "pending" | "registered" | "completed"
   ) => {
     try {
-      const res = await fetch("/api/scanning", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field: "status", value: newStatus }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update status");
-      }
-      setScans((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, status: newStatus } : s))
-      );
+      await updateProjectMutation.mutateAsync({ id, field: "status", value: newStatus });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -195,18 +176,7 @@ export default function ScanningPage() {
     userId: number
   ) => {
     try {
-      const res = await fetch("/api/scanning", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field, value: userId }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to assign staff");
-      }
-      setScans((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, [field]: userId } : s))
-      );
+      await updateProjectMutation.mutateAsync({ id, field, value: userId });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -215,18 +185,7 @@ export default function ScanningPage() {
   // Handle Inline Amount Update (Live API PATCH)
   const updateAmount = async (id: number, newAmount: number) => {
     try {
-      const res = await fetch("/api/scanning", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field: "amount", value: newAmount }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update amount");
-      }
-      setScans((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, amount: newAmount } : s))
-      );
+      await updateProjectMutation.mutateAsync({ id, field: "amount", value: newAmount });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -239,15 +198,7 @@ export default function ScanningPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/scanning", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modalForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create project");
-
-      await fetchScans();
+      await createProjectMutation.mutateAsync(modalForm);
       setIsModalOpen(false);
       setModalForm({
         rdate: new Date().toISOString().split("T")[0],
@@ -274,7 +225,7 @@ export default function ScanningPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Header with Merged Role-Based View Switcher */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -470,26 +421,26 @@ export default function ScanningPage() {
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full min-w-[1050px] text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full min-w-[1260px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Project ID</th>
-                  <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4">Description</th>
-                  <th className="py-3.5 px-4">Rec. Date</th>
-                  <th className="py-3.5 px-4">Target Date</th>
-                  <th className="py-3.5 px-4">Scanner</th>
-                  <th className="py-3.5 px-4">Designer</th>
-                  <th className="py-3.5 px-4">QC Officer</th>
-                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Project ID</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Customer</th>
+                  <th className="py-3.5 px-3.5">Description</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Rec. Date</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Target Date</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Scanner</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Designer</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">QC Officer</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Status</th>
                   {viewMode === "admin" && (
                     <>
-                      <th className="py-3.5 px-4 text-center">Payment</th>
-                      <th className="py-3.5 px-4 text-right">Amount</th>
+                      <th className="py-3.5 px-3 text-center whitespace-nowrap">Payment</th>
+                      <th className="py-3.5 px-3 text-right whitespace-nowrap">Amount</th>
                     </>
                   )}
-                  <th className="py-3.5 px-4 text-center">Subplates</th>
+                  <th className="py-3.5 px-3 text-center whitespace-nowrap">{viewMode === "admin" ? "Subplates / Actions" : "Subplates"}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -510,90 +461,63 @@ export default function ScanningPage() {
                       key={row.id}
                       className="hover:bg-slate-50/60 transition group"
                     >
-                      <td className="py-3 px-4 font-mono font-bold text-xs text-blue-600 whitespace-nowrap">
+                      <td className="py-3 px-3.5 font-mono font-bold text-xs text-blue-600 whitespace-nowrap">
                         {row.projectid || `#${row.id}`}
                       </td>
-                      <td className="py-3 px-4 font-medium text-slate-900">
+                      <td className="py-3 px-3.5 font-medium text-slate-900 whitespace-nowrap">
                         {row.customername || `Client #${row.cname}`}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                      <td className="py-3 px-3.5 text-slate-600 max-w-xs truncate" title={row.description}>
                         {row.description || "—"}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
                         {row.rdate || "—"}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
                         {row.cdate || "—"}
                       </td>
 
                       {/* Staff Assign: Scanner */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.scan_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "scan_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.scan_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "scan_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="blue"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* Staff Assign: Designer */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.modeldesign_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "modeldesign_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.modeldesign_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "modeldesign_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="blue"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* Staff Assign: QC Officer */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.qc_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "qc_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.qc_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "qc_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-blue-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="blue"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* Status Selector */}
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-3 whitespace-nowrap">
                         <select
                           value={row.status}
                           onChange={(e) =>
@@ -619,20 +543,20 @@ export default function ScanningPage() {
                       {/* Admin View Specific Columns */}
                       {viewMode === "admin" && (
                         <>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => togglePayment(row.id)}
                               className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition ${
                                 Number(row.payment) === 1
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                  : "bg-rose-50 text-rose-700 border-rose-300"
+                                   ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                   : "bg-rose-50 text-rose-700 border-rose-300"
                               }`}
                             >
                               {Number(row.payment) === 1 ? "Paid" : "Unpaid"}
                             </button>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
                             <div className="inline-flex items-center gap-1 justify-end">
                               <span className="text-xs text-slate-400 font-bold">₹</span>
                               <input
@@ -667,15 +591,9 @@ export default function ScanningPage() {
                               onClick={async () => {
                                 if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
                                 try {
-                                  const res = await fetch(`/api/scanning?id=${row.id}`, { method: "DELETE" });
-                                  if (res.ok) {
-                                    setScans((prev) => prev.filter((s) => s.id !== row.id));
-                                  } else {
-                                    const err = await res.json();
-                                    alert(err.error || "Failed to delete mould");
-                                  }
-                                } catch (e) {
-                                  alert("Error deleting mould");
+                                  await deleteProjectMutation.mutateAsync(row.id);
+                                } catch (e: any) {
+                                  alert(e?.message || "Error deleting mould");
                                 }
                               }}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
@@ -786,15 +704,9 @@ export default function ScanningPage() {
                         onClick={async () => {
                           if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
                           try {
-                            const res = await fetch(`/api/scanning?id=${row.id}`, { method: "DELETE" });
-                            if (res.ok) {
-                              setScans((prev) => prev.filter((s) => s.id !== row.id));
-                            } else {
-                              const err = await res.json();
-                              alert(err.error || "Failed to delete mould");
-                            }
-                          } catch (e) {
-                            alert("Error deleting mould");
+                            await deleteProjectMutation.mutateAsync(row.id);
+                          } catch (e: any) {
+                            alert(e?.message || "Error deleting mould");
                           }
                         }}
                         className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
@@ -1020,8 +932,14 @@ export default function ScanningPage() {
                     >
                       <option value="0">Unassigned</option>
                       {activeStaff.map((u) => (
-                        <option key={u.id} value={String(u.id)}>
-                          {u.initials}
+                        <option
+                          key={u.id}
+                          value={String(u.id)}
+                          title={`${u.name} (${u.initials || u.name}) ${
+                            u.usertype ? `• ${u.usertype}` : ""
+                          }`}
+                        >
+                          {u.initials ? `${u.initials} • ${u.name}` : u.name}
                         </option>
                       ))}
                     </select>

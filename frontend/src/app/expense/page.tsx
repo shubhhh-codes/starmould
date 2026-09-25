@@ -27,49 +27,37 @@ import {
   TableSkeletonRows,
   CardGridSkeleton,
 } from "@/components/ui/skeleton";
+import { useExpensesQuery, useCreateExpenseMutation, useUpdateExpenseMutation, useDeleteExpenseMutation } from "@/lib/query/hooks";
 
 export default function ExpensePage() {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [kpis, setKpis] = useState({
-    totalCredit: 0,
-    totalDebit: 0,
-    totalOutstanding: 0,
-    currentBalance: 0,
-    totalCount: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
-
   const [searchQuery, setSearchQuery] = useState("");
   const [accountFilter, setAccountFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const fetchExpenses = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/expense");
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load expenses");
-      }
-      setExpenses(data.expenses || []);
-      setCustomers(data.accounts || []);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to load expenses");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const { data, isLoading, error: fetchQueryError } = useExpensesQuery({
+    customerid: accountFilter,
+    payment_type: typeFilter,
+    startDate,
+    endDate,
+  });
 
-  React.useEffect(() => {
-    fetchExpenses();
-  }, []);
+  const createExpenseMutation = useCreateExpenseMutation();
+  const updateExpenseMutation = useUpdateExpenseMutation();
+  const deleteExpenseMutation = useDeleteExpenseMutation();
+
+  const expenses = data?.expenses || [];
+  const customers = data?.accounts || [];
+  const kpis = data?.kpis || {
+    totalCredit: 0,
+    totalDebit: 0,
+    totalOutstanding: 0,
+    currentBalance: 0,
+    totalCount: 0,
+  };
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal State - Add
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -167,15 +155,7 @@ export default function ExpensePage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/expense", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modalForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create expense");
-
-      await fetchExpenses();
+      await createExpenseMutation.mutateAsync(modalForm);
       setIsModalOpen(false);
       setModalForm({
         rdate: new Date().toISOString().split("T")[0],
@@ -214,15 +194,7 @@ export default function ExpensePage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/expense", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update expense");
-
-      await fetchExpenses();
+      await updateExpenseMutation.mutateAsync(editForm);
       setIsEditModalOpen(false);
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -238,10 +210,7 @@ export default function ExpensePage() {
     }
     if (window.confirm("Do you really want to delete this latest expense entry?")) {
       try {
-        const res = await fetch(`/api/expense?id=${id}`, { method: "DELETE" });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to delete expense");
-        await fetchExpenses();
+        await deleteExpenseMutation.mutateAsync(id);
       } catch (err: any) {
         alert("Error: " + err.message);
       }
@@ -273,7 +242,7 @@ export default function ExpensePage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center gap-4">

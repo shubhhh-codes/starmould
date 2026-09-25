@@ -31,41 +31,22 @@ import type {
   ScanProject,
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { useDispatchQuery, useCreateDispatchMutation, useDeleteDispatchMutation } from "@/lib/query/hooks";
 
 export default function DispatchPage() {
-  const [dispatches, setDispatches] = useState<Dispatch[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [subplates, setSubplates] = useState<Subplate[]>([]);
-  const [scans, setScans] = useState<ScanProject[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const { data, isLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
+  const createDispatchMutation = useCreateDispatchMutation();
+  const deleteDispatchMutation = useDeleteDispatchMutation();
+
+  const dispatches = data?.dispatches || [];
+  const customers = data?.customers || [];
+  const subplates = data?.subplates || [];
+  const scans = data?.scans || [];
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
   const [searchQuery, setSearchQuery] = useState("");
   const [customerFilter, setCustomerFilter] = useState("ALL");
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
-
-  // Live Supabase fetch for dispatches, customers, subplates, scans
-  const fetchDispatchData = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/dispatch?limit=200");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load dispatch data");
-      setDispatches(data.dispatches || []);
-      setCustomers(data.customers || []);
-      setSubplates(data.subplates || []);
-      setScans(data.scans || []);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to load live dispatch data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchDispatchData();
-  }, []);
 
   // Add Dispatch Challan Modal State (Source: dispatch/index.blade.php lines 96-280)
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -265,30 +246,19 @@ export default function DispatchPage() {
     }
 
     try {
-      setIsLoading(true);
-      const res = await fetch("/api/dispatch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chdate: modalForm.chdate,
-          customerid: Number(modalForm.customerid),
-          vendortid: Number(modalForm.vendortid),
-          projectid: modalForm.projectid,
-          invoiceno: modalForm.invoiceno,
-          vehicleno: modalForm.vehicleno,
-          deliverytype: modalForm.deliverytype,
-          freightmode: modalForm.freightmode,
-          freightcharge: modalForm.freightcharge,
-          noofcases: modalForm.noofcases,
-          items: modalForm.items,
-        }),
+      await createDispatchMutation.mutateAsync({
+        chdate: modalForm.chdate,
+        customerid: Number(modalForm.customerid),
+        vendortid: Number(modalForm.vendortid),
+        projectid: modalForm.projectid,
+        invoiceno: modalForm.invoiceno,
+        vehicleno: modalForm.vehicleno,
+        deliverytype: modalForm.deliverytype,
+        freightmode: modalForm.freightmode,
+        freightcharge: modalForm.freightcharge,
+        noofcases: modalForm.noofcases,
+        items: modalForm.items,
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setFormError(data.error || "Failed to create dispatch challan");
-        return;
-      }
 
       setIsModalOpen(false);
       setModalForm({
@@ -304,24 +274,16 @@ export default function DispatchPage() {
         noofcases: "1",
         items: [],
       });
-      await fetchDispatchData();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error creating dispatch";
       setFormError(message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
   const handleDeleteDispatch = async (id: number) => {
     if (!confirm("Are you sure you want to delete this dispatch challan?")) return;
     try {
-      const res = await fetch(`/api/dispatch?id=${id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setDispatches((prev) => prev.filter((d) => d.id !== id));
-      }
+      await deleteDispatchMutation.mutateAsync(id);
     } catch (err) {
       console.error("Failed to delete dispatch:", err);
     }
@@ -329,7 +291,7 @@ export default function DispatchPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {fetchError && (
           <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -337,7 +299,7 @@ export default function DispatchPage() {
               <span>{fetchError}</span>
             </div>
             <button
-              onClick={fetchDispatchData}
+              onClick={() => refetch()}
               className="px-3 py-1 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition"
             >
               Retry
@@ -461,7 +423,7 @@ export default function DispatchPage() {
         {/* Main Dispatches Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
             <table className="w-full min-w-[1200px] text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                 <tr>

@@ -27,10 +27,44 @@ import {
   Plus,
   Trash2,
   RefreshCw,
+  X,
+  Layers,
+  Loader2,
+  Building2,
+  Calendar,
+  Layers3,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import type { ScanProject } from "@/lib/supabase/types";
+import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
+
+const REAL_MATERIALS = [
+  "MS-Bright",
+  "C45",
+  "EN8",
+  "D-2",
+  "Aluminium",
+  "Brass",
+  "Copper",
+  "SS",
+  "SS-202",
+  "SS-304",
+  "MS-Black",
+  "Acralic",
+  "Gun Metal",
+  "Derlin",
+  "Nylon",
+  "O-ring",
+  "Rubber",
+  "Silver Bar",
+  "Spring",
+  "U-seal",
+  "Wood",
+  "Wooden Box",
+  "WPS",
+];
+
+const SHAPES = ["Plate", "Round Bar"];
 
 interface MouldProjectsTableProps {
   initialData?: ScanProject[];
@@ -53,6 +87,129 @@ export function MouldProjectsTable({
   const [selectedCustomer, setSelectedCustomer] = useState<string>("ALL");
   const [selectedWorktype, setSelectedWorktype] = useState<string>("ALL");
   const [rowSelection, setRowSelection] = useState({});
+
+  // View Subplates Modal State
+  const [viewProject, setViewProject] = useState<ScanProject | null>(null);
+  const [viewSubplates, setViewSubplates] = useState<Subplate[]>([]);
+  const [isLoadingSubplates, setIsLoadingSubplates] = useState(false);
+
+  // Add Subplate Modal State
+  const [addPlateProject, setAddPlateProject] = useState<ScanProject | null>(null);
+  const [isSubmittingPlate, setIsSubmittingPlate] = useState(false);
+  const [plateForm, setPlateForm] = useState({
+    platename: "",
+    subprojectid: "",
+    material: "MS-Bright",
+    shape: "Plate",
+    length: "",
+    width: "",
+    height: "",
+    weight: "",
+    unit: "mm",
+    sqty: "1",
+    location: "SM",
+  });
+
+  // Handlers for View & Add Plate Modals
+  const fetchSubplatesForProject = async (project: ScanProject) => {
+    setIsLoadingSubplates(true);
+    try {
+      // First try querying with numeric ID
+      const res = await fetch(`/api/subplate?projectid=${project.id}`);
+      const json = await res.json();
+      let plates = json.subplates || [];
+
+      // If no subplates found and projectid string exists, try projectid
+      if (plates.length === 0 && project.projectid) {
+        const altRes = await fetch(`/api/subplate?projectid=${encodeURIComponent(project.projectid)}`);
+        const altJson = await altRes.json();
+        if (altJson.subplates && altJson.subplates.length > 0) {
+          plates = altJson.subplates;
+        }
+      }
+      setViewSubplates(plates);
+    } catch (err) {
+      console.error("Failed to load subplates:", err);
+      setViewSubplates([]);
+    } finally {
+      setIsLoadingSubplates(false);
+    }
+  };
+
+  const handleOpenView = (project: ScanProject) => {
+    setViewProject(project);
+    fetchSubplatesForProject(project);
+  };
+
+  const handleOpenAddPlate = (project: ScanProject) => {
+    setAddPlateProject(project);
+    const count = (project.total_plates || 0) + 1;
+    setPlateForm({
+      platename: `Plate ${count}`,
+      subprojectid: project.projectid ? `${project.projectid}_${String(count).padStart(3, "0")}` : "",
+      material: "MS-Bright",
+      shape: "Plate",
+      length: "",
+      width: "",
+      height: "",
+      weight: "",
+      unit: "mm",
+      sqty: "1",
+      location: "SM",
+    });
+  };
+
+  const handleSubmitPlate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addPlateProject || !plateForm.platename) return;
+
+    try {
+      setIsSubmittingPlate(true);
+      const res = await fetch("/api/subplate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...plateForm,
+          projectid: addPlateProject.id,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to create subplate");
+      }
+
+      // If view modal is open for this same project, refresh its subplates
+      if (viewProject && viewProject.id === addPlateProject.id) {
+        await fetchSubplatesForProject(viewProject);
+      }
+
+      setAddPlateProject(null);
+      onRefresh?.();
+    } catch (err: any) {
+      alert("Error adding subplate: " + err.message);
+    } finally {
+      setIsSubmittingPlate(false);
+    }
+  };
+
+  const handleDeleteSubplate = async (subplateId: number) => {
+    if (!confirm("Delete this subplate?")) return;
+    try {
+      const res = await fetch(`/api/subplate?id=${subplateId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setViewSubplates((prev) => prev.filter((p) => p.id !== subplateId));
+        onRefresh?.();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to delete subplate");
+      }
+    } catch (err) {
+      alert("Error deleting subplate");
+    }
+  };
 
   // Sync when initialData changes
   React.useEffect(() => {
@@ -236,14 +393,16 @@ export function MouldProjectsTable({
         cell: ({ row }) => (
           <div className="flex items-center gap-1.5">
             <button
+              onClick={() => handleOpenView(row.original)}
               title="View Subplates"
-              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors"
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
             >
               <Eye className="h-3.5 w-3.5" />
             </button>
             <button
+              onClick={() => handleOpenAddPlate(row.original)}
               title="Add Subplate"
-              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors"
+              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors cursor-pointer"
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
@@ -255,6 +414,7 @@ export function MouldProjectsTable({
                   const res = await fetch(`/api/scanning?id=${item.id}`, { method: "DELETE" });
                   if (res.ok) {
                     setData((prev) => prev.filter((d) => d.id !== item.id));
+                    onRefresh?.();
                   } else {
                     const err = await res.json();
                     alert(err.error || "Failed to delete project");
@@ -560,15 +720,52 @@ export function MouldProjectsTable({
                   <span className="font-mono font-bold text-blue-600">
                     {m.projectid}
                   </span>
-                  <span
-                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      m.status === "completed"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-amber-100 text-amber-700"
-                    }`}
-                  >
-                    {m.status}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        m.status === "completed"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {m.status}
+                    </span>
+                    <button
+                      onClick={() => handleOpenView(m)}
+                      title="View Subplates"
+                      className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-blue-600 cursor-pointer"
+                    >
+                      <Eye className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => handleOpenAddPlate(m)}
+                      title="Add Subplate"
+                      className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Delete mould project "${m.projectid || `#${m.id}`}"?`)) return;
+                        try {
+                          const res = await fetch(`/api/scanning?id=${m.id}`, { method: "DELETE" });
+                          if (res.ok) {
+                            setData((prev) => prev.filter((d) => d.id !== m.id));
+                            onRefresh?.();
+                          } else {
+                            const err = await res.json();
+                            alert(err.error || "Failed to delete project");
+                          }
+                        } catch (err) {
+                          alert("Error deleting project");
+                        }
+                      }}
+                      title="Delete Mould"
+                      className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-rose-600 cursor-pointer"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
                 <div className="font-medium text-slate-800 line-clamp-2">
                   {m.description || "No description"}
@@ -660,6 +857,397 @@ export function MouldProjectsTable({
           </button>
         </div>
       </div>
+
+      {/* View Subplates Modal */}
+      {viewProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900 font-mono">
+                      {viewProject.projectid || `Project #${viewProject.id}`}
+                    </h3>
+                    <span
+                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                        viewProject.status === "completed"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {viewProject.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {viewProject.customername || viewProject.cname || "Unknown Customer"} • {viewProject.description || "No description"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleOpenAddPlate(viewProject)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Subplate</span>
+                </button>
+                <button
+                  onClick={() => setViewProject(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body: Subplates List */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {isLoadingSubplates ? (
+                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="text-xs">Loading subplates...</span>
+                </div>
+              ) : viewSubplates.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <p className="font-medium text-slate-600">No subplates registered yet</p>
+                  <p className="text-slate-400 mt-1">Click &quot;Add Subplate&quot; above to attach plates to this mould project.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-xs font-semibold text-slate-500 flex items-center justify-between">
+                    <span>{viewSubplates.length} Plates in Project</span>
+                  </div>
+                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                    {viewSubplates.map((sp) => (
+                      <div
+                        key={sp.id}
+                        className="p-3.5 bg-white hover:bg-slate-50/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800 text-sm">
+                              {sp.platename}
+                            </span>
+                            {sp.subprojectid && (
+                              <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                {sp.subprojectid}
+                              </span>
+                            )}
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                              {sp.material || "MS-Bright"}
+                            </span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                              {sp.location || "SM"}
+                            </span>
+                          </div>
+                          <div className="text-slate-500 flex flex-wrap items-center gap-3 font-mono text-[11px]">
+                            <span>
+                              {sp.length ?? "—"} × {sp.width ?? "—"} × {sp.height ?? "—"} {sp.unit || "mm"}
+                            </span>
+                            <span>•</span>
+                            <span>Qty: {sp.sqty || 1}</span>
+                            {sp.weight ? (
+                              <>
+                                <span>•</span>
+                                <span>{sp.weight} kg</span>
+                              </>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        {/* Stage Badges & Actions */}
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1">
+                            <span
+                              title="Design"
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                sp.design_by ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              DES
+                            </span>
+                            <span
+                              title="Material Order"
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                sp.order_by ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              ORD
+                            </span>
+                            <span
+                              title="Material Inward"
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                sp.received_workby ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              REC
+                            </span>
+                            <span
+                              title="VMC Machining"
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                sp.vmc_workby ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              VMC
+                            </span>
+                            <span
+                              title="Drill & Tap"
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                sp.drilltap_workby ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              D&T
+                            </span>
+                            <span
+                              title="Final QC"
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                sp.final_qcby ? "bg-cyan-100 text-cyan-700" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              FQC
+                            </span>
+                            <span
+                              title="Packing"
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                sp.packing_workby ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              PAK
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteSubplate(sp.id)}
+                            title="Delete Subplate"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewProject(null)}
+                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Subplate Modal */}
+      {addPlateProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <Plus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Add Subplate Plate
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    Project: {addPlateProject.projectid || `#${addPlateProject.id}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAddPlateProject(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitPlate} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Plate Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Top Plate, Core Plate"
+                    value={plateForm.platename}
+                    onChange={(e) => setPlateForm({ ...plateForm, platename: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Subproject Code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 1461_FBLP_025_001"
+                    value={plateForm.subprojectid}
+                    onChange={(e) => setPlateForm({ ...plateForm, subprojectid: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Material
+                  </label>
+                  <select
+                    value={plateForm.material}
+                    onChange={(e) => setPlateForm({ ...plateForm, material: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {REAL_MATERIALS.map((mat) => (
+                      <option key={mat} value={mat}>
+                        {mat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Shape
+                  </label>
+                  <select
+                    value={plateForm.shape}
+                    onChange={(e) => setPlateForm({ ...plateForm, shape: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    {SHAPES.map((sh) => (
+                      <option key={sh} value={sh}>
+                        {sh}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Length (mm)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.0"
+                    value={plateForm.length}
+                    onChange={(e) => setPlateForm({ ...plateForm, length: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Width (mm)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.0"
+                    value={plateForm.width}
+                    onChange={(e) => setPlateForm({ ...plateForm, width: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Height (mm)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.0"
+                    value={plateForm.height}
+                    onChange={(e) => setPlateForm({ ...plateForm, height: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={plateForm.sqty}
+                    onChange={(e) => setPlateForm({ ...plateForm, sqty: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Weight (kg)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.0"
+                    value={plateForm.weight}
+                    onChange={(e) => setPlateForm({ ...plateForm, weight: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                    Location
+                  </label>
+                  <select
+                    value={plateForm.location}
+                    onChange={(e) => setPlateForm({ ...plateForm, location: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="SM">SM (In-House)</option>
+                    <option value="Vendor">Vendor</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setAddPlateProject(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingPlate}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingPlate ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isSubmittingPlate ? "Adding..." : "Add Subplate"}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCached, getCachedScansLookup, getCachedUsers } from "@/lib/cache";
+import { getCached, getCachedScansLookup, getCachedUsers, invalidateCache } from "@/lib/cache";
 
 // GET /api/subplate - fetch subplates with project and staff lookups (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
@@ -12,15 +12,28 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const limit = Number(searchParams.get("limit") || "1000");
+    const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
+    const limit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "1000");
     const projectid = searchParams.get("projectid");
+    const search = searchParams.get("search")?.trim();
+    const material = searchParams.get("material");
+    const location = searchParams.get("location");
 
     let subplateQuery = supabaseAdmin
       .from("subplate")
-      .select("id, platename, projectid, subprojectid, material, location, width, height, length, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
+      .select("id, platename, projectid, subprojectid, material, location, width, height, length, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at", { count: "exact" })
       .is("deleted_at", null)
-      .order("id", { ascending: false })
-      .limit(limit);
+      .order("id", { ascending: false });
+
+    if (material && material !== "ALL") {
+      subplateQuery = subplateQuery.eq("material", material);
+    }
+    if (location && location !== "ALL") {
+      subplateQuery = subplateQuery.eq("location", location);
+    }
+    if (search) {
+      subplateQuery = subplateQuery.or(`platename.ilike.%${search}%,subprojectid.ilike.%${search}%`);
+    }
 
     if (projectid && projectid !== "ALL") {
       if (/^\d+$/.test(projectid)) {
@@ -37,6 +50,13 @@ export async function GET(req: NextRequest) {
           subplateQuery = subplateQuery.ilike("subprojectid", `${projectid}%`);
         }
       }
+    }
+
+    if (page && page > 0) {
+      const start = (page - 1) * limit;
+      subplateQuery = subplateQuery.range(start, start + limit - 1);
+    } else {
+      subplateQuery = subplateQuery.limit(limit);
     }
 
     // Batch subplates query with cached scans, users, and KPI counts
@@ -96,8 +116,21 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const totalCount = subplatesRes.count ?? enriched.length;
+    const totalPages = Math.ceil(totalCount / limit) || 1;
+    const currentPage = page || 1;
+
     const response = NextResponse.json({
       subplates: enriched,
+      data: enriched,
+      pagination: {
+        page: currentPage,
+        pageSize: limit,
+        total: totalCount,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
+      },
       scans: scans,
       users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
       kpis,
@@ -177,6 +210,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("subplates_worklog_lookup");
+    invalidateCache("subplate_kpi_counts");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json(
       { subplate: data, message: "Subplate created successfully" },
       { status: 201 }
@@ -208,6 +245,15 @@ export async function PUT(req: NextRequest) {
       updated_at: now,
     };
     delete updatePayload.id;
+
+    if (body.field && body.value !== undefined) {
+      updatePayload[body.field] =
+        body.value === 0 || body.value === "0" || body.value === "" || body.value === null
+          ? null
+          : body.value;
+      delete updatePayload.field;
+      delete updatePayload.value;
+    }
 
     // Auto-set per-stage timestamp when the corresponding *_by assignment is set/changed
     const stageTimestampMap: Record<string, string> = {
@@ -246,6 +292,10 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("subplates_worklog_lookup");
+    invalidateCache("subplate_kpi_counts");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json({ subplate: data, message: "Subplate updated successfully" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -282,6 +332,10 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("subplates_worklog_lookup");
+    invalidateCache("subplate_kpi_counts");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true, message: "Subplate deleted successfully" });
   } catch (err: unknown) {

@@ -12,13 +12,14 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanUsername = username.trim();
+    const safeUsername = cleanUsername.replace(/[(),.%]/g, "");
 
     // Query active user by username or email (case-insensitive)
     const { data: users, error } = await supabaseAdmin
       .from("users")
-      .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, password, password_hash")
+      .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, password_hash")
       .is("deleted_at", null)
-      .or(`username.ilike.${cleanUsername},email.ilike.${cleanUsername}`);
+      .or(`username.ilike.${safeUsername},email.ilike.${safeUsername}`);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify bcrypt hash (strictly from database, 100% bcrypt.compare, zero backdoors or plaintext fallback)
-    const storedHash = user.password_hash || user.password;
+    const storedHash = user.password_hash;
 
     if (!storedHash || (!storedHash.startsWith("$2y$") && !storedHash.startsWith("$2a$") && !storedHash.startsWith("$2b$"))) {
       return NextResponse.json({ error: "Account credentials misconfigured. Please reset password." }, { status: 401 });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedScansLookup } from "@/lib/cache";
+import { getCachedCustomers, getCachedScansLookup, invalidateCache } from "@/lib/cache";
 
 // GET /api/challan - Fetch outward challans, child items, pending return status from view_pending_inward_qty, and lookups
 export async function GET(req: NextRequest) {
@@ -59,13 +59,13 @@ export async function GET(req: NextRequest) {
     const subplates = subplatesRes.data || [];
     const subMap = new Map(subplates.map((sp: any) => [sp.id, sp]));
 
-    let itemsMap: Record<number, any[]> = {};
+    const itemsMap: Record<number, any[]> = {};
     for (const item of itemsRes.data || []) {
       if (!itemsMap[item.challanid]) itemsMap[item.challanid] = [];
       itemsMap[item.challanid].push(item);
     }
 
-    let pendingMap: Record<number, { inward_qty: number; pending_qty: number }> = {};
+    const pendingMap: Record<number, { inward_qty: number; pending_qty: number }> = {};
     for (const pr of pendingRowsRes.data || []) {
       if (!pendingMap[pr.id]) {
         pendingMap[pr.id] = { inward_qty: 0, pending_qty: 0 };
@@ -225,27 +225,32 @@ export async function POST(req: NextRequest) {
           .select("id, location")
           .in("id", plateIds);
 
-        for (const sp of plates || []) {
-          const rawLoc = sp.location || "SM";
-          const parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
-          const smFound = parts.includes("SM");
-          const vendorFound = parts.includes(vendorInitials);
+        await Promise.all(
+          (plates || []).map(async (sp: any) => {
+            const rawLoc = sp.location || "SM";
+            const parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
+            const smFound = parts.includes("SM");
+            const vendorFound = parts.includes(vendorInitials);
 
-          let newLoc = vendorInitials;
-          if (vendorInitials === "SM" || smFound || vendorFound) {
-            newLoc = vendorInitials;
-          } else {
-            parts.push(vendorInitials);
-            newLoc = parts.join(",");
-          }
+            let newLoc = vendorInitials;
+            if (vendorInitials === "SM" || smFound || vendorFound) {
+              newLoc = vendorInitials;
+            } else {
+              parts.push(vendorInitials);
+              newLoc = parts.join(",");
+            }
 
-          await supabaseAdmin
-            .from("subplate")
-            .update({ location: newLoc, updated_at: now })
-            .eq("id", sp.id);
-        }
+            return supabaseAdmin
+              .from("subplate")
+              .update({ location: newLoc, updated_at: now })
+              .eq("id", sp.id);
+          })
+        );
       }
     }
+
+    invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
 
     return NextResponse.json(
       { challan: challanData, message: "Outward Challan created successfully" },
@@ -285,6 +290,9 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
 
     return NextResponse.json({ success: true, message: "Challan cancelled successfully" });
   } catch (err: unknown) {

@@ -24,6 +24,12 @@ import {
 } from "lucide-react";
 import type { Customer } from "@/lib/supabase/types";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
+import {
+  useCustomersQuery,
+  useCreateCustomerMutation,
+  useUpdateCustomerMutation,
+  useDeleteCustomerMutation,
+} from "@/lib/query/hooks";
 
 // Supported exact usertypes derived directly from legacy customer/index.blade.php & CustomerController.php
 export type UsertypeOption = "Customer" | "Vendor" | "Transport" | "Other";
@@ -55,46 +61,39 @@ const USERTYPE_CONFIG: Record<
 };
 
 export default function CustomerPage() {
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [activeTab, setActiveTab] = useState<"All" | UsertypeOption>("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     message: string;
   } | null>(null);
 
-  // Live Supabase fetch
-  const fetchCustomers = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch("/api/customers");
-      const data = await res.json();
-      if (res.ok && Array.isArray(data.customers)) {
-        setCustomers(data.customers);
-      } else {
-        showNotification("error", data.error || "Failed to load customers.");
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load customers";
-      showNotification("error", msg);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // TanStack Query hooks
+  const customersQuery = useCustomersQuery({
+    usertype: activeTab,
+    search: searchQuery,
+  });
 
-  useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+  const createCustomerMutation = useCreateCustomerMutation();
+  const updateCustomerMutation = useUpdateCustomerMutation();
+  const deleteCustomerMutation = useDeleteCustomerMutation();
 
-  const showNotification = (type: "success" | "error", message: string) => {
+  const customers = customersQuery.data?.customers || [];
+  const isLoading = customersQuery.isLoading;
+  const isFetching = customersQuery.isFetching;
+
+  const showNotification = useCallback((type: "success" | "error", message: string) => {
     setNotification({ type, message });
     setTimeout(() => {
       setNotification((curr) => (curr?.message === message ? null : curr));
     }, 4000);
+  }, []);
+
+  const fetchCustomers = () => {
+    customersQuery.refetch();
   };
 
   // Modal states
@@ -215,10 +214,10 @@ export default function CustomerPage() {
   // Legacy validation: checkinitials
   // Source: CustomerController.php lines 44-50: CustomerModel::where('initials', $initials)->exists()
   const validateInitials = (val: string) => {
-    const clean = val.replace(/\s+/g, "").toUpperCase().slice(0, 3);
+    const clean = val.replace(/\s+/g, "").toUpperCase().slice(0, 5);
     setFormData((prev) => ({ ...prev, initials: clean }));
     if (!clean) {
-      setInitialError("Initials are required (max 3 characters).");
+      setInitialError("Initials are required (max 5 characters).");
       return false;
     }
     // On Add: cannot conflict with existing
@@ -270,34 +269,12 @@ export default function CustomerPage() {
     try {
       setIsSubmitting(true);
       if (modalMode === "add") {
-        const res = await fetch("/api/customers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          showNotification("error", result.error || "Failed to add customer");
-          return;
-        }
-        setCustomers((prev) => [result.customer, ...prev]);
-        showNotification("success", `Customer "${result.customer.customername}" added successfully.`);
+        const result = await createCustomerMutation.mutateAsync(formData);
+        showNotification("success", `Customer "${result.customer?.customername || formData.customername}" added successfully.`);
         setIsModalOpen(false);
       } else if (modalMode === "edit" && selectedCustomer) {
-        const res = await fetch("/api/customers", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          showNotification("error", result.error || "Failed to update customer");
-          return;
-        }
-        setCustomers((prev) =>
-          prev.map((c) => (c.id === selectedCustomer.id ? result.customer : c))
-        );
-        showNotification("success", `Customer "${result.customer.customername}" updated successfully.`);
+        const result = await updateCustomerMutation.mutateAsync(formData);
+        showNotification("success", `Customer "${result.customer?.customername || formData.customername}" updated successfully.`);
         setIsModalOpen(false);
       }
     } catch (err: unknown) {
@@ -313,15 +290,7 @@ export default function CustomerPage() {
     if (!deleteTarget) return;
     try {
       setIsDeleting(true);
-      const res = await fetch(`/api/customers?id=${deleteTarget.id}`, {
-        method: "DELETE",
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        showNotification("error", result.error || "Failed to delete customer");
-        return;
-      }
-      setCustomers((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      await deleteCustomerMutation.mutateAsync(deleteTarget.id);
       showNotification("success", `Customer "${deleteTarget.customername}" deleted successfully.`);
       setDeleteTarget(null);
     } catch (err: unknown) {
@@ -371,7 +340,7 @@ export default function CustomerPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Toast Notification */}
         {notification && (
           <div
@@ -541,8 +510,8 @@ export default function CustomerPage() {
         {/* Data Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full min-w-[950px] text-left text-xs">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full min-w-[1000px] text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4 w-[24%]">Name</th>
@@ -869,7 +838,7 @@ export default function CustomerPage() {
                     <label className="font-medium text-slate-700 dark:text-slate-300">
                       Initials <span className="text-rose-500">*</span>{" "}
                       <span className="text-[11px] text-slate-400 font-normal">
-                        (Max 3 letters, uppercase)
+                        (Max 5 letters, uppercase)
                       </span>
                     </label>
                     {modalMode === "edit" && (
@@ -881,18 +850,19 @@ export default function CustomerPage() {
                   <input
                     type="text"
                     required
-                    maxLength={3}
+                    maxLength={5}
                     readOnly={modalMode === "edit"}
                     value={formData.initials}
                     onChange={(e) => {
                       const clean = e.target.value
                         .replace(/\s+/g, "")
-                        .toUpperCase();
+                        .toUpperCase()
+                        .slice(0, 5);
                       setFormData((p) => ({ ...p, initials: clean }));
                       if (initialError) validateInitials(clean);
                     }}
                     onBlur={(e) => validateInitials(e.target.value)}
-                    placeholder="e.g. BSK, SSP, BIP"
+                    placeholder="e.g. BSK, SSPOL, BIPLT"
                     className={`w-full px-3 py-2 font-mono uppercase bg-slate-50 dark:bg-slate-950 border rounded-lg focus:outline-none focus:ring-2 dark:text-white ${
                       modalMode === "edit"
                         ? "bg-slate-100 dark:bg-slate-800/80 cursor-not-allowed text-slate-500"
@@ -1069,7 +1039,7 @@ export default function CustomerPage() {
               <p className="text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                 Do you really want to delete{" "}
                 <span className="font-semibold text-slate-900 dark:text-white">
-                  "{deleteTarget.customername}"
+                  &quot;{deleteTarget.customername}&quot;
                 </span>{" "}
                 ({deleteTarget.initials})? This will mark the record with{" "}
                 <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">

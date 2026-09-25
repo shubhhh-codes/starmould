@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { invalidateCachePrefix } from "@/lib/cache";
 
 // GET /api/expense - fetch expenses with customers lookup and summary KPIs (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -84,8 +85,8 @@ export async function POST(req: NextRequest) {
     const { rdate, customerid, description, payment_type, payment_mode, amount } = body;
 
     const numAmount = Number(amount);
-    if (!rdate || !payment_type || isNaN(numAmount) || numAmount <= 0) {
-      return NextResponse.json({ error: "Missing or invalid required fields" }, { status: 400 });
+    if (!payment_type || isNaN(numAmount) || numAmount <= 0) {
+      return NextResponse.json({ error: "Missing or invalid required fields (payment_type and positive amount are required)" }, { status: 400 });
     }
 
     // Fetch latest entry to compute rolling balance
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
       .insert([
         {
           rdate: rdate || now.slice(0, 10),
-          customerid: customerid ? Number(customerid) : null,
+          customerid: customerid ? Number(customerid) : 0,
           description: description?.trim() || "expense",
           payment_type: payment_type || "Debit",
           payment_mode: payment_mode || "Cash",
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCachePrefix("counts:");
     return NextResponse.json({ expense: data, message: "Expense record created successfully." }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -151,7 +153,7 @@ export async function PUT(req: NextRequest) {
     };
 
     if (rdate) updatePayload.rdate = rdate;
-    if (customerid !== undefined) updatePayload.customerid = customerid ? Number(customerid) : null;
+    if (customerid !== undefined) updatePayload.customerid = customerid ? Number(customerid) : 0;
     if (description !== undefined) updatePayload.description = description.trim();
     if (payment_type) updatePayload.payment_type = payment_type;
     if (payment_mode) updatePayload.payment_mode = payment_mode;
@@ -168,6 +170,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCachePrefix("counts:");
     return NextResponse.json({ expense: data, message: "Expense updated successfully." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -203,6 +206,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCachePrefix("counts:");
     return NextResponse.json({ success: true, message: "Expense record deleted." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

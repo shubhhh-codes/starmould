@@ -40,6 +40,7 @@ import {
   type UserSubtype,
 } from "@/lib/roles";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
+import { useUsersQuery, useCreateUserMutation, useUpdateUserMutation, useDeleteUserMutation } from "@/lib/query/hooks";
 
 export interface UserRecord {
   id: number;
@@ -56,13 +57,18 @@ export interface UserRecord {
 }
 
 export default function UserManagementPage() {
-  const [users, setUsers] = useState<UserRecord[]>([]);
+  const { data, isLoading, refetch } = useUsersQuery();
+  const createUserMutation = useCreateUserMutation();
+  const updateUserMutation = useUpdateUserMutation();
+  const deleteUserMutation = useDeleteUserMutation();
+
+  const users = (data?.users || []) as UserRecord[];
+
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("All");
   const [statusFilter, setStatusFilter] = useState<"All" | "Active" | "Inactive">("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState<{
     type: "success" | "error";
@@ -75,29 +81,6 @@ export default function UserManagementPage() {
       setNotification((curr) => (curr?.message === message ? null : curr));
     }, 4000);
   };
-
-  // Live Supabase fetch from users table
-  const fetchUsers = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch("/api/users");
-      const data = await res.json();
-      if (res.ok && Array.isArray(data.users)) {
-        setUsers(data.users);
-      } else {
-        showNotification("error", data.error || "Failed to load users from database");
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load users";
-      showNotification("error", msg);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -218,10 +201,10 @@ export default function UserManagementPage() {
   // Legacy validation: checkinitial
   // Source: UserController.php lines 256-262: UserModel::where('initials', $initials)->exists()
   const validateInitials = (val: string) => {
-    const clean = val.replace(/\s+/g, "").toUpperCase().slice(0, 3);
+    const clean = val.replace(/\s+/g, "").toUpperCase().slice(0, 5);
     setFormData((prev) => ({ ...prev, initials: clean }));
     if (!clean) {
-      setInitialError("Initials are required (max 3 letters).");
+      setInitialError("Initials are required (max 5 letters).");
       return false;
     }
     const currentId = selectedUser?.id;
@@ -273,19 +256,7 @@ export default function UserManagementPage() {
   const handleToggleStatus = async (user: UserRecord) => {
     const newStatus = Number(user.status) === 1 ? 0 : 1;
     try {
-      const res = await fetch("/api/users", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: user.id, status: newStatus }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showNotification("error", data.error || "Failed to update status");
-        return;
-      }
-      setUsers((prev) =>
-        prev.map((u) => (u.id === user.id ? { ...u, status: newStatus } : u))
-      );
+      await updateUserMutation.mutateAsync({ id: user.id, status: newStatus });
       showNotification("success", `User "${user.name}" status set to ${Number(newStatus) === 1 ? "Active" : "Inactive"}.`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to toggle status";
@@ -302,34 +273,12 @@ export default function UserManagementPage() {
     try {
       setIsSubmitting(true);
       if (modalMode === "add") {
-        const res = await fetch("/api/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          showNotification("error", result.error || "Failed to create user");
-          return;
-        }
-        setUsers((prev) => [...prev, result.user]);
-        showNotification("success", `User "${result.user.name}" created successfully.`);
+        const result = await createUserMutation.mutateAsync(formData);
+        showNotification("success", `User "${result?.user?.name || formData.name}" created successfully.`);
         setIsModalOpen(false);
       } else if (modalMode === "edit" && selectedUser) {
-        const res = await fetch("/api/users", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        });
-        const result = await res.json();
-        if (!res.ok) {
-          showNotification("error", result.error || "Failed to update user");
-          return;
-        }
-        setUsers((prev) =>
-          prev.map((u) => (u.id === selectedUser.id ? result.user : u))
-        );
-        showNotification("success", `User "${result.user.name}" updated successfully.`);
+        const result = await updateUserMutation.mutateAsync(formData);
+        showNotification("success", `User "${result?.user?.name || formData.name}" updated successfully.`);
         setIsModalOpen(false);
       }
     } catch (err: unknown) {
@@ -345,15 +294,7 @@ export default function UserManagementPage() {
     if (!deleteTarget) return;
     try {
       setIsDeleting(true);
-      const res = await fetch(`/api/users?id=${deleteTarget.id}`, {
-        method: "DELETE",
-      });
-      const result = await res.json();
-      if (!res.ok) {
-        showNotification("error", result.error || "Failed to delete user");
-        return;
-      }
-      setUsers((prev) => prev.filter((u) => u.id !== deleteTarget.id));
+      await deleteUserMutation.mutateAsync(deleteTarget.id);
       showNotification("success", `User "${deleteTarget.name}" deleted successfully.`);
       setDeleteTarget(null);
     } catch (err: unknown) {
@@ -410,7 +351,7 @@ export default function UserManagementPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Toast Notification */}
         {notification && (
           <div
@@ -495,7 +436,7 @@ export default function UserManagementPage() {
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchUsers}
+              onClick={() => refetch()}
               disabled={isLoading}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-sm disabled:opacity-50"
               title="Refresh users list from database"
@@ -600,8 +541,8 @@ export default function UserManagementPage() {
         {/* User Table */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full min-w-[950px] text-left text-xs">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full min-w-[1000px] text-left text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                 <tr>
                   <th className="py-3 px-4 w-[22%]">Name</th>
@@ -950,23 +891,24 @@ export default function UserManagementPage() {
                     <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">
                       Initials <span className="text-rose-500">*</span>{" "}
                       <span className="text-[11px] text-slate-400 font-normal">
-                        (Max 3 letters)
+                        (Max 5 letters)
                       </span>
                     </label>
                     <input
                       type="text"
                       required
-                      maxLength={3}
+                      maxLength={5}
                       value={formData.initials}
                       onChange={(e) => {
                         const clean = e.target.value
                           .replace(/\s+/g, "")
-                          .toUpperCase();
+                          .toUpperCase()
+                          .slice(0, 5);
                         setFormData((p) => ({ ...p, initials: clean }));
                         if (initialError) validateInitials(clean);
                       }}
                       onBlur={(e) => validateInitials(e.target.value)}
-                      placeholder="e.g. SHP, AKS, BGR"
+                      placeholder="e.g. SHIVA, AKSHA, BGR"
                       className={`w-full px-3 py-2 font-mono uppercase bg-slate-50 dark:bg-slate-950 border rounded-lg focus:outline-none focus:ring-2 dark:text-white ${
                         initialError
                           ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"
@@ -1103,7 +1045,7 @@ export default function UserManagementPage() {
                     </label>
                     {isAutoSubtypeLocked && (
                       <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                        Auto-forced to "Skilled MP" for {formData.usertype}
+                        Auto-forced to &quot;Skilled MP&quot; for {formData.usertype}
                       </span>
                     )}
                   </div>
@@ -1223,7 +1165,7 @@ export default function UserManagementPage() {
               <p className="text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                 Do you really want to delete user{" "}
                 <span className="font-semibold text-slate-900 dark:text-white">
-                  "{deleteTarget.name}"
+                  &quot;{deleteTarget.name}&quot;
                 </span>{" "}
                 (@{deleteTarget.username})? This user will be soft deleted and marked with a timestamp.
               </p>

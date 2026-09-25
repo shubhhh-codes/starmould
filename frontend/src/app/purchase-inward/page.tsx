@@ -215,7 +215,7 @@ export default function PurchaseInwardPage() {
     setSelectedPendingPO(item);
     setReceiveForm({
       odate: new Date().toISOString().slice(0, 10),
-      inpono: `DC-${Math.floor(1000 + Math.random() * 9000)}`,
+      inpono: `DC-${item.srno || item.id || item.plateid}`,
       receiveQtys: { [item.plateid]: item.pending_qty },
     });
     setReceiveError(null);
@@ -471,8 +471,8 @@ export default function PurchaseInwardPage() {
         {activeTab === "pending_receive" && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="hidden md:block overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[1100px] text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4 w-[10%]">PO. No.</th>
@@ -679,8 +679,8 @@ export default function PurchaseInwardPage() {
         {/* ========================================================================= */}
         {activeTab === "inward_history" && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[1000px] text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-3 w-[4%] text-center"></th>

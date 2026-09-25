@@ -219,12 +219,17 @@ export async function PATCH(req: NextRequest) {
     };
 
     if (field && value !== undefined) {
-      updatePayload[field] =
-        value === 0 || value === "0" || value === "" || value === null
-          ? 0
-          : ["print_by", "qc_by", "cname", "gram", "dispatch"].includes(field)
-          ? Number(value)
-          : value;
+      if (["print_by", "qc_by"].includes(field)) {
+        updatePayload[field] =
+          value === 0 || value === "0" || value === "" || value === null
+            ? null
+            : Number(value);
+      } else if (["cname", "gram", "dispatch", "payment", "hr", "pr_printhr", "amount", "ramount"].includes(field)) {
+        updatePayload[field] =
+          value === "" || value === null ? 0 : Number(value);
+      } else {
+        updatePayload[field] = value;
+      }
       if (field === "gram") {
         updatePayload.amount = await calculateGramAmount(Number(value));
       }

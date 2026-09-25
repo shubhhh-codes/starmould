@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers } from "@/lib/cache";
+import { getCachedCustomers, invalidateCache } from "@/lib/cache";
 
 // GET /api/inward - Fetch Job Work Inwards, items, pending return lists, and customer lookups (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     const subplates = subplatesRes.data || [];
     const subMap = new Map(subplates.map((sp: any) => [sp.id, sp]));
 
-    let itemsMap: Record<number, any[]> = {};
+    const itemsMap: Record<number, any[]> = {};
     for (const item of itemsRes.data || []) {
       if (!itemsMap[item.inchallanid]) itemsMap[item.inchallanid] = [];
       itemsMap[item.inchallanid].push(item);
@@ -184,6 +184,14 @@ export async function POST(req: NextRequest) {
 
     // 2. Insert child items and update subplate location back to 'SM' (In-house)
     if (items && Array.isArray(items) && items.length > 0) {
+      // Validate inward quantities
+      for (const it of items) {
+        const inQty = Number(it.inward_qty);
+        if (isNaN(inQty) || inQty <= 0) {
+          return NextResponse.json({ error: "Inward quantity must be greater than 0" }, { status: 400 });
+        }
+      }
+
       const itemsToInsert = items.map((it: any) => ({
         challanid: Number(challanid),
         inchallanid: inwardData.id,
@@ -200,7 +208,7 @@ export async function POST(req: NextRequest) {
 
       await supabaseAdmin.from("inward_items").insert(itemsToInsert);
 
-      // Return subplates location handling matching PHP InwardController:618-654
+      // Return subplates location handling
       const { data: vendorData } = await supabaseAdmin
         .from("customers")
         .select("initials, customername")
@@ -208,43 +216,50 @@ export async function POST(req: NextRequest) {
         .single();
 
       const vendorInitials = vendorData?.initials || vendorData?.customername || "";
+      const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
 
-      for (const it of items) {
-        if (!it.plateid) continue;
-        const pendingQty = Math.max(0, (Number(it.qty) || 0) - (Number(it.inward_qty) || 0));
-
-        const { data: sp } = await supabaseAdmin
+      if (plateIds.length > 0) {
+        const { data: plates } = await supabaseAdmin
           .from("subplate")
           .select("id, location")
-          .eq("id", Number(it.plateid))
-          .single();
+          .in("id", plateIds);
 
-        if (sp) {
-          const rawLoc = sp.location || "SM";
-          let parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
+        const plateMap = new Map((plates || []).map((p: any) => [p.id, p]));
 
-          if (pendingQty <= 0) {
-            // Fully returned from vendor: remove vendor initials from location chain
-            parts = parts.filter((p: string) => p !== vendorInitials && p !== "SM");
-            const newLoc = parts.length > 0 ? parts.join(",") : "SM";
-            await supabaseAdmin
-              .from("subplate")
-              .update({ location: newLoc, updated_at: now })
-              .eq("id", sp.id);
-          } else {
-            // Partially returned: ensure vendor initials remain in location chain
-            if (vendorInitials && !parts.includes(vendorInitials)) {
-              parts.push(vendorInitials);
+        await Promise.all(
+          items.map(async (it: any) => {
+            if (!it.plateid) return;
+            const sp = plateMap.get(Number(it.plateid));
+            if (!sp) return;
+
+            const pendingQty = Math.max(0, (Number(it.qty) || 0) - (Number(it.inward_qty) || 0));
+            const rawLoc = sp.location || "SM";
+            let parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
+
+            let newLoc = "SM";
+            if (pendingQty <= 0) {
+              // Fully returned from vendor: remove vendor initials from location chain
+              parts = parts.filter((p: string) => p !== vendorInitials && p !== "SM");
+              newLoc = parts.length > 0 ? parts.join(",") : "SM";
+            } else {
+              // Partially returned: ensure vendor initials remain in location chain
+              if (vendorInitials && !parts.includes(vendorInitials)) {
+                parts.push(vendorInitials);
+              }
+              newLoc = parts.join(",");
             }
-            const newLoc = parts.join(",");
-            await supabaseAdmin
+
+            return supabaseAdmin
               .from("subplate")
               .update({ location: newLoc, updated_at: now })
               .eq("id", sp.id);
-          }
-        }
+          })
+        );
       }
     }
+
+    invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
 
     return NextResponse.json(
       { inward: inwardData, message: "Job Work Inward recorded successfully" },
@@ -283,6 +298,9 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
 
     return NextResponse.json({ success: true, message: "Inward record cancelled successfully" });
   } catch (err: unknown) {

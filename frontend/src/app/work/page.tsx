@@ -31,6 +31,11 @@ import type {
   User,
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import {
+  useWorklogsQuery,
+  useCreateWorklogMutation,
+  useDeleteWorklogMutation,
+} from "@/lib/query/hooks";
 
 // Helper to format ISO or datetime to YYYY-MM-DD
 const formatDateStr = (dateVal: string | null | undefined): string => {
@@ -62,15 +67,23 @@ const formatMinutesToHHMM = (totalMinutes: number): string => {
 };
 
 export default function WorkPage() {
-  const [worklogs, setWorklogs] = useState<Worklog[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [scans, setScans] = useState<ScanProject[]>([]);
-  const [subplates, setSubplates] = useState<Subplate[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [kpis, setKpis] = useState<Record<string, any>>({});
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // TanStack Query Hooks with Tier C Operational Caching
+  const worklogsQuery = useWorklogsQuery();
+  const createWorklogMutation = useCreateWorklogMutation();
+  const deleteWorklogMutation = useDeleteWorklogMutation();
+
+  const worklogs = (worklogsQuery.data?.worklogs || []) as Worklog[];
+  const customers = (worklogsQuery.data?.customers || []) as Customer[];
+  const scans = (worklogsQuery.data?.scans || []) as ScanProject[];
+  const subplates = (worklogsQuery.data?.subplates || []) as Subplate[];
+  const users = (worklogsQuery.data?.users || []) as User[];
+  const kpis = worklogsQuery.data?.kpis || {};
+
+  const isLoading = worklogsQuery.isLoading;
+  const isFetching = worklogsQuery.isFetching;
+  const fetchError = worklogsQuery.error ? (worklogsQuery.error as Error).message : null;
 
   // Active Tab: 1. Daily Worklog, 2. Master Worklist (workdata), 3. Dept Breakdown (pendingwork)
   const [activeTab, setActiveTab] = useState<"daily" | "history" | "breakdown">(
@@ -106,29 +119,9 @@ export default function WorkPage() {
     qc_hr: "0",
   });
 
-  const fetchWorklogs = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/worklog");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load worklogs");
-      setWorklogs(data.worklogs || []);
-      setCustomers(data.customers || []);
-      setUsers(data.users || []);
-      setScans(data.scans || []);
-      setSubplates(data.subplates || []);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to fetch worklogs");
-    } finally {
-      setIsLoading(false);
-    }
+  const fetchWorklogs = () => {
+    worklogsQuery.refetch();
   };
-
-  React.useEffect(() => {
-    fetchWorklogs();
-  }, []);
 
   // Handle Delete Worklog
   const handleDeleteWorklog = async (id: number) => {
@@ -136,14 +129,7 @@ export default function WorkPage() {
       return;
     }
     try {
-      const res = await fetch(`/api/worklog?id=${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to delete worklog");
-      }
-      setWorklogs((prev) => prev.filter((w) => w.id !== id));
+      await deleteWorklogMutation.mutateAsync(id);
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -295,18 +281,11 @@ export default function WorkPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/worklog", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...modalForm,
-          work_hr: calculatedDuration,
-        }),
+      await createWorklogMutation.mutateAsync({
+        ...modalForm,
+        work_hr: calculatedDuration,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create worklog");
 
-      await fetchWorklogs();
       setIsModalOpen(false);
       setModalForm({
         rdate: new Date().toISOString().split("T")[0],
@@ -371,7 +350,7 @@ export default function WorkPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
@@ -504,8 +483,8 @@ export default function WorkPage() {
             {/* Daily Table */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
+              <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                <table className="w-full min-w-[1100px] text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       <th className="py-3.5 px-4"># ID</th>
@@ -705,8 +684,8 @@ export default function WorkPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full min-w-[1000px] text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       <th className="py-3.5 px-4">Date</th>

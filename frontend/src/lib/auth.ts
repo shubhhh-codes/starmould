@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getCached } from "@/lib/cache";
@@ -15,17 +15,29 @@ export interface SessionUser {
   initials?: string | null;
 }
 
+export interface SessionPayload extends SessionUser {
+  iat?: number;
+  exp?: number;
+}
+
 const COOKIE_NAME = "sm_session";
 const SESSION_SECRET =
   process.env.SESSION_SECRET ||
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   "starmould-secure-production-secret-key-3fcb64b1-ee51";
 
 /**
- * Signs a payload with HMAC-SHA256
+ * Signs a payload with HMAC-SHA256 and attaches issued-at (iat) and expiration (exp) timestamps (7 days)
  */
 export function signSession(user: SessionUser): string {
-  const payload = Buffer.from(JSON.stringify(user)).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const payloadData: SessionPayload = {
+    ...user,
+    iat: now,
+    exp: now + 7 * 24 * 60 * 60, // 7 days expiration
+  };
+  const payload = Buffer.from(JSON.stringify(payloadData)).toString("base64url");
   const signature = crypto
     .createHmac("sha256", SESSION_SECRET)
     .update(payload)
@@ -34,7 +46,7 @@ export function signSession(user: SessionUser): string {
 }
 
 /**
- * Verifies a signed session token. Returns null if invalid or tampered.
+ * Verifies a signed session token. Returns null if invalid, tampered, or expired.
  */
 export function verifySessionToken(token: string): SessionUser | null {
   if (!token || !token.includes(".")) return null;
@@ -55,7 +67,12 @@ export function verifySessionToken(token: string): SessionUser | null {
 
   try {
     const jsonStr = Buffer.from(payload, "base64url").toString("utf8");
-    return JSON.parse(jsonStr) as SessionUser;
+    const data = JSON.parse(jsonStr) as SessionPayload;
+    // Validate expiration timestamp if present
+    if (data.exp && Math.floor(Date.now() / 1000) > data.exp) {
+      return null;
+    }
+    return data;
   } catch {
     return null;
   }

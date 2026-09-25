@@ -31,17 +31,21 @@ import type {
   Subplate,
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { useInwardQuery, useCreateInwardMutation, useDeleteInwardMutation } from "@/lib/query/hooks";
 
 export default function InwardPage() {
-  const [inwards, setInwards] = useState<Inward[]>([]);
-  const [pendingChallans, setPendingChallans] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [subplates, setSubplates] = useState<Subplate[]>([]);
-  const [kpis, setKpis] = useState({ totalInwards: 0, totalPendingChallanItems: 0 });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const { data, isLoading, error: fetchQueryError, refetch } = useInwardQuery();
+  const createInwardMutation = useCreateInwardMutation();
+  const deleteInwardMutation = useDeleteInwardMutation();
 
+  const inwards = (data?.inwards || []) as Inward[];
+  const pendingChallans = (data?.pendingChallans || []) as any[];
+  const customers = (data?.customers || []) as Customer[];
+  const subplates = (data?.subplates || []) as Subplate[];
+  const kpis = data?.kpis || { totalInwards: 0, totalPendingChallanItems: 0 };
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [vendorFilter, setVendorFilter] = useState("ALL");
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
@@ -75,39 +79,16 @@ export default function InwardPage() {
 
   const [formError, setFormError] = useState<string | null>(null);
 
-  const fetchInwards = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/inward");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load inwards");
-      setInwards(data.inwards || []);
-      setPendingChallans(data.pendingChallans || []);
-      setCustomers(data.customers || []);
-      setSubplates(data.subplates || []);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to fetch inward data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchInwards();
-  }, []);
-
   // Filtered dropdown lists strictly based on legacy usertype
-  const vendors = useMemo(() => customers.filter((c) => c.usertype === "Vendor"), [customers]);
-  const customersList = useMemo(() => customers.filter((c) => c.usertype === "Customer"), [customers]);
-  const transporters = useMemo(() => customers.filter((c) => c.usertype === "Transport"), [customers]);
+  const vendors = useMemo(() => customers.filter((c: Customer) => c.usertype === "Vendor"), [customers]);
+  const customersList = useMemo(() => customers.filter((c: Customer) => c.usertype === "Customer"), [customers]);
+  const transporters = useMemo(() => customers.filter((c: Customer) => c.usertype === "Transport"), [customers]);
 
   // Outward challans for selected vendor with pending inward items
   const availableOutwardChallans = useMemo(() => {
     if (!modalForm.vendorid) return [];
     const vId = Number(modalForm.vendorid);
-    return pendingChallans.filter((c) => c.vendorid === vId);
+    return pendingChallans.filter((c: any) => c.vendorid === vId);
   }, [pendingChallans, modalForm.vendorid]);
 
   // Expand / collapse child rows
@@ -117,16 +98,16 @@ export default function InwardPage() {
 
   // KPI Calculations
   const totalInwards = kpis.totalInwards || inwards.length;
-  const activeInwards = inwards.filter((i) => String(i.status) === "1" || (i as any).status === 1).length;
+  const activeInwards = inwards.filter((i: Inward) => String(i.status) === "1" || (i as any).status === 1).length;
   const totalPlatesReceived = inwards.reduce(
-    (acc, i) => acc + (i.items?.reduce((sum, it) => sum + (it.inward_qty || 0), 0) || 0),
+    (acc: number, i: Inward) => acc + (i.items?.reduce((sum: number, it: InwardItem) => sum + (it.inward_qty || 0), 0) || 0),
     0
   );
-  const uniqueVendorsCount = new Set(inwards.map((i) => i.vendorid)).size;
+  const uniqueVendorsCount = new Set(inwards.map((i: Inward) => i.vendorid)).size;
 
   // Filtered Inward List
   const filteredInwards = useMemo(() => {
-    return inwards.filter((i) => {
+    return inwards.filter((i: Inward) => {
       const q = searchQuery.toLowerCase();
       const matchSearch =
         i.inchallanno.toLowerCase().includes(q) ||
@@ -136,7 +117,7 @@ export default function InwardPage() {
         (i.transportername || "").toLowerCase().includes(q) ||
         (i.projectid || "").toLowerCase().includes(q) ||
         (i.items || []).some(
-          (it) =>
+          (it: InwardItem) =>
             (it.particulars || "").toLowerCase().includes(q) ||
             (it.platename || "").toLowerCase().includes(q)
         );
@@ -149,10 +130,10 @@ export default function InwardPage() {
   // On selecting Outward Challan: auto-populate line items (inward/index.blade.php getichallandata())
   const handleSelectChallan = (challanIdStr: string) => {
     const challanId = Number(challanIdStr);
-    const selectedChallan = pendingChallans.find((c) => c.id === challanId);
+    const selectedChallan = pendingChallans.find((c: any) => c.id === challanId);
 
     if (selectedChallan) {
-      const cust = customers.find((c) => c.id === selectedChallan.customer);
+      const cust = customers.find((c: Customer) => c.id === selectedChallan.customer);
       const itemsToLoad = [
         {
           plateid: selectedChallan.plateid,
@@ -224,15 +205,7 @@ export default function InwardPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/inward", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modalForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save inward receipt");
-
-      await fetchInwards();
+      await createInwardMutation.mutateAsync(modalForm);
       setIsModalOpen(false);
       setModalForm({
         chdate: new Date().toISOString().slice(0, 10),
@@ -252,12 +225,7 @@ export default function InwardPage() {
   const handleCancelInward = async (id: number) => {
     if (window.confirm("Are you sure you want to cancel this inward receipt?")) {
       try {
-        const res = await fetch(`/api/inward?id=${id}`, { method: "DELETE" });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Failed to cancel inward");
-        }
-        await fetchInwards();
+        await deleteInwardMutation.mutateAsync(id);
       } catch (err: any) {
         alert("Error: " + err.message);
       }
@@ -266,7 +234,7 @@ export default function InwardPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {fetchError && (
           <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -274,7 +242,7 @@ export default function InwardPage() {
               <span>{fetchError}</span>
             </div>
             <button
-              onClick={fetchInwards}
+              onClick={() => refetch()}
               className="px-3 py-1 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition"
             >
               Retry
@@ -398,8 +366,8 @@ export default function InwardPage() {
         {/* Main Inward Table */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full min-w-[1050px] text-left text-sm text-slate-600">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full min-w-[1100px] text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                 <tr>
                   <th className="w-10 px-4 py-3.5"></th>
@@ -755,7 +723,7 @@ export default function InwardPage() {
                           ? "Select Vendor first"
                           : "Select Outward Challan"}
                       </option>
-                      {availableOutwardChallans.map((c) => (
+                      {availableOutwardChallans.map((c: any) => (
                         <option key={c.id} value={c.id}>
                           {c.challanno} ({c.chdate}) - {c.customername}
                         </option>

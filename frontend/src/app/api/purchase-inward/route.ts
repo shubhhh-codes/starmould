@@ -124,7 +124,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { pid, inpono, cname, vname, projectid, odate, items } = body;
+    const pid = body.pid || body.poid;
+    const cname = body.cname || body.customerid;
+    const vname = body.vname || body.vendorid;
+    const inpono = body.inpono;
+    const projectid = body.projectid;
+    const odate = body.odate;
+    const items = body.items;
 
     if (!pid || !cname || !vname || !items || items.length === 0) {
       return NextResponse.json({ error: "Missing required receipt fields" }, { status: 400 });

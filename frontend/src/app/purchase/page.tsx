@@ -23,14 +23,27 @@ import {
   ArrowUpRight,
   Filter,
 } from "lucide-react";
-import type { PurchaseOrder, PurchaseItem, Subplate, Customer } from "@/lib/supabase/types";
+import type { PurchaseOrder, PurchaseItem, Subplate, Customer, ScanProject } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
+import { usePurchasesQuery, useCreatePurchaseMutation, useDeletePurchaseMutation } from "@/lib/query/hooks";
 
 export default function PurchasePage() {
-  const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
-  const [subplates, setSubplates] = useState<Subplate[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [scans, setScans] = useState<any[]>([]);
+  const { data, isLoading } = usePurchasesQuery({ limit: 200, includePlates: true });
+  const createPurchaseMutation = useCreatePurchaseMutation();
+  const deletePurchaseMutation = useDeletePurchaseMutation();
+
+  const purchases = (data?.purchases || []) as PurchaseOrder[];
+  const subplates = (data?.subplates || []) as Subplate[];
+  const customers = (data?.customers || []) as Customer[];
+  const scans = (data?.scans || []) as ScanProject[];
+  const [extraSubplates, setExtraSubplates] = useState<Subplate[]>([]);
+
+  const allSubplates = useMemo(() => {
+    const map = new Map<number, Subplate>();
+    subplates.forEach((s) => map.set(s.id, s));
+    extraSubplates.forEach((s) => map.set(s.id, s));
+    return Array.from(map.values());
+  }, [subplates, extraSubplates]);
 
   // Navigation Tabs: All Purchase Orders vs. Pending Purchase (needing PO)
   const [activeTab, setActiveTab] = useState<"orders" | "pending_plates">("orders");
@@ -38,36 +51,6 @@ export default function PurchasePage() {
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Live Supabase fetch for purchases, customers, subplates, and scans
-  const fetchPurchases = async () => {
-    try {
-      setIsLoading(true);
-      const res = await fetch("/api/purchases?limit=200&includePlates=true");
-      const data = await res.json();
-      if (data.purchases) {
-        setPurchases(data.purchases);
-      }
-      if (data.customers) {
-        setCustomers(data.customers);
-      }
-      if (data.subplates) {
-        setSubplates(data.subplates);
-      }
-      if (data.scans) {
-        setScans(data.scans);
-      }
-    } catch (err) {
-      console.error("Failed to load live purchases from Supabase:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchPurchases();
-  }, []);
 
   // Add / Edit Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -114,7 +97,7 @@ export default function PurchasePage() {
     if (!formData.cname) return [];
     return scans.filter(
       (s) =>
-        (String(s.cname) === String(formData.cname) || s.cname === Number(formData.cname)) &&
+        String(s.cname) === String(formData.cname) &&
         s.status !== "completed"
     );
   }, [scans, formData.cname]);
@@ -133,13 +116,13 @@ export default function PurchasePage() {
   const platesForSelectedProject = useMemo(() => {
     if (!formData.projectid) return [];
     const scanIdStr = selectedScan ? String(selectedScan.id) : "";
-    return subplates.filter(
+    return allSubplates.filter(
       (sp) =>
         (scanIdStr && String(sp.projectid) === scanIdStr) ||
         String(sp.projectid) === formData.projectid ||
         (sp.subprojectid && sp.subprojectid.includes(formData.projectid))
     );
-  }, [subplates, formData.projectid, selectedScan]);
+  }, [allSubplates, formData.projectid, selectedScan]);
 
   // Dynamically load subplates for chosen mould if not present in client cache
   React.useEffect(() => {
@@ -151,9 +134,9 @@ export default function PurchasePage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.subplates && data.subplates.length > 0) {
-          setSubplates((prev) => {
+          setExtraSubplates((prev) => {
             const existing = new Set(prev.map((p) => p.id));
-            const fresh = data.subplates.filter((p: any) => !existing.has(p.id));
+            const fresh = data.subplates.filter((p: Subplate) => !existing.has(p.id));
             return fresh.length > 0 ? [...prev, ...fresh] : prev;
           });
         }
@@ -182,11 +165,11 @@ export default function PurchasePage() {
     const orderedPlateIds = new Set<number>();
     purchases.forEach((p) => {
       if (String(p.status) !== "0" && (p as any).status !== 0 && p.items) {
-        p.items.forEach((item) => orderedPlateIds.add(item.plateid));
+        p.items.forEach((item: PurchaseItem) => orderedPlateIds.add(item.plateid));
       }
     });
-    return subplates.filter((sp) => !orderedPlateIds.has(sp.id));
-  }, [subplates, purchases]);
+    return allSubplates.filter((sp) => !orderedPlateIds.has(sp.id));
+  }, [allSubplates, purchases]);
 
   // Toggle row expansion for child items
   const toggleRow = (id: number) => {
@@ -290,7 +273,7 @@ export default function PurchasePage() {
       });
       return;
     }
-    const foundPlate = subplates.find((sp) => sp.id === Number(plateId));
+    const foundPlate = allSubplates.find((sp: Subplate) => sp.id === Number(plateId));
     setFormData((prev) => {
       const updated = [...prev.items];
       if (foundPlate) {
@@ -384,32 +367,17 @@ export default function PurchasePage() {
     }
 
     try {
-      setIsLoading(true);
-      const res = await fetch("/api/purchases", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          odate: formData.odate,
-          vname: Number(formData.vname),
-          cname: Number(formData.cname),
-          projectid: formData.projectid,
-          items: formData.items,
-        }),
+      await createPurchaseMutation.mutateAsync({
+        odate: formData.odate,
+        vname: Number(formData.vname),
+        cname: Number(formData.cname),
+        projectid: formData.projectid,
+        items: formData.items,
       });
-
-      if (!res.ok) {
-        const data = await res.json();
-        setFormError(data.error || "Failed to create PO");
-        return;
-      }
-
       setIsModalOpen(false);
-      await fetchPurchases();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error creating PO";
       setFormError(message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -417,14 +385,7 @@ export default function PurchasePage() {
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     try {
-      const res = await fetch(`/api/purchases?id=${deleteTarget.id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setPurchases((prev) =>
-          prev.map((p) => (p.id === deleteTarget.id ? { ...p, status: "0" } : p))
-        );
-      }
+      await deletePurchaseMutation.mutateAsync(deleteTarget.id);
     } catch (err) {
       console.error("Failed to delete PO:", err);
     } finally {
@@ -622,8 +583,8 @@ export default function PurchasePage() {
         {activeTab === "orders" && (
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="hidden md:block overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[1100px] text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-3 w-[4%] text-center"></th>
@@ -960,8 +921,8 @@ export default function PurchasePage() {
               </span>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[1000px] text-left text-xs">
                 <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
                   <tr>
                     <th className="py-3 px-4 w-[22%]">Plate Name</th>
@@ -1198,7 +1159,7 @@ export default function PurchasePage() {
                           : "Select Mould Project"}
                       </option>
                       {availableMoulds.map((s) => (
-                        <option key={s.id} value={s.projectid}>
+                        <option key={s.id} value={s.projectid || ""}>
                           {s.projectid} {s.description ? `— ${s.description}` : ""}
                         </option>
                       ))}
@@ -1384,14 +1345,14 @@ export default function PurchasePage() {
                     Confirm Purchase Order Deletion
                   </h4>
                   <p className="text-slate-500">
-                    Source: PurchaseController.php destroy() (status = '0')
+                    Source: PurchaseController.php destroy() (status = &apos;0&apos;)
                   </p>
                 </div>
               </div>
               <p className="text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
                 Do you really want to delete Purchase Order{" "}
                 <span className="font-semibold text-slate-900 dark:text-white">
-                  "{deleteTarget.srno}"
+                  &quot;{deleteTarget.srno}&quot;
                 </span>{" "}
                 for mould {deleteTarget.projectid}? This will soft-delete the order.
               </p>

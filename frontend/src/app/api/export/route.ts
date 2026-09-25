@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCachedCustomers } from "@/lib/cache";
+
+/**
+ * RFC 4180 compliant CSV cell formatter with CWE-1236 Formula Injection sanitization
+ */
+function formatCsvCell(val: any): string {
+  if (val === null || val === undefined) return '""';
+  let str = String(val);
+  // Prevent spreadsheet formula execution by prepending a single quote
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = "'" + str;
+  }
+  return `"${str.replace(/"/g, '""')}"`;
+}
+
+function formatDate(d: any): string {
+  if (!d) return "";
+  const str = String(d).slice(0, 10);
+  const parts = str.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return str;
+}
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1]);
@@ -45,6 +69,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const customers = await getCachedCustomers();
+    const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
+
     let csvContent = "";
     let filename = "export.csv";
 
@@ -57,16 +84,20 @@ export async function GET(req: NextRequest) {
         .eq("status", "1")
         .order("id", { ascending: false });
 
-      const headers = ["ID", "PO No", "Customer ID", "Vendor ID", "Project ID", "Order Date", "Status"];
-      const rows = (pos || []).map((p) => [
-        p.id,
-        `"${p.srno || p.purchaseid || ""}"`,
-        p.cname || "",
-        p.vname || "",
-        `"${p.projectid || ""}"`,
-        p.odate || "",
-        p.status || "",
-      ]);
+      const headers = ["ID", "PO No", "Customer", "Vendor", "Project ID", "Order Date", "Status"];
+      const rows = (pos || []).map((p) => {
+        const cust = custMap.get(Number(p.cname));
+        const vend = custMap.get(Number(p.vname));
+        return [
+          formatCsvCell(p.id),
+          formatCsvCell(p.srno || p.purchaseid || ""),
+          formatCsvCell(cust?.customername || p.cname || ""),
+          formatCsvCell(vend?.customername || p.vname || ""),
+          formatCsvCell(p.projectid || ""),
+          formatCsvCell(formatDate(p.odate)),
+          formatCsvCell(p.status === "1" ? "Active" : "Inactive"),
+        ];
+      });
       csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     }
 
@@ -81,15 +112,18 @@ export async function GET(req: NextRequest) {
         .order("id", { ascending: false });
 
       const headers = ["ID", "Project Code", "Customer", "Description", "Work Type", "RDate", "Status"];
-      const rows = (moulds || []).map((m) => [
-        m.id,
-        `"${m.projectid || ""}"`,
-        m.cname || "",
-        `"${(m.description || "").replace(/"/g, '""')}"`,
-        `"${m.worktype || ""}"`,
-        m.rdate || "",
-        m.status || "",
-      ]);
+      const rows = (moulds || []).map((m) => {
+        const cust = custMap.get(Number(m.cname));
+        return [
+          formatCsvCell(m.id),
+          formatCsvCell(m.projectid || ""),
+          formatCsvCell(cust?.customername || m.cname || ""),
+          formatCsvCell(m.description || ""),
+          formatCsvCell(m.worktype || "Scanning"),
+          formatCsvCell(formatDate(m.rdate)),
+          formatCsvCell(m.status || ""),
+        ];
+      });
       csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     }
 
@@ -104,16 +138,19 @@ export async function GET(req: NextRequest) {
         .order("id", { ascending: false });
 
       const headers = ["ID", "Project Code", "Customer", "Description", "Work Type", "RDate", "Amount", "Status"];
-      const rows = (moulds || []).map((m) => [
-        m.id,
-        `"${m.projectid || ""}"`,
-        m.cname || "",
-        `"${(m.description || "").replace(/"/g, '""')}"`,
-        `"${m.worktype || ""}"`,
-        m.rdate || "",
-        m.amount || 0,
-        m.status || "",
-      ]);
+      const rows = (moulds || []).map((m) => {
+        const cust = custMap.get(Number(m.cname));
+        return [
+          formatCsvCell(m.id),
+          formatCsvCell(m.projectid || ""),
+          formatCsvCell(cust?.customername || m.cname || ""),
+          formatCsvCell(m.description || ""),
+          formatCsvCell(m.worktype || "Scanning"),
+          formatCsvCell(formatDate(m.rdate)),
+          formatCsvCell(m.amount || 0),
+          formatCsvCell(m.status || ""),
+        ];
+      });
       csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     }
 
@@ -128,16 +165,16 @@ export async function GET(req: NextRequest) {
 
       const headers = ["ID", "PO No", "Customer", "Vendor", "Material", "Type", "Ordered Qty", "Inward Qty", "Pending Qty", "Plate Name"];
       const rows = (poInwards || []).map((p) => [
-        p.id,
-        `"${p.srno || ""}"`,
-        `"${p.customername || ""}"`,
-        `"${p.vendorname || ""}"`,
-        `"${p.material || ""}"`,
-        `"${p.materialtype || ""}"`,
-        p.qty || 0,
-        p.inward_qty || 0,
-        p.pending_qty || 0,
-        `"${(p.platename || "").replace(/"/g, '""')}"`,
+        formatCsvCell(p.id),
+        formatCsvCell(p.srno || ""),
+        formatCsvCell(p.customername || ""),
+        formatCsvCell(p.vendorname || ""),
+        formatCsvCell(p.material || ""),
+        formatCsvCell(p.materialtype || ""),
+        formatCsvCell(p.qty || 0),
+        formatCsvCell(p.inward_qty || 0),
+        formatCsvCell(p.pending_qty || 0),
+        formatCsvCell(p.platename || ""),
       ]);
       csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     }
@@ -151,15 +188,19 @@ export async function GET(req: NextRequest) {
         .eq("status", "1")
         .order("id", { ascending: false });
 
-      const headers = ["ID", "Challan No", "Vendor ID", "Transporter ID", "Date", "Status"];
-      const rows = (challans || []).map((c) => [
-        c.id,
-        `"${c.challanno || ""}"`,
-        c.vendorid || "",
-        c.vendortid || "",
-        c.chdate || "",
-        c.status || "",
-      ]);
+      const headers = ["ID", "Challan No", "Vendor", "Transporter", "Date", "Status"];
+      const rows = (challans || []).map((c) => {
+        const vend = custMap.get(Number(c.vendorid));
+        const trans = custMap.get(Number(c.vendortid));
+        return [
+          formatCsvCell(c.id),
+          formatCsvCell(c.challanno || ""),
+          formatCsvCell(vend?.customername || c.vendorid || ""),
+          formatCsvCell(trans?.customername || c.vendortid || ""),
+          formatCsvCell(formatDate(c.chdate)),
+          formatCsvCell(c.status === "1" ? "Active" : "Inactive"),
+        ];
+      });
       csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     }
 
@@ -172,14 +213,17 @@ export async function GET(req: NextRequest) {
         .eq("status", "1")
         .order("id", { ascending: false });
 
-      const headers = ["ID", "Dispatch Date", "Invoice No", "Customer ID", "Status"];
-      const rows = (dispatches || []).map((d) => [
-        d.id,
-        d.dispatchdate || "",
-        `"${d.invoiceno || ""}"`,
-        d.customerid || "",
-        d.status || "",
-      ]);
+      const headers = ["ID", "Dispatch Date", "Invoice No", "Customer", "Status"];
+      const rows = (dispatches || []).map((d) => {
+        const cust = custMap.get(Number(d.customerid));
+        return [
+          formatCsvCell(d.id),
+          formatCsvCell(formatDate(d.chdate)),
+          formatCsvCell(d.invoiceno || ""),
+          formatCsvCell(cust?.customername || d.customerid || ""),
+          formatCsvCell(d.status === "1" ? "Active" : "Inactive"),
+        ];
+      });
       csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     }
 
@@ -194,17 +238,17 @@ export async function GET(req: NextRequest) {
 
       const headers = ["ID", "Challan No", "Customer", "Vendor", "Transporter", "Date", "Particulars", "Qty", "Inward Qty", "Pending Qty", "Plate Name"];
       const rows = (pending || []).map((p) => [
-        p.id,
-        `"${p.challanno || ""}"`,
-        `"${p.customername || ""}"`,
-        `"${p.vendorname || ""}"`,
-        `"${p.transportername || ""}"`,
-        p.chdate || "",
-        `"${(p.particulars || "").replace(/"/g, '""')}"`,
-        p.qty || 0,
-        p.inward_qty || 0,
-        p.pending_qty || 0,
-        `"${(p.platename || "").replace(/"/g, '""')}"`,
+        formatCsvCell(p.id),
+        formatCsvCell(p.challanno || ""),
+        formatCsvCell(p.customername || ""),
+        formatCsvCell(p.vendorname || ""),
+        formatCsvCell(p.transportername || ""),
+        formatCsvCell(formatDate(p.chdate)),
+        formatCsvCell(p.particulars || ""),
+        formatCsvCell(p.qty || 0),
+        formatCsvCell(p.inward_qty || 0),
+        formatCsvCell(p.pending_qty || 0),
+        formatCsvCell(p.platename || ""),
       ]);
       csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     }

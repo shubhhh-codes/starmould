@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import type { PrintProject, Customer, User, GramCalc } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { StaffSelect } from "@/components/ui/staff-select";
+import { usePrintingQuery, useCreatePrintingMutation, useUpdatePrintingMutation, useDeletePrintingMutation } from "@/lib/query/hooks";
 
 // Dynamic Gram pricing calculation matching legacy PrintingController.php:170-183
 // Authentic legacy query: where("lessthan", ">=", $gram)->where("graterthan", "<=", $gram)
@@ -45,19 +47,24 @@ const calculateGramAmount = (
 };
 
 export default function PrintingPage() {
-  const [prints, setPrints] = useState<PrintProject[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [gramTiers, setGramTiers] = useState<GramCalc[]>([]);
-  const [kpis, setKpis] = useState({
+  const { data, isLoading, error: fetchQueryError, refetch } = usePrintingQuery();
+  const createPrintingMutation = useCreatePrintingMutation();
+  const updatePrintingMutation = useUpdatePrintingMutation();
+  const deletePrintingMutation = useDeletePrintingMutation();
+
+  const prints = data?.prints || [];
+  const customers = data?.customers || [];
+  const users = data?.users || [];
+  const gramTiers = data?.gramTiers || [];
+  const kpis = data?.kpis || {
     totalPrints: 0,
     pendingPrints: 0,
     dispatchedPrints: 0,
     totalRevenue: 0,
-  });
-  const [isLoading, setIsLoading] = useState(true);
+  };
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Role Toggle: Worker (Floor) vs Admin View (Merged PrintingController + PrintAdminController)
   const [viewMode, setViewMode] = useState<"worker" | "admin">("worker");
@@ -68,38 +75,20 @@ export default function PrintingPage() {
 
   // Add Print Job Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalForm, setModalForm] = useState({
-    cname: "",
-    tdate: new Date().toISOString().split("T")[0],
-    cdate: new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0],
-    gram: "",
-    hr: "",
-    customAmount: "",
-    description: "",
+  const [modalForm, setModalForm] = useState(() => {
+    const today = new Date();
+    const future = new Date(today);
+    future.setDate(future.getDate() + 2);
+    return {
+      cname: "",
+      tdate: today.toISOString().split("T")[0],
+      cdate: future.toISOString().split("T")[0],
+      gram: "",
+      hr: "",
+      customAmount: "",
+      description: "",
+    };
   });
-
-  const fetchPrints = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/printing");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load prints");
-      setPrints(data.prints || []);
-      setCustomers(data.customers || []);
-      setUsers(data.users || []);
-      setGramTiers(data.gramTiers || []);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to fetch print projects");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchPrints();
-  }, []);
 
   // Filter active staff for assignment
   const activeStaff = useMemo(() => {
@@ -149,18 +138,7 @@ export default function PrintingPage() {
     userId: number
   ) => {
     try {
-      const res = await fetch("/api/printing", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field, value: userId }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to assign staff");
-      }
-      setPrints((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, [field]: userId } : p))
-      );
+      await updatePrintingMutation.mutateAsync({ id, field, value: userId });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -174,25 +152,10 @@ export default function PrintingPage() {
     const nextStatus = nextDispatch === 1 ? "registered" : "pending";
 
     try {
-      const res = await fetch("/api/printing", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id,
-          updates: { dispatch: nextDispatch, status: nextStatus },
-        }),
+      await updatePrintingMutation.mutateAsync({
+        id,
+        updates: { dispatch: nextDispatch, status: nextStatus },
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update dispatch");
-      }
-      setPrints((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? { ...p, dispatch: nextDispatch, status: nextStatus }
-            : p
-        )
-      );
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -201,18 +164,7 @@ export default function PrintingPage() {
   // Handle Admin Inline Real Amount Edit (Live API PATCH)
   const handleRamountChange = async (id: number, val: number) => {
     try {
-      const res = await fetch("/api/printing", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field: "ramount", value: val }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update received amount");
-      }
-      setPrints((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, ramount: val } : p))
-      );
+      await updatePrintingMutation.mutateAsync({ id, field: "ramount", value: val });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -225,18 +177,7 @@ export default function PrintingPage() {
     const nextPayment = Number(target.payment) === 1 ? 0 : 1;
 
     try {
-      const res = await fetch("/api/printing", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, field: "payment", value: nextPayment }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to update payment");
-      }
-      setPrints((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, payment: nextPayment } : p))
-      );
+      await updatePrintingMutation.mutateAsync({ id, field: "payment", value: nextPayment });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -246,12 +187,7 @@ export default function PrintingPage() {
   const handleDelete = async (id: number) => {
     if (window.confirm("Do you really want to delete this 3D print job?")) {
       try {
-        const res = await fetch(`/api/printing?id=${id}`, { method: "DELETE" });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Failed to delete print job");
-        }
-        setPrints((prev) => prev.filter((p) => p.id !== id));
+        await deletePrintingMutation.mutateAsync(id);
       } catch (err: any) {
         alert("Error: " + err.message);
       }
@@ -265,18 +201,11 @@ export default function PrintingPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/printing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...modalForm,
-          manualAmount: modalForm.customAmount,
-        }),
+      await createPrintingMutation.mutateAsync({
+        ...modalForm,
+        manualAmount: modalForm.customAmount,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create print job");
 
-      await fetchPrints();
       setIsModalOpen(false);
       setModalForm({
         cname: "",
@@ -339,7 +268,7 @@ export default function PrintingPage() {
 
   return (
     <AppLayout>
-      <div className="p-4 sm:p-6 lg:p-8 space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {fetchError && (
           <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -347,7 +276,7 @@ export default function PrintingPage() {
               <span>{fetchError}</span>
             </div>
             <button
-              onClick={fetchPrints}
+              onClick={() => refetch()}
               className="px-3 py-1 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition"
             >
               Retry
@@ -581,25 +510,25 @@ export default function PrintingPage() {
         {/* Table */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
-          <div className="hidden md:block overflow-x-auto w-full">
-            <table className="w-full min-w-[1100px] text-left border-collapse text-sm">
+          <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full min-w-[1260px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Project ID</th>
-                  <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4">Description</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Rec. Date</th>
-                  <th className="py-3.5 px-4 whitespace-nowrap">Committed Dt</th>
-                  <th className="py-3.5 px-4 text-right">Grams</th>
-                  <th className="py-3.5 px-4 text-right">Hours</th>
-                  <th className="py-3.5 px-4">Print By</th>
-                  <th className="py-3.5 px-4">QC By</th>
-                  <th className="py-3.5 px-4 text-center">Dispatch</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Project ID</th>
+                  <th className="py-3.5 px-3.5 whitespace-nowrap">Customer</th>
+                  <th className="py-3.5 px-3.5">Description</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Rec. Date</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Committed Dt</th>
+                  <th className="py-3.5 px-3 text-right whitespace-nowrap">Grams</th>
+                  <th className="py-3.5 px-3 text-right whitespace-nowrap">Hours</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Print By</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">QC By</th>
+                  <th className="py-3.5 px-3 text-center whitespace-nowrap">Dispatch</th>
                   {viewMode === "admin" && (
                     <>
-                      <th className="py-3.5 px-4 text-center">Payment</th>
-                      <th className="py-3.5 px-4 text-right">Actual (₹)</th>
-                      <th className="py-3.5 px-4 text-center">Action</th>
+                      <th className="py-3.5 px-3 text-center whitespace-nowrap">Payment</th>
+                      <th className="py-3.5 px-3 text-right whitespace-nowrap">Actual (₹)</th>
+                      <th className="py-3.5 px-3 text-center whitespace-nowrap">Action</th>
                     </>
                   )}
                 </tr>
@@ -622,74 +551,56 @@ export default function PrintingPage() {
                       key={row.id}
                       className="hover:bg-slate-50/60 transition group"
                     >
-                      <td className="py-3 px-4 font-mono font-bold text-xs text-teal-600 whitespace-nowrap">
+                      <td className="py-3 px-3.5 font-mono font-bold text-xs text-teal-600 whitespace-nowrap">
                         {row.projectid || `#${row.id}`}
                       </td>
-                      <td className="py-3 px-4 font-medium text-slate-900 whitespace-nowrap">
+                      <td className="py-3 px-3.5 font-medium text-slate-900 whitespace-nowrap">
                         {row.cname}
                       </td>
-                      <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                      <td className="py-3 px-3.5 text-slate-600 max-w-xs truncate" title={row.description}>
                         {row.description || "—"}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
                         {row.tdate || "—"}
                       </td>
-                      <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
+                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
                         {row.cdate || "—"}
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700 text-xs">
+                      <td className="py-3 px-3 text-right font-mono font-semibold text-slate-700 text-xs whitespace-nowrap">
                         {row.gram}g
                       </td>
-                      <td className="py-3 px-4 text-right font-mono text-xs text-slate-600">
+                      <td className="py-3 px-3 text-right font-mono text-xs text-slate-600 whitespace-nowrap">
                         {row.hr}h
                       </td>
 
                       {/* Print Operator Select */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.print_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "print_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.print_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "print_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-teal-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="teal"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* QC Officer Select */}
-                      <td className="py-3 px-4">
-                        <select
-                          value={row.qc_by || 0}
-                          onChange={(e) =>
-                            handleStaffChange(
-                              row.id,
-                              "qc_by",
-                              Number(e.target.value)
-                            )
+                      <td className="py-3 px-3 whitespace-nowrap">
+                        <StaffSelect
+                          value={row.qc_by}
+                          onChange={(val) =>
+                            handleStaffChange(row.id, "qc_by", val)
                           }
-                          className="px-2 py-1 bg-slate-50 border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-teal-500"
-                        >
-                          <option value={0}>Select</option>
-                          {activeStaff.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.initials || u.name}
-                            </option>
-                          ))}
-                        </select>
+                          staff={activeStaff}
+                          color="teal"
+                          placeholder="Select"
+                        />
                       </td>
 
                       {/* Dispatch Checkbox (Source: PrintingController.php:117) */}
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={Number(row.dispatch) === 1}
@@ -701,7 +612,7 @@ export default function PrintingPage() {
                       {/* Admin View Specific Columns */}
                       {viewMode === "admin" && (
                         <>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handlePaymentToggle(row.id)}
@@ -714,7 +625,7 @@ export default function PrintingPage() {
                               {Number(row.payment) === 1 ? "Paid" : "Unpaid"}
                             </button>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-3 text-right whitespace-nowrap">
                             <div className="inline-flex items-center gap-1 justify-end">
                               <span className="text-xs text-slate-400 font-bold">₹</span>
                               <input
@@ -726,11 +637,11 @@ export default function PrintingPage() {
                                     parseFloat(e.target.value) || 0
                                   )
                                 }
-                                className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-right font-mono font-bold text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-right font-mono font-bold text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500"
                               />
                             </div>
                           </td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-3 text-center whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => handleDelete(row.id)}

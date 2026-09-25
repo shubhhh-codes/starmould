@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PipelineStatGrid } from "@/components/dashboard/pipeline-stat-card";
 import { MouldProjectsTable } from "@/components/dashboard/mould-projects-table";
@@ -10,40 +10,25 @@ import {
   FolderKanban,
 } from "lucide-react";
 import Link from "next/link";
-import type { ScanProject, Subplate } from "@/lib/supabase/types";
+import type { Subplate } from "@/lib/supabase/types";
+import { useProjectsQuery, useSubplatesQuery } from "@/lib/query/hooks";
 
 export default function DashboardPage() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
-  const [projects, setProjects] = useState<ScanProject[]>([]);
-  const [subplates, setSubplates] = useState<Subplate[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      const [scansRes, subplatesRes] = await Promise.all([
-        fetch("/api/scanning?limit=200"),
-        fetch("/api/subplate?limit=2000"),
-      ]);
-      const scansData = await scansRes.json();
-      const subplatesData = await subplatesRes.json();
+  // Use TanStack Query hooks with Tier C operational caching
+  const projectsQuery = useProjectsQuery({ pageSize: 200 });
+  const subplatesQuery = useSubplatesQuery({ pageSize: 2000 });
 
-      if (scansData.scans) {
-        setProjects(scansData.scans);
-      }
-      if (subplatesData.subplates) {
-        setSubplates(subplatesData.subplates);
-      }
-    } catch (err) {
-      console.error("Failed to fetch dashboard projects and subplates:", err);
-    } finally {
-      setIsLoading(false);
-    }
+  const projects = projectsQuery.data?.scans || [];
+  const subplates = subplatesQuery.data?.subplates || [];
+  const isLoading = projectsQuery.isLoading || subplatesQuery.isLoading;
+  const isFetching = projectsQuery.isFetching || subplatesQuery.isFetching;
+
+  const handleRefresh = () => {
+    projectsQuery.refetch();
+    subplatesQuery.refetch();
   };
-
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
 
   // Real pipeline metrics computed from subplate tracking records & active projects
   const stats = useMemo(() => {
@@ -84,6 +69,40 @@ export default function DashboardPage() {
     };
   }, [projects, subplates]);
 
+  const displayedProjects = useMemo(() => {
+    if (!activeStage) return projects;
+    let targetPlates: Subplate[] = [];
+    if (activeStage === "design") {
+      targetPlates = subplates.filter((sp) => sp.design_by && Number(sp.design_by) > 0);
+    } else if (activeStage === "order") {
+      targetPlates = subplates.filter((sp) => sp.order_by && Number(sp.order_by) > 0);
+    } else if (activeStage === "programming") {
+      targetPlates = subplates.filter((sp) => (sp.received_qcby && Number(sp.received_qcby) > 0) || (sp.received_workby && Number(sp.received_workby) > 0));
+    } else if (activeStage === "machining" || activeStage === "vmc") {
+      targetPlates = subplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0);
+    } else if (activeStage === "drilltap") {
+      targetPlates = subplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0);
+    } else if (activeStage === "finalqc") {
+      targetPlates = subplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0);
+    } else if (activeStage === "packing") {
+      targetPlates = subplates.filter((sp) => sp.packing_workby && Number(sp.packing_workby) > 0);
+    }
+
+    const matchingProjectIds = new Set(
+      targetPlates.map((sp) => String(sp.projectid || "")).filter(Boolean)
+    );
+    const matchingSubprojectIds = new Set(
+      targetPlates.map((sp) => String(sp.subprojectid || "")).filter(Boolean)
+    );
+
+    return projects.filter(
+      (p) =>
+        matchingProjectIds.has(String(p.id)) ||
+        (p.projectid && matchingProjectIds.has(String(p.projectid))) ||
+        (p.projectid && matchingSubprojectIds.has(String(p.projectid)))
+    );
+  }, [projects, subplates, activeStage]);
+
   return (
     <AppLayout>
       {/* Breadcrumb & Action Header */}
@@ -106,10 +125,10 @@ export default function DashboardPage() {
         {/* Quick Action Controls */}
         <div className="flex items-center gap-2.5">
           <button
-            onClick={fetchDashboardData}
+            onClick={handleRefresh}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer shadow-xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-blue-600" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-blue-600" : ""}`} />
             <span>Refresh</span>
           </button>
           <Link
@@ -135,7 +154,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h2 className="text-sm font-bold text-slate-800">
-              Active Project Register ({projects.length} Projects)
+              Active Project Register ({displayedProjects.length} Projects)
             </h2>
             {activeStage && (
               <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
@@ -149,9 +168,9 @@ export default function DashboardPage() {
         </div>
 
         <MouldProjectsTable
-          initialData={projects}
+          initialData={displayedProjects}
           isLoading={isLoading}
-          onRefresh={fetchDashboardData}
+          onRefresh={handleRefresh}
         />
       </div>
     </AppLayout>

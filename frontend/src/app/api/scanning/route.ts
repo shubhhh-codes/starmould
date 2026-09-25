@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCached, getCachedCustomers, getCachedUsers } from "@/lib/cache";
+import { getCached, getCachedCustomers, getCachedUsers, invalidateCache } from "@/lib/cache";
 
 // GET /api/scanning - Fetch scan projects, linked subplates, worklog hours, and KPIs
 export async function GET(req: NextRequest) {
@@ -12,9 +12,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const page = searchParams.get("page") ? Number(searchParams.get("page")) : null;
-    const limit = Number(searchParams.get("limit") || "100");
+    const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
+    const limit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "100");
     const status = searchParams.get("status");
+    const search = searchParams.get("search")?.trim();
+    const customer = searchParams.get("customer");
+    const worktype = searchParams.get("worktype");
 
     let scanQuery = supabaseAdmin
       .from("scan")
@@ -22,15 +25,29 @@ export async function GET(req: NextRequest) {
       .or("worktype.is.null,worktype.not.in.(Sample,Rework)")
       .order("id", { ascending: false });
 
+    if (status && status !== "ALL") {
+      scanQuery = scanQuery.eq("status", status);
+    }
+    if (worktype && worktype !== "ALL") {
+      scanQuery = scanQuery.eq("worktype", worktype);
+    }
+    if (customer && customer !== "ALL") {
+      if (/^\d+$/.test(customer)) {
+        scanQuery = scanQuery.eq("cname", Number(customer));
+      }
+    }
+    if (search) {
+      const safeSearch = search.replace(/[(),.%]/g, "");
+      if (safeSearch) {
+        scanQuery = scanQuery.or(`projectid.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
+      }
+    }
+
     if (page && page > 0) {
       const start = (page - 1) * limit;
       scanQuery = scanQuery.range(start, start + limit - 1);
     } else {
       scanQuery = scanQuery.limit(limit);
-    }
-
-    if (status && status !== "ALL") {
-      scanQuery = scanQuery.eq("status", status);
     }
 
     // Step 1: Batch fetch scans, cached customers, cached users, and cached KPIs
@@ -85,29 +102,28 @@ export async function GET(req: NextRequest) {
       scanIds.length > 0
         ? supabaseAdmin
             .from("worklog")
-            .select("scan_print_id, scan_hr, model_hr, rework_hr, qc_hr, insp_hr")
+            .select("scan_print_id, design_hr, program_hr, machine_hr, driltap_hr, qc_hr, work_hr")
             .in("scan_print_id", scanIds)
         : Promise.resolve({ data: [] }),
     ]);
 
-    let subplateMap: Record<number, any[]> = {};
+    const subplateMap: Record<number, any[]> = {};
     for (const sp of subplatesRes.data || []) {
       if (!subplateMap[sp.projectid]) subplateMap[sp.projectid] = [];
       subplateMap[sp.projectid].push(sp);
     }
 
-    let worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
+    const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
     for (const w of worklogsRes.data || []) {
       if (!w.scan_print_id) continue;
       if (!worklogMap[w.scan_print_id]) {
         worklogMap[w.scan_print_id] = { scan_hr: 0, model_hr: 0 };
       }
-      worklogMap[w.scan_print_id].scan_hr += Number(w.scan_hr || 0);
+      worklogMap[w.scan_print_id].scan_hr += Number(w.machine_hr || 0) + Number(w.driltap_hr || 0);
       worklogMap[w.scan_print_id].model_hr +=
-        Number(w.model_hr || 0) +
-        Number(w.rework_hr || 0) +
-        Number(w.qc_hr || 0) +
-        Number(w.insp_hr || 0);
+        Number(w.design_hr || 0) +
+        Number(w.program_hr || 0) +
+        Number(w.qc_hr || 0);
     }
 
     const enriched = scans.map((s: any) => {
@@ -132,8 +148,21 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    const totalCount = scansRes.count ?? enriched.length;
+    const totalPages = Math.ceil(totalCount / limit) || 1;
+    const currentPage = page || 1;
+
     const response = NextResponse.json({
       scans: enriched,
+      data: enriched,
+      pagination: {
+        page: currentPage,
+        pageSize: limit,
+        total: totalCount,
+        totalPages,
+        hasNextPage: currentPage < totalPages,
+        hasPreviousPage: currentPage > 1,
+      },
       customers: customers || [],
       users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
       kpis,
@@ -148,7 +177,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/scanning - Create new Scanning project (matches ScanningController.php store)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -235,6 +264,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("scanning_kpi_metrics_v2");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json(
       { scan: data, message: "Scanning project created successfully" },
       { status: 201 }
@@ -247,7 +280,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/scanning - Update status, staff assignment, payment toggle, or metadata
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticateRequest(req);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -288,6 +321,10 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("scanning_kpi_metrics_v2");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json({ scan: data, message: "Updated successfully" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -323,6 +360,10 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("scanning_kpi_metrics_v2");
+    invalidateCache("api_counts_all");
 
     return NextResponse.json({ success: true, message: "Project marked as completed successfully" });
   } catch (err: unknown) {

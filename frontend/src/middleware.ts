@@ -28,23 +28,59 @@ const ROUTE_PERMISSIONS: Record<string, number[]> = {
   "/": [0, 1, 2, 3, 4],
 };
 
-function parseSessionToken(token: string): { id: number; role_id: number; role: string } | null {
+const SESSION_SECRET =
+  process.env.SESSION_SECRET ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  "starmould-secure-production-secret-key-3fcb64b1-ee51";
+
+async function verifySessionTokenEdge(token: string): Promise<{ id: number; role_id: number; role: string } | null> {
   if (!token || !token.includes(".")) return null;
-  const [payload] = token.split(".");
-  if (!payload) return null;
+  const [payload, signature] = token.split(".");
+  if (!payload || !signature) return null;
+
   try {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      "raw",
+      enc.encode(SESSION_SECRET),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    // Decode base64url signature
+    let b64Sig = signature.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64Sig.length % 4) {
+      b64Sig += "=";
+    }
+    const sigBytes = Uint8Array.from(atob(b64Sig), (c) => c.charCodeAt(0));
+
+    const isValid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      sigBytes,
+      enc.encode(payload)
+    );
+
+    if (!isValid) return null;
+
+    // Decode base64url payload
     let base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
     while (base64.length % 4) {
       base64 += "=";
     }
     const jsonStr = atob(base64);
-    return JSON.parse(jsonStr);
+    const data = JSON.parse(jsonStr);
+    if (data.exp && Math.floor(Date.now() / 1000) > data.exp) {
+      return null;
+    }
+    return data;
   } catch {
     return null;
   }
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow static files, api routes, and favicon
@@ -57,9 +93,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get session cookie
+  // Get session cookie and cryptographically verify signature
   const sessionCookie = req.cookies.get("sm_session");
-  const session = sessionCookie?.value ? parseSessionToken(sessionCookie.value) : null;
+  const session = sessionCookie?.value ? await verifySessionTokenEdge(sessionCookie.value) : null;
 
   // If user is on /login
   if (pathname === "/login") {

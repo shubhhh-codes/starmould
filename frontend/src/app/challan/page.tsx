@@ -32,16 +32,30 @@ import type {
   ScanProject,
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { useChallansQuery, useCreateChallanMutation, useDeleteChallanMutation } from "@/lib/query/hooks";
 
 export default function ChallanPage() {
-  const [challans, setChallans] = useState<Challan[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [subplates, setSubplates] = useState<Subplate[]>([]);
-  const [scans, setScans] = useState<ScanProject[]>([]);
-  const [kpis, setKpis] = useState({ totalChallans: 0, activeCount: 0 });
-  const [isLoading, setIsLoading] = useState(true);
+  const { data, isLoading, error: fetchQueryError, refetch } = useChallansQuery();
+  const createChallanMutation = useCreateChallanMutation();
+  const deleteChallanMutation = useDeleteChallanMutation();
+
+  const challans = (data?.challans || []) as Challan[];
+  const customers = (data?.customers || []) as Customer[];
+  const subplates = (data?.subplates || []) as Subplate[];
+  const scans = (data?.scans || []) as ScanProject[];
+  const [extraSubplates, setExtraSubplates] = useState<Subplate[]>([]);
+
+  const allSubplates = useMemo(() => {
+    const map = new Map<number, Subplate>();
+    subplates.forEach((s) => map.set(s.id, s));
+    extraSubplates.forEach((s) => map.set(s.id, s));
+    return Array.from(map.values());
+  }, [subplates, extraSubplates]);
+
+  const kpis = data?.kpis || { totalChallans: 0, activeCount: 0 };
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Navigation Tabs: Job Work Challan Register vs Pending Outward Items
   const [activeTab, setActiveTab] = useState<"challan_list" | "pending_outward">("challan_list");
@@ -79,72 +93,49 @@ export default function ChallanPage() {
 
   const [formError, setFormError] = useState<string | null>(null);
 
-  const fetchChallans = async () => {
-    try {
-      setIsLoading(true);
-      setFetchError(null);
-      const res = await fetch("/api/challan");
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to load challans");
-      setChallans(data.challans || []);
-      setCustomers(data.customers || []);
-      setSubplates(data.subplates || []);
-      if (data.scans) setScans(data.scans || []);
-      if (data.kpis) setKpis(data.kpis);
-    } catch (err: any) {
-      setFetchError(err.message || "Failed to fetch challan data");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchChallans();
-  }, []);
-
   // Filtered dropdown lists strictly based on legacy usertype
-  const vendors = useMemo(() => customers.filter((c) => c.usertype === "Vendor"), [customers]);
-  const customersList = useMemo(() => customers.filter((c) => c.usertype === "Customer"), [customers]);
-  const transporters = useMemo(() => customers.filter((c) => c.usertype === "Transport"), [customers]);
+  const vendors = useMemo(() => customers.filter((c: Customer) => c.usertype === "Vendor"), [customers]);
+  const customersList = useMemo(() => customers.filter((c: Customer) => c.usertype === "Customer"), [customers]);
+  const transporters = useMemo(() => customers.filter((c: Customer) => c.usertype === "Transport"), [customers]);
 
   // Mould projects for selected customer (Source: challan/index.blade.php getproject())
   const availableProjects = useMemo(() => {
     if (!modalForm.customerid) return [];
     const custId = String(modalForm.customerid);
-    return scans.filter((s) => String(s.cname) === custId || String(s.cname) === "0" || !s.cname);
+    return scans.filter((s: ScanProject) => String(s.cname) === custId || String(s.cname) === "0" || !s.cname);
   }, [scans, modalForm.customerid]);
 
   // Selected scan record for subplate resolution
   const selectedScan = useMemo(() => {
     if (!modalForm.projectid) return null;
-    return scans.find((s) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
+    return scans.find((s: ScanProject) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
   }, [scans, modalForm.projectid]);
 
   // Available subplates for selected project with pending outward quantity
   const availablePlates = useMemo(() => {
     if (!modalForm.projectid) return [];
     const scanIdStr = selectedScan ? String(selectedScan.id) : "";
-    return subplates.filter(
-      (sp) =>
+    return allSubplates.filter(
+      (sp: Subplate) =>
         String(sp.projectid) === String(modalForm.projectid) ||
         (scanIdStr && String(sp.projectid) === scanIdStr) ||
         (sp.subprojectid && sp.subprojectid.includes(modalForm.projectid))
     );
-  }, [subplates, modalForm.projectid, selectedScan]);
+  }, [allSubplates, modalForm.projectid, selectedScan]);
 
   // Dynamically load subplates for chosen mould if not present in client cache
   React.useEffect(() => {
     if (!modalForm.projectid) return;
-    const scan = selectedScan || scans.find((s) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
+    const scan = selectedScan || scans.find((s: ScanProject) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
     const lookupId = scan ? scan.id : modalForm.projectid;
     
     fetch(`/api/subplate?projectid=${lookupId}&limit=500`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.subplates && data.subplates.length > 0) {
-          setSubplates((prev) => {
+          setExtraSubplates((prev) => {
             const existing = new Set(prev.map((p) => p.id));
-            const fresh = data.subplates.filter((p: any) => !existing.has(p.id));
+            const fresh = data.subplates.filter((p: Subplate) => !existing.has(p.id));
             return fresh.length > 0 ? [...prev, ...fresh] : prev;
           });
         }
@@ -332,15 +323,7 @@ export default function ChallanPage() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("/api/challan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(modalForm),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create challan");
-
-      await fetchChallans();
+      await createChallanMutation.mutateAsync(modalForm);
       setIsModalOpen(false);
       setModalForm({
         chdate: new Date().toISOString().slice(0, 10),
@@ -360,12 +343,7 @@ export default function ChallanPage() {
   const handleCancelChallan = async (id: number) => {
     if (window.confirm("Are you sure you want to cancel this outward challan?")) {
       try {
-        const res = await fetch(`/api/challan?id=${id}`, { method: "DELETE" });
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Failed to cancel challan");
-        }
-        await fetchChallans();
+        await deleteChallanMutation.mutateAsync(id);
       } catch (err: any) {
         alert("Error: " + err.message);
       }
@@ -374,7 +352,7 @@ export default function ChallanPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6 w-full max-w-[1700px] mx-auto">
+      <div className="space-y-6 w-full">
         {fetchError && (
           <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -382,7 +360,7 @@ export default function ChallanPage() {
               <span>{fetchError}</span>
             </div>
             <button
-              onClick={fetchChallans}
+              onClick={() => refetch()}
               className="px-3 py-1 bg-rose-600 text-white rounded-md text-xs font-semibold hover:bg-rose-700 transition"
             >
               Retry
@@ -554,8 +532,8 @@ export default function ChallanPage() {
         {activeTab === "challan_list" && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
+            <div className="hidden md:block overflow-x-auto custom-scrollbar">
+              <table className="w-full min-w-[1100px] text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                   <tr>
                     <th className="w-10 px-4 py-3.5"></th>

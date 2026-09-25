@@ -5,8 +5,10 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-// In-memory cache for server-side route handlers
+// In-memory cache for server-side route handlers with bounded size and in-flight promise coalescing
+const MAX_CACHE_ENTRIES = 500;
 const cache = new Map<string, CacheEntry<any>>();
+const inFlightPromises = new Map<string, Promise<any>>();
 
 export async function getCached<T>(
   key: string,
@@ -19,17 +21,37 @@ export async function getCached<T>(
     return entry.data;
   }
 
-  const fresh = await fetcher();
-  cache.set(key, {
-    data: fresh,
-    expiresAt: now + ttlSeconds * 1000,
-  });
-  return fresh;
+  // If a request for this key is already in-flight, reuse its promise (stampede protection)
+  if (inFlightPromises.has(key)) {
+    return inFlightPromises.get(key) as Promise<T>;
+  }
+
+  const promise = (async () => {
+    try {
+      const fresh = await fetcher();
+      // Evict oldest entries if cache reaches maximum limit
+      if (cache.size >= MAX_CACHE_ENTRIES) {
+        const firstKey = cache.keys().next().value;
+        if (firstKey) cache.delete(firstKey);
+      }
+      cache.set(key, {
+        data: fresh,
+        expiresAt: Date.now() + ttlSeconds * 1000,
+      });
+      return fresh;
+    } finally {
+      inFlightPromises.delete(key);
+    }
+  })();
+
+  inFlightPromises.set(key, promise);
+  return promise;
 }
 
 export function invalidateCache(keyPrefix?: string): void {
   if (!keyPrefix) {
     cache.clear();
+    inFlightPromises.clear();
     return;
   }
   for (const k of cache.keys()) {
@@ -38,6 +60,8 @@ export function invalidateCache(keyPrefix?: string): void {
     }
   }
 }
+
+export const invalidateCachePrefix = invalidateCache;
 
 // Shared Cached Fetchers for High-Frequency Static Reference Tables
 

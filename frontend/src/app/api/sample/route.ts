@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { invalidateCache } from "@/lib/cache";
 
 // GET /api/sample - Fetch Sample and Rework projects (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const worktype = searchParams.get("worktype"); // "Sample" | "Rework" | null (all)
 
-    let query = supabaseAdmin
+    const query = supabaseAdmin
       .from("scan")
       .select("*")
       .in("worktype", worktype ? [worktype] : ["Sample", "Rework"])
@@ -42,12 +43,12 @@ export async function GET(req: NextRequest) {
 
     // Fetch worklog hours aggregated per scan_print_id
     const scanIds = (scanRows || []).map((r) => r.id);
-    let worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
+    const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
 
     if (scanIds.length > 0) {
       const { data: worklogs } = await supabaseAdmin
         .from("worklog")
-        .select("scan_print_id, scan_hr, model_hr, rework_hr, qc_hr, insp_hr")
+        .select("scan_print_id, design_hr, program_hr, machine_hr, driltap_hr, qc_hr, work_hr")
         .in("scan_print_id", scanIds.slice(0, 1000));
 
       for (const w of worklogs || []) {
@@ -55,12 +56,11 @@ export async function GET(req: NextRequest) {
         if (!worklogMap[w.scan_print_id]) {
           worklogMap[w.scan_print_id] = { scan_hr: 0, model_hr: 0 };
         }
-        worklogMap[w.scan_print_id].scan_hr += Number(w.scan_hr || 0);
+        worklogMap[w.scan_print_id].scan_hr += Number(w.machine_hr || 0) + Number(w.driltap_hr || 0);
         worklogMap[w.scan_print_id].model_hr +=
-          Number(w.model_hr || 0) +
-          Number(w.rework_hr || 0) +
-          Number(w.qc_hr || 0) +
-          Number(w.insp_hr || 0);
+          Number(w.design_hr || 0) +
+          Number(w.program_hr || 0) +
+          Number(w.qc_hr || 0);
       }
     }
 
@@ -174,6 +174,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json(
       { project: data, message: `${worktype} project created successfully` },
       { status: 201 }
@@ -225,6 +228,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("api_counts_all");
+
     return NextResponse.json({ project: data, message: "Updated successfully" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -232,7 +238,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/sample - Remove project (Roles 0, 1, 2, 3)
+// DELETE /api/sample - Soft-delete project (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 2, 3]);
   if ("error" in auth) {
@@ -251,12 +257,20 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing project id" }, { status: 400 });
     }
 
-    const { error } = await supabaseAdmin.from("scan").delete().eq("id", id);
+    // Soft delete by setting status = 'completed'
+    const { error } = await supabaseAdmin
+      .from("scan")
+      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .eq("id", id);
+
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: "Deleted successfully" });
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("api_counts_all");
+
+    return NextResponse.json({ success: true, message: "Project marked as completed successfully" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
