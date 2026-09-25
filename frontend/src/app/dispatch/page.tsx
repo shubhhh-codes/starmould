@@ -31,6 +31,8 @@ import type {
   ScanProject,
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { Modal } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
 import { useDispatchQuery, useCreateDispatchMutation, useDeleteDispatchMutation } from "@/lib/query/hooks";
 
 export default function DispatchPage() {
@@ -683,34 +685,14 @@ export default function DispatchPage() {
         </div>
 
         {/* Add Dispatch Challan Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-white rounded-none sm:rounded-2xl shadow-xl w-full h-full sm:h-auto sm:max-w-4xl sm:max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 animate-scale-up">
-              {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-100 text-indigo-700 rounded-lg">
-                    <Truck className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 text-lg">
-                      Add Dispatch Challan
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Customer Delivery Document (SM/DC/xxxx format)
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-lg transition"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              {/* Modal Form Content */}
-              <form onSubmit={handleSubmitDispatch} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title="Add Dispatch Challan"
+          description="Customer Delivery Document (SM/DC/xxxx format)"
+          size="xl"
+        >
+          <form onSubmit={handleSubmitDispatch} className="space-y-6">
                 {formError && (
                   <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 shrink-0" />
@@ -1080,21 +1062,21 @@ export default function DispatchPage() {
                   <button
                     type="button"
                     onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition"
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition btn-interactive"
                   >
                     Close
                   </button>
-                  <button
+                  <MotionButton
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition shadow-sm"
+                    loading={createDispatchMutation.isPending}
+                    variant="primary"
+                    size="md"
                   >
                     Generate Dispatch Challan
-                  </button>
+                  </MotionButton>
                 </div>
               </form>
-            </div>
-          </div>
-        )}
+        </Modal>
       </div>
     </AppLayout>
   );

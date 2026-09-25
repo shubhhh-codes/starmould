@@ -20,9 +20,10 @@ import {
   Trash2,
   Loader2,
 } from "lucide-react";
-import type { ScanProject, Customer, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { Modal } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
 import { useSampleQuery, useCreateSampleMutation, useUpdateSampleMutation, useDeleteSampleMutation } from "@/lib/query/hooks";
 
 export default function SampleReworkPage() {
@@ -569,219 +570,201 @@ export default function SampleReworkPage() {
         </div>
 
         {/* Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
-                    <Plus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
-                      Create New {modalForm.worktype} Order
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Record client sample development or mould rework
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title={`Create New ${modalForm.worktype} Order`}
+          description="Record client sample development or mould rework"
+          size="lg"
+        >
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Order Type
+                </label>
+                <select
+                  value={modalForm.worktype}
+                  onChange={(e) =>
+                    setModalForm({
+                      ...modalForm,
+                      worktype: e.target.value as any,
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold"
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  <option value="Sample">Sample Order</option>
+                  <option value="Rework">Rework Order</option>
+                </select>
               </div>
 
-              <form onSubmit={handleCreate} className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Order Type
-                    </label>
-                    <select
-                      value={modalForm.worktype}
-                      onChange={(e) =>
-                        setModalForm({
-                          ...modalForm,
-                          worktype: e.target.value as any,
-                        })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold"
-                    >
-                      <option value="Sample">Sample Order</option>
-                      <option value="Rework">Rework Order</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Customer
-                    </label>
-                    <select
-                      required
-                      value={modalForm.cname}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, cname: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                    >
-                      <option value="">Select Customer</option>
-                      {customers
-                        .filter((c) => c.usertype === "Customer")
-                        .map((c) => (
-                          <option key={c.id} value={String(c.id)}>
-                            {c.customername}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Order Description
-                  </label>
-                  <textarea
-                    required
-                    rows={2}
-                    placeholder="Describe sample component or rework requirements..."
-                    value={modalForm.description}
-                    onChange={(e) =>
-                      setModalForm({
-                        ...modalForm,
-                        description: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Received Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={modalForm.rdate}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, rdate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Target Delivery Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={modalForm.cdate}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, cdate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Assign Scanner
-                    </label>
-                    <select
-                      value={modalForm.scan_by}
-                      onChange={(e) =>
-                        setModalForm({
-                          ...modalForm,
-                          scan_by: e.target.value,
-                        })
-                      }
-                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                    >
-                      <option value="0">Unassigned</option>
-                      {activeStaff.map((u) => (
-                        <option
-                          key={u.id}
-                          value={String(u.id)}
-                          title={`${u.name} (${u.initials || u.name}) ${
-                            u.usertype ? `• ${u.usertype}` : ""
-                          }`}
-                        >
-                          {u.initials ? `${u.initials} • ${u.name}` : u.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Assign QC
-                    </label>
-                    <select
-                      value={modalForm.qc_by}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, qc_by: e.target.value })
-                      }
-                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                    >
-                      <option value="0">Unassigned</option>
-                      {activeStaff.map((u) => (
-                        <option
-                          key={u.id}
-                          value={String(u.id)}
-                          title={`${u.name} (${u.initials || u.name}) ${
-                            u.usertype ? `• ${u.usertype}` : ""
-                          }`}
-                        >
-                          {u.initials ? `${u.initials} • ${u.name}` : u.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Billed Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={modalForm.amount}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, amount: e.target.value })
-                      }
-                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-sm shadow-sm"
-                  >
-                    Create Order
-                  </button>
-                </div>
-              </form>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Customer
+                </label>
+                <select
+                  required
+                  value={modalForm.cname}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, cname: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                >
+                  <option value="">Select Customer</option>
+                  {customers
+                    .filter((c) => c.usertype === "Customer")
+                    .map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.customername}
+                      </option>
+                    ))}
+                </select>
+              </div>
             </div>
-          </div>
-        )}
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Order Description
+              </label>
+              <textarea
+                required
+                rows={2}
+                placeholder="Describe sample component or rework requirements..."
+                value={modalForm.description}
+                onChange={(e) =>
+                  setModalForm({
+                    ...modalForm,
+                    description: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Received Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={modalForm.rdate}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, rdate: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Target Delivery Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={modalForm.cdate}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, cdate: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Assign Scanner
+                </label>
+                <select
+                  value={modalForm.scan_by}
+                  onChange={(e) =>
+                    setModalForm({
+                      ...modalForm,
+                      scan_by: e.target.value,
+                    })
+                  }
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                >
+                  <option value="0">Unassigned</option>
+                  {activeStaff.map((u) => (
+                    <option
+                      key={u.id}
+                      value={String(u.id)}
+                      title={`${u.name} (${u.initials || u.name}) ${
+                        u.usertype ? `• ${u.usertype}` : ""
+                      }`}
+                    >
+                      {u.initials ? `${u.initials} • ${u.name}` : u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Assign QC
+                </label>
+                <select
+                  value={modalForm.qc_by}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, qc_by: e.target.value })
+                  }
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                >
+                  <option value="0">Unassigned</option>
+                  {activeStaff.map((u) => (
+                    <option
+                      key={u.id}
+                      value={String(u.id)}
+                      title={`${u.name} (${u.initials || u.name}) ${
+                        u.usertype ? `• ${u.usertype}` : ""
+                      }`}
+                    >
+                      {u.initials ? `${u.initials} • ${u.name}` : u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Billed Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={modalForm.amount}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, amount: e.target.value })
+                  }
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm transition btn-interactive"
+              >
+                Cancel
+              </button>
+              <MotionButton
+                type="submit"
+                loading={isSubmitting}
+                variant="primary"
+                size="md"
+              >
+                Create Order
+              </MotionButton>
+            </div>
+          </form>
+        </Modal>
       </div>
     </AppLayout>
   );

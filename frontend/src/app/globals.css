@@ -21,6 +21,13 @@
   --input: #e2e8f0;
   --ring: #3b82f6;
   --radius: 0.5rem;
+
+  /* Physics-based Easing Curves (Linear / Raycast / Stripe caliber) */
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring-snappy: cubic-bezier(0.2, 0.9, 0.3, 1.15);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-quad: cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 body {
@@ -28,6 +35,8 @@ body {
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Universal High-Contrast Text Selection Across All Devices & Elements */
@@ -35,7 +44,7 @@ body {
 *::selection {
   background-color: #1d4ed8 !important; /* Rich contrast blue */
   color: #ffffff !important;           /* Crisp pure white text */
-  -webkit-text-fill-color: #ffffff !important; /* Overrides gradient clips & text-transparent */
+  -webkit-text-fill-color: #ffffff !important;
   text-shadow: none !important;
 }
 
@@ -66,7 +75,7 @@ body {
   background: #94a3b8;
 }
 
-/* Data grid styling */
+/* Data grid styling with physical hover */
 .erp-table {
   width: 100%;
   border-collapse: separate;
@@ -90,8 +99,229 @@ body {
   font-size: 0.8125rem;
   color: #1e293b;
   border-bottom: 1px solid #f1f5f9;
+  transition: background-color 150ms var(--ease-smooth);
 }
 
 .erp-table tr:hover td {
+  background-color: #f1f5f9;
+}
+
+/* =========================================================================
+   PHYSICAL INTERACTION UTILITIES & MICROINTERACTIONS
+   ========================================================================= */
+
+/* Physical Button Press & Lift */
+.btn-interactive {
+  transition: transform 120ms var(--ease-spring), box-shadow 150ms var(--ease-smooth), background-color 150ms var(--ease-smooth), opacity 150ms ease;
+  will-change: transform;
+}
+.btn-interactive:hover {
+  transform: translateY(-0.5px);
+}
+.btn-interactive:active {
+  transform: scale(0.97) translateY(0);
+}
+
+/* Physical Card Lift */
+.card-interactive {
+  transition: transform 200ms var(--ease-spring), box-shadow 200ms var(--ease-spring), border-color 200ms ease;
+  will-change: transform, box-shadow;
+}
+.card-interactive:hover {
+  transform: translateY(-1.5px);
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+}
+.card-interactive:active {
+  transform: scale(0.99) translateY(0);
+}
+
+/* Row Hover Accent Line */
+.table-row-hover {
+  position: relative;
+  transition: background-color 120ms var(--ease-smooth), transform 120ms var(--ease-smooth);
+}
+.table-row-hover:hover {
   background-color: #f8fafc;
 }
+.table-row-hover:hover td:first-child {
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+
+/* Row Deletion Collapse Transition */
+.row-deleting {
+  opacity: 0 !important;
+  transform: scaleY(0) !important;
+  max-height: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  overflow: hidden !important;
+  transition: opacity 250ms var(--ease-smooth), max-height 300ms var(--ease-spring), transform 300ms var(--ease-spring), padding 300ms ease !important;
+}
+
+/* Filter Chip Toggle Animation */
+.chip-interactive {
+  transition: all 180ms var(--ease-spring);
+}
+.chip-interactive:hover {
+  transform: scale(1.02);
+}
+.chip-interactive:active {
+  transform: scale(0.96);
+}
+
+/* =========================================================================
+   KEYFRAME ANIMATIONS & OVERLAY PHYSICS
+   ========================================================================= */
+
+@keyframes backdrop-enter {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(2px);
+  }
+}
+
+@keyframes modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes drawer-enter-right {
+  from {
+    opacity: 0.5;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-enter-left {
+  from {
+    opacity: 0.5;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes popover-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes top-progress-indeterminate {
+  0% {
+    transform: translateX(-100%) scaleX(0.2);
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.7);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.2);
+  }
+}
+
+.animate-backdrop-fade {
+  animation: backdrop-enter 200ms var(--ease-smooth) forwards;
+}
+
+.animate-modal-spring {
+  animation: modal-enter 240ms var(--ease-spring) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-drawer-right {
+  animation: drawer-enter-right 280ms var(--ease-spring) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-drawer-left {
+  animation: drawer-enter-left 280ms var(--ease-spring) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-popover-spring {
+  animation: popover-enter 160ms var(--ease-pop) forwards;
+  transform-origin: top right;
+  will-change: transform, opacity;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.4) 0%,
+    rgba(241, 245, 249, 0.9) 50%,
+    rgba(226, 232, 240, 0.4) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.8s infinite ease-in-out;
+}
+
+.top-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa, #2563eb);
+  z-index: 99999;
+  transform-origin: left;
+  animation: top-progress-indeterminate 1.4s infinite ease-in-out;
+}
+
+/* Staggered Content Appear helper */
+.stagger-1 { animation-delay: 40ms; }
+.stagger-2 { animation-delay: 80ms; }
+.stagger-3 { animation-delay: 120ms; }
+.stagger-4 { animation-delay: 160ms; }
+
+/* =========================================================================
+   REDUCED MOTION ACCESSIBILITY
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn-interactive:hover,
+  .btn-interactive:active,
+  .card-interactive:hover,
+  .card-interactive:active {
+    transform: none !important;
+  }
+}
+

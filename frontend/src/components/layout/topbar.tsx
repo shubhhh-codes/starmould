@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -13,8 +11,11 @@ import {
   Clock,
   Sparkles,
   ChevronDown,
-  X,
+  Command,
 } from "lucide-react";
+import { CommandPalette } from "@/components/ui/command-palette";
+import { Modal } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
 
 interface TopbarProps {
   onToggleSidebar?: () => void;
@@ -48,6 +49,7 @@ export function Topbar({
   const router = useRouter();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -132,6 +134,11 @@ export function Topbar({
 
   return (
     <>
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+      />
+
       <header className="sticky top-0 z-30 h-16 bg-slate-900 border-b border-slate-800 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shadow-sm">
         {/* Left Section: Menu toggle & Brand */}
         <div className="flex items-center gap-3">
@@ -144,13 +151,13 @@ export function Topbar({
                 onToggleSidebar?.();
               }
             }}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
+            className="btn-interactive p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
             aria-label="Toggle Menu"
           >
             <Menu className="h-5 w-5" />
           </button>
 
-          {/* Quick Module Navigation Tabs */}
+          {/* Quick Module Navigation Tabs with physical hover */}
           <nav className="hidden lg:flex items-center gap-1 text-xs">
             {visibleTopNavLinks.map((link) => {
               const isActive =
@@ -162,7 +169,7 @@ export function Topbar({
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3 py-1.5 rounded-md font-medium transition-colors ${
+                  className={`btn-interactive px-3 py-1.5 rounded-md font-medium transition-all ${
                     isActive
                       ? "text-white bg-blue-600 shadow-xs font-semibold"
                       : "text-slate-300 hover:text-white hover:bg-slate-800"
@@ -175,16 +182,21 @@ export function Topbar({
           </nav>
         </div>
 
-        {/* Center: Global Search */}
+        {/* Center: Global Search / Command Palette Trigger */}
         <div className="hidden md:flex items-center flex-1 max-w-xs mx-4">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search mould, customer, plate..."
-              className="w-full pl-9 pr-3 py-1.5 text-xs rounded-lg bg-slate-800/80 border border-slate-700 text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowCommandPalette(true)}
+            className="w-full flex items-center justify-between pl-3 pr-2 py-1.5 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-all cursor-pointer shadow-inner"
+          >
+            <div className="flex items-center gap-2">
+              <Search className="h-3.5 w-3.5 text-slate-400" />
+              <span>Search or jump to...</span>
+            </div>
+            <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-900/60 rounded border border-slate-700">
+              <Command className="w-2.5 h-2.5" /> K
+            </kbd>
+          </button>
         </div>
 
         {/* Right Section: System status, Notifications & User profile */}
@@ -198,17 +210,17 @@ export function Topbar({
           {/* Notifications button */}
           <button
             title="Notifications"
-            className="relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="btn-interactive relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <Bell className="h-4 w-4" />
             <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-slate-900" />
           </button>
 
-          {/* User Profile Menu */}
+          {/* User Profile Menu with Spring Popover */}
           <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="flex items-center gap-2.5 p-1 pl-2 rounded-lg hover:bg-slate-800 transition-colors text-left cursor-pointer"
+              className="btn-interactive flex items-center gap-2.5 p-1 pl-2 rounded-lg hover:bg-slate-800 transition-colors text-left cursor-pointer"
             >
               <div className="flex flex-col text-right hidden sm:flex">
                 <span className="text-xs font-semibold text-white leading-tight">
@@ -225,9 +237,9 @@ export function Topbar({
               <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
             </button>
 
-            {/* Dropdown Menu */}
+            {/* Dropdown Menu with Popover Physics */}
             {currentUser && showUserDropdown && (
-              <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-xl py-1 text-xs text-slate-300 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 text-xs text-slate-300 z-50 animate-popover-spring">
                 <div className="px-4 py-2.5 border-b border-slate-800">
                   <p className="font-semibold text-white">{currentUser.name}</p>
                   <p className="text-[11px] text-slate-400 truncate">{currentUser.email}</p>
@@ -243,20 +255,30 @@ export function Topbar({
                       setShowUserDropdown(false);
                       setShowPasswordModal(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-800/80 text-slate-300 hover:text-white transition-colors"
+                    className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-800/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
                   >
                     <KeyRound className="h-3.5 w-3.5 text-blue-400" />
                     Change Password
                   </button>
+                  <button
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      setShowCommandPalette(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-800/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <Command className="h-3.5 w-3.5 text-purple-400" />
+                    Command Menu (Ctrl+K)
+                  </button>
                 </div>
 
-                <div className="pt-1 border-t border-slate-800">
+                <div className="border-t border-slate-800 pt-1">
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors cursor-pointer"
                   >
                     <LogOut className="h-3.5 w-3.5" />
-                    Logout
+                    Sign Out
                   </button>
                 </div>
               </div>
@@ -265,102 +287,88 @@ export function Topbar({
         </div>
       </header>
 
-      {/* Change Password Modal (recreated from old app's topbar modal) */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 text-slate-200">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
-              <div className="flex items-center gap-2 font-semibold text-sm text-white">
-                <KeyRound className="h-4 w-4 text-blue-400" />
-                Change Account Password
-              </div>
-              <button
-                onClick={() => setShowPasswordModal(false)}
-                className="text-slate-400 hover:text-white transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
+      {/* Change Password Modal */}
+      <Modal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        title="Change Your Password"
+        description="Update your credentials for secure ERP access"
+      >
+        <form onSubmit={handlePasswordChange} className="space-y-4">
+          {passwordError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-xs animate-in fade-in">
+              {passwordError}
             </div>
+          )}
 
-            <form onSubmit={handlePasswordChange} className="p-5 space-y-4 text-xs">
-              {passwordSuccess && (
-                <div className="p-3 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-medium">
-                  Password updated successfully!
-                </div>
-              )}
-
-              {passwordError && (
-                <div className="p-3 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400 font-medium">
-                  {passwordError}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter current password"
-                  disabled={isChangingPassword}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password (min 6 chars)"
-                  disabled={isChangingPassword}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1.5">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  disabled={isChangingPassword}
-                  className="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowPasswordModal(false)}
-                  disabled={isChangingPassword}
-                  className="px-4 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 font-medium transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isChangingPassword}
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white font-medium shadow-xs shadow-blue-600/30 transition-all cursor-pointer disabled:cursor-not-allowed"
-                >
-                  {isChangingPassword ? "Updating..." : "Update Password"}
-                </button>
-              </div>
-            </form>
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Current Password
+            </label>
+            <input
+              type="password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              placeholder="••••••••"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              New Password
+            </label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              placeholder="At least 6 characters"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1">
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+            <MotionButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowPasswordModal(false)}
+            >
+              Cancel
+            </MotionButton>
+            <MotionButton
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isChangingPassword}
+              isSuccess={passwordSuccess}
+              loadingText="Updating..."
+              successText="Password Changed!"
+            >
+              Update Password
+            </MotionButton>
+          </div>
+        </form>
+      </Modal>
     </>
   );
 }
+

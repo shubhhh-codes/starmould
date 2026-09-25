@@ -349,7 +349,7 @@ export default function PrintingPage() {
 
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl transition shadow-sm shadow-teal-500/20 text-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm"
             >
               <Plus className="w-4 h-4" />
               New Print Job
@@ -932,7 +932,7 @@ export default function PrintingPage() {
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl text-sm shadow-sm transition"
+                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-sm transition"
                   >
                     Create Print Order
                   </button>

@@ -27,6 +27,8 @@ import {
 import type { ScanProject, Customer, User, Subplate } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { Modal, Drawer } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
 import {
   useProjectsQuery,
   useCreateProjectMutation,
@@ -765,221 +767,221 @@ export default function ScanningPage() {
           </div>
         </div>
 
-        {/* Subplates Drawer */}
-        {selectedProject && (
-          <div className="fixed inset-0 z-50 flex items-center justify-end bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-xl h-full shadow-2xl border-l border-slate-200 p-6 flex flex-col">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">
-                    {selectedProject.projectid} Subplates
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    {selectedProject.description}
+        {/* Subplates Drawer (Physics-based slide-over) */}
+        <Drawer
+          isOpen={Boolean(selectedProject)}
+          onClose={() => setSelectedProject(null)}
+          width="xl"
+          title={
+            selectedProject ? (
+              <div>
+                <h3 className="text-base font-bold text-slate-900 font-mono">
+                  {selectedProject.projectid} Subplates
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {selectedProject.description}
+                </p>
+              </div>
+            ) : undefined
+          }
+        >
+          {selectedProject && (
+            <div className="space-y-3">
+              {projectSubplates.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-xs">
+                  <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <p className="font-medium text-slate-600">No subplates linked yet</p>
+                  <p className="text-slate-400 mt-1">
+                    Plates will appear here once attached to this project.
                   </p>
                 </div>
-                <button
-                  onClick={() => setSelectedProject(null)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto py-4 space-y-3">
-                {projectSubplates.length === 0 ? (
-                  <p className="text-sm text-slate-400 py-8 text-center">
-                    No subplates linked to this mould project yet.
-                  </p>
-                ) : (
-                  projectSubplates.map((sp) => (
-                    <div
-                      key={sp.id}
-                      className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm text-slate-800">
-                          {sp.platename}
-                        </span>
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                          {sp.location || "SM"}
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-500 font-mono">
-                        {sp.length} × {sp.width} × {sp.height} {sp.unit} •{" "}
-                        {sp.material} • Qty: {sp.sqty}
-                      </p>
+              ) : (
+                projectSubplates.map((sp) => (
+                  <div
+                    key={sp.id}
+                    className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 hover:bg-white transition-colors"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-slate-800">
+                        {sp.platename}
+                      </span>
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                        {sp.location || "SM"}
+                      </span>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Create Modal */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                    <Plus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
-                      Create Scanning Project
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Initialize new mould workpiece scanning project
+                    <p className="text-xs text-slate-500 font-mono">
+                      {sp.length} × {sp.width} × {sp.height} {sp.unit} •{" "}
+                      {sp.material} • Qty: {sp.sqty}
                     </p>
                   </div>
-                </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+                ))
+              )}
+            </div>
+          )}
+        </Drawer>
+
+        {/* Create Scanning Project Modal (Physics-based Spring Modal) */}
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          maxWidth="lg"
+          title={
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                <Plus className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Create Scanning Project
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Initialize new mould workpiece scanning project
+                </p>
+              </div>
+            </div>
+          }
+        >
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Customer
+                </label>
+                <select
+                  required
+                  value={modalForm.cname}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, cname: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  <option value="">Select Customer</option>
+                  {customers
+                    .filter((c) => c.usertype === "Customer")
+                    .map((c) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.customername}
+                      </option>
+                    ))}
+                </select>
               </div>
 
-              <form onSubmit={handleCreate} className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Customer
-                    </label>
-                    <select
-                      required
-                      value={modalForm.cname}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, cname: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                    >
-                      <option value="">Select Customer</option>
-                      {customers
-                        .filter((c) => c.usertype === "Customer")
-                        .map((c) => (
-                          <option key={c.id} value={String(c.id)}>
-                            {c.customername}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Received Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={modalForm.rdate}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, rdate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Mould Description
-                  </label>
-                  <textarea
-                    required
-                    rows={2}
-                    placeholder="e.g. 8 Cavity Cap Mould Top Core Plate..."
-                    value={modalForm.description}
-                    onChange={(e) =>
-                      setModalForm({
-                        ...modalForm,
-                        description: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Target Date
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={modalForm.cdate}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, cdate: e.target.value })
-                      }
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Scanner Staff
-                    </label>
-                    <select
-                      value={modalForm.scan_by}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, scan_by: e.target.value })
-                      }
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                    >
-                      <option value="0">Unassigned</option>
-                      {activeStaff.map((u) => (
-                        <option
-                          key={u.id}
-                          value={String(u.id)}
-                          title={`${u.name} (${u.initials || u.name}) ${
-                            u.usertype ? `• ${u.usertype}` : ""
-                          }`}
-                        >
-                          {u.initials ? `${u.initials} • ${u.name}` : u.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Billed (₹)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={modalForm.amount}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, amount: e.target.value })
-                      }
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-sm"
-                  >
-                    Create Project
-                  </button>
-                </div>
-              </form>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Received Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={modalForm.rdate}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, rdate: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
+              </div>
             </div>
-          </div>
-        )}
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Mould Description
+              </label>
+              <textarea
+                required
+                rows={2}
+                placeholder="e.g. 8 Cavity Cap Mould Top Core Plate..."
+                value={modalForm.description}
+                onChange={(e) =>
+                  setModalForm({
+                    ...modalForm,
+                    description: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Target Date
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={modalForm.cdate}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, cdate: e.target.value })
+                  }
+                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Scanner Staff
+                </label>
+                <select
+                  value={modalForm.scan_by}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, scan_by: e.target.value })
+                  }
+                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                >
+                  <option value="0">Unassigned</option>
+                  {activeStaff.map((u) => (
+                    <option
+                      key={u.id}
+                      value={String(u.id)}
+                      title={`${u.name} (${u.initials || u.name}) ${
+                        u.usertype ? `• ${u.usertype}` : ""
+                      }`}
+                    >
+                      {u.initials ? `${u.initials} • ${u.name}` : u.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Billed (₹)
+                </label>
+                <input
+                  type="number"
+                  placeholder="0.00"
+                  value={modalForm.amount}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, amount: e.target.value })
+                  }
+                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
+              <MotionButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cancel
+              </MotionButton>
+              <MotionButton
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isSubmitting}
+                loadingText="Creating..."
+                successText="Project Created!"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Create Project</span>
+              </MotionButton>
+            </div>
+          </form>
+        </Modal>
       </div>
     </AppLayout>
   );

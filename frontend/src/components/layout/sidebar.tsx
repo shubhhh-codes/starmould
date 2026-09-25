@@ -142,6 +142,8 @@ export const navigationItems: NavItem[] = [
 ];
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useSmartPrefetch } from "@/lib/query/prefetch";
+import { overlayStack } from "@/lib/overlay-stack";
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -164,26 +166,48 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { currentUser: authUser, logout } = useAuth();
+  const { prefetchProjects, prefetchSubplates, prefetchCustomers, prefetchExpenses } = useSmartPrefetch();
   const activeUser = propUser !== undefined ? propUser : authUser;
   const userRoleId = activeUser?.role_id;
+
+  // ESC stack integration for mobile drawer
+  React.useEffect(() => {
+    if (mobileOpen && onMobileClose) {
+      overlayStack.push("mobile-sidebar-drawer", () => {
+        onMobileClose();
+      });
+    } else {
+      overlayStack.pop("mobile-sidebar-drawer");
+    }
+    return () => {
+      overlayStack.pop("mobile-sidebar-drawer");
+    };
+  }, [mobileOpen, onMobileClose]);
 
   // Filter menu items strictly by user role.
   const visibleItems =
     userRoleId !== undefined && userRoleId !== null
       ? navigationItems.filter((item) => item.allowedRoles.includes(Number(userRoleId)))
-      : navigationItems.filter((item) => item.allowedRoles.includes(0)); // Stable default during initial load
+      : navigationItems.filter((item) => item.allowedRoles.includes(0));
 
   const handleLogout = async () => {
     await logout();
   };
 
+  const handlePrefetch = (href: string) => {
+    if (href === "/" || href === "/scanning") prefetchProjects();
+    else if (href === "/subplate") prefetchSubplates();
+    else if (href === "/customer") prefetchCustomers();
+    else if (href === "/expense") prefetchExpenses();
+  };
+
   return (
     <>
-      {/* Mobile Backdrop Overlay */}
+      {/* Mobile Backdrop Overlay with physics fade */}
       {mobileOpen && (
         <div
           onClick={onMobileClose}
-          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs md:hidden animate-in fade-in duration-200"
+          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs md:hidden animate-backdrop-fade"
           aria-hidden="true"
         />
       )}
@@ -193,7 +217,7 @@ export function Sidebar({
           collapsed ? "md:w-16" : "md:w-64"
         } ${
           mobileOpen
-            ? "w-64 translate-x-0 shadow-2xl"
+            ? "w-64 translate-x-0 shadow-2xl animate-drawer-left"
             : "w-64 -translate-x-full md:translate-x-0"
         }`}
       >
@@ -218,7 +242,7 @@ export function Sidebar({
           {/* Close button for mobile drawer */}
           <button
             onClick={onMobileClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden transition cursor-pointer"
+            className="btn-interactive p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden transition cursor-pointer"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />
@@ -251,15 +275,17 @@ export function Sidebar({
                 key={item.href}
                 href={item.href}
                 onClick={() => onMobileClose?.()}
+                onMouseEnter={() => handlePrefetch(item.href)}
+                onFocus={() => handlePrefetch(item.href)}
                 title={collapsed && !mobileOpen ? item.title : undefined}
-                className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 relative ${
+                className={`btn-interactive group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 relative ${
                   isActive
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
+                    ? "bg-blue-600 text-white shadow-xs shadow-blue-600/30"
                     : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/70"
                 }`}
               >
                 <Icon
-                  className={`h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-105 ${
+                  className={`h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110 ${
                     isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
                   }`}
                 />
@@ -267,7 +293,7 @@ export function Sidebar({
                   <span className="truncate flex-1">{item.title}</span>
                 )}
                 {(!collapsed || mobileOpen) && isActive && (
-                  <ChevronRight className="h-3 w-3 text-white/70" />
+                  <ChevronRight className="h-3 w-3 text-white/70 animate-in slide-in-from-left-1 duration-150" />
                 )}
               </Link>
             );

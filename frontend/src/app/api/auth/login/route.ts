@@ -12,7 +12,8 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanUsername = username.trim();
-    const safeUsername = cleanUsername.replace(/[(),.%]/g, "");
+    // Sanitize commas and parentheses to prevent PostgREST expression injection, while preserving dots, @, hyphens in email/username
+    const safeUsername = cleanUsername.replace(/[(),]/g, "");
 
     // Query active user by username or email (case-insensitive)
     const { data: users, error } = await supabaseAdmin

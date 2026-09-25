@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
-import { FullPageTableSkeleton } from "@/components/ui/skeleton";
+import { TopProgressBar } from "@/components/ui/top-progress-bar";
 import { ShieldAlert } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
@@ -69,6 +69,8 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col">
+      <TopProgressBar />
+
       {/* Sidebar */}
       <Sidebar
         collapsed={sidebarCollapsed}

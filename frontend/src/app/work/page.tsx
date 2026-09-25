@@ -31,6 +31,8 @@ import type {
   User,
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { Modal } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
 import {
   useWorklogsQuery,
   useCreateWorklogMutation,
@@ -833,36 +835,15 @@ export default function WorkPage() {
         )}
 
         {/* Modal: Add Work Entry */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white sm:rounded-2xl shadow-xl border border-slate-200 w-full h-full sm:h-auto sm:max-w-xl overflow-hidden max-h-screen sm:max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
-                    <Plus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
-                      Record Mould Work
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Submit task duration, VMC operations, and subplate activity
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form
-                onSubmit={handleCreate}
-                className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title="Record Mould Work"
+          description="Submit task duration, VMC operations, and subplate activity"
+          size="lg"
+        >
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Submission Date
@@ -1107,25 +1088,25 @@ export default function WorkPage() {
                   </span>
                 </div>
 
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-sm shadow-sm transition"
-                  >
-                    Save Work Entry
-                  </button>
-                </div>
-              </form>
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm transition btn-interactive"
+              >
+                Cancel
+              </button>
+              <MotionButton
+                type="submit"
+                loading={isSubmitting}
+                variant="primary"
+                size="md"
+              >
+                Save Work Entry
+              </MotionButton>
             </div>
-          </div>
-        )}
+          </form>
+        </Modal>
       </div>
     </AppLayout>
   );

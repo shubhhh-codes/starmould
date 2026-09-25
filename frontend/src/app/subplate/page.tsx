@@ -29,6 +29,8 @@ import {
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { Modal, Drawer } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
 
 // The 23 authentic materials extracted from resources/views/scanning/index.blade.php
 const REAL_MATERIALS = [
@@ -329,7 +331,7 @@ export default function SubplatePage() {
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl transition shadow-sm shadow-cyan-500/20 text-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm"
             >
               <Plus className="w-4 h-4" />
               Add Subplate
@@ -1008,216 +1010,214 @@ export default function SubplatePage() {
           </div>
         </div>
 
-        {/* Modal: Add Subplate */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
-            <div className="bg-white sm:rounded-2xl shadow-xl border border-slate-200 w-full h-full sm:h-auto sm:max-w-lg overflow-y-auto max-h-screen sm:max-h-[90vh] flex flex-col">
-              <div className="flex items-center justify-between p-4 sm:p-6 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
-                    <Plus className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
-                      Add New Subplate
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Define workpiece specs and assign to mould project
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+        {/* Modal: Add Subplate (Physics-based Spring Modal) */}
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          maxWidth="lg"
+          title={
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
+                <Plus className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Add New Subplate
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Define workpiece specs and assign to mould project
+                </p>
+              </div>
+            </div>
+          }
+        >
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Plate Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Cavity Plate A"
+                  value={modalForm.platename}
+                  onChange={(e) =>
+                    setModalForm({
+                      ...modalForm,
+                      platename: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
               </div>
 
-              <form onSubmit={handleCreate} className="p-4 sm:p-6 space-y-4 flex-1">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Plate Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Cavity Plate A"
-                      value={modalForm.platename}
-                      onChange={(e) =>
-                        setModalForm({
-                          ...modalForm,
-                          platename: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Mould / Project
-                    </label>
-                    <select
-                      required
-                      value={modalForm.projectid}
-                      onChange={(e) =>
-                        setModalForm({
-                          ...modalForm,
-                          projectid: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                    >
-                      <option value="">Select Project</option>
-                      {scans.map((s) => (
-                        <option key={s.id} value={s.projectid || String(s.id)}>
-                          {s.projectid} - {s.description}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Shape
-                    </label>
-                    <select
-                      value={modalForm.shape}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, shape: e.target.value })
-                      }
-                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                    >
-                      {SHAPES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Material
-                    </label>
-                    <select
-                      value={modalForm.material}
-                      onChange={(e) =>
-                        setModalForm({
-                          ...modalForm,
-                          material: e.target.value,
-                        })
-                      }
-                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold"
-                    >
-                      {REAL_MATERIALS.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Quantity
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      value={modalForm.sqty}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, sqty: e.target.value })
-                      }
-                      className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Length
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="L (mm)"
-                      value={modalForm.length}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, length: e.target.value })
-                      }
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Width
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="W (mm)"
-                      value={modalForm.width}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, width: e.target.value })
-                      }
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Height
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="H (mm)"
-                      value={modalForm.height}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, height: e.target.value })
-                      }
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Unit
-                    </label>
-                    <select
-                      value={modalForm.unit}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, unit: e.target.value })
-                      }
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs"
-                    >
-                      <option value="mm">mm</option>
-                      <option value="inch">inch</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-xl text-sm shadow-sm"
-                  >
-                    Save Subplate
-                  </button>
-                </div>
-              </form>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Mould / Project
+                </label>
+                <select
+                  required
+                  value={modalForm.projectid}
+                  onChange={(e) =>
+                    setModalForm({
+                      ...modalForm,
+                      projectid: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                >
+                  <option value="">Select Project</option>
+                  {scans.map((s) => (
+                    <option key={s.id} value={s.projectid || String(s.id)}>
+                      {s.projectid} - {s.description}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
-        )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Shape
+                </label>
+                <select
+                  value={modalForm.shape}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, shape: e.target.value })
+                  }
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                >
+                  {SHAPES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Material
+                </label>
+                <select
+                  value={modalForm.material}
+                  onChange={(e) =>
+                    setModalForm({
+                      ...modalForm,
+                      material: e.target.value,
+                    })
+                  }
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                >
+                  {REAL_MATERIALS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Quantity
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="1"
+                  value={modalForm.sqty}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, sqty: e.target.value })
+                  }
+                  className="w-full px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Length
+                </label>
+                <input
+                  type="number"
+                  placeholder="L (mm)"
+                  value={modalForm.length}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, length: e.target.value })
+                  }
+                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Width
+                </label>
+                <input
+                  type="number"
+                  placeholder="W (mm)"
+                  value={modalForm.width}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, width: e.target.value })
+                  }
+                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Height
+                </label>
+                <input
+                  type="number"
+                  placeholder="H (mm)"
+                  value={modalForm.height}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, height: e.target.value })
+                  }
+                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Unit
+                </label>
+                <select
+                  value={modalForm.unit}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, unit: e.target.value })
+                  }
+                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                >
+                  <option value="mm">mm</option>
+                  <option value="inch">inch</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
+              <MotionButton
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsModalOpen(false)}
+              >
+                Cancel
+              </MotionButton>
+              <MotionButton
+                type="submit"
+                variant="primary"
+                size="sm"
+                loadingText="Saving..."
+                successText="Subplate Saved!"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Save Subplate</span>
+              </MotionButton>
+            </div>
+          </form>
+        </Modal>
       </div>
     </AppLayout>
   );

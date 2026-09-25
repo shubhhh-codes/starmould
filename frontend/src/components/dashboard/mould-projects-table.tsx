@@ -37,6 +37,9 @@ import {
 import { formatDate } from "@/lib/utils";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
+import { Modal, Drawer } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
+import { useSmartPrefetch } from "@/lib/query/prefetch";
 
 const REAL_MATERIALS = [
   "MS-Bright",
@@ -858,396 +861,362 @@ export function MouldProjectsTable({
         </div>
       </div>
 
-      {/* View Subplates Modal */}
-      {viewProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900 font-mono">
-                      {viewProject.projectid || `Project #${viewProject.id}`}
-                    </h3>
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        viewProject.status === "completed"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {viewProject.status}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    {viewProject.customername || viewProject.cname || "Unknown Customer"} • {viewProject.description || "No description"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleOpenAddPlate(viewProject)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Subplate</span>
-                </button>
-                <button
-                  onClick={() => setViewProject(null)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body: Subplates List */}
-            <div className="flex-1 overflow-y-auto p-5">
-              {isLoadingSubplates ? (
-                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-                  <span className="text-xs">Loading subplates...</span>
-                </div>
-              ) : viewSubplates.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-xs">
-                  <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <p className="font-medium text-slate-600">No subplates registered yet</p>
-                  <p className="text-slate-400 mt-1">Click &quot;Add Subplate&quot; above to attach plates to this mould project.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-xs font-semibold text-slate-500 flex items-center justify-between">
-                    <span>{viewSubplates.length} Plates in Project</span>
-                  </div>
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                    {viewSubplates.map((sp) => (
-                      <div
-                        key={sp.id}
-                        className="p-3.5 bg-white hover:bg-slate-50/70 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs"
-                      >
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800 text-sm">
-                              {sp.platename}
-                            </span>
-                            {sp.subprojectid && (
-                              <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-                                {sp.subprojectid}
-                              </span>
-                            )}
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
-                              {sp.material || "MS-Bright"}
-                            </span>
-                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                              {sp.location || "SM"}
-                            </span>
-                          </div>
-                          <div className="text-slate-500 flex flex-wrap items-center gap-3 font-mono text-[11px]">
-                            <span>
-                              {sp.length ?? "—"} × {sp.width ?? "—"} × {sp.height ?? "—"} {sp.unit || "mm"}
-                            </span>
-                            <span>•</span>
-                            <span>Qty: {sp.sqty || 1}</span>
-                            {sp.weight ? (
-                              <>
-                                <span>•</span>
-                                <span>{sp.weight} kg</span>
-                              </>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {/* Stage Badges & Actions */}
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-1">
-                            <span
-                              title="Design"
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                sp.design_by ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"
-                              }`}
-                            >
-                              DES
-                            </span>
-                            <span
-                              title="Material Order"
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                sp.order_by ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-400"
-                              }`}
-                            >
-                              ORD
-                            </span>
-                            <span
-                              title="Material Inward"
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                sp.received_workby ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
-                              }`}
-                            >
-                              REC
-                            </span>
-                            <span
-                              title="VMC Machining"
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                sp.vmc_workby ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
-                              }`}
-                            >
-                              VMC
-                            </span>
-                            <span
-                              title="Drill & Tap"
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                sp.drilltap_workby ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-400"
-                              }`}
-                            >
-                              D&T
-                            </span>
-                            <span
-                              title="Final QC"
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                sp.final_qcby ? "bg-cyan-100 text-cyan-700" : "bg-slate-100 text-slate-400"
-                              }`}
-                            >
-                              FQC
-                            </span>
-                            <span
-                              title="Packing"
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                sp.packing_workby ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-400"
-                              }`}
-                            >
-                              PAK
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteSubplate(sp.id)}
-                            title="Delete Subplate"
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setViewProject(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 bg-slate-100 rounded-xl transition-colors cursor-pointer"
+      {/* View Subplates Drawer (Linear-style slide-over) */}
+      <Drawer
+        isOpen={Boolean(viewProject)}
+        onClose={() => setViewProject(null)}
+        width="2xl"
+        title={
+          viewProject ? (
+            <div className="flex items-center gap-2">
+              <span className="font-mono font-bold text-slate-900">
+                {viewProject.projectid || `Project #${viewProject.id}`}
+              </span>
+              <span
+                className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  viewProject.status === "completed"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-amber-100 text-amber-700"
+                }`}
               >
-                Close
-              </button>
+                {viewProject.status}
+              </span>
             </div>
+          ) : undefined
+        }
+        description={
+          viewProject
+            ? `${viewProject.customername || viewProject.cname || "Customer"} • ${
+                viewProject.description || "No description"
+              }`
+            : undefined
+        }
+      >
+        {viewProject && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <span className="text-xs font-semibold text-slate-500">
+                {viewSubplates.length} Subplates Linked
+              </span>
+              <MotionButton
+                variant="primary"
+                size="xs"
+                onClick={() => handleOpenAddPlate(viewProject)}
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Subplate</span>
+              </MotionButton>
+            </div>
+
+            {isLoadingSubplates ? (
+              <div className="py-16 flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                <span className="text-xs">Loading subplates...</span>
+              </div>
+            ) : viewSubplates.length === 0 ? (
+              <div className="py-16 text-center text-slate-400 text-xs">
+                <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                <p className="font-medium text-slate-600">No subplates registered yet</p>
+                <p className="text-slate-400 mt-1">
+                  Click &quot;Add Subplate&quot; above to attach plates to this mould project.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {viewSubplates.map((sp) => (
+                  <div
+                    key={sp.id}
+                    className="p-3.5 bg-white hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800 text-sm">
+                          {sp.platename}
+                        </span>
+                        {sp.subprojectid && (
+                          <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                            {sp.subprojectid}
+                          </span>
+                        )}
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                          {sp.material || "MS-Bright"}
+                        </span>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                          {sp.location || "SM"}
+                        </span>
+                      </div>
+                      <div className="text-slate-500 flex flex-wrap items-center gap-3 font-mono text-[11px]">
+                        <span>
+                          {sp.length ?? "—"} × {sp.width ?? "—"} × {sp.height ?? "—"} {sp.unit || "mm"}
+                        </span>
+                        <span>•</span>
+                        <span>Qty: {sp.sqty || 1}</span>
+                        {sp.weight ? (
+                          <>
+                            <span>•</span>
+                            <span>{sp.weight} kg</span>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        <span
+                          title="Design"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            sp.design_by ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          DES
+                        </span>
+                        <span
+                          title="Material Order"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            sp.order_by ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          ORD
+                        </span>
+                        <span
+                          title="Material Inward"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            sp.received_workby ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          REC
+                        </span>
+                        <span
+                          title="VMC Machining"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            sp.vmc_workby ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          VMC
+                        </span>
+                        <span
+                          title="Drill & Tap"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            sp.drilltap_workby ? "bg-purple-100 text-purple-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          D&T
+                        </span>
+                        <span
+                          title="Final QC"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            sp.final_qcby ? "bg-cyan-100 text-cyan-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          FQC
+                        </span>
+                        <span
+                          title="Packing"
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                            sp.packing_workby ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-400"
+                          }`}
+                        >
+                          PAK
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteSubplate(sp.id)}
+                        title="Delete Subplate"
+                        className="btn-interactive p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </Drawer>
 
       {/* Add Subplate Modal */}
-      {addPlateProject && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-                  <Plus className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">
-                    Add Subplate Plate
-                  </h3>
-                  <p className="text-xs text-slate-500 font-mono">
-                    Project: {addPlateProject.projectid || `#${addPlateProject.id}`}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setAddPlateProject(null)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      <Modal
+        isOpen={Boolean(addPlateProject)}
+        onClose={() => setAddPlateProject(null)}
+        title="Add Subplate Plate"
+        description={
+          addPlateProject
+            ? `Attach a workpiece plate to Project ${addPlateProject.projectid || `#${addPlateProject.id}`}`
+            : undefined
+        }
+      >
+        <form onSubmit={handleSubmitPlate} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Plate Name *
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Top Plate, Core Plate"
+                value={plateForm.platename}
+                onChange={(e) => setPlateForm({ ...plateForm, platename: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
             </div>
-
-            <form onSubmit={handleSubmitPlate} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Plate Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Top Plate, Core Plate"
-                    value={plateForm.platename}
-                    onChange={(e) => setPlateForm({ ...plateForm, platename: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Subproject Code
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 1461_FBLP_025_001"
-                    value={plateForm.subprojectid}
-                    onChange={(e) => setPlateForm({ ...plateForm, subprojectid: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Material
-                  </label>
-                  <select
-                    value={plateForm.material}
-                    onChange={(e) => setPlateForm({ ...plateForm, material: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    {REAL_MATERIALS.map((mat) => (
-                      <option key={mat} value={mat}>
-                        {mat}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Shape
-                  </label>
-                  <select
-                    value={plateForm.shape}
-                    onChange={(e) => setPlateForm({ ...plateForm, shape: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    {SHAPES.map((sh) => (
-                      <option key={sh} value={sh}>
-                        {sh}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Length (mm)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.0"
-                    value={plateForm.length}
-                    onChange={(e) => setPlateForm({ ...plateForm, length: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Width (mm)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.0"
-                    value={plateForm.width}
-                    onChange={(e) => setPlateForm({ ...plateForm, width: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Height (mm)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.0"
-                    value={plateForm.height}
-                    onChange={(e) => setPlateForm({ ...plateForm, height: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Quantity
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={plateForm.sqty}
-                    onChange={(e) => setPlateForm({ ...plateForm, sqty: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Weight (kg)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.0"
-                    value={plateForm.weight}
-                    onChange={(e) => setPlateForm({ ...plateForm, weight: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                    Location
-                  </label>
-                  <select
-                    value={plateForm.location}
-                    onChange={(e) => setPlateForm({ ...plateForm, location: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  >
-                    <option value="SM">SM (In-House)</option>
-                    <option value="Vendor">Vendor</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setAddPlateProject(null)}
-                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmittingPlate}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-2xs transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmittingPlate ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Plus className="w-3.5 h-3.5" />
-                  )}
-                  <span>{isSubmittingPlate ? "Adding..." : "Add Subplate"}</span>
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Subproject Code
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 1461_FBLP_025_001"
+                value={plateForm.subprojectid}
+                onChange={(e) => setPlateForm({ ...plateForm, subprojectid: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-mono"
+              />
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Material
+              </label>
+              <select
+                value={plateForm.material}
+                onChange={(e) => setPlateForm({ ...plateForm, material: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              >
+                {REAL_MATERIALS.map((mat) => (
+                  <option key={mat} value={mat}>
+                    {mat}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Shape
+              </label>
+              <select
+                value={plateForm.shape}
+                onChange={(e) => setPlateForm({ ...plateForm, shape: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              >
+                {SHAPES.map((sh) => (
+                  <option key={sh} value={sh}>
+                    {sh}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Length (mm)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.0"
+                value={plateForm.length}
+                onChange={(e) => setPlateForm({ ...plateForm, length: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Width (mm)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.0"
+                value={plateForm.width}
+                onChange={(e) => setPlateForm({ ...plateForm, width: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Height (mm)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.0"
+                value={plateForm.height}
+                onChange={(e) => setPlateForm({ ...plateForm, height: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Quantity
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={plateForm.sqty}
+                onChange={(e) => setPlateForm({ ...plateForm, sqty: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Weight (kg)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.0"
+                value={plateForm.weight}
+                onChange={(e) => setPlateForm({ ...plateForm, weight: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Location
+              </label>
+              <select
+                value={plateForm.location}
+                onChange={(e) => setPlateForm({ ...plateForm, location: e.target.value })}
+                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              >
+                <option value="SM">SM (In-House)</option>
+                <option value="Vendor">Vendor</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
+            <MotionButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setAddPlateProject(null)}
+            >
+              Cancel
+            </MotionButton>
+            <MotionButton
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isSubmittingPlate}
+              loadingText="Adding Plate..."
+              successText="Plate Added!"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Subplate</span>
+            </MotionButton>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
+

@@ -23,9 +23,9 @@ export interface SessionPayload extends SessionUser {
 const COOKIE_NAME = "sm_session";
 
 function getSessionSecret(): string {
-  const secret = process.env.SESSION_SECRET;
+  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret) {
-    throw new Error("CRITICAL SECURITY CONFIGURATION ERROR: SESSION_SECRET is not configured.");
+    throw new Error("CRITICAL SECURITY CONFIGURATION ERROR: Neither SESSION_SECRET nor SUPABASE_SERVICE_ROLE_KEY is configured.");
   }
   return secret;
 }
@@ -54,8 +54,8 @@ export function signSession(user: SessionUser): string {
  */
 export function verifySessionToken(token: string): SessionUser | null {
   if (!token || typeof token !== "string" || !token.includes(".")) return null;
-  const secret = process.env.SESSION_SECRET;
-  if (!secret) return null; // Fail safely if SESSION_SECRET is not configured
+  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) return null; // Fail safely if no secret is configured
 
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;

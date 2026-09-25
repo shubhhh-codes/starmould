@@ -194,18 +194,18 @@ export function PipelineStatGrid({
           <div
             key={stage.id}
             onClick={() => onSelectStage?.(isSelected ? null : stage.id)}
-            className={`cursor-pointer rounded-xl bg-white border p-3 transition-all duration-200 shadow-xs hover:shadow-md ${
+            className={`card-interactive cursor-pointer rounded-xl bg-white border p-3 select-none ${
               isSelected
-                ? `ring-2 ring-blue-500 shadow-sm border-transparent bg-slate-50`
+                ? `ring-2 ring-blue-500 shadow-md border-blue-400 bg-blue-50/40 transform -translate-y-0.5`
                 : `${stage.colorTheme.border} ${stage.colorTheme.bg}`
             }`}
           >
             {/* Header / Title */}
             <div className="flex items-center justify-between gap-1 mb-2">
-              <span className="text-[11px] font-semibold text-slate-700 truncate">
+              <span className={`text-[11px] font-semibold truncate ${isSelected ? "text-blue-900 font-bold" : "text-slate-700"}`}>
                 {stage.label}
               </span>
-              <div className={`p-1 rounded-md ${stage.colorTheme.iconBg} flex-shrink-0`}>
+              <div className={`p-1 rounded-md ${stage.colorTheme.iconBg} flex-shrink-0 transition-transform duration-150 ${isSelected ? "scale-110" : ""}`}>
                 <Icon className="h-3 w-3" />
               </div>
             </div>
@@ -231,3 +231,4 @@ export function PipelineStatGrid({
     </div>
   );
 }
+
