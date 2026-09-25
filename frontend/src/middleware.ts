@@ -33,7 +33,11 @@ function parseSessionToken(token: string): { id: number; role_id: number; role: 
   const [payload] = token.split(".");
   if (!payload) return null;
   try {
-    const jsonStr = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    let base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    while (base64.length % 4) {
+      base64 += "=";
+    }
+    const jsonStr = atob(base64);
     return JSON.parse(jsonStr);
   } catch {
     return null;
@@ -43,12 +47,11 @@ function parseSessionToken(token: string): { id: number; role_id: number; role: 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow static files, api routes, favicon, and login
+  // Allow static files, api routes, and favicon
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/static") ||
-    pathname === "/login" ||
     pathname === "/favicon.ico"
   ) {
     return NextResponse.next();
@@ -56,13 +59,17 @@ export function middleware(req: NextRequest) {
 
   // Get session cookie
   const sessionCookie = req.cookies.get("sm_session");
-  if (!sessionCookie?.value) {
-    // REDIRECT TO LOGIN IF NO SESSION (NO ADMIN FALLBACK)
-    const loginUrl = new URL("/login", req.url);
-    return NextResponse.redirect(loginUrl);
+  const session = sessionCookie?.value ? parseSessionToken(sessionCookie.value) : null;
+
+  // If user is on /login
+  if (pathname === "/login") {
+    if (session && session.role_id !== undefined && session.role_id !== null) {
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+    return NextResponse.next();
   }
 
-  const session = parseSessionToken(sessionCookie.value);
+  // Protected routes: redirect to login if no valid session
   if (!session || session.role_id === undefined || session.role_id === null) {
     const loginUrl = new URL("/login", req.url);
     return NextResponse.redirect(loginUrl);

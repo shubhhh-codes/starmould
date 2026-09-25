@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/providers/auth-provider";
 import {
   Factory,
   ShieldCheck,
@@ -11,14 +12,25 @@ import {
   AlertCircle,
   CheckCircle2,
   Sparkles,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { currentUser, isSessionLoaded, setUser } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // If user is already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (isSessionLoaded && currentUser) {
+      window.location.href = "/";
+    }
+  }, [isSessionLoaded, currentUser]);
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -35,15 +47,19 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Login failed. Please check your credentials.");
+        setIsLoading(false);
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      if (data.user) {
+        setUser(data.user);
+      }
+
+      // Perform full page reload to dashboard to ensure cookies and session are synchronously committed
+      window.location.href = "/";
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error connecting to server";
       setError(msg);
-    } finally {
       setIsLoading(false);
     }
   };
@@ -103,13 +119,34 @@ export default function LoginPage() {
               <div className="relative">
                 <Lock className="h-4 w-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
-                  type="password"
+                  type="text"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
-                  className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                  data-lpignore="true"
+                  data-form-type="other"
+                  style={{
+                    WebkitTextSecurity: showPassword ? "none" : "disc",
+                  } as React.CSSProperties}
+                  className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   required
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition focus:outline-hidden p-0.5"
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
             </div>
 

@@ -16,6 +16,7 @@ export interface UserSession {
 interface AuthContextType {
   currentUser: UserSession | null;
   isSessionLoaded: boolean;
+  setUser: (user: UserSession | null) => void;
   refreshSession: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -23,6 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   isSessionLoaded: false,
+  setUser: () => {},
   refreshSession: async () => {},
   logout: async () => {},
 });
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         currentUser,
         isSessionLoaded,
+        setUser: setCurrentUser,
         refreshSession: fetchSession,
         logout,
       }}
