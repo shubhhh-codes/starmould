@@ -643,11 +643,20 @@ export default function ChallanPage() {
                               )}
                             </td>
 
-                            <td className="px-4 py-3.5 text-right">
+                            <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                              <Link
+                                href={`/print/challan/${c.id}`}
+                                target="_blank"
+                                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition inline-flex items-center gap-1 text-xs font-semibold mr-1"
+                                title="Print Outward Challan"
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Print</span>
+                              </Link>
                               <button
                                 type="button"
                                 onClick={() => handleCancelChallan(c.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer inline-flex items-center"
                                 title="Cancel / Delete Challan"
                               >
                                 <Trash2 className="h-4 w-4" />

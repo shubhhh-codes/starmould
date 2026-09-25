@@ -22,6 +22,7 @@ import {
   FileText,
   BadgePercent,
   Compass,
+  Printer,
 } from "lucide-react";
 import type {
   Dispatch,
@@ -561,10 +562,19 @@ export default function DispatchPage() {
                             {d.created_by}
                           </td>
 
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            <Link
+                              href={`/print/dispatch/${d.id}`}
+                              target="_blank"
+                              className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition inline-flex items-center gap-1 text-xs font-semibold mr-1"
+                              title="Print Dispatch Challan"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Print</span>
+                            </Link>
                             <button
                               onClick={() => handleDeleteDispatch(d.id)}
-                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition"
+                              className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition inline-flex items-center"
                               title="Delete Challan"
                             >
                               <Trash2 className="h-4 w-4" />

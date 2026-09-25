@@ -22,6 +22,7 @@ import {
   Box,
   FileText,
   RotateCcw,
+  Printer,
 } from "lucide-react";
 import type {
   Inward,
@@ -483,11 +484,20 @@ export default function InwardPage() {
                             {i.created_by}
                           </td>
 
-                          <td className="px-4 py-3.5 text-right">
+                          <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                            <Link
+                              href={`/print/inward/${i.id}`}
+                              target="_blank"
+                              className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition inline-flex items-center gap-1 text-xs font-semibold mr-1"
+                              title="Print Inward Receipt"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Print</span>
+                            </Link>
                             <button
                               type="button"
                               onClick={() => handleCancelInward(i.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer inline-flex items-center"
                               title="Cancel / Delete Inward"
                             >
                               <Trash2 className="h-4 w-4" />

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   Briefcase,
@@ -22,6 +23,7 @@ import {
   ChevronRight,
   Trash2,
   Loader2,
+  Printer,
 } from "lucide-react";
 import type {
   Worklog,
@@ -565,11 +567,20 @@ export default function WorkPage() {
                           <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
                             {row.work_hr}
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <Link
+                              href={`/print/work/${row.id}`}
+                              target="_blank"
+                              className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 transition inline-flex items-center gap-1 text-xs font-semibold mr-1"
+                              title="Print Work Order / Worklog"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline">Print</span>
+                            </Link>
                             <button
                               type="button"
                               onClick={() => handleDeleteWorklog(row.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer inline-flex items-center"
                               title="Delete worklog"
                             >
                               <Trash2 className="w-4 h-4" />
