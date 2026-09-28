@@ -36,10 +36,17 @@ class OverlayManager {
     if (this.stack.length > 0) {
       if (!this.originalOverflow) {
         this.originalOverflow = document.body.style.overflow;
-        const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-        if (scrollbarWidth > 0) {
-          this.originalPaddingRight = document.body.style.paddingRight;
-          document.body.style.paddingRight = `${scrollbarWidth}px`;
+        // Only apply scrollbar width padding compensation on desktop screens with standard physical scrollbars
+        const isTouchOrMobile =
+          window.innerWidth < 768 ||
+          ("ontouchstart" in window && navigator.maxTouchPoints > 0);
+
+        if (!isTouchOrMobile) {
+          const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+          if (scrollbarWidth > 0 && scrollbarWidth <= 24) {
+            this.originalPaddingRight = document.body.style.paddingRight;
+            document.body.style.paddingRight = `${scrollbarWidth}px`;
+          }
         }
         document.body.style.overflow = "hidden";
       }

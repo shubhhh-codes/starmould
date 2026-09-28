@@ -23,6 +23,8 @@ import {
 import type { PrintProject, Customer, User, GramCalc } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { Modal } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
 import { usePrintingQuery, useCreatePrintingMutation, useUpdatePrintingMutation, useDeletePrintingMutation } from "@/lib/query/hooks";
 
 // Dynamic Gram pricing calculation matching legacy PrintingController.php:170-183
@@ -734,213 +736,195 @@ export default function PrintingPage() {
         </div>
 
         {/* Modal: New Print Job */}
-        {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden">
-              <div className="flex items-center justify-between p-6 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-teal-50 text-teal-600 rounded-lg">
-                    <Printer className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-slate-900">
-                      Create 3D Print Order
-                    </h3>
-                    <p className="text-xs text-slate-500">
-                      Pricing auto-calculated via Gram rules (PrintingController.php:170)
-                    </p>
-                  </div>
+        <Modal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title="Create 3D Print Order"
+          description="Enter part details, weight, and pricing formula for 3D printing dispatch"
+          size="lg"
+        >
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Customer Name <span className="text-rose-500">*</span>
+              </label>
+              <select
+                required
+                value={modalForm.cname}
+                onChange={(e) =>
+                  setModalForm({ ...modalForm, cname: e.target.value })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              >
+                <option value="">Select Customer</option>
+                {customers
+                  .filter((c) => c.usertype === "Customer")
+                  .map((c) => (
+                    <option key={c.id} value={c.customername}>
+                      {c.customername}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Received Date (tdate)
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={modalForm.tdate}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, tdate: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Committed Date (cdate)
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={modalForm.cdate}
+                  onChange={(e) =>
+                    setModalForm({ ...modalForm, cdate: e.target.value })
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Resin Weight (Grams) <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="1"
+                    required
+                    placeholder="e.g. 450"
+                    value={modalForm.gram}
+                    onChange={(e) =>
+                      setModalForm({ ...modalForm, gram: e.target.value })
+                    }
+                    className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    g
+                  </span>
                 </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-50"
-                >
-                  <X className="w-5 h-5" />
-                </button>
               </div>
 
-              <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Machine Time (Hours)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    step="0.5"
+                    placeholder="e.g. 8.5"
+                    value={modalForm.hr}
+                    onChange={(e) =>
+                      setModalForm({ ...modalForm, hr: e.target.value })
+                    }
+                    className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                    h
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Gram Calculation Live Preview / Fallback Card */}
+            {previewAmount.matchedTier ? (
+              <div className="p-4 bg-teal-50/70 border border-teal-200/60 rounded-xl flex items-center justify-between">
+                <div className="flex items-center gap-2 text-teal-800 text-xs">
+                  <Scale className="w-4 h-4 text-teal-600" />
+                  <span>
+                    Auto-calculated Price ({previewAmount.matchedTier.graterthan}g–{previewAmount.matchedTier.lessthan}g):
+                  </span>
+                </div>
+                <span className="font-mono text-lg font-black text-teal-700">
+                  ₹{previewAmount.amount.toLocaleString("en-IN")}
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-semibold">
+                      {gramTiers.length === 0
+                        ? "No Gram Tiers Configured:"
+                        : "No Matching Tier Found:"}
+                    </span>{" "}
+                    {gramTiers.length === 0
+                      ? "Database gram_calc has 0 rows. Please specify the job amount manually, or configure tier rules in /gram."
+                      : `No tier covers ${modalForm.gram || 0}g. Enter job amount manually below:`}
+                  </div>
+                </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Customer Name <span className="text-rose-500">*</span>
+                    Job Amount (₹) <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    required
-                    value={modalForm.cname}
+                  <input
+                    type="number"
+                    step="1"
+                    required={!previewAmount.matchedTier}
+                    placeholder="e.g. 500"
+                    value={modalForm.customAmount}
                     onChange={(e) =>
-                      setModalForm({ ...modalForm, cname: e.target.value })
+                      setModalForm({ ...modalForm, customAmount: e.target.value })
                     }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                  >
-                    <option value="">Select Customer</option>
-                    {customers
-                      .filter((c) => c.usertype === "Customer")
-                      .map((c) => (
-                        <option key={c.id} value={c.customername}>
-                          {c.customername}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Received Date (tdate)
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={modalForm.tdate}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, tdate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Committed Date (cdate)
-                    </label>
-                    <input
-                      type="date"
-                      required
-                      value={modalForm.cdate}
-                      onChange={(e) =>
-                        setModalForm({ ...modalForm, cdate: e.target.value })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Resin Weight (Grams) <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="1"
-                        required
-                        placeholder="e.g. 450"
-                        value={modalForm.gram}
-                        onChange={(e) =>
-                          setModalForm({ ...modalForm, gram: e.target.value })
-                        }
-                        className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                        g
-                      </span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Machine Time (Hours)
-                    </label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        step="0.5"
-                        placeholder="e.g. 8.5"
-                        value={modalForm.hr}
-                        onChange={(e) =>
-                          setModalForm({ ...modalForm, hr: e.target.value })
-                        }
-                        className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                        h
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Gram Calculation Live Preview / Fallback Card */}
-                {previewAmount.matchedTier ? (
-                  <div className="p-4 bg-teal-50/70 border border-teal-200/60 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-teal-800 text-xs">
-                      <Scale className="w-4 h-4 text-teal-600" />
-                      <span>
-                        Auto-calculated Price ({previewAmount.matchedTier.graterthan}g–{previewAmount.matchedTier.lessthan}g):
-                      </span>
-                    </div>
-                    <span className="font-mono text-lg font-black text-teal-700">
-                      ₹{previewAmount.amount.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <div className="p-3 bg-amber-50/80 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
-                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-semibold">
-                          {gramTiers.length === 0
-                            ? "No Gram Tiers Configured:"
-                            : "No Matching Tier Found:"}
-                        </span>{" "}
-                        {gramTiers.length === 0
-                          ? "Database gram_calc has 0 rows. Please specify the job amount manually, or configure tier rules in /gram."
-                          : `No tier covers ${modalForm.gram || 0}g. Enter job amount manually below:`}
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                        Job Amount (₹) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        step="1"
-                        required={!previewAmount.matchedTier}
-                        placeholder="e.g. 500"
-                        value={modalForm.customAmount}
-                        onChange={(e) =>
-                          setModalForm({ ...modalForm, customAmount: e.target.value })
-                        }
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Job / Prototype Description <span className="text-rose-500">*</span>
-                  </label>
-                  <textarea
-                    required
-                    rows={3}
-                    placeholder="Enter prototype details, cavity part name, or resin type..."
-                    value={modalForm.description}
-                    onChange={(e) =>
-                      setModalForm({ ...modalForm, description: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
+              </div>
+            )}
 
-                <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-sm transition"
-                  >
-                    Create Print Order
-                  </button>
-                </div>
-              </form>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                Job / Prototype Description <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                required
+                rows={3}
+                placeholder="Enter prototype details, cavity part name, or resin type..."
+                value={modalForm.description}
+                onChange={(e) =>
+                  setModalForm({ ...modalForm, description: e.target.value })
+                }
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
             </div>
-          </div>
-        )}
+
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 text-slate-600 hover:bg-slate-50 font-medium rounded-xl text-sm transition btn-interactive"
+              >
+                Cancel
+              </button>
+              <MotionButton
+                type="submit"
+                loading={isSubmitting}
+                variant="primary"
+                size="md"
+              >
+                Create Print Order
+              </MotionButton>
+            </div>
+          </form>
+        </Modal>
       </div>
     </AppLayout>
   );

@@ -26,6 +26,8 @@ import {
   LogOut,
   User as UserIcon,
   X,
+  Building2,
+  Settings,
 } from "lucide-react";
 
 export interface NavItem {
@@ -34,6 +36,7 @@ export interface NavItem {
   icon: React.ElementType;
   badge?: string;
   allowedRoles: number[]; // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker
+  permKey?: string;
 }
 
 export const navigationItems: NavItem[] = [
@@ -42,106 +45,140 @@ export const navigationItems: NavItem[] = [
     href: "/",
     icon: LayoutDashboard,
     allowedRoles: [0, 1, 2, 3, 4],
+    permKey: "nav_dashboard",
   },
   {
-    title: "Customer / Vendor",
-    href: "/customer",
-    icon: Users,
-    allowedRoles: [0, 1],
+    title: "Customer Creator",
+    href: "/customer?tab=Customer",
+    icon: Building2,
+    badge: "Admin",
+    allowedRoles: [0], // Admin only
+    permKey: "nav_customer_creator",
+  },
+  {
+    title: "Vendor / Transport",
+    href: "/customer?tab=Vendor",
+    icon: Truck,
+    allowedRoles: [0, 1], // Admin and Manager
+    permKey: "nav_vendor_transport",
   },
   {
     title: "Subplate Master",
     href: "/subplate",
     icon: Layers,
     allowedRoles: [0, 1, 2, 3],
+    permKey: "nav_subplate",
   },
   {
     title: "Scanning / Moulds",
     href: "/scanning",
     icon: Scan,
     allowedRoles: [0, 1, 2, 3, 4],
+    permKey: "nav_scanning",
   },
   {
     title: "Printing (Dispatch)",
     href: "/printing",
     icon: Printer,
     allowedRoles: [0, 1, 2],
+    permKey: "nav_printing",
   },
   {
     title: "Purchase Order",
     href: "/purchase",
     icon: ShoppingCart,
     allowedRoles: [0, 1],
+    permKey: "nav_purchase",
   },
   {
     title: "Purchase Inward",
     href: "/purchase-inward",
     icon: PackagePlus,
     allowedRoles: [0, 1],
+    permKey: "nav_purchase_inward",
   },
   {
     title: "Challan (Outward)",
     href: "/challan",
     icon: ArrowUpRight,
     allowedRoles: [0, 1, 2],
+    permKey: "nav_challan",
   },
   {
     title: "Dispatch (Final)",
     href: "/dispatch",
     icon: Truck,
     allowedRoles: [0, 1, 2],
+    permKey: "nav_dispatch",
   },
   {
     title: "Inward (Return)",
     href: "/inward",
     icon: ArrowDownLeft,
     allowedRoles: [0, 1, 2],
+    permKey: "nav_inward",
   },
   {
     title: "Work / Worklog",
     href: "/work",
     icon: Briefcase,
     allowedRoles: [0, 1, 2, 3, 4],
+    permKey: "nav_work",
   },
   {
     title: "Sample / Rework",
     href: "/sample",
     icon: RotateCcw,
     allowedRoles: [0, 1, 2, 3],
+    permKey: "nav_sample",
   },
   {
     title: "Expense & Finance",
     href: "/expense",
     icon: Receipt,
     allowedRoles: [0, 1],
+    permKey: "nav_expense",
   },
   {
     title: "Gram Master",
     href: "/gram",
     icon: Scale,
     allowedRoles: [0, 1],
+    permKey: "nav_gram",
   },
   {
     title: "User Management",
     href: "/user",
     icon: ShieldCheck,
     allowedRoles: [0], // Admin only
+    permKey: "nav_user_mgmt",
+  },
+  {
+    title: "Role & Permissions",
+    href: "/settings",
+    icon: Settings,
+    badge: "Admin",
+    allowedRoles: [0], // Admin only
+    permKey: "nav_user_mgmt",
   },
   {
     title: "Reports & Downtime",
     href: "/report",
     icon: BarChart3,
     allowedRoles: [0, 1, 2],
+    permKey: "nav_reports",
   },
   {
     title: "Export Streams",
     href: "/export",
     icon: FileDown,
     allowedRoles: [0, 1],
+    permKey: "nav_export",
   },
 ];
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useSmartPrefetch } from "@/lib/query/prefetch";
 import { overlayStack } from "@/lib/overlay-stack";
 
@@ -166,6 +203,7 @@ export function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const { currentUser: authUser, logout } = useAuth();
+  const { hasPermission, getRoleMenuOrder } = useRolePermissions();
   const { prefetchProjects, prefetchSubplates, prefetchCustomers, prefetchExpenses } = useSmartPrefetch();
   const activeUser = propUser !== undefined ? propUser : authUser;
   const userRoleId = activeUser?.role_id;
@@ -184,11 +222,40 @@ export function Sidebar({
     };
   }, [mobileOpen, onMobileClose]);
 
-  // Filter menu items strictly by user role.
-  const visibleItems =
-    userRoleId !== undefined && userRoleId !== null
-      ? navigationItems.filter((item) => item.allowedRoles.includes(Number(userRoleId)))
-      : navigationItems.filter((item) => item.allowedRoles.includes(0));
+  // Filter and sort menu items strictly by user role and active permission matrix & menu order
+  const visibleItems = React.useMemo(() => {
+    const roleId = Number(userRoleId ?? 4);
+    
+    // First, filter items that the role has permission to view
+    const allowed = navigationItems.filter((item) => {
+      if (roleId === 0) return true; // Admin has universal access
+      if (!item.allowedRoles.includes(roleId)) return false;
+      if (item.permKey) {
+        return hasPermission(item.permKey, roleId);
+      }
+      return true;
+    });
+
+    // Next, sort allowed items based on the role's configured menu order
+    const configuredOrder = getRoleMenuOrder(roleId);
+    if (!configuredOrder || configuredOrder.length === 0) {
+      return allowed;
+    }
+
+    return [...allowed].sort((a, b) => {
+      const aKey = a.permKey || a.href;
+      const bKey = b.permKey || b.href;
+      const aIndex = configuredOrder.indexOf(aKey);
+      const bIndex = configuredOrder.indexOf(bKey);
+
+      // If both are in the configured order, use that order
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      // If only one is in the configured order, prioritize the configured one
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return 0;
+    });
+  }, [userRoleId, hasPermission, getRoleMenuOrder]);
 
   const handleLogout = async () => {
     await logout();

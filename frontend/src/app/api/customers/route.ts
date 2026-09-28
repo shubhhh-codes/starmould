@@ -135,6 +135,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Usertype is required" }, { status: 400 });
     }
 
+    // RBAC: Only Admin (role_id === 0) can create 'Customer'. Other roles (Manager, etc.) can only create 'Vendor', 'Transport', 'Other'.
+    if (usertype === "Customer" && auth.user.role_id !== 0) {
+      return NextResponse.json(
+        { error: "Access Denied: Only Administrators are authorized to create Customer records. Other roles may only register Vendors, Transporters, or Other entities." },
+        { status: 403 }
+      );
+    }
+
     // Check duplicate initials against active records
     const { data: existingInitials } = await supabaseAdmin
       .from("customers")
@@ -227,6 +235,27 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Customer name already exists." }, { status: 400 });
     }
 
+    // RBAC: Non-admins cannot update records of type Customer or change a record's type to Customer
+    if (auth.user.role_id !== 0) {
+      if (usertype === "Customer") {
+        return NextResponse.json(
+          { error: "Access Denied: Only Administrators are authorized to manage Customer records." },
+          { status: 403 }
+        );
+      }
+      const { data: currentRec } = await supabaseAdmin
+        .from("customers")
+        .select("usertype")
+        .eq("id", id)
+        .single();
+      if (currentRec?.usertype === "Customer") {
+        return NextResponse.json(
+          { error: "Access Denied: Only Administrators are authorized to modify Customer records." },
+          { status: 403 }
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {
       customername: cleanName,
@@ -281,6 +310,21 @@ export async function DELETE(req: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ error: "Missing customer id" }, { status: 400 });
+    }
+
+    // RBAC: Non-admins cannot delete records of type Customer
+    if (auth.user.role_id !== 0) {
+      const { data: currentRec } = await supabaseAdmin
+        .from("customers")
+        .select("usertype")
+        .eq("id", id)
+        .single();
+      if (currentRec?.usertype === "Customer") {
+        return NextResponse.json(
+          { error: "Access Denied: Only Administrators are authorized to delete Customer records." },
+          { status: 403 }
+        );
+      }
     }
 
     // Perform soft delete by setting deleted_at timestamp (replicates Eloquent SoftDeletes)

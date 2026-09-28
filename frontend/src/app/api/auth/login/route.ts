@@ -83,10 +83,12 @@ export async function POST(req: NextRequest) {
       user: sessionUser,
     });
 
-    // Set signed, HttpOnly, secure auth cookie
+    const isHttps = req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";
+
+    // Set signed, HttpOnly auth cookie
     res.cookies.set("sm_session", signedToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: isHttps,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 7 days

@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchSession = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me");
-      if (res.status === 401) {
+      if (res.status === 401 || !res.ok) {
         setUser(null);
         return;
       }
@@ -97,15 +97,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Error loading session:", err);
       setIsSessionLoaded(true);
+    } finally {
+      setIsSessionLoaded(true);
     }
   }, [setUser]);
 
   useEffect(() => {
-    // Hydrate cached session on client mount immediately without SSR mismatch
+    // Hydrate cached session on client mount for instant rendering
     const cached = getCachedSession();
     if (cached) {
       setCurrentUserState(cached);
-      setIsSessionLoaded(true);
     }
     fetchSession();
   }, [fetchSession]);

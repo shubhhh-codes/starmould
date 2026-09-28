@@ -33,12 +33,31 @@ import {
   Building2,
   Calendar,
   Layers3,
+  Calculator,
+  Scale,
+  Lock,
+  ShieldCheck,
+  Package,
+  Compass,
+  Wrench,
+  Tag,
+  MapPin,
+  Minus,
+  Sparkles,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import {
+  calculateSubplateWeight,
+  isHeightDisabled,
+  getDimensionLabels,
+  SUPPORTED_UNITS,
+  SUPPORTED_SHAPES,
+  MATERIAL_DENSITIES,
+} from "@/lib/weight-calculator";
 import { useSmartPrefetch } from "@/lib/query/prefetch";
 
 const REAL_MATERIALS = [
@@ -67,7 +86,7 @@ const REAL_MATERIALS = [
   "WPS",
 ];
 
-const SHAPES = ["Plate", "Round Bar"];
+const SHAPES = SUPPORTED_SHAPES;
 
 interface MouldProjectsTableProps {
   initialData?: ScanProject[];
@@ -160,6 +179,77 @@ export function MouldProjectsTable({
       sqty: "1",
       location: "SM",
     });
+  };
+
+  // Dynamic dimension labels and shape constraints for Add Plate modal
+  const plateDimLabels = useMemo(
+    () => getDimensionLabels(plateForm.shape, plateForm.unit || "mm"),
+    [plateForm.shape, plateForm.unit]
+  );
+  const plateHeightDisabled = useMemo(
+    () => isHeightDisabled(plateForm.shape),
+    [plateForm.shape]
+  );
+
+  // Dynamic auto-calculation of subplate weight based on geometry, density, unit and quantity
+  const recalculatePlateWeight = (form: typeof plateForm) => {
+    const calculated = calculateSubplateWeight({
+      shape: form.shape,
+      material: form.material,
+      length: form.length,
+      width: form.width,
+      height: form.height,
+      unit: form.unit,
+      quantity: form.sqty,
+    });
+    return calculated > 0 ? calculated.toFixed(3) : "";
+  };
+
+  // Strict numeric validation and keyboard filters for Add Plate modal
+  const handleStepPlateQty = (delta: number) => {
+    const current = parseInt(plateForm.sqty || '1', 10) || 1;
+    const next = Math.max(1, current + delta);
+    const updated = { ...plateForm, sqty: String(next) };
+    updated.weight = recalculatePlateWeight(updated);
+    setPlateForm(updated);
+  };
+
+  const handlePlateQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const clean = e.target.value.replace(/[^0-9]/g, "");
+    const updated = { ...plateForm, sqty: clean };
+    updated.weight = recalculatePlateWeight(updated);
+    setPlateForm(updated);
+  };
+
+  const handleNumericPlateDimension = (field: "length" | "width" | "height", rawVal: string) => {
+    let clean = rawVal.replace(/[^0-9.]/g, "");
+    const parts = clean.split(".");
+    if (parts.length > 2) {
+      clean = parts[0] + "." + parts.slice(1).join("");
+    }
+    handleDimensionChange(field, clean);
+  };
+
+  const blockInvalidNumberKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (["e", "E", "+", "-"].includes(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const blockInvalidIntegerKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (["e", "E", "+", "-", "."].includes(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  // Auto calculate subplate weight dynamically based on geometry, material density and units
+  const handleDimensionChange = (field: string, value: string) => {
+    const updated = { ...plateForm, [field]: value };
+    if (field === "shape" && isHeightDisabled(value)) {
+      updated.height = "";
+    }
+    updated.weight = recalculatePlateWeight(updated);
+    setPlateForm(updated);
   };
 
   const handleSubmitPlate = async (e: React.FormEvent) => {
@@ -360,32 +450,6 @@ export function MouldProjectsTable({
                 {completed}/{total}
               </span>
             </div>
-          );
-        },
-      }),
-      // Status Badge
-      columnHelper.accessor("status", {
-        header: "Status",
-        cell: (info) => {
-          const status = info.getValue();
-          let badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
-          let icon = <Clock className="h-2.5 w-2.5" />;
-
-          if (status === "completed") {
-            badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-            icon = <CheckCircle2 className="h-2.5 w-2.5" />;
-          } else if (status === "registered") {
-            badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
-            icon = <AlertCircle className="h-2.5 w-2.5" />;
-          }
-
-          return (
-            <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badgeClass}`}
-            >
-              {icon}
-              <span className="capitalize">{status}</span>
-            </span>
           );
         },
       }),
@@ -599,7 +663,6 @@ export function MouldProjectsTable({
                 "Description",
                 "Received Date",
                 "Committed Date",
-                "Status",
                 "Plates",
                 "Amount",
                 "Payment",
@@ -611,7 +674,6 @@ export function MouldProjectsTable({
                 `"${(d.description || "").replace(/"/g, '""')}"`,
                 d.rdate,
                 d.cdate,
-                d.status,
                 d.total_plates || 0,
                 d.amount || 0,
                 d.payment === 1 ? "Paid" : "Unpaid",
@@ -724,15 +786,6 @@ export function MouldProjectsTable({
                     {m.projectid}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    <span
-                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        m.status === "completed"
-                          ? "bg-emerald-100 text-emerald-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {m.status}
-                    </span>
                     <button
                       onClick={() => handleOpenView(m)}
                       title="View Subplates"
@@ -1039,180 +1092,337 @@ export function MouldProjectsTable({
       <Modal
         isOpen={Boolean(addPlateProject)}
         onClose={() => setAddPlateProject(null)}
-        title="Add Subplate Plate"
-        description={
-          addPlateProject
-            ? `Attach a workpiece plate to Project ${addPlateProject.projectid || `#${addPlateProject.id}`}`
-            : undefined
+        maxWidth="xl"
+        title={
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-blue-500/10 shrink-0">
+              <Layers className="w-5 h-5 stroke-[2.2]" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 tracking-tight leading-snug">
+                Add Subplate Workpiece
+              </h3>
+              <p className="text-xs text-slate-500">
+                {addPlateProject
+                  ? ("Attach workpiece plate to Mould " + (addPlateProject.projectid || ("#" + addPlateProject.id)))
+                  : "Define workpiece dimensions, material and route to shopfloor"}
+              </p>
+            </div>
+          </div>
         }
       >
         <form onSubmit={handleSubmitPlate} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          {/* Group 1: Plate Identification & Auto Subproject Code */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Plate Name *
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-blue-600" />
+                <span>Plate Name</span>
+                <span className="text-rose-500 font-bold">*</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Top Plate, Core Plate"
+                placeholder="e.g. Cavity Plate A"
                 value={plateForm.platename}
-                onChange={(e) => setPlateForm({ ...plateForm, platename: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                onChange={(e) =>
+                  setPlateForm({ ...plateForm, platename: e.target.value })
+                }
+                className="w-full h-10 px-3.5 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 focus:bg-white transition-all shadow-xs"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Subproject Code
+              <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Subproject / Mould Code</span>
               </label>
               <input
                 type="text"
-                placeholder="e.g. 1461_FBLP_025_001"
-                value={plateForm.subprojectid}
-                onChange={(e) => setPlateForm({ ...plateForm, subprojectid: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all font-mono"
+                readOnly
+                tabIndex={-1}
+                value={plateForm.subprojectid || (addPlateProject ? addPlateProject.projectid : "") || ""}
+                className="w-full h-10 px-3.5 bg-slate-100/80 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-600 select-none cursor-not-allowed shadow-xs"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          {/* Group 2: Material Grade & Geometry Specifications */}
+          <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+              {/* Shape (4 cols) */}
+              <div className="sm:col-span-4">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Compass className="w-3.5 h-3.5 text-cyan-600" />
+                  <span>Shape</span>
+                </label>
+                <select
+                  value={plateForm.shape}
+                  onChange={(e) => handleDimensionChange("shape", e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
+                >
+                  {SHAPES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Material (5 cols) */}
+              <div className="sm:col-span-5">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Wrench className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Material</span>
+                  </span>
+                  <span className="text-[10px] font-mono font-medium text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200/60">
+                    {MATERIAL_DENSITIES[plateForm.material] || 7.81} g/cm³
+                  </span>
+                </label>
+                <select
+                  value={plateForm.material}
+                  onChange={(e) => handleDimensionChange("material", e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
+                >
+                  {REAL_MATERIALS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Quantity with Aligned Stepper (3 cols) */}
+              <div className="sm:col-span-3">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Quantity</span>
+                </label>
+                <div className="h-10 flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-600">
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => handleStepPlateQty(-1)}
+                    disabled={Number(plateForm.sqty || 1) <= 1}
+                    className="h-full px-2.5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition cursor-pointer"
+                    title="Decrease Quantity"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    placeholder="1"
+                    value={plateForm.sqty}
+                    onKeyDown={blockInvalidIntegerKeys}
+                    onChange={handlePlateQtyChange}
+                    className="h-full w-full text-center font-bold text-xs text-slate-900 focus:outline-none bg-transparent"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => handleStepPlateQty(1)}
+                    className="h-full px-2.5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+                    title="Increase Quantity"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Dimensions Sub-grid */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Material
-              </label>
-              <select
-                value={plateForm.material}
-                onChange={(e) => setPlateForm({ ...plateForm, material: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Dimensions & Unit
+                </label>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  {plateForm.shape === "Round Bar"
+                    ? "Length × Diameter"
+                    : "Length × Width × Height / Thickness"}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={plateDimLabels.length}
+                      value={plateForm.length}
+                      onKeyDown={blockInvalidNumberKeys}
+                      onChange={(e) => handleNumericPlateDimension("length", e.target.value)}
+                      className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                      L
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={plateDimLabels.widthPlaceholder}
+                      value={plateForm.width}
+                      onKeyDown={blockInvalidNumberKeys}
+                      onChange={(e) => handleNumericPlateDimension("width", e.target.value)}
+                      className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                      W
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder={plateDimLabels.heightPlaceholder}
+                      value={plateForm.height}
+                      disabled={plateHeightDisabled}
+                      onKeyDown={blockInvalidNumberKeys}
+                      onChange={(e) => handleNumericPlateDimension("height", e.target.value)}
+                      className={"w-full h-10 pl-3 pr-7 rounded-xl text-xs font-mono font-bold transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 " + (
+                        plateHeightDisabled
+                          ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+                          : "bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 placeholder:font-normal"
+                      )}
+                    />
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                      {plateHeightDisabled ? "—" : "H"}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <select
+                    value={plateForm.unit || "mm"}
+                    onChange={(e) => handleDimensionChange("unit", e.target.value)}
+                    className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
+                  >
+                    {SUPPORTED_UNITS.map((u) => (
+                      <option key={u} value={u}>
+                        Unit: {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Group 3: Weight Engineering Readout & Production Routing */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-stretch">
+            {/* Hero Calculated Weight Display (7 cols) */}
+            <div className="sm:col-span-7 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-3.5 text-white flex flex-col justify-between shadow-md relative overflow-hidden border border-slate-800">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+              <div className="flex items-center justify-between relative z-10 mb-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <Scale className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Theoretical Weight</span>
+                  <Lock className="w-3 h-3 text-slate-400" />
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                  <Sparkles className="w-2.5 h-2.5 text-cyan-300" />
+                  {Number(plateForm.sqty) > 1
+                    ? ("Total (" + plateForm.sqty + " pcs)")
+                    : "Auto"}
+                </span>
+              </div>
+
+              <div className="flex items-baseline gap-2 relative z-10">
+                <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                  {plateForm.weight || "0.000"}
+                </span>
+                <span className="text-sm font-bold text-slate-400">kg</span>
+                {Number(plateForm.sqty) > 1 && Boolean(plateForm.weight) && (
+                  <span className="ml-auto text-[11px] font-mono text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/10">
+                    {(Number(plateForm.weight) / Number(plateForm.sqty)).toFixed(3)} kg / pc
+                  </span>
+                )}
+              </div>
+
+              {Number(plateForm.sqty) > 1 && Boolean(plateForm.weight) ? (
+                <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-400 flex items-center justify-between relative z-10 font-mono">
+                  <span>
+                    {plateForm.sqty} pcs × {(Number(plateForm.weight) / Number(plateForm.sqty)).toFixed(3)} kg
+                  </span>
+                  <span className="text-slate-300 font-sans font-semibold">Total Batch Wt</span>
+                </div>
+              ) : (
+                <div className="mt-1 text-[10px] text-slate-400 relative z-10">
+                  Based on {plateForm.material} density @ {MATERIAL_DENSITIES[plateForm.material] || 7.81} g/cm³
+                </div>
+              )}
+            </div>
+
+            {/* Production Location Card (5 cols) */}
+            <div className="sm:col-span-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 flex flex-col justify-between">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Production Routing</span>
+                </label>
+                <select
+                  value={plateForm.location}
+                  onChange={(e) => setPlateForm({ ...plateForm, location: e.target.value })}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
+                >
+                  <option value="SM">SM — In-House Production</option>
+                  <option value="Vendor">Vendor — Outward Jobwork</option>
+                </select>
+              </div>
+              <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">
+                <span
+                  className={"w-2 h-2 rounded-full shrink-0 " + (
+                    plateForm.location === "SM"
+                      ? "bg-emerald-500"
+                      : "bg-amber-500"
+                  )}
+                />
+                <span>
+                  {plateForm.location === "SM"
+                    ? "Routed to in-house VMC / Milling"
+                    : "Requires outward delivery challan"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Actions with Perfect Baseline Alignment */}
+          <div className="pt-3 sm:pt-4 mt-1 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+            <div className="text-[11px] text-slate-400 hidden sm:flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+              <span>Strict numeric validation & 9-stage tracking enabled</span>
+            </div>
+
+            <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto sm:ml-auto">
+              <MotionButton
+                type="button"
+                variant="outline"
+                onClick={() => setAddPlateProject(null)}
+                className="flex-1 sm:flex-initial h-10 px-4 sm:px-5 rounded-xl text-xs font-semibold"
               >
-                {REAL_MATERIALS.map((mat) => (
-                  <option key={mat} value={mat}>
-                    {mat}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Shape
-              </label>
-              <select
-                value={plateForm.shape}
-                onChange={(e) => setPlateForm({ ...plateForm, shape: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                Cancel
+              </MotionButton>
+              <MotionButton
+                type="submit"
+                variant="primary"
+                disabled={isSubmittingPlate || !plateForm.platename}
+                isLoading={isSubmittingPlate}
+                loadingText="Adding Plate..."
+                successText="Plate Added!"
+                className="flex-1 sm:flex-initial h-10 px-4 sm:px-5 rounded-xl text-xs font-semibold shadow-sm"
               >
-                {SHAPES.map((sh) => (
-                  <option key={sh} value={sh}>
-                    {sh}
-                  </option>
-                ))}
-              </select>
+                <Plus className="w-4 h-4" />
+                <span>Add Subplate</span>
+              </MotionButton>
             </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Length (mm)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.0"
-                value={plateForm.length}
-                onChange={(e) => setPlateForm({ ...plateForm, length: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Width (mm)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.0"
-                value={plateForm.width}
-                onChange={(e) => setPlateForm({ ...plateForm, width: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Height (mm)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.0"
-                value={plateForm.height}
-                onChange={(e) => setPlateForm({ ...plateForm, height: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Quantity
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={plateForm.sqty}
-                onChange={(e) => setPlateForm({ ...plateForm, sqty: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Weight (kg)
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                placeholder="0.0"
-                value={plateForm.weight}
-                onChange={(e) => setPlateForm({ ...plateForm, weight: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Location
-              </label>
-              <select
-                value={plateForm.location}
-                onChange={(e) => setPlateForm({ ...plateForm, location: e.target.value })}
-                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              >
-                <option value="SM">SM (In-House)</option>
-                <option value="Vendor">Vendor</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
-            <MotionButton
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setAddPlateProject(null)}
-            >
-              Cancel
-            </MotionButton>
-            <MotionButton
-              type="submit"
-              variant="primary"
-              size="sm"
-              isLoading={isSubmittingPlate}
-              loadingText="Adding Plate..."
-              successText="Plate Added!"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Subplate</span>
-            </MotionButton>
           </div>
         </form>
       </Modal>

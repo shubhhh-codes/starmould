@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
@@ -6,6 +6,12 @@ import { AuthProvider } from "@/components/providers/auth-provider";
 export const metadata: Metadata = {
   title: "Star Mould ERP — Precision Tooling & Manufacturing",
   description: "Cloud-native ERP system for mould manufacturing, scanning, printing, and procurement.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({

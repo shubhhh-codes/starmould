@@ -842,7 +842,7 @@ export default function ScanningPage() {
           }
         >
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                   Customer
@@ -853,7 +853,7 @@ export default function ScanningPage() {
                   onChange={(e) =>
                     setModalForm({ ...modalForm, cname: e.target.value })
                   }
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all cursor-pointer"
                 >
                   <option value="">Select Customer</option>
                   {customers
@@ -866,19 +866,36 @@ export default function ScanningPage() {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Received Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={modalForm.rdate}
-                  onChange={(e) =>
-                    setModalForm({ ...modalForm, rdate: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Received Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={modalForm.rdate}
+                    onChange={(e) =>
+                      setModalForm({ ...modalForm, rdate: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Target Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={modalForm.cdate}
+                    onChange={(e) =>
+                      setModalForm({ ...modalForm, cdate: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
+                  />
+                </div>
               </div>
             </div>
 
@@ -888,7 +905,7 @@ export default function ScanningPage() {
               </label>
               <textarea
                 required
-                rows={2}
+                rows={3}
                 placeholder="e.g. 8 Cavity Cap Mould Top Core Plate..."
                 value={modalForm.description}
                 onChange={(e) =>
@@ -899,64 +916,6 @@ export default function ScanningPage() {
                 }
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
               />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Target Date
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={modalForm.cdate}
-                  onChange={(e) =>
-                    setModalForm({ ...modalForm, cdate: e.target.value })
-                  }
-                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Scanner Staff
-                </label>
-                <select
-                  value={modalForm.scan_by}
-                  onChange={(e) =>
-                    setModalForm({ ...modalForm, scan_by: e.target.value })
-                  }
-                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                >
-                  <option value="0">Unassigned</option>
-                  {activeStaff.map((u) => (
-                    <option
-                      key={u.id}
-                      value={String(u.id)}
-                      title={`${u.name} (${u.initials || u.name}) ${
-                        u.usertype ? `• ${u.usertype}` : ""
-                      }`}
-                    >
-                      {u.initials ? `${u.initials} • ${u.name}` : u.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Billed (₹)
-                </label>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={modalForm.amount}
-                  onChange={(e) =>
-                    setModalForm({ ...modalForm, amount: e.target.value })
-                  }
-                  className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-                />
-              </div>
             </div>
 
             <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">

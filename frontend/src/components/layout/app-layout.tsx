@@ -8,39 +8,19 @@ import { TopProgressBar } from "@/components/ui/top-progress-bar";
 import { ShieldAlert } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
+import { PermissionsProvider, useRolePermissions } from "@/components/providers/permissions-provider";
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
-// Complete Route Permissions Matrix for all 17 ERP Routes:
-// 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker
-const ROUTE_PERMISSIONS: Record<string, number[]> = {
-  "/user": [0],
-  "/expense": [0, 1],
-  "/gram": [0, 1],
-  "/customer": [0, 1],
-  "/export": [0, 1],
-  "/purchase": [0, 1],
-  "/purchase-inward": [0, 1],
-  "/printing": [0, 1, 2],
-  "/challan": [0, 1, 2],
-  "/dispatch": [0, 1, 2],
-  "/inward": [0, 1, 2],
-  "/report": [0, 1, 2],
-  "/subplate": [0, 1, 2, 3],
-  "/sample": [0, 1, 2, 3],
-  "/scanning": [0, 1, 2, 3, 4],
-  "/work": [0, 1, 2, 3, 4],
-  "/": [0, 1, 2, 3, 4],
-};
-
-export function AppLayout({ children }: AppLayoutProps) {
+function AppLayoutContent({ children }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const { currentUser, isSessionLoaded } = useAuth();
+  const { canAccessRoute } = useRolePermissions();
 
   useEffect(() => {
     if (isSessionLoaded && !currentUser && pathname !== "/login") {
@@ -48,17 +28,12 @@ export function AppLayout({ children }: AppLayoutProps) {
     }
   }, [isSessionLoaded, currentUser, pathname, router]);
 
-  // Determine if current user is authorized for current route before rendering
+  // Determine if current user is authorized for current route dynamically
   const isAuthorized = React.useMemo(() => {
     if (!currentUser) return true; // Don't falsely block during initialization
-    const roleId = currentUser.role_id ?? 4;
-    for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
-      if (pathname === route || (route !== "/" && pathname.startsWith(route))) {
-        return allowedRoles.includes(roleId);
-      }
-    }
-    return true;
-  }, [currentUser, pathname]);
+    if (currentUser.role_id === 0) return true; // Admin has universal access
+    return canAccessRoute(pathname, currentUser.role_id);
+  }, [currentUser, pathname, canAccessRoute]);
 
   // If session loaded but unauthorized, trigger instant redirect
   useEffect(() => {
@@ -68,7 +43,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   }, [isSessionLoaded, currentUser, isAuthorized, router]);
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
+    <div className="min-h-screen bg-slate-100 flex flex-col w-full max-w-full min-w-0 overflow-x-hidden">
       <TopProgressBar />
 
       {/* Sidebar */}
@@ -81,7 +56,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       {/* Main Content Area */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 pl-0 ${
+        className={`flex-1 flex flex-col min-w-0 w-full max-w-full transition-all duration-300 pl-0 ${
           sidebarCollapsed ? "md:pl-16" : "md:pl-64"
         }`}
       >
@@ -93,7 +68,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         />
 
         {/* Dynamic Page Content (Seamless render) */}
-        <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-full">
+        <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-full min-w-0 overflow-x-hidden">
           {isSessionLoaded && currentUser && !isAuthorized ? (
             <div className="flex flex-col items-center justify-center py-24 text-center space-y-3 animate-in fade-in duration-200">
               <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl border border-rose-200">
@@ -122,5 +97,13 @@ export function AppLayout({ children }: AppLayoutProps) {
         </footer>
       </div>
     </div>
+  );
+}
+
+export function AppLayout({ children }: AppLayoutProps) {
+  return (
+    <PermissionsProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </PermissionsProvider>
   );
 }
