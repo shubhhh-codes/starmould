@@ -5,7 +5,7 @@ import { getCached, getCachedScansLookup, getCachedUsers, invalidateCache } from
 
 // GET /api/subplate - fetch subplates with project and staff lookups (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/subplate - Create new subplate entry (Roles 0, 1, 2, 3)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
 
 // PUT/PATCH /api/subplate - Update subplate (Roles 0, 1, 2, 3)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -307,7 +307,7 @@ export const PATCH = PUT;
 
 // DELETE /api/subplate - Soft delete subplate (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

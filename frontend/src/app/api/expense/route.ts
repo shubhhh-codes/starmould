@@ -5,7 +5,7 @@ import { invalidateCachePrefix } from "@/lib/cache";
 
 // GET /api/expense - fetch expenses with customers lookup and summary KPIs (Admin, Manager only)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_expense");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -73,44 +73,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Helper to recalculate running balances across all records deterministically
-async function recalculateExpenseBalances(): Promise<number> {
-  const { data: rows } = await supabaseAdmin
-    .from("expense")
-    .select("id, payment_type, amount, balance")
-    .order("id", { ascending: true });
-
-  if (!rows || rows.length === 0) return 0;
-
-  let runningBalance = 0;
-  const updates: Array<{ id: number; balance: number }> = [];
-
-  for (const r of rows) {
-    const amt = Number(r.amount) || 0;
-    if (r.payment_type === "Credit") {
-      runningBalance += amt;
-    } else if (r.payment_type === "Debit") {
-      runningBalance -= amt;
-    }
-    if (r.balance !== runningBalance) {
-      updates.push({ id: r.id, balance: runningBalance });
-    }
-  }
-
-  if (updates.length > 0) {
-    await Promise.all(
-      updates.map((u) =>
-        supabaseAdmin.from("expense").update({ balance: u.balance }).eq("id", u.id)
-      )
-    );
-  }
-
-  return runningBalance;
-}
-
 // POST /api/expense - create new expense entry (Admin, Manager only)
+// Balance calculated by applying amount to previous latest entry balance (matches legacy ExpenseController:503-512)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_expense");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -124,6 +90,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid required fields (payment_type and positive amount are required)" }, { status: 400 });
     }
 
+    // Fetch previous latest row balance
+    const { data: latestRows } = await supabaseAdmin
+      .from("expense")
+      .select("id, balance")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    const prevBalance = Number(latestRows?.[0]?.balance ?? 0);
+    const newBalance = payment_type === "Credit" ? prevBalance + numAmount : prevBalance - numAmount;
+
     const now = new Date().toISOString();
     const { data, error } = await supabaseAdmin
       .from("expense")
@@ -135,7 +111,7 @@ export async function POST(req: NextRequest) {
           payment_type: payment_type || "Debit",
           payment_mode: payment_mode || "Cash",
           amount: numAmount,
-          balance: 0, // Computed by recalculateExpenseBalances below
+          balance: newBalance,
           created_at: now,
           updated_at: now,
         },
@@ -147,18 +123,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Deterministically update rolling balance for this and all subsequent rows
-    await recalculateExpenseBalances();
-
-    // Fetch updated row with accurate balance
-    const { data: updatedRow } = await supabaseAdmin
-      .from("expense")
-      .select("*")
-      .eq("id", data.id)
-      .single();
-
     invalidateCachePrefix("counts:");
-    return NextResponse.json({ expense: updatedRow || data, message: "Expense record created successfully." }, { status: 201 });
+    return NextResponse.json({ expense: data, message: "Expense record created successfully." }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -166,8 +132,9 @@ export async function POST(req: NextRequest) {
 }
 
 // PUT /api/expense - update expense entry (Admin, Manager only)
+// Server-enforced ledger rule: amount/payment_type can ONLY be altered on the latest ledger row (matches legacy index.blade.php:201 / store:467-481)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_expense");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -180,6 +147,41 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Missing expense id" }, { status: 400 });
     }
 
+    const numId = Number(id);
+
+    // Fetch existing target row
+    const { data: targetRow, error: fetchErr } = await supabaseAdmin
+      .from("expense")
+      .select("*")
+      .eq("id", numId)
+      .single();
+
+    if (fetchErr || !targetRow) {
+      return NextResponse.json({ error: "Expense entry not found" }, { status: 404 });
+    }
+
+    // Check if this row is the latest entry
+    const { data: maxRows } = await supabaseAdmin
+      .from("expense")
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    const isLatest = maxRows?.[0]?.id === numId;
+
+    // If NOT the latest row, enforce immutability on financial numbers (amount / payment_type)
+    if (!isLatest) {
+      const isAmountChanged = amount !== undefined && Number(amount) !== Number(targetRow.amount);
+      const isTypeChanged = payment_type !== undefined && payment_type !== targetRow.payment_type;
+
+      if (isAmountChanged || isTypeChanged) {
+        return NextResponse.json(
+          { error: "Amount and payment type can only be modified on the latest ledger entry to preserve historical ledger integrity." },
+          { status: 400 }
+        );
+      }
+    }
+
     const updatePayload: Record<string, any> = {
       updated_at: new Date().toISOString(),
     };
@@ -187,14 +189,33 @@ export async function PUT(req: NextRequest) {
     if (rdate) updatePayload.rdate = rdate;
     if (customerid !== undefined) updatePayload.customerid = customerid ? Number(customerid) : 0;
     if (description !== undefined) updatePayload.description = description.trim();
-    if (payment_type) updatePayload.payment_type = payment_type;
     if (payment_mode) updatePayload.payment_mode = payment_mode;
-    if (amount !== undefined) updatePayload.amount = Number(amount);
+
+    if (isLatest) {
+      const effectiveType = payment_type || targetRow.payment_type;
+      const effectiveAmount = amount !== undefined ? Number(amount) : Number(targetRow.amount);
+
+      if (payment_type) updatePayload.payment_type = payment_type;
+      if (amount !== undefined) updatePayload.amount = effectiveAmount;
+
+      // Calculate balance based on prior row (highest id < current id)
+      const { data: priorRows } = await supabaseAdmin
+        .from("expense")
+        .select("balance")
+        .lt("id", numId)
+        .order("id", { ascending: false })
+        .limit(1);
+
+      const priorBalance = Number(priorRows?.[0]?.balance ?? 0);
+      updatePayload.balance = effectiveType === "Credit"
+        ? priorBalance + effectiveAmount
+        : priorBalance - effectiveAmount;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("expense")
       .update(updatePayload)
-      .eq("id", id)
+      .eq("id", numId)
       .select()
       .single();
 
@@ -202,17 +223,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Deterministically recalculate all downstream balances
-    await recalculateExpenseBalances();
-
-    const { data: updatedRow } = await supabaseAdmin
-      .from("expense")
-      .select("*")
-      .eq("id", id)
-      .single();
-
     invalidateCachePrefix("counts:");
-    return NextResponse.json({ expense: updatedRow || data, message: "Expense updated successfully." });
+    return NextResponse.json({ expense: data, message: "Expense updated successfully." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -220,8 +232,9 @@ export async function PUT(req: NextRequest) {
 }
 
 // DELETE /api/expense - delete expense entry (Admin, Manager only)
+// Server-enforced ledger rule: ONLY the latest ledger entry can be deleted (matches legacy index.blade.php:201-210)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_expense");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -238,20 +251,37 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing expense id" }, { status: 400 });
     }
 
+    const numId = Number(id);
+
+    // Verify row is the latest entry
+    const { data: maxRows } = await supabaseAdmin
+      .from("expense")
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (!maxRows || maxRows.length === 0) {
+      return NextResponse.json({ error: "No expense entries found" }, { status: 404 });
+    }
+
+    if (maxRows[0].id !== numId) {
+      return NextResponse.json(
+        { error: "Only the latest ledger entry can be deleted to maintain immutable historical balance integrity." },
+        { status: 400 }
+      );
+    }
+
     const { error } = await supabaseAdmin
       .from("expense")
       .delete()
-      .eq("id", id);
+      .eq("id", numId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Recalculate remaining balances deterministically
-    await recalculateExpenseBalances();
-
     invalidateCachePrefix("counts:");
-    return NextResponse.json({ success: true, message: "Expense record deleted and balances adjusted." });
+    return NextResponse.json({ success: true, message: "Latest expense record deleted successfully." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
 export interface UserSession {
@@ -12,6 +12,7 @@ export interface UserSession {
   initials: string;
   role_id?: number;
   username?: string;
+  must_change_password?: boolean;
 }
 
 interface AuthContextType {
@@ -49,6 +50,7 @@ function getCachedSession(): UserSession | null {
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const [currentUser, setCurrentUserState] = useState<UserSession | null>(null);
   const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(false);
@@ -72,8 +74,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchSession = useCallback(async () => {
     try {
       const res = await fetch("/api/auth/me");
-      if (res.status === 401 || !res.ok) {
+      if (res.status === 401) {
+        // Only wipe session if server explicitly returned 401 Unauthorized
         setUser(null);
+        return;
+      }
+      if (!res.ok) {
+        // Transient server/network error (500, 502, timeout) — retain existing cached session
+        setIsSessionLoaded(true);
         return;
       }
       const data = await res.json();
@@ -89,27 +97,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             data.user.name?.slice(0, 2).toUpperCase() ||
             "SM",
           role_id: data.user.role_id,
+          must_change_password: data.user.must_change_password === true,
         };
         setUser(formattedUser);
-      } else {
-        setUser(null);
       }
     } catch (err) {
       console.error("Error loading session:", err);
-      setIsSessionLoaded(true);
     } finally {
       setIsSessionLoaded(true);
     }
   }, [setUser]);
 
+  // Hydrate from localStorage immediately on mount, then verify with server
   useEffect(() => {
-    // Hydrate cached session on client mount for instant rendering
     const cached = getCachedSession();
     if (cached) {
       setCurrentUserState(cached);
+      setIsSessionLoaded(true);
     }
     fetchSession();
   }, [fetchSession]);
+
+  // Handle mandatory password reset redirect
+  useEffect(() => {
+    if (
+      isSessionLoaded &&
+      currentUser?.must_change_password &&
+      pathname &&
+      pathname !== "/change-password" &&
+      pathname !== "/login"
+    ) {
+      router.push("/change-password");
+    }
+  }, [isSessionLoaded, currentUser?.must_change_password, pathname, router]);
 
   const logout = useCallback(async () => {
     try {
@@ -141,4 +161,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   return useContext(AuthContext);
 }
-

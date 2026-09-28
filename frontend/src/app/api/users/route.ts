@@ -22,7 +22,7 @@ function getRoleIdFromUsertype(usertype: string): number {
 
 // GET /api/users - fetch users from Supabase users table with roles
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_user_mgmt");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/users - create user in Supabase (matches UserController.php:66-109 store / adduser)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "action_manage_users");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/users - update user in Supabase (matches UserController.php:161-240 updatedata / updateuser)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "action_manage_users");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -295,7 +295,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/users - soft delete user (matches UserController.php:305-334 destroy / deleteuser)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "action_manage_users");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

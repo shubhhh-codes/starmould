@@ -32,7 +32,7 @@ function parseTimeToHours(timeStr: string | null | undefined): number {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_reports");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

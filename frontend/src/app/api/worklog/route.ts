@@ -5,7 +5,7 @@ import { getCached, getCachedCustomers, getCachedScansLookup, getCachedUsers, in
 
 // GET /api/worklog - Fetch worklogs with customer, user, scan, and subplate lookups + department statistics
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req);
+  const auth = await authenticateRequest(req, undefined, "nav_work");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/worklog - Create new worklog entry (matches WorkController.php store)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req);
+  const auth = await authenticateRequest(req, undefined, "nav_work");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/worklog - Update worklog entry
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req);
+  const auth = await authenticateRequest(req, undefined, "nav_work");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -341,7 +341,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/worklog - Remove worklog entry (Admin, Manager, or owner)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req);
+  const auth = await authenticateRequest(req, undefined, "nav_work");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

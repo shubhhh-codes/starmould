@@ -87,8 +87,8 @@ export function Topbar({
       return;
     }
 
-    if (newPassword.length < 6) {
-      setPasswordError("New password must be at least 6 characters long");
+    if (newPassword.length < 8) {
+      setPasswordError("New password must be at least 8 characters long");
       return;
     }
 
@@ -322,11 +322,11 @@ export function Topbar({
             <input
               type="password"
               required
-              minLength={6}
+              minLength={8}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"
-              placeholder="At least 6 characters"
+              placeholder="At least 8 characters"
             />
           </div>
 
@@ -337,7 +337,7 @@ export function Topbar({
             <input
               type="password"
               required
-              minLength={6}
+              minLength={8}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all"

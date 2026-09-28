@@ -28,7 +28,11 @@ export default function LoginPage() {
   // If user is already authenticated, redirect to dashboard
   useEffect(() => {
     if (isSessionLoaded && currentUser) {
-      router.push("/");
+      if (currentUser.must_change_password) {
+        router.push("/change-password");
+      } else {
+        router.push("/");
+      }
       router.refresh();
     }
   }, [isSessionLoaded, currentUser, router]);
@@ -56,7 +60,11 @@ export default function LoginPage() {
         setUser(data.user);
       }
 
-      router.push("/");
+      if (data.must_change_password || data.user?.must_change_password) {
+        router.push("/change-password");
+      } else {
+        router.push("/");
+      }
       router.refresh();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error connecting to server";

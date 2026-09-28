@@ -4,7 +4,7 @@ import { authenticateRequest } from "@/lib/auth";
 
 // GET /api/gram - fetch all gram pricing rules from gram_calc (Admin, Manager only)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_gram");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/gram - create new gram pricing tier (Admin, Manager only)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_gram");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/gram - update gram tier (Admin, Manager only)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_gram");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -123,7 +123,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/gram - delete gram tier (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_gram");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

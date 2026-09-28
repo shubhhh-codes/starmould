@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions/defaults";
 
 // Role definitions:
 // 0: Admin
@@ -8,24 +9,30 @@ import type { NextRequest } from "next/server";
 // 3: Designer
 // 4: Worker
 
-const ROUTE_PERMISSIONS: Record<string, number[]> = {
-  "/user": [0],
-  "/expense": [0, 1],
-  "/gram": [0, 1],
-  "/customer": [0, 1],
-  "/export": [0, 1],
-  "/purchase": [0, 1], // Restricted to Admin/Manager per legacy topbar.blade.php:80
-  "/purchase-inward": [0, 1], // Restricted to Admin/Manager
-  "/printing": [0, 1, 2],
-  "/challan": [0, 1, 2],
-  "/dispatch": [0, 1, 2],
-  "/inward": [0, 1, 2],
-  "/report": [0, 1, 2],
-  "/subplate": [0, 1, 2, 3],
-  "/sample": [0, 1, 2, 3],
-  "/scanning": [0, 1, 2, 3, 4],
-  "/work": [0, 1, 2, 3, 4],
-  "/": [0, 1, 2, 3, 4],
+/**
+ * Maps route path prefixes to the nav_ permission key that controls access.
+ * This is structural configuration only — the actual allowed role set per key
+ * is determined at runtime from the admin-configured role_permissions.json.
+ */
+const ROUTE_TO_PERMISSION_KEY: Record<string, string> = {
+  "/user": "nav_user_mgmt",
+  "/settings": "nav_settings",
+  "/expense": "nav_expense",
+  "/gram": "nav_gram",
+  "/customer": "nav_customer_creator",
+  "/export": "nav_export",
+  "/purchase-inward": "nav_purchase_inward",
+  "/purchase": "nav_purchase",
+  "/printing": "nav_printing",
+  "/challan": "nav_challan",
+  "/dispatch": "nav_dispatch",
+  "/inward": "nav_inward",
+  "/report": "nav_reports",
+  "/subplate": "nav_subplate",
+  "/sample": "nav_sample",
+  "/scanning": "nav_scanning",
+  "/work": "nav_work",
+  "/": "nav_dashboard",
 };
 
 async function verifySessionTokenEdge(token: string): Promise<{ id: number; role_id: number; role: string } | null> {
@@ -123,14 +130,34 @@ export async function middleware(req: NextRequest) {
 
   const roleId = Number(session.role_id);
 
-  // Check matching route permission
-  for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
-    if (pathname === route || (route !== "/" && pathname.startsWith(route))) {
-      if (!allowedRoles.includes(roleId)) {
-        // Redirect unauthorized user to dashboard
-        return NextResponse.redirect(new URL("/", req.url));
+  // Admin (role 0) bypasses all permission checks
+  if (roleId === 0) {
+    return NextResponse.next();
+  }
+
+  // Use factory defaults for middleware route level redirect (Edge safe).
+  // API routes execute the full dynamic Supabase stored permission check via authenticateRequest.
+  const effectivePermissions = DEFAULT_ROLE_PERMISSIONS;
+
+  // Find the most specific matching route prefix (longest match wins)
+  let matchedKey: string | null = null;
+  let matchedLength = 0;
+
+  for (const route of Object.keys(ROUTE_TO_PERMISSION_KEY)) {
+    if (route === "/" || pathname.startsWith(route)) {
+      if (route.length > matchedLength) {
+        matchedKey = route;
+        matchedLength = route.length;
       }
-      break;
+    }
+  }
+
+  if (matchedKey) {
+    const permKey = ROUTE_TO_PERMISSION_KEY[matchedKey];
+    const rolePerms = effectivePermissions[roleId] || {};
+    if (!rolePerms[permKey]) {
+      // Redirect unauthorized user to dashboard
+      return NextResponse.redirect(new URL("/", req.url));
     }
   }
 

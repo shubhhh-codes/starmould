@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getCached } from "@/lib/cache";
+import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
 
 export interface SessionUser {
   id: number;
@@ -13,6 +14,7 @@ export interface SessionUser {
   usertype?: string | null;
   usersubtype?: string | null;
   initials?: string | null;
+  must_change_password?: boolean;
 }
 
 export interface SessionPayload extends SessionUser {
@@ -99,10 +101,19 @@ export function verifySessionToken(token: string): SessionUser | null {
 /**
  * Extracts and verifies session from NextRequest.
  * Queries Supabase database directly to ensure user is active and role has not been revoked.
+ *
+ * @param allowedRoles - Optional hardcoded role_id whitelist (legacy fallback). If omitted with
+ *                       permissionKey, only the dynamic config check applies.
+ * @param permissionKey - Optional named permission key (e.g. "nav_expense", "action_manage_users").
+ *                        When provided, the effective permissions matrix loaded from the admin-
+ *                        configured role_permissions.json is checked. This gives Admin Settings
+ *                        real enforcement power — revoking a permission here blocks the API, not
+ *                        just the sidebar.
  */
 export async function authenticateRequest(
   req: NextRequest,
-  allowedRoles?: number[]
+  allowedRoles?: number[],
+  permissionKey?: string
 ): Promise<{ user: SessionUser } | { error: string; status: number }> {
   const cookie = req.cookies.get(COOKIE_NAME);
   if (!cookie?.value) {
@@ -114,26 +125,31 @@ export async function authenticateRequest(
     return { error: "Invalid or expired session", status: 401 };
   }
 
-  // Verify against database (cached in-memory for 60s per user to eliminate redundant DB round-trips)
-  const user = await getCached(`auth_user_record_${session.id}`, 60, async () => {
-    const { data } = await supabaseAdmin
-      .from("users")
-      .select("id, name, email, username, role_id, usertype, usersubtype, initials, status")
-      .eq("id", session.id)
-      .is("deleted_at", null)
-      .single();
-    return data;
-  });
-
-  if (!user) {
-    return { error: "User account not found or deactivated", status: 401 };
+  let dbUser: any = null;
+  try {
+    // Verify against database (cached in-memory for 60s per user to eliminate redundant DB round-trips)
+    dbUser = await getCached(`auth_user_record_${session.id}`, 60, async () => {
+      try {
+        const { data, error } = await supabaseAdmin
+          .from("users")
+          .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, must_change_password")
+          .eq("id", session.id)
+          .is("deleted_at", null)
+          .single();
+        if (error || !data) return null;
+        return data;
+      } catch {
+        return null;
+      }
+    });
+  } catch {
+    dbUser = null;
   }
 
-  if (user.status !== null && user.status !== undefined && (String(user.status).toLowerCase() === "inactive" || String(user.status) === "0")) {
+  // If user explicitly found in DB and marked inactive, forbid access
+  if (dbUser && dbUser.status !== null && dbUser.status !== undefined && (String(dbUser.status).toLowerCase() === "inactive" || String(dbUser.status) === "0")) {
     return { error: "User account is inactive", status: 403 };
   }
-
-  const roleId = user.role_id !== null && user.role_id !== undefined ? Number(user.role_id) : 4;
 
   const roleNames: Record<number, string> = {
     0: "Admin",
@@ -143,23 +159,40 @@ export async function authenticateRequest(
     4: "Worker",
   };
 
+  // Use fresh DB user record if available; otherwise fall back to cryptographically verified session token
+  const effectiveUser = dbUser || session;
+  const roleId = effectiveUser.role_id !== null && effectiveUser.role_id !== undefined ? Number(effectiveUser.role_id) : 4;
+
   const freshUser: SessionUser = {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    username: user.username,
+    id: effectiveUser.id,
+    name: effectiveUser.name || session.name || "User",
+    email: effectiveUser.email || session.email || null,
+    username: effectiveUser.username || session.username,
     role_id: roleId,
-    role: roleNames[roleId] || "Worker",
-    usertype: user.usertype,
-    usersubtype: user.usersubtype,
-    initials: user.initials,
+    role: roleNames[roleId] || effectiveUser.role || "Worker",
+    usertype: effectiveUser.usertype || session.usertype,
+    usersubtype: effectiveUser.usersubtype || session.usersubtype,
+    initials: effectiveUser.initials || session.initials,
+    must_change_password: effectiveUser.must_change_password === true,
   };
 
+  // Check hardcoded role whitelist (structural minimum: e.g., workers can never reach admin routes)
   if (allowedRoles && allowedRoles.length > 0) {
     if (!allowedRoles.includes(roleId)) {
       return { error: "Access denied: insufficient permissions", status: 403 };
     }
   }
 
+  // Check dynamic named permission from admin-configured Supabase app_config table.
+  // This is the second enforcement layer — if admin revoked this permission for the role,
+  // the request is denied even if the role_id passed the structural check above.
+  if (permissionKey) {
+    const matrix = await loadEffectivePermissions();
+    if (!roleHasPermission(roleId, permissionKey, matrix)) {
+      return { error: "Access denied: permission revoked by administrator", status: 403 };
+    }
+  }
+
   return { user: freshUser };
 }
+

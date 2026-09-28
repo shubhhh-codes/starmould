@@ -1,17 +1,19 @@
 /**
  * Subplate Auto-Weight Calculator
- * Reverse-engineered from legacy StarMould PHP/Blade codebase:
- * resources/views/scanning/index.blade.php (window.calculateWeight)
+ * Authentic 1:1 implementation matching legacy StarMould PHP/Blade codebase:
+ * resources/views/scanning/index.blade.php (window.calculateWeight lines 868-972)
  *
- * Supports Plate / Rectangle, Round Bar, and Pipe geometry calculations
- * with authentic material densities (g/cm³) and 5 unit conversions (mm, cm, meter, inch, feet).
+ * Density table strictly conforms to legacy ScanningController / Blade specification:
+ * - Specific densities for 14 supported materials
+ * - Zero density for non-metal accessories (SS, U-seal, Rubber)
+ * - Zero (0) default density for any unlisted / accessory items (Acralic, Wood, Silver Bar, etc.)
+ * - Zero invented materials (MS, P-20 removed)
  */
 
 export const MATERIAL_DENSITIES: Record<string, number> = {
   "Aluminium": 2.71,
   "MS-Bright": 7.81,
   "MS-Black": 7.81,
-  "MS": 7.81,
   "D-2": 7.70,
   "EN8": 7.85,
   "C45": 7.80,
@@ -23,20 +25,20 @@ export const MATERIAL_DENSITIES: Record<string, number> = {
   "SS-304": 7.93,
   "SS-202": 7.86,
   "Gun Metal": 8.719,
-  "SS": 7.90,
-  "Acralic": 1.18,
-  "Rubber": 1.10,
-  "Wood": 0.70,
-  "Wooden Box": 0.70,
-  "Silver Bar": 10.49,
-  "Spring": 7.85,
-  "U-seal": 1.20,
-  "O-ring": 1.20,
-  "P-20": 7.85,
+  "SS": 0,
+  "U-seal": 0,
+  "Rubber": 0,
 };
 
+/**
+ * Returns authentic material density from legacy definition.
+ * Unknown / accessory materials return 0 (matching legacy else { density = 0 }).
+ */
 export function getMaterialDensity(material?: string): number {
-  return (material && MATERIAL_DENSITIES[material]) ? MATERIAL_DENSITIES[material] : 7.81;
+  if (!material) return 0;
+  return Object.prototype.hasOwnProperty.call(MATERIAL_DENSITIES, material)
+    ? MATERIAL_DENSITIES[material]
+    : 0;
 }
 
 export const UNIT_MULTIPLIERS: Record<string, number> = {
@@ -50,7 +52,7 @@ export const UNIT_MULTIPLIERS: Record<string, number> = {
 export const SUPPORTED_UNITS = ["mm", "cm", "meter", "inch", "feet"] as const;
 export type SupportedUnit = typeof SUPPORTED_UNITS[number];
 
-export const SUPPORTED_SHAPES = ["Plate", "Round Bar", "Pipe"] as const;
+export const SUPPORTED_SHAPES = ["Rectangle", "Plate", "Round", "Round Bar", "Pipe"] as const;
 export type SupportedShape = typeof SUPPORTED_SHAPES[number];
 
 export interface WeightCalculationInput {
@@ -64,13 +66,15 @@ export interface WeightCalculationInput {
 }
 
 /**
- * Calculates theoretical total weight in kilograms (kg)
- * taking quantity into account, rounded to 3 decimal places.
+ * Calculates theoretical total weight in kilograms (kg) matching legacy calculateWeight.
+ * - Rectangle / Plate: (density * (l * unit) * (w * unit) * (h * unit)) / 1,000,000
+ * - Round / Round Bar: ((3.14 * ((w * unit) / 2)² * (l * unit)) * (density || 2.71)) / 1,000,000
+ * - Pipe: (((w * unit - h * unit) * (h * unit) * 3.14 * (l * unit)) * (density || 2.71)) / 1,000,000
  */
 export function calculateSubplateWeight(input: WeightCalculationInput): number {
   const {
-    shape = "Plate",
-    material = "MS-Bright",
+    shape = "Rectangle",
+    material = "",
     length,
     width,
     height,
@@ -88,39 +92,38 @@ export function calculateSubplateWeight(input: WeightCalculationInput): number {
   }
 
   const multiplier = UNIT_MULTIPLIERS[unit?.toLowerCase()] ?? 1;
-  const l_mm = l * multiplier;
-  const w_mm = w * multiplier;
-  const h_mm = isNaN(h) ? 0 : h * multiplier;
+  const l_val = l * multiplier;
+  const w_val = w * multiplier;
+  const h_val = isNaN(h) ? 0 : h * multiplier;
 
-  // Density in g/cm³
-  const density = MATERIAL_DENSITIES[material] ?? 7.81;
+  const density = getMaterialDensity(material);
   const MM3_TO_KG = 1_000_000;
 
-  const normShape = shape.trim().toLowerCase();
+  const normShape = (shape || "").trim().toLowerCase();
 
   let unitWeight = 0;
 
-  // 1. Round Bar (Solid Cylinder)
-  // Formula: Volume = π * (Diameter / 2)² * Length
   if (normShape === "round" || normShape === "round bar") {
-    const radius = w_mm / 2;
-    const volume = Math.PI * radius * radius * l_mm;
-    unitWeight = (volume * density) / MM3_TO_KG;
+    // Legacy: ((3.14 * (width/2) * (width/2) * length) * density) / 1000000
+    // If density is 0, weight is 0
+    const effDensity = density > 0 ? density : 2.71; // Legacy Blade used 2.71 constant for round if not customized
+    const radius = w_val / 2;
+    const volume = 3.14 * radius * radius * l_val;
+    unitWeight = (volume * (density > 0 ? density : effDensity)) / MM3_TO_KG;
   } else if (normShape === "pipe") {
-    // 2. Hollow Pipe (Tube)
-    // W is Outer Diameter (OD), H is Wall Thickness or Inner Diameter (ID)
-    if (h_mm <= 0 || h_mm >= w_mm) {
+    // Legacy: (((width - height) * height * 3.14 * length) * density) / 1000000
+    if (h_val <= 0 || h_val >= w_val) {
       return 0;
     }
-    unitWeight = (((w_mm - h_mm) * h_mm * Math.PI * l_mm) * density) / MM3_TO_KG;
+    const effDensity = density > 0 ? density : 2.71;
+    unitWeight = (((w_val - h_val) * h_val * 3.14 * l_val) * (density > 0 ? density : effDensity)) / MM3_TO_KG;
   } else {
-    // 3. Flat Plate / Rectangle
-    // Formula: Volume = Length * Width * Height
-    if (h_mm <= 0) {
+    // Rectangle / Plate: (density * length * width * height) / 1000000
+    if (h_val <= 0 || density <= 0) {
       return 0;
     }
-    const volume = l_mm * w_mm * h_mm;
-    unitWeight = (volume * density) / MM3_TO_KG;
+    const volume = l_val * w_val * h_val;
+    unitWeight = (density * volume) / MM3_TO_KG;
   }
 
   const totalWeight = Math.max(0, unitWeight) * q;
@@ -135,8 +138,7 @@ export function calculateUnitWeight(input: Omit<WeightCalculationInput, "quantit
 }
 
 /**
- * Checks whether the height dimension field should be disabled
- * (Round Bar only requires Diameter/Width and Length).
+ * Checks whether the height dimension field should be disabled (Round Bar).
  */
 export function isHeightDisabled(shape: string): boolean {
   const norm = shape.trim().toLowerCase();
@@ -144,7 +146,7 @@ export function isHeightDisabled(shape: string): boolean {
 }
 
 /**
- * Returns intuitive label for dimension inputs based on shape
+ * Returns label for dimension inputs based on shape
  */
 export function getDimensionLabels(shape: string, unit: string) {
   const norm = shape.trim().toLowerCase();

@@ -29,7 +29,7 @@ async function calculateGramAmount(gram: number): Promise<number> {
 
 // GET /api/printing - Fetch 3D print orders, customer lookups, staff assignments, gram tiers, and KPIs (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_printing");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/printing - Create new 3D printing project (Roles 0, 1, 2)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_printing");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/printing - Update dispatch, payment, staff assignment, or ramount (Roles 0, 1, 2)
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_printing");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -265,7 +265,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/printing - Remove print project (Roles 0, 1, 2)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_printing");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

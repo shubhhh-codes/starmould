@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
 import { authenticateRequest } from "@/lib/auth";
+import { invalidateCache } from "@/lib/cache";
 
 export async function POST(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -19,9 +20,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       return NextResponse.json(
-        { error: "New password must be at least 6 characters long" },
+        { error: "New password must be at least 8 characters long" },
+        { status: 400 }
+      );
+    }
+
+    if (currentPassword === newPassword) {
+      return NextResponse.json(
+        { error: "New password must be different from current password" },
         { status: 400 }
       );
     }
@@ -56,7 +64,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Hash the new password
+    // Hash the new password with bcrypt
     const newHash = await bcrypt.hash(newPassword, 10);
     const now = new Date().toISOString();
 
@@ -64,6 +72,7 @@ export async function POST(req: NextRequest) {
       .from("users")
       .update({
         password_hash: newHash,
+        must_change_password: false, // Reset forced reset flag
         updated_at: now,
       })
       .eq("id", auth.user.id);
@@ -71,6 +80,10 @@ export async function POST(req: NextRequest) {
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
+
+    // Invalidate user auth cache so subsequent requests see must_change_password = false
+    invalidateCache(`auth_user_record_${auth.user.id}`);
+    invalidateCache("shared_users");
 
     return NextResponse.json({
       success: true,

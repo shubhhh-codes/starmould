@@ -5,7 +5,7 @@ import { getCachedCustomers, invalidateCache } from "@/lib/cache";
 
 // GET /api/inward - Fetch Job Work Inwards, items, pending return lists, and customer lookups (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_inward");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/inward - Record new Job Work Inward against Challan (Roles 0, 1, 2)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_inward");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -293,7 +293,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/inward - Cancel/invalidate inward record (Roles 0, 1, 2)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2]);
+  const auth = await authenticateRequest(req, [0, 1, 2], "nav_inward");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

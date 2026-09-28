@@ -4,7 +4,7 @@ import { authenticateRequest } from "@/lib/auth";
 
 // GET /api/purchase-inward - fetch open pending items directly from view_po_pending_inward_qty (Admin, Manager only)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_purchase_inward");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
 
 // DELETE /api/purchase-inward?id=123 (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_purchase_inward");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -117,7 +117,7 @@ export async function DELETE(req: NextRequest) {
 
 // POST /api/purchase-inward - record an inward receipt against a PO (Admin, Manager only)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_purchase_inward");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

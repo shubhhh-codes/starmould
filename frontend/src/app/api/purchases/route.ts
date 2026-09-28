@@ -5,7 +5,7 @@ import { getCachedCustomers, getCachedScansLookup, invalidateCache } from "@/lib
 
 // GET /api/purchases - fetch POs with items and pending subplates (Admin, Manager only)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_purchase");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/purchases - create new PO with line items (Admin, Manager only)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_purchase");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/purchases?id=123 - soft delete PO (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "nav_purchase");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

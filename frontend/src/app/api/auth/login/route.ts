@@ -2,9 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
 import { signSession, SessionUser } from "@/lib/auth";
+import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting: extract real client IP
+    const forwarded = req.headers.get("x-forwarded-for");
+    const ip = (forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") ?? "unknown").trim();
+
+    const rateCheck = checkRateLimit(ip);
+    if (!rateCheck.allowed) {
+      const mins = Math.ceil((rateCheck.retryAfterSeconds ?? 1800) / 60);
+      return NextResponse.json(
+        { error: `Too many login attempts. Please try again in ${mins} minute${mins !== 1 ? "s" : ""}.` },
+        {
+          status: 429,
+          headers: { "Retry-After": String(rateCheck.retryAfterSeconds ?? 1800) },
+        }
+      );
+    }
+
     const { username, password } = await req.json();
 
     if (!username || !password) {
@@ -18,7 +35,7 @@ export async function POST(req: NextRequest) {
     // Query active user by username or email (case-insensitive)
     const { data: users, error } = await supabaseAdmin
       .from("users")
-      .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, password_hash")
+      .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, password_hash, must_change_password")
       .is("deleted_at", null)
       .or(`username.ilike.${safeUsername},email.ilike.${safeUsername}`);
 
@@ -53,6 +70,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Incorrect password. Please try again." }, { status: 401 });
     }
 
+    // Reset rate limiter on successful authentication
+    resetRateLimit(ip);
+
     // Role definitions:
     // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker
     const roleId = user.role_id !== null && user.role_id !== undefined ? Number(user.role_id) : 4;
@@ -74,6 +94,7 @@ export async function POST(req: NextRequest) {
       usertype: user.usertype,
       usersubtype: user.usersubtype,
       initials: user.initials,
+      must_change_password: user.must_change_password === true,
     };
 
     const signedToken = signSession(sessionUser);
@@ -81,6 +102,7 @@ export async function POST(req: NextRequest) {
     const res = NextResponse.json({
       success: true,
       user: sessionUser,
+      must_change_password: sessionUser.must_change_password,
     });
 
     const isHttps = req.nextUrl.protocol === "https:" || req.headers.get("x-forwarded-proto") === "https";

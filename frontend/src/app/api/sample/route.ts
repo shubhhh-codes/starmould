@@ -5,7 +5,7 @@ import { invalidateCache } from "@/lib/cache";
 
 // GET /api/sample - Fetch Sample and Rework projects (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_sample");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/sample - Create new Sample / Rework entry (Roles 0, 1, 2, 3)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_sample");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -189,7 +189,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/sample - Update status, staff assignment, or details (Roles 0, 1, 2, 3)
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_sample");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -240,7 +240,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/sample - Soft-delete project (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3]);
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_sample");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

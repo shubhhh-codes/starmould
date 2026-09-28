@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/customers - create customer in Supabase (Admin, Manager only)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "action_create_vendor");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/customers - update customer in Supabase (Admin, Manager only)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "action_create_vendor");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -294,7 +294,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/customers - soft-delete customer in Supabase (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, [0, 1], "financial_soft_delete");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
