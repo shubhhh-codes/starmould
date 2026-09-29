@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   Printer,
@@ -25,6 +26,8 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { usePrintingQuery, useCreatePrintingMutation, useUpdatePrintingMutation, useDeletePrintingMutation } from "@/lib/query/hooks";
 
 // Dynamic Gram pricing calculation matching legacy PrintingController.php:170-183
@@ -48,7 +51,12 @@ const calculateGramAmount = (
   return { amount, matchedTier: matched };
 };
 
-export default function PrintingPage() {
+function PrintingPageContent() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
+
   const { data, isLoading, error: fetchQueryError, refetch } = usePrintingQuery();
   const createPrintingMutation = useCreatePrintingMutation();
   const updatePrintingMutation = useUpdatePrintingMutation();
@@ -71,7 +79,14 @@ export default function PrintingPage() {
   // Role Toggle: Worker (Floor) vs Admin View (Merged PrintingController + PrintAdminController)
   const [viewMode, setViewMode] = useState<"worker" | "admin">("worker");
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
+
+  // Sync URL search query
+  useEffect(() => {
+    if (urlSearch) {
+      setSearchQuery(urlSearch);
+    }
+  }, [urlSearch]);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
 
@@ -118,6 +133,8 @@ export default function PrintingPage() {
     });
   }, [prints, searchQuery, statusFilter, customerFilter]);
 
+  const { getRowHighlightClass } = useTableHighlight(filteredPrints);
+
   // Live price preview for modal form
   const previewAmount = useMemo(() => {
     const g = parseFloat(modalForm.gram) || 0;
@@ -139,6 +156,10 @@ export default function PrintingPage() {
     field: "print_by" | "qc_by",
     userId: number
   ) => {
+    if (!isAdmin && userId !== 0 && currentUser?.id && Number(userId) !== Number(currentUser.id)) {
+      alert("Permission denied: You can only assign tasks to yourself.");
+      return;
+    }
     try {
       await updatePrintingMutation.mutateAsync({ id, field, value: userId });
     } catch (err: any) {
@@ -551,7 +572,8 @@ export default function PrintingPage() {
                   filteredPrints.map((row) => (
                     <tr
                       key={row.id}
-                      className="hover:bg-slate-50/60 transition group"
+                      id={`row-${row.id}`}
+                      className={`hover:bg-slate-50/60 transition group ${getRowHighlightClass(row.id)}`}
                     >
                       <td className="py-3 px-3.5 font-mono font-bold text-xs text-teal-600 whitespace-nowrap">
                         {row.projectid || `#${row.id}`}
@@ -672,7 +694,8 @@ export default function PrintingPage() {
               filteredPrints.map((row) => (
                 <div
                   key={row.id}
-                  className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                  id={`row-mob-${row.id}`}
+                  className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs ${getRowHighlightClass(row.id)}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-bold text-teal-600">
@@ -927,5 +950,13 @@ export default function PrintingPage() {
         </Modal>
       </div>
     </AppLayout>
+  );
+}
+
+export default function PrintingPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-400">Loading 3D printing jobs...</div>}>
+      <PrintingPageContent />
+    </Suspense>
   );
 }

@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 
     // Username existence check
     if (checkUsername) {
-      const clean = checkUsername.trim();
+      const clean = checkUsername.trim().toLowerCase();
       let query = supabaseAdmin
         .from("users")
         .select("id", { count: "exact", head: true })
@@ -82,7 +82,10 @@ export async function GET(req: NextRequest) {
     const { data: roles } = await supabaseAdmin.from("roles").select("*").order("id", { ascending: true });
 
     return NextResponse.json({
-      users: users || [],
+      users: (users || []).map((u) => ({
+        ...u,
+        username: u.username ? u.username.toLowerCase() : u.username,
+      })),
       roles: roles || [],
     });
   } catch (err: unknown) {
@@ -103,7 +106,7 @@ export async function POST(req: NextRequest) {
     const { name, email, username, initials, usertype, usersubtype, status, role_id } = body;
 
     const cleanName = name?.trim();
-    const cleanUsername = username?.trim();
+    const cleanUsername = username?.trim().toLowerCase().replace(/\s+/g, "");
     const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
 
     if (!cleanName || !cleanUsername || !cleanInitials || !usertype) {
@@ -195,7 +198,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const cleanName = name?.trim();
-    const cleanUsername = username?.trim();
+    const cleanUsername = username ? username.trim().toLowerCase().replace(/\s+/g, "") : undefined;
     const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
 
     // Duplicate check for username

@@ -29,6 +29,7 @@ import type { Customer } from "@/lib/supabase/types";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import {
     useCustomersQuery,
     useCreateCustomerMutation,
@@ -73,12 +74,13 @@ function CustomerPageContent() {
     const isAdmin = currentUser?.role_id === 0;
 
     const initialTab = searchParams?.get("tab") as UsertypeOption | "All" | null;
+    const urlSearch = searchParams?.get("search") || searchParams?.get("q") || "";
     const [activeTab, setActiveTab] = useState<"All" | UsertypeOption>(
         initialTab && ["All", "Customer", "Vendor", "Transport", "Other"].includes(initialTab)
             ? initialTab
             : "All"
     );
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(urlSearch);
     const [pageSize, setPageSize] = useState(25);
     const [currentPage, setCurrentPage] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,14 +89,17 @@ function CustomerPageContent() {
         message: string;
     } | null>(null);
 
-    // Sync tab when search params change in URL (e.g. from sidebar links)
+    // Sync tab and search when search params change in URL (e.g. from sidebar links or global search)
     useEffect(() => {
         const tabParam = searchParams?.get("tab") as UsertypeOption | "All" | null;
         if (tabParam && ["All", "Customer", "Vendor", "Transport", "Other"].includes(tabParam)) {
             setActiveTab(tabParam);
             setCurrentPage(1);
         }
-    }, [searchParams]);
+        if (urlSearch) {
+            setSearchQuery(urlSearch);
+        }
+    }, [searchParams, urlSearch]);
 
     // TanStack Query hooks: fetch all records so category counts are accurate across all tabs
     const customersQuery = useCustomersQuery({
@@ -179,6 +184,12 @@ function CustomerPageContent() {
             );
         });
     }, [customers, activeTab, searchQuery]);
+
+    const { getRowHighlightClass } = useTableHighlight(filteredCustomers, {
+        currentPage,
+        pageSize,
+        onPageChange: setCurrentPage,
+    });
 
     // Counts by category
     const counts = useMemo(() => {
@@ -699,7 +710,8 @@ function CustomerPageContent() {
                                         return (
                                             <tr
                                                 key={c.id}
-                                                className="hover:bg-slate-50/70 transition-colors"
+                                                id={`row-${c.id}`}
+                                                className={`hover:bg-slate-50/70 transition-colors ${getRowHighlightClass(c.id)}`}
                                             >
                                                 {/* Name */}
                                                 <td className="py-3 px-4">
@@ -869,7 +881,8 @@ function CustomerPageContent() {
                                 return (
                                     <div
                                         key={c.id}
-                                        className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                                        id={`row-mob-${c.id}`}
+                                        className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs ${getRowHighlightClass(c.id)}`}
                                     >
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">

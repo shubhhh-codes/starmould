@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
     ShoppingCart,
@@ -33,13 +34,17 @@ import type {
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import {
     usePurchasesQuery,
     useCreatePurchaseMutation,
     useDeletePurchaseMutation,
 } from "@/lib/query/hooks";
 
-export default function PurchasePage() {
+function PurchasePageContent() {
+    const searchParams = useSearchParams();
+    const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
+
     const { data, isLoading } = usePurchasesQuery({
         limit: 200,
         includePlates: true,
@@ -64,7 +69,15 @@ export default function PurchasePage() {
     const [activeTab, setActiveTab] = useState<"orders" | "pending_plates">(
         "orders",
     );
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(urlSearch);
+
+    // Sync URL search query
+    useEffect(() => {
+        if (urlSearch) {
+            setSearchQuery(urlSearch);
+        }
+    }, [urlSearch]);
+
     const [pageSize, setPageSize] = useState(25);
     const [currentPage, setCurrentPage] = useState(1);
     const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>(
@@ -270,6 +283,9 @@ export default function PurchasePage() {
         const start = (currentPage - 1) * pageSize;
         return filteredPendingPlates.slice(start, start + pageSize);
     }, [filteredPendingPlates, currentPage, pageSize]);
+
+    // Auto-scroll and highlight matching search row
+    const { getRowHighlightClass } = useTableHighlight(filteredPurchases, pageSize, setCurrentPage);
 
     // Add line item row to PO
     const handleAddPlateRow = () => {
@@ -719,7 +735,10 @@ export default function PurchasePage() {
                                             return (
                                                 <React.Fragment key={po.id}>
                                                     {/* Main PO Row */}
-                                                    <tr className="hover:bg-slate-50/70 transition-colors">
+                                                    <tr
+                                                        id={`row-${po.id}`}
+                                                        className={`hover:bg-slate-50/70 transition-all duration-300 ${getRowHighlightClass(po.id)}`}
+                                                    >
                                                         {/* Details Control toggle icon */}
                                                         <td className="py-3 px-3 text-center">
                                                             <button
@@ -1729,6 +1748,8 @@ export default function PurchasePage() {
                                     loading={deletePurchaseMutation.isPending}
                                     variant="danger"
                                     size="sm"
+                                    loadingText="Deleting..."
+                                    successText="PO Deleted!"
                                 >
                                     Yes, Delete PO
                                 </MotionButton>
@@ -1738,5 +1759,22 @@ export default function PurchasePage() {
                 </Modal>
             </div>
         </AppLayout>
+    );
+}
+
+export default function PurchasePage() {
+    return (
+        <Suspense
+            fallback={
+                <AppLayout>
+                    <div className="p-6 space-y-4">
+                        <div className="h-8 bg-slate-200 rounded-lg w-48 animate-pulse" />
+                        <TableSkeletonRows rows={8} columns={6} />
+                    </div>
+                </AppLayout>
+            }
+        >
+            <PurchasePageContent />
+        </Suspense>
     );
 }

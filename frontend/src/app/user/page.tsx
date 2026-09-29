@@ -198,7 +198,7 @@ export default function UserManagementPage() {
         setFormData({
             id: user.id,
             name: user.name,
-            username: user.username,
+            username: user.username?.toLowerCase() || "",
             initials: user.initials,
             email: user.email,
             password: "", // Write-only! Never populated from db or password2
@@ -238,7 +238,8 @@ export default function UserManagementPage() {
 
     // Validation: username uniqueness
     const validateUsername = (val: string) => {
-        const clean = val.trim();
+        const clean = val.trim().toLowerCase().replace(/\s+/g, "");
+        setFormData((prev) => ({ ...prev, username: clean }));
         if (!clean) {
             setUsernameError("Username is required.");
             return false;
@@ -247,7 +248,7 @@ export default function UserManagementPage() {
         const exists = users.some(
             (u) =>
                 u.username &&
-                u.username.trim().toLowerCase() === clean.toLowerCase() &&
+                u.username.trim().toLowerCase() === clean &&
                 u.id !== currentId,
         );
         if (exists) {
@@ -670,8 +671,8 @@ export default function UserManagementPage() {
                                                 </td>
 
                                                 {/* Username */}
-                                                <td className="py-3 px-3 font-mono text-[11px] text-slate-700 ">
-                                                    @{u.username}
+                                                <td className="py-3 px-3 font-mono text-[11px] text-slate-700 lowercase">
+                                                    @{u.username?.toLowerCase()}
                                                 </td>
 
                                                 {/* Initials */}
@@ -805,8 +806,8 @@ export default function UserManagementPage() {
                                                     <span className="font-semibold text-slate-900 block">
                                                         {u.name}
                                                     </span>
-                                                    <span className="font-mono text-[10px] text-slate-400">
-                                                        @{u.username}
+                                                    <span className="font-mono text-[10px] text-slate-400 lowercase">
+                                                        @{u.username?.toLowerCase()}
                                                     </span>
                                                 </div>
                                             </div>
@@ -989,20 +990,21 @@ export default function UserManagementPage() {
                                             required
                                             value={formData.username}
                                             onChange={(e) => {
+                                                const clean = e.target.value.toLowerCase().replace(/\s+/g, "");
                                                 setFormData((p) => ({
                                                     ...p,
-                                                    username: e.target.value,
+                                                    username: clean,
                                                 }));
                                                 if (usernameError)
                                                     validateUsername(
-                                                        e.target.value,
+                                                        clean,
                                                     );
                                             }}
                                             onBlur={(e) =>
                                                 validateUsername(e.target.value)
                                             }
                                             placeholder="e.g. shivani, akshay"
-                                            className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 ${
+                                            className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 lowercase ${
                                                 usernameError
                                                     ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"
                                                     : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"

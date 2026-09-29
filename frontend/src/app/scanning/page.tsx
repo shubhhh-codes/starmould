@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   Scan,
@@ -29,6 +30,8 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import {
   useProjectsQuery,
   useCreateProjectMutation,
@@ -36,15 +39,26 @@ import {
   useDeleteProjectMutation,
 } from "@/lib/query/hooks";
 
-export default function ScanningPage() {
+function ScanningPageContent() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
   // Role Toggle: Worker vs Admin (Merged ScanningController + ScanAdminController)
   const [viewMode, setViewMode] = useState<"admin" | "worker">("admin");
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
+
+  // Sync URL search query
+  useEffect(() => {
+    if (urlSearch) {
+      setSearchQuery(urlSearch);
+    }
+  }, [urlSearch]);
 
   // TanStack Query with Tier C Operational Caching & Prefetching
   const projectsQuery = useProjectsQuery({
@@ -128,6 +142,9 @@ export default function ScanningPage() {
     return filteredScans.slice(start, start + pageSize);
   }, [filteredScans, currentPage, pageSize]);
 
+  // Auto-scroll and highlight matching search row
+  const { getRowHighlightClass } = useTableHighlight(filteredScans, pageSize, setCurrentPage);
+
   // KPI Calculations (Live DB KPIs & Filter-aware)
   const totalScans = kpis.totalScans || scans.length;
   const pendingScans = kpis.pendingScans || scans.filter((s) => s.status === "pending").length;
@@ -177,6 +194,10 @@ export default function ScanningPage() {
     field: "scan_by" | "qc_by" | "modeldesign_by",
     userId: number
   ) => {
+    if (!isAdmin && userId !== 0 && currentUser?.id && Number(userId) !== Number(currentUser.id)) {
+      alert("Permission denied: You can only assign tasks to yourself.");
+      return;
+    }
     try {
       await updateProjectMutation.mutateAsync({ id, field, value: userId });
     } catch (err: any) {
@@ -461,7 +482,8 @@ export default function ScanningPage() {
                   paginatedScans.map((row) => (
                     <tr
                       key={row.id}
-                      className="hover:bg-slate-50/60 transition group"
+                      id={`row-${row.id}`}
+                      className={`hover:bg-slate-50/60 transition-all duration-300 group ${getRowHighlightClass(row.id)}`}
                     >
                       <td className="py-3 px-3.5 font-mono font-bold text-xs text-blue-600 whitespace-nowrap">
                         {row.projectid || `#${row.id}`}
@@ -674,7 +696,8 @@ export default function ScanningPage() {
               paginatedScans.map((row) => (
                 <div
                   key={row.id}
-                  className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                  id={`m-row-${row.id}`}
+                  className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs transition-all duration-300 ${getRowHighlightClass(row.id)}`}
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-mono font-bold text-blue-600">
@@ -943,5 +966,22 @@ export default function ScanningPage() {
         </Modal>
       </div>
     </AppLayout>
+  );
+}
+
+export default function ScanningPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppLayout>
+          <div className="p-6 space-y-4">
+            <div className="h-8 bg-slate-200 rounded-lg w-48 animate-pulse" />
+            <KpiCardSkeleton count={4} />
+          </div>
+        </AppLayout>
+      }
+    >
+      <ScanningPageContent />
+    </Suspense>
   );
 }

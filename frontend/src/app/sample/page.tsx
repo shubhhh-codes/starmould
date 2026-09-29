@@ -24,9 +24,12 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useAuth } from "@/components/providers/auth-provider";
 import { useSampleQuery, useCreateSampleMutation, useUpdateSampleMutation, useDeleteSampleMutation } from "@/lib/query/hooks";
 
 export default function SampleReworkPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
   const { data, isLoading, error: fetchQueryError, refetch } = useSampleQuery();
   const createSampleMutation = useCreateSampleMutation();
   const updateSampleMutation = useUpdateSampleMutation();
@@ -112,6 +115,10 @@ export default function SampleReworkPage() {
     field: "scan_by" | "qc_by" | "modeldesign_by",
     userId: number
   ) => {
+    if (!isAdmin && userId !== 0 && currentUser?.id && Number(userId) !== Number(currentUser.id)) {
+      alert("Permission denied: You can only assign tasks to yourself.");
+      return;
+    }
     try {
       await updateSampleMutation.mutateAsync({ id, field, value: userId });
     } catch (err: any) {

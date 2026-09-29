@@ -217,6 +217,23 @@ export async function PATCH(req: NextRequest) {
       Object.assign(updatePayload, updates);
     }
 
+    // Enforce that non-admin users can only assign tasks to themselves
+    const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";
+    if (!isUserAdmin) {
+      const staffFields = ["scan_by", "qc_by", "modeldesign_by"];
+      for (const sf of staffFields) {
+        if (sf in updatePayload) {
+          const targetVal = updatePayload[sf];
+          if (targetVal && Number(targetVal) !== Number(auth.user.id)) {
+            return NextResponse.json(
+              { error: "Permission denied: Non-admin users can only assign tasks to themselves." },
+              { status: 403 }
+            );
+          }
+        }
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from("scan")
       .update(updatePayload)

@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -12,6 +14,20 @@ import {
   Sparkles,
   ChevronDown,
   Command,
+  Layers,
+  Scan,
+  Printer,
+  ShoppingCart,
+  ArrowUpRight,
+  Truck,
+  ArrowDownLeft,
+  Users,
+  LayoutDashboard,
+  Receipt,
+  FileDown,
+  Settings,
+  PackagePlus,
+  Compass,
 } from "lucide-react";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { Modal } from "@/components/ui/dialog";
@@ -26,19 +42,29 @@ interface TopbarProps {
     role: string;
     initials: string;
     role_id?: number;
+    username?: string;
   } | null;
 }
 
-const ALL_TOP_NAV_LINKS = [
-  { href: "/", label: "Live Projects", allowedRoles: [0, 1, 2, 3, 4] },
-  { href: "/subplate", label: "Subplate", allowedRoles: [0, 1, 2, 3] },
-  { href: "/scanning", label: "Scanning", allowedRoles: [0, 1, 2, 3, 4] },
-  { href: "/purchase", label: "Purchase", allowedRoles: [0, 1] },
-  { href: "/challan", label: "Outward Challan", allowedRoles: [0, 1, 2] },
-  { href: "/dispatch", label: "Dispatch", allowedRoles: [0, 1, 2] },
-  { href: "/inward", label: "Inward", allowedRoles: [0, 1, 2] },
-  { href: "/customer", label: "Customers", allowedRoles: [0, 1] },
-];
+// Map pathnames to clean page titles & icons
+const PAGE_INFO: Record<string, { title: string; category?: string; icon: React.ElementType }> = {
+  "/": { title: "Production Dashboard", category: "Overview", icon: LayoutDashboard },
+  "/subplate": { title: "Subplate Master & Pipeline", category: "Manufacturing", icon: Layers },
+  "/scanning": { title: "Scanning & Moulds", category: "Operations", icon: Scan },
+  "/printing": { title: "3D Printing Studio", category: "Operations", icon: Printer },
+  "/purchase": { title: "Purchase Orders", category: "Procurement", icon: ShoppingCart },
+  "/purchase-inward": { title: "Purchase Inward", category: "Procurement", icon: PackagePlus },
+  "/challan": { title: "Outward Challans", category: "Logistics", icon: ArrowUpRight },
+  "/dispatch": { title: "Goods Dispatch", category: "Logistics", icon: Truck },
+  "/inward": { title: "Jobwork Inward Returns", category: "Logistics", icon: ArrowDownLeft },
+  "/customer": { title: "Customer & Vendor Directory", category: "Master Data", icon: Users },
+  "/sample": { title: "Sample & Rework Orders", category: "Production", icon: Sparkles },
+  "/user": { title: "Staff & User Management", category: "Admin", icon: Shield },
+  "/expense": { title: "Expense Ledger", category: "Finance", icon: Receipt },
+  "/report": { title: "Production & Financial Reports", category: "Analytics", icon: Compass },
+  "/export": { title: "Master CSV Exports", category: "Exports", icon: FileDown },
+  "/settings": { title: "System & Permissions Settings", category: "Settings", icon: Settings },
+};
 
 export function Topbar({
   onToggleSidebar,
@@ -58,6 +84,23 @@ export function Topbar({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
+  // Global keyboard shortcut listener for Ctrl + K / Cmd + K
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowCommandPalette((prev) => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalKeyDown, true);
+    };
+  }, []);
+
+  // Close user menu on outside click
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -72,11 +115,12 @@ export function Topbar({
     };
   }, [showUserDropdown]);
 
-  const userRoleId = currentUser?.role_id;
-  const visibleTopNavLinks =
-    userRoleId !== undefined && userRoleId !== null
-      ? ALL_TOP_NAV_LINKS.filter((item) => item.allowedRoles.includes(Number(userRoleId)))
-      : ALL_TOP_NAV_LINKS;
+  const currentPage = PAGE_INFO[pathname] || {
+    title: "StarMould ERP",
+    category: "Workspace",
+    icon: Layers,
+  };
+  const PageIcon = currentPage.icon;
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,9 +183,10 @@ export function Topbar({
         onClose={() => setShowCommandPalette(false)}
       />
 
-      <header className="sticky top-0 z-30 h-16 bg-slate-900 border-b border-slate-800 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between shadow-sm">
-        {/* Left Section: Menu toggle & Brand */}
-        <div className="flex items-center gap-3">
+      <header className="sticky top-0 z-30 h-16 bg-slate-900 border-b border-slate-800 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-3 sm:gap-6 shadow-sm">
+        
+        {/* Left Section: Menu Toggle & Dynamic Breadcrumb / Page Title */}
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <button
             onClick={() => {
               if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -151,100 +196,101 @@ export function Topbar({
                 onToggleSidebar?.();
               }
             }}
-            className="btn-interactive p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none min-w-[40px] min-h-[40px] flex items-center justify-center cursor-pointer"
-            aria-label="Toggle Menu"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer border border-slate-800 hover:border-slate-700 shadow-2xs"
+            aria-label="Toggle Navigation Sidebar"
           >
-            <Menu className="h-5 w-5" />
+            <Menu className="h-4.5 w-4.5" />
           </button>
 
-          {/* Quick Module Navigation Tabs with physical hover */}
-          <nav className="hidden lg:flex items-center gap-1 text-xs">
-            {visibleTopNavLinks.map((link) => {
-              const isActive =
-                link.href === "/"
-                  ? pathname === "/"
-                  : pathname === link.href || pathname.startsWith(link.href + "/");
-
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`btn-interactive px-3 py-1.5 rounded-md font-medium transition-all ${
-                    isActive
-                      ? "text-white bg-blue-600 shadow-xs font-semibold"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Current Page Context Badge */}
+          <div className="hidden sm:flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+              <PageIcon className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 leading-none">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                  {currentPage.category}
+                </span>
+              </div>
+              <h2 className="text-sm font-bold text-white tracking-tight truncate mt-0.5">
+                {currentPage.title}
+              </h2>
+            </div>
+          </div>
         </div>
 
-        {/* Center: Global Search / Command Palette Trigger */}
-        <div className="hidden md:flex items-center flex-1 max-w-xs mx-4">
+        {/* Center: Global Fast Search & Command Palette Trigger */}
+        <div className="flex-1 max-w-md mx-auto min-w-[160px]">
           <button
             type="button"
             onClick={() => setShowCommandPalette(true)}
-            className="w-full flex items-center justify-between pl-3 pr-2 py-1.5 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-all cursor-pointer shadow-inner"
+            className="w-full group flex items-center justify-between pl-3.5 pr-2.5 py-2 text-xs rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-400 hover:text-slate-200 transition-all cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
-            <div className="flex items-center gap-2">
-              <Search className="h-3.5 w-3.5 text-slate-400" />
-              <span>Search or jump to...</span>
+            <div className="flex items-center gap-2.5 min-w-0 truncate">
+              <Search className="h-4 w-4 text-slate-400 group-hover:text-blue-400 transition-colors shrink-0" />
+              <span className="truncate text-slate-400 group-hover:text-slate-200 text-xs">
+                Search order ID, mould, subplate…
+              </span>
             </div>
-            <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-900/60 rounded border border-slate-700">
-              <Command className="w-2.5 h-2.5" /> K
+            <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-slate-900/90 rounded-md border border-slate-700/90 group-hover:border-slate-600 shadow-2xs shrink-0 ml-2">
+              <Command className="w-3 h-3 text-slate-400" /> K
             </kbd>
           </button>
         </div>
 
-        {/* Right Section: System status, Notifications & User profile */}
-        <div className="flex items-center gap-3">
+        {/* Right Section: Shift Status, Notifications & User Profile */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          
           {/* Shift / Work Time indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800/60 text-[11px] text-slate-300 border border-slate-700/60">
-            <Clock className="h-3 w-3 text-blue-400" />
-            <span>Shift Active</span>
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 text-[11px] font-medium text-slate-300 border border-slate-700/60 shadow-2xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span className="font-semibold text-slate-200">Production Active</span>
           </div>
 
-          {/* Notifications button */}
+          {/* Quick Notifications Button */}
           <button
-            title="Notifications"
-            className="btn-interactive relative p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            type="button"
+            title="System Alerts & Activity"
+            onClick={() => setShowCommandPalette(true)}
+            className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700 cursor-pointer"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-slate-900" />
+            <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-blue-500 ring-2 ring-slate-900" />
           </button>
 
-          {/* User Profile Menu with Spring Popover */}
+          {/* User Profile Menu with Popover */}
           <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="btn-interactive flex items-center gap-2.5 p-1 pl-2 rounded-lg hover:bg-slate-800 transition-colors text-left cursor-pointer"
+              className="flex items-center gap-2.5 p-1 pl-2 rounded-xl hover:bg-slate-800 transition-colors text-left cursor-pointer border border-transparent hover:border-slate-700"
             >
               <div className="flex flex-col text-right hidden sm:flex">
-                <span className="text-xs font-semibold text-white leading-tight">
+                <span className="text-xs font-bold text-white leading-tight">
                   {currentUser?.name || "User"}
                 </span>
-                <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1">
+                <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1 capitalize font-medium">
                   <Shield className="h-2.5 w-2.5 text-blue-400" />
                   {currentUser?.role || "Staff"}
                 </span>
               </div>
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-xs">
-                {currentUser?.initials || "SM"}
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-500/20">
+                {currentUser?.initials || currentUser?.name?.slice(0, 2).toUpperCase() || "SM"}
               </div>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
             </button>
 
-            {/* Dropdown Menu with Popover Physics */}
+            {/* Dropdown Menu */}
             {currentUser && showUserDropdown && (
-              <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 text-xs text-slate-300 z-50 animate-popover-spring">
+              <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 text-xs text-slate-300 z-50 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-4 py-2.5 border-b border-slate-800">
-                  <p className="font-semibold text-white">{currentUser.name}</p>
-                  <p className="text-[11px] text-slate-400 truncate">{currentUser.email}</p>
-                  <div className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-900/60 border border-blue-700/50 text-blue-300 text-[10px] font-medium">
-                    <Sparkles className="h-2.5 w-2.5" />
+                  <p className="font-bold text-white text-xs">{currentUser.name}</p>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">@{currentUser.username || currentUser.email}</p>
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-900/40 border border-blue-700/50 text-blue-300 text-[10px] font-semibold capitalize">
+                    <Sparkles className="h-2.5 w-2.5 text-blue-400" />
                     Role: {currentUser.role}
                   </div>
                 </div>
@@ -253,29 +299,32 @@ export function Topbar({
                   <button
                     onClick={() => {
                       setShowUserDropdown(false);
-                      setShowPasswordModal(true);
+                      setShowCommandPalette(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-800/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between px-4 py-2 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
                   >
-                    <KeyRound className="h-3.5 w-3.5 text-blue-400" />
-                    Change Password
+                    <span className="flex items-center gap-2.5">
+                      <Search className="h-3.5 w-3.5 text-blue-400" />
+                      Global Search
+                    </span>
+                    <kbd className="text-[9px] font-mono text-slate-500 bg-slate-800 px-1 py-0.5 rounded border border-slate-700">Ctrl K</kbd>
                   </button>
                   <button
                     onClick={() => {
                       setShowUserDropdown(false);
-                      setShowCommandPalette(true);
+                      setShowPasswordModal(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-800/80 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-4 py-2 hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
                   >
-                    <Command className="h-3.5 w-3.5 text-purple-400" />
-                    Command Menu (Ctrl+K)
+                    <KeyRound className="h-3.5 w-3.5 text-cyan-400" />
+                    Change Password
                   </button>
                 </div>
 
                 <div className="border-t border-slate-800 pt-1">
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-4 py-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors cursor-pointer font-medium"
                   >
                     <LogOut className="h-3.5 w-3.5" />
                     Sign Out
@@ -371,4 +420,3 @@ export function Topbar({
     </>
   );
 }
-

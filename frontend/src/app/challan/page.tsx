@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   ArrowUpRight,
@@ -34,9 +35,13 @@ import type {
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useChallansQuery, useCreateChallanMutation, useDeleteChallanMutation } from "@/lib/query/hooks";
 
-export default function ChallanPage() {
+function ChallanPageContent() {
+  const searchParams = useSearchParams();
+  const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
+
   const { data, isLoading, error: fetchQueryError, refetch } = useChallansQuery();
   const createChallanMutation = useCreateChallanMutation();
   const deleteChallanMutation = useDeleteChallanMutation();
@@ -61,7 +66,13 @@ export default function ChallanPage() {
 
   // Navigation Tabs: Job Work Challan Register vs Pending Outward Items
   const [activeTab, setActiveTab] = useState<"challan_list" | "pending_outward">("challan_list");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(urlSearch);
+
+  useEffect(() => {
+    if (urlSearch) {
+      setSearchQuery(urlSearch);
+    }
+  }, [urlSearch]);
   const [vendorFilter, setVendorFilter] = useState("ALL");
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -179,6 +190,8 @@ export default function ChallanPage() {
       return matchSearch && matchVendor;
     });
   }, [challans, searchQuery, vendorFilter]);
+
+  const { getRowHighlightClass } = useTableHighlight(filteredChallans);
 
   // Extracted Pending Outward Items from Challans (matching ViewModel view_pending_inward_qty)
   const pendingOutwardItems = useMemo(() => {
@@ -563,7 +576,10 @@ export default function ChallanPage() {
                       const isExpanded = !!expandedRows[c.id];
                       return (
                         <React.Fragment key={c.id}>
-                          <tr className="hover:bg-slate-50 transition-colors">
+                          <tr
+                            id={`row-${c.id}`}
+                            className={`hover:bg-slate-50 transition-colors ${getRowHighlightClass(c.id)}`}
+                          >
                             <td className="px-4 py-3.5 text-center">
                               <button
                                 onClick={() => toggleRow(c.id)}
@@ -707,7 +723,8 @@ export default function ChallanPage() {
                   return (
                     <div
                       key={c.id}
-                      className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                      id={`row-mob-${c.id}`}
+                      className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs ${getRowHighlightClass(c.id)}`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -1128,3 +1145,12 @@ export default function ChallanPage() {
     </AppLayout>
   );
 }
+
+export default function ChallanPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-400">Loading Challans...</div>}>
+      <ChallanPageContent />
+    </Suspense>
+  );
+}
+

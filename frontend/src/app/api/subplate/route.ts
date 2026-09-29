@@ -268,6 +268,22 @@ export async function PUT(req: NextRequest) {
       packing_workby: "packing_at",
     };
 
+    // Enforce that non-admin users (e.g. Designers, Workers) can only assign tasks to themselves
+    const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";
+    if (!isUserAdmin) {
+      for (const byField of Object.keys(stageTimestampMap)) {
+        if (byField in updatePayload) {
+          const targetUserId = updatePayload[byField];
+          if (targetUserId && Number(targetUserId) !== Number(auth.user.id)) {
+            return NextResponse.json(
+              { error: "Permission denied: Non-admin users can only assign tasks to themselves." },
+              { status: 403 }
+            );
+          }
+        }
+      }
+    }
+
     for (const [byField, atField] of Object.entries(stageTimestampMap)) {
       if (byField in updatePayload) {
         const val = updatePayload[byField];
