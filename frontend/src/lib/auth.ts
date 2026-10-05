@@ -176,20 +176,23 @@ export async function authenticateRequest(
     must_change_password: effectiveUser.must_change_password === true,
   };
 
-  // Check hardcoded role whitelist (structural minimum: e.g., workers can never reach admin routes)
-  if (allowedRoles && allowedRoles.length > 0) {
-    if (!allowedRoles.includes(roleId)) {
-      return { error: "Access denied: insufficient permissions", status: 403 };
-    }
+  // Admin (role 0) always has full access
+  if (roleId === 0) {
+    return { user: freshUser };
   }
 
-  // Check dynamic named permission from admin-configured Supabase app_config table.
-  // This is the second enforcement layer — if admin revoked this permission for the role,
-  // the request is denied even if the role_id passed the structural check above.
+  // If a dynamic named permission key is configured, check it as the primary authority.
+  // This allows the Admin to grant or revoke access for ANY role (Manager, Supervisor, Designer, Worker)
+  // dynamically from the Role & Permissions Settings panel.
   if (permissionKey) {
     const matrix = await loadEffectivePermissions();
     if (!roleHasPermission(roleId, permissionKey, matrix)) {
-      return { error: "Access denied: permission revoked by administrator", status: 403 };
+      return { error: "Access denied: permission not granted by administrator", status: 403 };
+    }
+  } else if (allowedRoles && allowedRoles.length > 0) {
+    // Structural whitelist fallback only when no named permission key is provided
+    if (!allowedRoles.includes(roleId)) {
+      return { error: "Access denied: insufficient permissions", status: 403 };
     }
   }
 

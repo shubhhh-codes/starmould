@@ -141,7 +141,7 @@ export function calculateUnitWeight(input: Omit<WeightCalculationInput, "quantit
  * Checks whether the height dimension field should be disabled (Round Bar).
  */
 export function isHeightDisabled(shape: string): boolean {
-  const norm = shape.trim().toLowerCase();
+  const norm = (shape || "").trim().toLowerCase();
   return norm === "round" || norm === "round bar";
 }
 
@@ -149,11 +149,14 @@ export function isHeightDisabled(shape: string): boolean {
  * Returns label for dimension inputs based on shape
  */
 export function getDimensionLabels(shape: string, unit: string) {
-  const norm = shape.trim().toLowerCase();
+  const norm = (shape || "").trim().toLowerCase();
   const u = unit || "mm";
 
   if (norm === "round" || norm === "round bar") {
     return {
+      headerGuide: "OD × Length",
+      isRound: true,
+      isPipe: false,
       length: `Length (${u})`,
       width: `Diameter (${u})`,
       height: `Height (N/A)`,
@@ -164,6 +167,9 @@ export function getDimensionLabels(shape: string, unit: string) {
 
   if (norm === "pipe") {
     return {
+      headerGuide: "OD × Thickness × Length",
+      isRound: false,
+      isPipe: true,
       length: `Length (${u})`,
       width: `Outer Diam. (${u})`,
       height: `Wall Thickness (${u})`,
@@ -173,10 +179,40 @@ export function getDimensionLabels(shape: string, unit: string) {
   }
 
   return {
+    headerGuide: "Length × Width × Height / Thickness",
+    isRound: false,
+    isPipe: false,
     length: `Length (${u})`,
     width: `Width (${u})`,
     height: `Thickness / H (${u})`,
     widthPlaceholder: `W (${u})`,
     heightPlaceholder: `H (${u})`,
   };
+}
+
+/**
+ * Formats subplate dimensions display string based on shape
+ */
+export function formatSubplateDimensions(sp: {
+  shape?: string | null;
+  length?: number | string | null;
+  width?: number | string | null;
+  height?: number | string | null;
+  unit?: string | null;
+}): string {
+  const norm = (sp.shape || "").trim().toLowerCase();
+  const u = sp.unit || "mm";
+  const l = sp.length ?? 0;
+  const w = sp.width ?? 0;
+  const h = sp.height ?? 0;
+
+  if (norm === "round" || norm === "round bar") {
+    return `OD ${w} × ${l} ${u}`;
+  }
+
+  if (norm === "pipe") {
+    return `OD ${w} × T ${h} × ${l} ${u}`;
+  }
+
+  return `${l} × ${w} × ${h} ${u}`;
 }

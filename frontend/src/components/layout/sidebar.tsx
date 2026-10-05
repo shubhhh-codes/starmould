@@ -70,7 +70,7 @@ export const navigationItems: NavItem[] = [
     permKey: "nav_subplate",
   },
   {
-    title: "Scanning / Moulds",
+    title: "Add new mould",
     href: "/scanning",
     icon: Scan,
     allowedRoles: [0, 1, 2, 3, 4],
@@ -98,7 +98,7 @@ export const navigationItems: NavItem[] = [
     permKey: "nav_purchase_inward",
   },
   {
-    title: "Challan (Outward)",
+    title: "Outward Jobwork",
     href: "/challan",
     icon: ArrowUpRight,
     allowedRoles: [0, 1, 2],
@@ -112,7 +112,7 @@ export const navigationItems: NavItem[] = [
     permKey: "nav_dispatch",
   },
   {
-    title: "Inward (Return)",
+    title: "Inward Jobwork",
     href: "/inward",
     icon: ArrowDownLeft,
     allowedRoles: [0, 1, 2],
@@ -159,7 +159,7 @@ export const navigationItems: NavItem[] = [
     icon: Settings,
     badge: "Admin",
     allowedRoles: [0], // Admin only
-    permKey: "nav_user_mgmt",
+    permKey: "nav_settings",
   },
   {
     title: "Reports & Downtime",
@@ -228,12 +228,15 @@ export function Sidebar({
     
     // First, filter items that the role has permission to view
     const allowed = navigationItems.filter((item) => {
+      // Role & Permissions (/settings) is strictly Admin only
+      if (item.href === "/settings" || item.permKey === "nav_settings") {
+        return roleId === 0;
+      }
       if (roleId === 0) return true; // Admin has universal access
-      if (!item.allowedRoles.includes(roleId)) return false;
       if (item.permKey) {
         return hasPermission(item.permKey, roleId);
       }
-      return true;
+      return item.allowedRoles.includes(roleId);
     });
 
     // Next, sort allowed items based on the role's configured menu order

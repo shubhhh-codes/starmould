@@ -3,6 +3,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
 import { signSession, SessionUser } from "@/lib/auth";
 import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { serverLogger } from "@/lib/server-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest) {
       .or(`username.ilike.${safeUsername},email.ilike.${safeUsername}`);
 
     if (error) {
+      serverLogger.error("Login user query failed in database", error.message, {
+        route: "/api/auth/login",
+        status: 500,
+        payload: { username: safeUsername },
+      });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -118,6 +124,11 @@ export async function POST(req: NextRequest) {
 
     return res;
   } catch (err: unknown) {
+    serverLogger.error("Uncaught exception in login handler", err, {
+      route: "/api/auth/login",
+      method: "POST",
+      status: 500,
+    });
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

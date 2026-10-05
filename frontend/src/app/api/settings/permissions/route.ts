@@ -7,30 +7,52 @@ import {
   loadEffectiveMenuOrders,
   saveConfigToSupabase,
 } from "@/lib/permissions/loader";
+import { serverLogger } from "@/lib/server-logger";
 
 // GET /api/settings/permissions - Retrieve current permissions & menu orders
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
+    serverLogger.warn("GET /api/settings/permissions: Unauthorized access attempt", {
+      status: auth.status,
+      error: auth.error,
+    });
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const permissions = await loadEffectivePermissions();
-  const menu_orders = await loadEffectiveMenuOrders();
+  try {
+    const permissions = await loadEffectivePermissions();
+    const menu_orders = await loadEffectiveMenuOrders();
 
-  return NextResponse.json({
-    success: true,
-    permissions,
-    menu_orders,
-    userRoleId: auth.user.role_id,
-    isAdmin: auth.user.role_id === 0,
-  });
+    return NextResponse.json({
+      success: true,
+      permissions,
+      menu_orders,
+      userRoleId: auth.user.role_id,
+      isAdmin: auth.user.role_id === 0,
+    });
+  } catch (err) {
+    serverLogger.error("GET /api/settings/permissions failed", err, {
+      route: "/api/settings/permissions",
+      method: "GET",
+      status: 500,
+      userId: auth.user.id,
+      username: auth.user.username,
+      role: auth.user.role,
+    });
+    return NextResponse.json({ error: "Failed to retrieve permissions" }, { status: 500 });
+  }
 }
 
 // PUT /api/settings/permissions - Update permissions & menu orders (Admin only)
 export async function PUT(req: NextRequest) {
   const auth = await authenticateRequest(req, [0]); // Strictly Admin only
   if ("error" in auth) {
+    serverLogger.error("PUT /api/settings/permissions: Access denied", auth.error, {
+      route: "/api/settings/permissions",
+      method: "PUT",
+      status: auth.status,
+    });
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
@@ -47,9 +69,10 @@ export async function PUT(req: NextRequest) {
     if (matrix && typeof matrix === "object") {
       for (const [rStr, rPerms] of Object.entries(matrix)) {
         const rNum = Number(rStr);
-        if (rNum !== 0 && updatedPerms[rNum]) {
+        if (rNum !== 0) {
+          const base = updatedPerms[rNum] || DEFAULT_ROLE_PERMISSIONS[rNum] || {};
           updatedPerms[rNum] = {
-            ...updatedPerms[rNum],
+            ...base,
             ...(rPerms as Record<string, boolean>),
           };
         }
@@ -68,9 +91,10 @@ export async function PUT(req: NextRequest) {
     if (roleId !== undefined && roleId !== null) {
       const rNum = Number(roleId);
       if (rNum !== 0) {
-        if (permissions && updatedPerms[rNum]) {
+        const base = updatedPerms[rNum] || DEFAULT_ROLE_PERMISSIONS[rNum] || {};
+        if (permissions && typeof permissions === "object") {
           updatedPerms[rNum] = {
-            ...updatedPerms[rNum],
+            ...base,
             ...permissions,
           };
         }
@@ -86,11 +110,26 @@ export async function PUT(req: NextRequest) {
     });
 
     if (!saveResult.success) {
+      serverLogger.error("PUT /api/settings/permissions: Supabase database save failed", saveResult.error, {
+        route: "/api/settings/permissions",
+        method: "PUT",
+        status: 500,
+        userId: auth.user.id,
+        username: auth.user.username,
+        role: auth.user.role,
+        payload: { roleId, permissionsKeys: Object.keys(permissions || {}), menuOrder },
+      });
       return NextResponse.json(
         { error: `Database save failed: ${saveResult.error}` },
         { status: 500 }
       );
     }
+
+    serverLogger.info(`Updated permissions for Role ${roleId}`, {
+      userId: auth.user.id,
+      username: auth.user.username,
+      menuCount: Array.isArray(menuOrder) ? menuOrder.length : undefined,
+    });
 
     return NextResponse.json({
       success: true,
@@ -99,6 +138,14 @@ export async function PUT(req: NextRequest) {
       menu_orders: updatedOrders,
     });
   } catch (err: unknown) {
+    serverLogger.error("PUT /api/settings/permissions: Uncaught error", err, {
+      route: "/api/settings/permissions",
+      method: "PUT",
+      status: 500,
+      userId: auth.user.id,
+      username: auth.user.username,
+      role: auth.user.role,
+    });
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -108,6 +155,11 @@ export async function PUT(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await authenticateRequest(req, [0]); // Strictly Admin only
   if ("error" in auth) {
+    serverLogger.error("POST /api/settings/permissions: Access denied", auth.error, {
+      route: "/api/settings/permissions",
+      method: "POST",
+      status: auth.status,
+    });
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
@@ -144,11 +196,24 @@ export async function POST(req: NextRequest) {
     });
 
     if (!saveResult.success) {
+      serverLogger.error("POST /api/settings/permissions: Reset failed in database", saveResult.error, {
+        route: "/api/settings/permissions",
+        method: "POST",
+        status: 500,
+        userId: auth.user.id,
+        username: auth.user.username,
+        role: auth.user.role,
+      });
       return NextResponse.json(
         { error: `Database reset failed: ${saveResult.error}` },
         { status: 500 }
       );
     }
+
+    serverLogger.info(`Reset permissions for Role ${roleId ?? "ALL"} to factory defaults`, {
+      userId: auth.user.id,
+      username: auth.user.username,
+    });
 
     return NextResponse.json({
       success: true,
@@ -157,6 +222,14 @@ export async function POST(req: NextRequest) {
       menu_orders: updatedOrders,
     });
   } catch (err: unknown) {
+    serverLogger.error("POST /api/settings/permissions: Uncaught reset error", err, {
+      route: "/api/settings/permissions",
+      method: "POST",
+      status: 500,
+      userId: auth.user.id,
+      username: auth.user.username,
+      role: auth.user.role,
+    });
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
   }

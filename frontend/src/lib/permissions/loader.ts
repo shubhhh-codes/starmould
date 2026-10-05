@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_MENU_ORDERS } from "./defaults";
 import { RolePermissionsMatrix, RoleMenuOrders } from "./types";
+import { serverLogger } from "@/lib/server-logger";
 
 const CONFIG_KEY_PERMISSIONS = "role_permissions";
 const CONFIG_KEY_MENU_ORDERS = "role_menu_orders";
@@ -41,12 +42,16 @@ export async function loadEffectivePermissions(): Promise<RolePermissionsMatrix>
       }
       // Admin always full immutable access
       merged[0] = { ...DEFAULT_ROLE_PERMISSIONS[0] };
+      // Non-admin roles never have nav_settings
+      for (const rId of [1, 2, 3, 4]) {
+        if (merged[rId]) merged[rId].nav_settings = false;
+      }
       cachedPermissions = merged;
       cacheExpiresAt = Date.now() + CACHE_TTL_MS;
       return merged;
     }
   } catch (err) {
-    console.warn("Supabase permissions load error, falling back to defaults:", err);
+    serverLogger.warn("Supabase permissions load error, falling back to defaults", err);
   }
 
   cachedPermissions = { ...DEFAULT_ROLE_PERMISSIONS };
@@ -75,11 +80,17 @@ export async function loadEffectiveMenuOrders(): Promise<RoleMenuOrders> {
         if (Array.isArray(order)) merged[roleId] = order;
       }
       merged[0] = [...DEFAULT_ROLE_MENU_ORDERS[0]];
+      // Non-admin roles never have nav_settings in menu orders
+      for (const rId of [1, 2, 3, 4]) {
+        if (Array.isArray(merged[rId])) {
+          merged[rId] = merged[rId].filter((k) => k !== "nav_settings");
+        }
+      }
       cachedMenuOrders = merged;
       return merged;
     }
   } catch (err) {
-    console.warn("Supabase menu orders load error, falling back to defaults:", err);
+    serverLogger.warn("Supabase menu orders load error, falling back to defaults", err);
   }
 
   cachedMenuOrders = { ...DEFAULT_ROLE_MENU_ORDERS };
@@ -90,7 +101,7 @@ export async function loadEffectiveMenuOrders(): Promise<RoleMenuOrders> {
  * Saves full permissions matrix and menu orders to Supabase app_config table.
  */
 export async function saveConfigToSupabase(config: StoredConfig): Promise<{ success: boolean; error?: string }> {
-  // Protect admin from being modified
+  // Protect admin from being modified and sanitize non-admin roles
   const safePerms: RolePermissionsMatrix = {
     ...config.permissions,
     0: { ...DEFAULT_ROLE_PERMISSIONS[0] },
@@ -99,6 +110,16 @@ export async function saveConfigToSupabase(config: StoredConfig): Promise<{ succ
     ...config.menu_orders,
     0: [...DEFAULT_ROLE_MENU_ORDERS[0]],
   };
+
+  // Ensure nav_settings is strictly false and never in menu order for non-admin roles (1, 2, 3, 4)
+  for (const rId of [1, 2, 3, 4]) {
+    if (safePerms[rId]) {
+      safePerms[rId].nav_settings = false;
+    }
+    if (Array.isArray(safeOrders[rId])) {
+      safeOrders[rId] = safeOrders[rId].filter((k) => k !== "nav_settings");
+    }
+  }
 
   const [permRes, orderRes] = await Promise.all([
     supabaseAdmin.from("app_config").upsert(
@@ -113,7 +134,14 @@ export async function saveConfigToSupabase(config: StoredConfig): Promise<{ succ
 
   const errors = [permRes.error?.message, orderRes.error?.message].filter(Boolean);
   if (errors.length > 0) {
-    return { success: false, error: errors.join("; ") };
+    const errorMsg = errors.join("; ");
+    serverLogger.error("Supabase app_config upsert failed", errorMsg, {
+      details: {
+        permError: permRes.error,
+        orderError: orderRes.error,
+      },
+    });
+    return { success: false, error: errorMsg };
   }
 
   // Bust in-process cache immediately

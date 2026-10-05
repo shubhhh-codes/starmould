@@ -54,6 +54,7 @@ import {
   calculateSubplateWeight,
   isHeightDisabled,
   getDimensionLabels,
+  formatSubplateDimensions,
   SUPPORTED_UNITS,
   SUPPORTED_SHAPES,
   MATERIAL_DENSITIES,
@@ -1000,7 +1001,7 @@ export function MouldProjectsTable({
                       </div>
                       <div className="text-slate-500 flex flex-wrap items-center gap-3 font-mono text-[11px]">
                         <span>
-                          {sp.length ?? "—"} × {sp.width ?? "—"} × {sp.height ?? "—"} {sp.unit || "mm"}
+                          {formatSubplateDimensions(sp)}
                         </span>
                         <span>•</span>
                         <span>Qty: {sp.sqty || 1}</span>
@@ -1240,65 +1241,176 @@ export function MouldProjectsTable({
                   Dimensions & Unit
                 </label>
                 <span className="text-[10px] text-slate-500 font-medium">
-                  {plateForm.shape === "Round Bar"
-                    ? "Length × Diameter"
-                    : "Length × Width × Height / Thickness"}
+                  {plateDimLabels.headerGuide}
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder={plateDimLabels.length}
-                      value={plateForm.length}
-                      onKeyDown={blockInvalidNumberKeys}
-                      onChange={(e) => handleNumericPlateDimension("length", e.target.value)}
-                      className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
-                      L
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder={plateDimLabels.widthPlaceholder}
-                      value={plateForm.width}
-                      onKeyDown={blockInvalidNumberKeys}
-                      onChange={(e) => handleNumericPlateDimension("width", e.target.value)}
-                      className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
-                      W
-                    </span>
-                  </div>
-                </div>
-                <div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder={plateDimLabels.heightPlaceholder}
-                      value={plateForm.height}
-                      disabled={plateHeightDisabled}
-                      onKeyDown={blockInvalidNumberKeys}
-                      onChange={(e) => handleNumericPlateDimension("height", e.target.value)}
-                      className={"w-full h-10 pl-3 pr-7 rounded-xl text-xs font-mono font-bold transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 " + (
-                        plateHeightDisabled
-                          ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
-                          : "bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 placeholder:font-normal"
-                      )}
-                    />
-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
-                      {plateHeightDisabled ? "—" : "H"}
-                    </span>
-                  </div>
-                </div>
+                {plateDimLabels.isRound ? (
+                  <>
+                    {/* 1. OD (Outer Diameter) */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.widthPlaceholder}
+                          value={plateForm.width}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("width", e.target.value)}
+                          className="w-full h-10 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          OD
+                        </span>
+                      </div>
+                    </div>
+                    {/* 2. Length */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.length}
+                          value={plateForm.length}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("length", e.target.value)}
+                          className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          L
+                        </span>
+                      </div>
+                    </div>
+                    {/* 3. Height (Disabled for Round) */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          disabled
+                          placeholder={plateDimLabels.heightPlaceholder}
+                          value=""
+                          className="w-full h-10 pl-3 pr-7 rounded-xl text-xs font-mono font-bold transition-all shadow-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          —
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : plateDimLabels.isPipe ? (
+                  <>
+                    {/* 1. OD (Outer Diameter) */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.widthPlaceholder}
+                          value={plateForm.width}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("width", e.target.value)}
+                          className="w-full h-10 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          OD
+                        </span>
+                      </div>
+                    </div>
+                    {/* 2. Wall Thickness */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.heightPlaceholder}
+                          value={plateForm.height}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("height", e.target.value)}
+                          className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          T
+                        </span>
+                      </div>
+                    </div>
+                    {/* 3. Length */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.length}
+                          value={plateForm.length}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("length", e.target.value)}
+                          className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          L
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* 1. Length */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.length}
+                          value={plateForm.length}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("length", e.target.value)}
+                          className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          L
+                        </span>
+                      </div>
+                    </div>
+                    {/* 2. Width */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.widthPlaceholder}
+                          value={plateForm.width}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("width", e.target.value)}
+                          className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          W
+                        </span>
+                      </div>
+                    </div>
+                    {/* 3. Height / Thickness */}
+                    <div>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={plateDimLabels.heightPlaceholder}
+                          value={plateForm.height}
+                          disabled={plateHeightDisabled}
+                          onKeyDown={blockInvalidNumberKeys}
+                          onChange={(e) => handleNumericPlateDimension("height", e.target.value)}
+                          className={"w-full h-10 pl-3 pr-7 rounded-xl text-xs font-mono font-bold transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 " + (
+                            plateHeightDisabled
+                              ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+                              : "bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 placeholder:font-normal"
+                          )}
+                        />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+                          {plateHeightDisabled ? "—" : "H"}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <select
                     value={plateForm.unit || "mm"}
@@ -1307,7 +1419,7 @@ export function MouldProjectsTable({
                   >
                     {SUPPORTED_UNITS.map((u) => (
                       <option key={u} value={u}>
-                        Unit: {u}
+                        {u}
                       </option>
                     ))}
                   </select>

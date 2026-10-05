@@ -14,24 +14,12 @@ interface PermissionsContextType {
   canAccessRoute: (pathname: string, customRoleId?: number) => boolean;
   getRoleMenuOrder: (roleId: number) => string[];
   updateRolePermissions: (roleId: number, permissions: Record<string, boolean>) => Promise<boolean>;
-  updateRoleConfig: (roleId: number, permissions: Record<string, boolean>, menuOrder: string[]) => Promise<boolean>;
-  resetRolePermissions: (roleId?: number) => Promise<boolean>;
+  updateRoleConfig: (roleId: number, permissions: Record<string, boolean>, menuOrder: string[]) => Promise<{ success: boolean; error?: string }>;
+  resetRolePermissions: (roleId?: number) => Promise<{ success: boolean; error?: string }>;
   refreshPermissions: () => Promise<void>;
 }
 
-const PermissionsContext = createContext<PermissionsContextType>({
-  matrix: DEFAULT_ROLE_PERMISSIONS,
-  menuOrders: DEFAULT_ROLE_MENU_ORDERS,
-  isLoading: false,
-  isSaving: false,
-  hasPermission: () => true,
-  canAccessRoute: () => true,
-  getRoleMenuOrder: () => [],
-  updateRolePermissions: async () => false,
-  updateRoleConfig: async () => false,
-  resetRolePermissions: async () => false,
-  refreshPermissions: async () => {},
-});
+const PermissionsContext = createContext<PermissionsContextType | null>(null);
 
 // Mapping of route paths to corresponding navigation permission keys
 const ROUTE_PERMISSION_MAP: Record<string, string> = {
@@ -89,6 +77,8 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     (permissionKey: string, customRoleId?: number): boolean => {
       const roleId = customRoleId !== undefined ? customRoleId : currentUser?.role_id ?? 4;
       if (roleId === 0) return true; // Admin has universal access
+      // Role & Permissions (nav_settings) is strictly Admin only
+      if (permissionKey === "nav_settings") return false;
       const rolePerms = matrix[roleId];
       if (!rolePerms) return false;
       return rolePerms[permissionKey] ?? false;
@@ -110,6 +100,9 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
     (pathname: string, customRoleId?: number): boolean => {
       const roleId = customRoleId !== undefined ? customRoleId : currentUser?.role_id ?? 4;
       if (roleId === 0) return true;
+
+      // Settings is strictly Admin only
+      if (pathname.startsWith("/settings")) return false;
 
       // Special check for Customer Creator vs Vendor
       if (pathname.startsWith("/customer")) {
@@ -164,8 +157,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       roleId: number,
       permissions: Record<string, boolean>,
       menuOrder: string[]
-    ): Promise<boolean> => {
-      if (roleId === 0) return false; // Safety lock for Admin
+    ): Promise<{ success: boolean; error?: string }> => {
+      if (roleId === 0) {
+        return { success: false, error: "Administrator role is protected and cannot be modified." };
+      }
       try {
         setIsSaving(true);
         const res = await fetch("/api/settings/permissions", {
@@ -173,20 +168,23 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ roleId, permissions, menuOrder }),
         });
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          const data = await res.json();
           if (data.permissions) {
             setMatrix(data.permissions);
           }
           if (data.menu_orders) {
             setMenuOrders(data.menu_orders);
           }
-          return true;
+          return { success: true };
         }
-        return false;
+        const errorMsg = data.error || `HTTP ${res.status}: ${res.statusText || "Failed to save configuration"}`;
+        console.error(`[Permissions Error] Failed to update role ${roleId}:`, errorMsg);
+        return { success: false, error: errorMsg };
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Network request failed";
         console.error("Error updating role config:", err);
-        return false;
+        return { success: false, error: errorMsg };
       } finally {
         setIsSaving(false);
       }
@@ -195,7 +193,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   );
 
   const resetRolePermissions = useCallback(
-    async (roleId?: number): Promise<boolean> => {
+    async (roleId?: number): Promise<{ success: boolean; error?: string }> => {
       try {
         setIsSaving(true);
         const res = await fetch("/api/settings/permissions", {
@@ -203,20 +201,23 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ roleId }),
         });
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          const data = await res.json();
           if (data.permissions) {
             setMatrix(data.permissions);
           }
           if (data.menu_orders) {
             setMenuOrders(data.menu_orders);
           }
-          return true;
+          return { success: true };
         }
-        return false;
+        const errorMsg = data.error || `HTTP ${res.status}: Failed to reset permissions`;
+        console.error("[Permissions Error] Failed to reset role permissions:", errorMsg);
+        return { success: false, error: errorMsg };
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "Network request failed";
         console.error("Error resetting permissions:", err);
-        return false;
+        return { success: false, error: errorMsg };
       } finally {
         setIsSaving(false);
       }
@@ -245,6 +246,10 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   );
 }
 
-export function useRolePermissions() {
-  return useContext(PermissionsContext);
+export function useRolePermissions(): PermissionsContextType {
+  const context = useContext(PermissionsContext);
+  if (!context) {
+    throw new Error("useRolePermissions must be used within a PermissionsProvider");
+  }
+  return context;
 }

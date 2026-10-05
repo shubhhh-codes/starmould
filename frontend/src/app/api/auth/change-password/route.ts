@@ -3,10 +3,15 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
 import { authenticateRequest } from "@/lib/auth";
 import { invalidateCache } from "@/lib/cache";
+import { serverLogger } from "@/lib/server-logger";
 
 export async function POST(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
+    serverLogger.warn("POST /api/auth/change-password: Authentication failed", {
+      status: auth.status,
+      error: auth.error,
+    });
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
@@ -78,6 +83,12 @@ export async function POST(req: NextRequest) {
       .eq("id", auth.user.id);
 
     if (updateErr) {
+      serverLogger.error("Failed to update password in database", updateErr.message, {
+        route: "/api/auth/change-password",
+        status: 500,
+        userId: auth.user.id,
+        username: auth.user.username,
+      });
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
@@ -85,11 +96,19 @@ export async function POST(req: NextRequest) {
     invalidateCache(`auth_user_record_${auth.user.id}`);
     invalidateCache("shared_users");
 
+    serverLogger.info(`Password successfully changed for user ${auth.user.username} (ID: ${auth.user.id})`);
+
     return NextResponse.json({
       success: true,
       message: "Password changed successfully",
     });
   } catch (err: unknown) {
+    serverLogger.error("Uncaught exception in change-password handler", err, {
+      route: "/api/auth/change-password",
+      status: 500,
+      userId: auth.user.id,
+      username: auth.user.username,
+    });
     const message = err instanceof Error ? err.message : "Failed to change password";
     return NextResponse.json({ error: message }, { status: 500 });
   }

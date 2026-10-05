@@ -135,32 +135,13 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Use factory defaults for middleware route level redirect (Edge safe).
-  // API routes execute the full dynamic Supabase stored permission check via authenticateRequest.
-  const effectivePermissions = DEFAULT_ROLE_PERMISSIONS;
-
-  // Find the most specific matching route prefix (longest match wins)
-  let matchedKey: string | null = null;
-  let matchedLength = 0;
-
-  for (const route of Object.keys(ROUTE_TO_PERMISSION_KEY)) {
-    if (route === "/" || pathname.startsWith(route)) {
-      if (route.length > matchedLength) {
-        matchedKey = route;
-        matchedLength = route.length;
-      }
-    }
+  // System configuration settings is strictly restricted to System Administrators (role 0)
+  if (pathname.startsWith("/settings")) {
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
-  if (matchedKey) {
-    const permKey = ROUTE_TO_PERMISSION_KEY[matchedKey];
-    const rolePerms = effectivePermissions[roleId] || {};
-    if (!rolePerms[permKey]) {
-      // Redirect unauthorized user to dashboard
-      return NextResponse.redirect(new URL("/", req.url));
-    }
-  }
-
+  // Route-level dynamic permissions are enforced dynamically in AppLayout via canAccessRoute
+  // and on the server in every API route via authenticateRequest.
   return NextResponse.next();
 }
 

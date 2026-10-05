@@ -101,9 +101,5 @@ function AppLayoutContent({ children }: AppLayoutProps) {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  return (
-    <PermissionsProvider>
-      <AppLayoutContent>{children}</AppLayoutContent>
-    </PermissionsProvider>
-  );
+  return <AppLayoutContent>{children}</AppLayoutContent>;
 }

@@ -41,6 +41,7 @@ import {
 	calculateSubplateWeight,
 	isHeightDisabled,
 	getDimensionLabels,
+	formatSubplateDimensions,
 	SUPPORTED_UNITS,
 	SUPPORTED_SHAPES,
 	MATERIAL_DENSITIES,
@@ -954,10 +955,7 @@ function SubplatePageContent() {
 													{/* Specs, Dimensions & Material */}
 													<td className="py-3 px-3.5">
 														<div className="font-mono text-xs font-semibold text-slate-800 whitespace-nowrap">
-															{row.length || 0} × {row.width || 0} × {row.height || 0}{" "}
-															<span className="text-[10px] font-normal text-slate-500 font-sans">
-																{row.unit || "mm"}
-															</span>
+															{formatSubplateDimensions(row)}
 														</div>
 														<div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-[11px]">
 															<span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/70">
@@ -1290,7 +1288,7 @@ function SubplatePageContent() {
 											<div>
 												<span className="text-slate-400">Dims: </span>
 												<span className="font-mono font-medium text-slate-700 block">
-													{row.length || 0}×{row.width || 0}×{row.height || 0} {row.unit || "mm"}
+													{formatSubplateDimensions(row)}
 												</span>
 											</div>
 											<div>
@@ -1395,7 +1393,7 @@ function SubplatePageContent() {
  <option value={100}>100</option>
  </select>
  <span>
- per page â€¢ Showing {((currentPage - 1) * pageSize) + 1} to{" "}
+ per page • Showing {((currentPage - 1) * pageSize) + 1} to{" "}
  {Math.min(currentPage * pageSize, filteredSubplates.length)} of {filteredSubplates.length} subplates
  </span>
  </div>
@@ -1497,7 +1495,7 @@ function SubplatePageContent() {
 									<option value="">Select Project</option>
 									{scans.map((s) => {
 										const fullDesc = s.description || "Untitled";
-										const label = s.projectid ? `${s.projectid} â€” ${fullDesc}` : `Project #${s.id}`;
+										const label = s.projectid ? `${s.projectid} — ${fullDesc}` : `Project #${s.id}`;
 										const shortLabel = label.length > 35 ? `${label.substring(0, 35)}...` : label;
 										return (
 											<option key={s.id} value={s.projectid || String(s.id)} title={label}>
@@ -1541,7 +1539,7 @@ function SubplatePageContent() {
 											<span>Material</span>
 										</span>
 										<span className="text-[10px] font-mono font-medium text-slate-500 bg-white px-1.5 py-0.2 rounded border border-slate-200/60">
-											{MATERIAL_DENSITIES[modalForm.material] || 7.81} g/cmÂ³
+											{MATERIAL_DENSITIES[modalForm.material] || 7.81} g/cm³
 										</span>
 									</label>
 									<select
@@ -1606,71 +1604,192 @@ function SubplatePageContent() {
 										Dimensions & Unit
 									</label>
 									<span className="text-[10px] text-slate-500 font-medium">
-										{modalForm.shape === "Round Bar"
-											? "Length Ã— Diameter"
-											: "Length Ã— Width Ã— Height / Thickness"}
+										{dimLabels.headerGuide}
 									</span>
 								</div>
 								<div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-									<div>
-										<div className="relative">
-											<input
-												type="text"
-												inputMode="decimal"
-												placeholder={dimLabels.length}
-												value={modalForm.length}
-												onKeyDown={blockInvalidNumberKeys}
-												onChange={(e) =>
-													handleNumericDimension("length", e.target.value)
-												}
-												className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
-											/>
-											<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
-												L
-											</span>
-										</div>
-									</div>
-									<div>
-										<div className="relative">
-											<input
-												type="text"
-												inputMode="decimal"
-												placeholder={dimLabels.widthPlaceholder}
-												value={modalForm.width}
-												onKeyDown={blockInvalidNumberKeys}
-												onChange={(e) =>
-													handleNumericDimension("width", e.target.value)
-												}
-												className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
-											/>
-											<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
-												W
-											</span>
-										</div>
-									</div>
-									<div>
-										<div className="relative">
-											<input
-												type="text"
-												inputMode="decimal"
-												placeholder={dimLabels.heightPlaceholder}
-												value={modalForm.height}
-												disabled={heightDisabled}
-												onKeyDown={blockInvalidNumberKeys}
-												onChange={(e) =>
-													handleNumericDimension("height", e.target.value)
-												}
-												className={"w-full h-10 pl-3 pr-7 rounded-xl text-xs font-mono font-bold transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 " + (
-													heightDisabled
-														? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
-														: "bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 placeholder:font-normal"
-												)}
-											/>
-											<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
-												{heightDisabled ? "â€”" : "H"}
-											</span>
-										</div>
-									</div>
+									{dimLabels.isRound ? (
+										<>
+											{/* 1. OD (Outer Diameter) */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.widthPlaceholder}
+														value={modalForm.width}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("width", e.target.value)
+														}
+														className="w-full h-10 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														OD
+													</span>
+												</div>
+											</div>
+											{/* 2. Length */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.length}
+														value={modalForm.length}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("length", e.target.value)
+														}
+														className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														L
+													</span>
+												</div>
+											</div>
+											{/* 3. Height (Disabled for Round) */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														disabled
+														placeholder={dimLabels.heightPlaceholder}
+														value=""
+														className="w-full h-10 pl-3 pr-7 rounded-xl text-xs font-mono font-bold transition-all shadow-xs bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														—
+													</span>
+												</div>
+											</div>
+										</>
+									) : dimLabels.isPipe ? (
+										<>
+											{/* 1. OD (Outer Diameter) */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.widthPlaceholder}
+														value={modalForm.width}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("width", e.target.value)
+														}
+														className="w-full h-10 pl-3 pr-8 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														OD
+													</span>
+												</div>
+											</div>
+											{/* 2. Wall Thickness */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.heightPlaceholder}
+														value={modalForm.height}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("height", e.target.value)
+														}
+														className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														T
+													</span>
+												</div>
+											</div>
+											{/* 3. Length */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.length}
+														value={modalForm.length}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("length", e.target.value)
+														}
+														className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														L
+													</span>
+												</div>
+											</div>
+										</>
+									) : (
+										<>
+											{/* 1. Length */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.length}
+														value={modalForm.length}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("length", e.target.value)
+														}
+														className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														L
+													</span>
+												</div>
+											</div>
+											{/* 2. Width */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.widthPlaceholder}
+														value={modalForm.width}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("width", e.target.value)
+														}
+														className="w-full h-10 pl-3 pr-7 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														W
+													</span>
+												</div>
+											</div>
+											{/* 3. Height / Thickness */}
+											<div>
+												<div className="relative">
+													<input
+														type="text"
+														inputMode="decimal"
+														placeholder={dimLabels.heightPlaceholder}
+														value={modalForm.height}
+														disabled={heightDisabled}
+														onKeyDown={blockInvalidNumberKeys}
+														onChange={(e) =>
+															handleNumericDimension("height", e.target.value)
+														}
+														className={"w-full h-10 pl-3 pr-7 rounded-xl text-xs font-mono font-bold transition-all shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 " + (
+															heightDisabled
+																? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+																: "bg-white border border-slate-200 text-slate-900 placeholder:text-slate-400 placeholder:font-normal"
+														)}
+													/>
+													<span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 pointer-events-none uppercase">
+														{heightDisabled ? "—" : "H"}
+													</span>
+												</div>
+											</div>
+										</>
+									)}
 									<div>
 										<select
 											value={modalForm.unit}
@@ -1681,7 +1800,7 @@ function SubplatePageContent() {
 										>
 											{SUPPORTED_UNITS.map((u) => (
 												<option key={u} value={u}>
-													Unit: {u}
+													{u}
 												</option>
 											))}
 										</select>
@@ -1724,13 +1843,13 @@ function SubplatePageContent() {
 								{Number(modalForm.sqty) > 1 && Boolean(modalForm.weight) ? (
 									<div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-400 flex items-center justify-between relative z-10 font-mono">
 										<span>
-											{modalForm.sqty} pcs Ã— {(Number(modalForm.weight) / Number(modalForm.sqty)).toFixed(3)} kg
+											{modalForm.sqty} pcs × {(Number(modalForm.weight) / Number(modalForm.sqty)).toFixed(3)} kg
 										</span>
 										<span className="text-slate-300 font-sans font-semibold">Total Batch Wt</span>
 									</div>
 								) : (
 									<div className="mt-1 text-[10px] text-slate-400 relative z-10">
-										Based on {modalForm.material} density @ {MATERIAL_DENSITIES[modalForm.material] || 7.81} g/cmÂ³
+										Based on {modalForm.material} density @ {MATERIAL_DENSITIES[modalForm.material] || 7.81} g/cm³
 									</div>
 								)}
 							</div>
@@ -1749,8 +1868,8 @@ function SubplatePageContent() {
 										}
 										className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
 									>
-										<option value="SM">SM â€” In-House Production</option>
-										<option value="Vendor">Vendor â€” Outward Jobwork</option>
+										<option value="SM">SM — In-House Production</option>
+										<option value="Vendor">Vendor — Outward Jobwork</option>
 									</select>
 								</div>
 								<div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">

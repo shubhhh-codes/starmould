@@ -75,8 +75,10 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Settings,
 };
 
-// All available Navigation Menu Definitions
-const ALL_NAV_PERMISSIONS = PERMISSION_DEFINITIONS.filter((p) => p.category === "navigation");
+// All available Navigation Menu Definitions (Role & Permissions is strictly Admin only and never configurable for other roles)
+const ALL_NAV_PERMISSIONS = PERMISSION_DEFINITIONS.filter(
+  (p) => p.category === "navigation" && p.key !== "nav_settings"
+);
 
 interface DragState {
   itemKey: string;
@@ -315,6 +317,11 @@ export default function SettingsPage() {
     const allGranted: Record<string, boolean> = {};
     const allMenuKeys: string[] = [];
     PERMISSION_DEFINITIONS.forEach((p) => {
+      // nav_settings is strictly Admin only
+      if (p.key === "nav_settings") {
+        allGranted[p.key] = false;
+        return;
+      }
       allGranted[p.key] = true;
       if (p.category === "navigation") {
         allMenuKeys.push(p.key);
@@ -356,18 +363,20 @@ export default function SettingsPage() {
 
   const handleSaveChanges = async () => {
     if (isRoleAdmin) return;
-    const success = await updateRoleConfig(selectedRoleId, localPermissions, localMenuOrder);
-    if (success) {
+    const res = await updateRoleConfig(selectedRoleId, localPermissions, localMenuOrder);
+    if (res.success) {
       showToast("success", `Menu structure & permissions for ${activeRole.display_name} saved successfully.`);
     } else {
-      showToast("error", `Failed to save changes for ${activeRole.display_name}.`);
+      showToast("error", `Failed to save changes for ${activeRole.display_name}: ${res.error || "Unknown error"}`);
     }
   };
 
   const handleFactoryResetRole = async () => {
-    const success = await resetRolePermissions(selectedRoleId);
-    if (success) {
+    const res = await resetRolePermissions(selectedRoleId);
+    if (res.success) {
       showToast("success", `${activeRole.display_name} reset to factory defaults.`);
+    } else {
+      showToast("error", `Failed to reset ${activeRole.display_name}: ${res.error || "Unknown error"}`);
     }
   };
 
