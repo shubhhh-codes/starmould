@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     let scanQuery = supabaseAdmin
       .from("scan")
-      .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, amount, payment, note, subnote, created_at, updated_at", { count: "exact" })
+      .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at", { count: "exact" })
       .or("worktype.is.null,worktype.not.in.(Sample,Rework)")
       .order("id", { ascending: false });
 
@@ -247,9 +247,7 @@ export async function POST(req: NextRequest) {
           scan_by: scan_by ? Number(scan_by) : null,
           qc_by: qc_by ? Number(qc_by) : null,
           modeldesign_by: modeldesign_by ? Number(modeldesign_by) : null,
-          amount: Number(amount) || 0,
           status: "pending",
-          payment: 0,
           mail_done: 0,
           note: note?.trim() || "",
           subnote: subnote?.trim() || "",

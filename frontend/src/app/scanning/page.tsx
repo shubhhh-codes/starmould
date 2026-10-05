@@ -12,9 +12,7 @@ import {
   UserCheck,
   CheckCircle2,
   Clock,
-  DollarSign,
   AlertTriangle,
-  Shield,
   Layers,
   ChevronRight,
   ChevronLeft,
@@ -45,9 +43,6 @@ function ScanningPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
-
-  // Role Toggle: Worker vs Admin (Merged ScanningController + ScanAdminController)
-  const [viewMode, setViewMode] = useState<"admin" | "worker">("admin");
 
   const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -157,36 +152,11 @@ function ScanningPageContent() {
   const missingDesigner = kpis.missingDesigner || scans.filter(
     (s) => (s.modeldesign_by === 0 || !s.modeldesign_by) && s.status === "pending"
   ).length;
-  const totalRevenue = kpis.totalRevenue || scans.reduce((sum, s) => sum + Number(s.amount || 0), 0);
 
   // Active staff
   const activeStaff = useMemo(() => {
     return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
-
-  // Handle Quick Payment Toggle (Admin Only) (Live API PATCH)
-  const togglePayment = async (id: number) => {
-    const current = scans.find((s) => s.id === id);
-    if (!current) return;
-    const newPayment = Number(current.payment) === 1 ? 0 : 1;
-    try {
-      await updateProjectMutation.mutateAsync({ id, field: "payment", value: newPayment });
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
-  };
-
-  // Handle Quick Status Change (Live API PATCH)
-  const handleStatusChange = async (
-    id: number,
-    newStatus: "pending" | "registered" | "completed"
-  ) => {
-    try {
-      await updateProjectMutation.mutateAsync({ id, field: "status", value: newStatus });
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
-  };
 
   // Handle Staff Assignment Change (Live API PATCH - changestatusscan)
   const handleStaffChange = async (
@@ -200,15 +170,6 @@ function ScanningPageContent() {
     }
     try {
       await updateProjectMutation.mutateAsync({ id, field, value: userId });
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
-  };
-
-  // Handle Inline Amount Update (Live API PATCH)
-  const updateAmount = async (id: number, newAmount: number) => {
-    try {
-      await updateProjectMutation.mutateAsync({ id, field: "amount", value: newAmount });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -249,61 +210,23 @@ function ScanningPageContent() {
   return (
     <AppLayout>
       <div className="space-y-6 w-full">
-        {/* Header with Merged Role-Based View Switcher */}
+        {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
               <Scan className="w-7 h-7" />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  Scanning & 3D Project Manager
-                </h1>
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    viewMode === "admin"
-                      ? "bg-purple-100 text-purple-800"
-                      : "bg-blue-100 text-blue-800"
-                  }`}
-                >
-                  <Shield className="w-3 h-3" />
-                  {viewMode === "admin" ? "Admin Controls" : "Worker View"}
-                </span>
-              </div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                Scanning & 3D Project Manager
+              </h1>
               <p className="text-sm text-slate-500">
-                Unified scanning pipeline, mould modeling, staff assignment, and billing status
+                Unified scanning pipeline, mould modeling, staff assignment, and project tracking
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* View Mode Toggle */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setViewMode("worker")}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  viewMode === "worker"
-                    ? "bg-white text-slate-900 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Floor View
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("admin")}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  viewMode === "admin"
-                    ? "bg-white text-purple-700 shadow-sm font-bold"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Admin View
-              </button>
-            </div>
-
             <button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm"
@@ -314,8 +237,8 @@ function ScanningPageContent() {
           </div>
         </div>
 
-        {/* Unassigned Work Alerts Banner (Admin Mode Only) */}
-        {viewMode === "admin" && (missingScanner > 0 || missingQC > 0 || missingDesigner > 0) && (
+        {/* Unassigned Work Alerts Banner */}
+        {(missingScanner > 0 || missingQC > 0 || missingDesigner > 0) && (
           <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
@@ -338,9 +261,9 @@ function ScanningPageContent() {
 
         {/* KPI Cards */}
         {isLoading ? (
-          <KpiCardSkeleton count={4} />
+          <KpiCardSkeleton count={3} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
               <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
                 <Scan className="w-6 h-6" />
@@ -379,20 +302,6 @@ function ScanningPageContent() {
                 </p>
                 <p className="text-2xl font-black text-emerald-600">
                   {(totalScans - pendingScans).toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
-                <DollarSign className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Total Billed Pipeline
-                </p>
-                <p className="text-2xl font-black text-slate-900">
-                  {`₹${totalRevenue.toLocaleString("en-IN")}`}
                 </p>
               </div>
             </div>
@@ -456,23 +365,16 @@ function ScanningPageContent() {
                   <th className="py-3.5 px-3 whitespace-nowrap">Scanner</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">Designer</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">QC Officer</th>
-                  <th className="py-3.5 px-3 whitespace-nowrap">Status</th>
-                  {viewMode === "admin" && (
-                    <>
-                      <th className="py-3.5 px-3 text-center whitespace-nowrap">Payment</th>
-                      <th className="py-3.5 px-3 text-right whitespace-nowrap">Amount</th>
-                    </>
-                  )}
-                  <th className="py-3.5 px-3 text-center whitespace-nowrap">{viewMode === "admin" ? "Subplates / Actions" : "Subplates"}</th>
+                  <th className="py-3.5 px-3 text-center whitespace-nowrap">Subplates / Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <TableSkeletonRows rows={8} columns={viewMode === "admin" ? 11 : 9} />
+                  <TableSkeletonRows rows={8} columns={9} />
                 ) : paginatedScans.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={viewMode === "admin" ? 12 : 10}
+                      colSpan={9}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       No scanning projects found.
@@ -540,65 +442,6 @@ function ScanningPageContent() {
                         />
                       </td>
 
-                      {/* Status Selector */}
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <select
-                          value={row.status}
-                          onChange={(e) =>
-                            handleStatusChange(
-                              row.id,
-                              e.target.value as any
-                            )
-                          }
-                          className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
-                            row.status === "completed"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : row.status === "registered"
-                              ? "bg-blue-50 text-blue-700 border-blue-200"
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                          }`}
-                        >
-                          <option value="pending">pending</option>
-                          <option value="registered">registered</option>
-                          <option value="completed">completed</option>
-                        </select>
-                      </td>
-
-                      {/* Admin View Specific Columns */}
-                      {viewMode === "admin" && (
-                        <>
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => togglePayment(row.id)}
-                              className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition ${
-                                Number(row.payment) === 1
-                                   ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                   : "bg-rose-50 text-rose-700 border-rose-300"
-                              }`}
-                            >
-                              {Number(row.payment) === 1 ? "Paid" : "Unpaid"}
-                            </button>
-                          </td>
-                          <td className="py-3 px-3 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center gap-1 justify-end">
-                              <span className="text-xs text-slate-400 font-bold">₹</span>
-                              <input
-                                type="number"
-                                defaultValue={row.amount || 0}
-                                onBlur={(e) =>
-                                  updateAmount(
-                                    row.id,
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-right font-mono font-bold text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500"
-                              />
-                            </div>
-                          </td>
-                        </>
-                      )}
-
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <button
@@ -609,23 +452,21 @@ function ScanningPageContent() {
                           >
                             <Layers className="w-4 h-4" />
                           </button>
-                          {viewMode === "admin" && (
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                                try {
-                                  await deleteProjectMutation.mutateAsync(row.id);
-                                } catch (e: any) {
-                                  alert(e?.message || "Error deleting mould");
-                                }
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                              title="Delete mould"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                              try {
+                                await deleteProjectMutation.mutateAsync(row.id);
+                              } catch (e: any) {
+                                alert(e?.message || "Error deleting mould");
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Delete mould"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -703,43 +544,21 @@ function ScanningPageContent() {
                     <span className="font-mono font-bold text-blue-600">
                       {row.projectid || `#${row.id}`}
                     </span>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={row.status}
-                        onChange={(e) =>
-                          handleStatusChange(
-                            row.id,
-                            e.target.value as any
-                          )
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                        try {
+                          await deleteProjectMutation.mutateAsync(row.id);
+                        } catch (e: any) {
+                          alert(e?.message || "Error deleting mould");
                         }
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
-                          row.status === "completed"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                            : row.status === "registered"
-                            ? "bg-blue-50 text-blue-700 border-blue-200"
-                            : "bg-amber-50 text-amber-700 border-amber-200"
-                        }`}
-                      >
-                        <option value="pending">pending</option>
-                        <option value="registered">registered</option>
-                        <option value="completed">completed</option>
-                      </select>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                          try {
-                            await deleteProjectMutation.mutateAsync(row.id);
-                          } catch (e: any) {
-                            alert(e?.message || "Error deleting mould");
-                          }
-                        }}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                        title="Delete mould"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                      }}
+                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                      title="Delete mould"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
                   <div>
@@ -751,24 +570,13 @@ function ScanningPageContent() {
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                  <div className="text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
                     <div>
                       <span className="text-slate-400 block text-[10px]">Dates:</span>
                       <span className="font-mono">
                         {row.rdate || "—"} → {row.cdate || "—"}
                       </span>
                     </div>
-                    {viewMode === "admin" && (
-                      <div>
-                        <span className="text-slate-400 block text-[10px]">Amount / Payment:</span>
-                        <span className="font-mono font-bold text-slate-900">
-                          ₹{(row.amount ?? 0).toLocaleString("en-IN")}{" "}
-                          <span className={`text-[10px] ${Number(row.payment) === 1 ? "text-emerald-600" : "text-rose-600"}`}>
-                            ({Number(row.payment) === 1 ? "Paid" : "Unpaid"})
-                          </span>
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">

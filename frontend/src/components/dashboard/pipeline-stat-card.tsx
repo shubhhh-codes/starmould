@@ -100,7 +100,7 @@ export function PipelineStatGrid({
  },
  {
  id: "order",
- label: "Material Order",
+ label: "Purchase",
  mouldsCount: stats.orderMoulds ?? stats.scantotal,
  platesCount: stats.orderbytotal,
  icon: Boxes,
@@ -114,7 +114,7 @@ export function PipelineStatGrid({
  },
  {
  id: "programming",
- label: "Programming",
+ label: "Programming Work",
  mouldsCount: stats.programmingMoulds ?? stats.scantotal,
  platesCount: stats.receivedqcby,
  icon: Cpu,

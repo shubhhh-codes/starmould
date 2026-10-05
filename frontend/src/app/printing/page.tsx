@@ -11,8 +11,6 @@ import {
   Building2,
   CheckCircle2,
   Clock,
-  DollarSign,
-  Shield,
   FileSpreadsheet,
   X,
   Scale,
@@ -75,9 +73,6 @@ function PrintingPageContent() {
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Role Toggle: Worker (Floor) vs Admin View (Merged PrintingController + PrintAdminController)
-  const [viewMode, setViewMode] = useState<"worker" | "admin">("worker");
 
   const [searchQuery, setSearchQuery] = useState(urlSearch);
 
@@ -145,10 +140,6 @@ function PrintingPageContent() {
   const totalJobs = kpis.totalPrints || prints.length;
   const pendingJobs = kpis.pendingPrints || prints.filter((p) => p.status === "pending" || !p.status).length;
   const dispatchedJobs = kpis.dispatchedPrints || prints.filter((p) => Number(p.dispatch) === 1).length;
-  const totalRevenue = kpis.totalRevenue || prints.reduce(
-    (sum, p) => sum + Number(p.ramount > 0 ? p.ramount : p.amount || 0),
-    0
-  );
 
   // Handle Staff Assignment Change (Live API PATCH)
   const handleStaffChange = async (
@@ -179,28 +170,6 @@ function PrintingPageContent() {
         id,
         updates: { dispatch: nextDispatch, status: nextStatus },
       });
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
-  };
-
-  // Handle Admin Inline Real Amount Edit (Live API PATCH)
-  const handleRamountChange = async (id: number, val: number) => {
-    try {
-      await updatePrintingMutation.mutateAsync({ id, field: "ramount", value: val });
-    } catch (err: any) {
-      alert("Error: " + err.message);
-    }
-  };
-
-  // Handle Admin Payment Status Toggle (Live API PATCH)
-  const handlePaymentToggle = async (id: number) => {
-    const target = prints.find((p) => p.id === id);
-    if (!target) return;
-    const nextPayment = Number(target.payment) === 1 ? 0 : 1;
-
-    try {
-      await updatePrintingMutation.mutateAsync({ id, field: "payment", value: nextPayment });
     } catch (err: any) {
       alert("Error: " + err.message);
     }
@@ -314,21 +283,9 @@ function PrintingPageContent() {
               <Printer className="w-7 h-7" />
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                  3D Printing Job Manager
-                </h1>
-                <span
-                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                    viewMode === "admin"
-                      ? "bg-purple-100 text-purple-800"
-                      : "bg-teal-100 text-teal-800"
-                  }`}
-                >
-                  <Shield className="w-3 h-3" />
-                  {viewMode === "admin" ? "Admin Controls" : "Floor / Worker View"}
-                </span>
-              </div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                3D Printing Job Manager
+              </h1>
               <p className="text-sm text-slate-500">
                 Track resin prototyping, gram consumption, worker assignments, and dispatch status
               </p>
@@ -336,31 +293,6 @@ function PrintingPageContent() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* View Mode Switcher */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => setViewMode("worker")}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  viewMode === "worker"
-                    ? "bg-white text-slate-900 shadow-sm font-bold"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Floor View
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("admin")}
-                className={`px-3 py-1.5 rounded-lg transition ${
-                  viewMode === "admin"
-                    ? "bg-white text-purple-700 shadow-sm font-bold"
-                    : "text-slate-500 hover:text-slate-800"
-                }`}
-              >
-                Admin View
-              </button>
-            </div>
 
             <button
               onClick={handleExportCSV}
@@ -382,9 +314,9 @@ function PrintingPageContent() {
 
         {/* KPI Cards */}
         {isLoading ? (
-          <KpiCardSkeleton count={4} />
+          <KpiCardSkeleton count={3} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
               <div className="p-3 bg-teal-50 text-teal-600 rounded-xl">
                 <Printer className="w-6 h-6" />
@@ -423,20 +355,6 @@ function PrintingPageContent() {
                 </p>
                 <p className="text-2xl font-black text-emerald-600">
                   {dispatchedJobs.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-purple-50 text-purple-600 rounded-xl">
-                <DollarSign className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Pipeline Value
-                </p>
-                <p className="text-2xl font-black text-slate-900">
-                  ₹{totalRevenue.toLocaleString("en-IN")}
                 </p>
               </div>
             </div>
@@ -547,22 +465,16 @@ function PrintingPageContent() {
                   <th className="py-3.5 px-3 whitespace-nowrap">Print By</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">QC By</th>
                   <th className="py-3.5 px-3 text-center whitespace-nowrap">Dispatch</th>
-                  {viewMode === "admin" && (
-                    <>
-                      <th className="py-3.5 px-3 text-center whitespace-nowrap">Payment</th>
-                      <th className="py-3.5 px-3 text-right whitespace-nowrap">Actual (₹)</th>
-                      <th className="py-3.5 px-3 text-center whitespace-nowrap">Action</th>
-                    </>
-                  )}
+                  <th className="py-3.5 px-3 text-center whitespace-nowrap">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <TableSkeletonRows rows={8} columns={viewMode === "admin" ? 13 : 10} />
+                  <TableSkeletonRows rows={8} columns={11} />
                 ) : filteredPrints.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={viewMode === "admin" ? 13 : 10}
+                      colSpan={11}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       No 3D print orders found.
@@ -633,50 +545,16 @@ function PrintingPageContent() {
                         />
                       </td>
 
-                      {/* Admin View Specific Columns */}
-                      {viewMode === "admin" && (
-                        <>
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handlePaymentToggle(row.id)}
-                              className={`px-2.5 py-0.5 rounded-full text-xs font-bold border transition ${
-                                Number(row.payment) === 1
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                  : "bg-rose-50 text-rose-700 border-rose-300"
-                              }`}
-                            >
-                              {Number(row.payment) === 1 ? "Paid" : "Unpaid"}
-                            </button>
-                          </td>
-                          <td className="py-3 px-3 text-right whitespace-nowrap">
-                            <div className="inline-flex items-center gap-1 justify-end">
-                              <span className="text-xs text-slate-400 font-bold">₹</span>
-                              <input
-                                type="number"
-                                defaultValue={row.ramount || row.amount || 0}
-                                onBlur={(e) =>
-                                  handleRamountChange(
-                                    row.id,
-                                    parseFloat(e.target.value) || 0
-                                  )
-                                }
-                                className="w-24 px-2 py-1 bg-slate-50 border border-slate-200 rounded text-right font-mono font-bold text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                              />
-                            </div>
-                          </td>
-                          <td className="py-3 px-3 text-center whitespace-nowrap">
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(row.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                              title="Delete print job"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </>
-                      )}
+                      <td className="py-3 px-3 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(row.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          title="Delete print job"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -738,20 +616,15 @@ function PrintingPageContent() {
                     </div>
                   </div>
 
-                  {viewMode === "admin" && (
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                      <span className="font-mono font-bold text-slate-900">
-                        ₹{(row.ramount || row.amount || 0).toLocaleString("en-IN")}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(row.id)}
-                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-end pt-2 border-t border-slate-200/60">
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(row.id)}
+                      className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               ))
             )}

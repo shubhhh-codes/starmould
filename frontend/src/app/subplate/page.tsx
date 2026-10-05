@@ -79,9 +79,9 @@ const SHAPES = SUPPORTED_SHAPES;
 // 9 Production Stages configuration
 export const STAGE_DEFINITIONS = [
 	{ key: "design_by", atKey: "design_at", nameKey: "design_by_name", short: "DES", label: "1. Design Order", step: 1, color: "blue" },
-	{ key: "order_by", atKey: "order_at", nameKey: "order_by_name", short: "ORD", label: "2. Mat. Order", step: 2, color: "amber" },
+	{ key: "order_by", atKey: "order_at", nameKey: "order_by_name", short: "PUR", label: "2. Purchase", step: 2, color: "amber" },
 	{ key: "received_workby", atKey: "received_work_at", nameKey: "received_workby_name", short: "REC", label: "3. Mat. Inward", step: 3, color: "emerald" },
-	{ key: "received_qcby", atKey: "received_qc_at", nameKey: "received_qcby_name", short: "RQC", label: "4. Inward QC", step: 4, color: "teal" },
+	{ key: "received_qcby", atKey: "received_qc_at", nameKey: "received_qcby_name", short: "PROG", label: "4. Programming Work", step: 4, color: "teal" },
 	{ key: "vmc_workby", atKey: "vmc_work_at", nameKey: "vmc_workby_name", short: "VMC", label: "5. VMC Work", step: 5, color: "indigo" },
 	{ key: "vmc_qcby", atKey: "vmc_qc_at", nameKey: "vmc_qcby_name", short: "VQC", label: "6. VMC QC", step: 6, color: "purple" },
 	{ key: "drilltap_workby", atKey: "drilltap_at", nameKey: "drilltap_workby_name", short: "D&T", label: "7. Drill & Tap", step: 7, color: "violet" },
@@ -862,9 +862,9 @@ function SubplatePageContent() {
 								<option value="pending">In-Progress (&lt; 9 Stages Done)</option>
 								<option value="completed">Completed (All 9 Stages Done)</option>
 								<option value="design_by">1. Design Assigned</option>
-								<option value="order_by">2. Mat. Order Assigned</option>
+								<option value="order_by">2. Purchase Assigned</option>
 								<option value="received_workby">3. Mat. Inward Assigned</option>
-								<option value="received_qcby">4. Inward QC Assigned</option>
+								<option value="received_qcby">4. Programming Work Assigned</option>
 								<option value="vmc_workby">5. VMC Machining Assigned</option>
 								<option value="vmc_qcby">6. VMC QC Assigned</option>
 								<option value="drilltap_workby">7. Drill &amp; Tap Assigned</option>
