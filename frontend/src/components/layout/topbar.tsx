@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Menu,
   Search,
@@ -28,6 +28,7 @@ import {
   Settings,
   PackagePlus,
   Compass,
+  Building2,
 } from "lucide-react";
 import { CommandPalette } from "@/components/ui/command-palette";
 import { Modal } from "@/components/ui/dialog";
@@ -56,8 +57,8 @@ const PAGE_INFO: Record<string, { title: string; category?: string; icon: React.
   "/purchase-inward": { title: "Purchase Inward", category: "Procurement", icon: PackagePlus },
   "/challan": { title: "Outward Challans", category: "Logistics", icon: ArrowUpRight },
   "/dispatch": { title: "Goods Dispatch", category: "Logistics", icon: Truck },
-  "/inward": { title: "Jobwork Inward Returns", category: "Logistics", icon: ArrowDownLeft },
-  "/customer": { title: "Customer & Vendor Directory", category: "Master Data", icon: Users },
+  "/customers": { title: "Customer Creator", category: "Master Data", icon: Building2 },
+  "/vendors": { title: "Vendor & Transport Management", category: "Master Data", icon: Truck },
   "/sample": { title: "Sample & Rework Orders", category: "Production", icon: Sparkles },
   "/user": { title: "Staff & User Management", category: "Admin", icon: Shield },
   "/expense": { title: "Expense Ledger", category: "Finance", icon: Receipt },
@@ -115,6 +116,7 @@ export function Topbar({
     };
   }, [showUserDropdown]);
 
+  const searchParams = useSearchParams();
   const currentPage = PAGE_INFO[pathname] || {
     title: "StarMould ERP",
     category: "Workspace",

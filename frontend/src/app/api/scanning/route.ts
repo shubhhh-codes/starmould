@@ -32,9 +32,7 @@ export async function GET(req: NextRequest) {
       scanQuery = scanQuery.eq("worktype", worktype);
     }
     if (customer && customer !== "ALL") {
-      if (/^\d+$/.test(customer)) {
-        scanQuery = scanQuery.eq("cname", Number(customer));
-      }
+      scanQuery = scanQuery.eq("cname", String(customer));
     }
     if (search) {
       const safeSearch = search.replace(/[(),.%]/g, "");
@@ -85,8 +83,18 @@ export async function GET(req: NextRequest) {
     }
 
     const scans = scansRes.data || [];
-    const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
-    const userMap = new Map((users || []).map((u: any) => [Number(u.id), u]));
+    const custMap = new Map<string | number, any>();
+    for (const c of customers || []) {
+      custMap.set(c.id, c);
+      custMap.set(String(c.id), c);
+      custMap.set(Number(c.id), c);
+    }
+    const userMap = new Map<string | number, any>();
+    for (const u of users || []) {
+      userMap.set(u.id, u);
+      userMap.set(Number(u.id), u);
+      userMap.set(String(u.id), u);
+    }
 
     // Step 2: Batch fetch child subplates and worklogs for current scans concurrently
     const scanIds = scans.map((s: any) => s.id);
@@ -127,16 +135,16 @@ export async function GET(req: NextRequest) {
     }
 
     const enriched = scans.map((s: any) => {
-      const cust = custMap.get(s.cname);
-      const scanUser = userMap.get(Number(s.scan_by));
-      const qcUser = userMap.get(Number(s.qc_by));
-      const modelUser = userMap.get(Number(s.modeldesign_by));
+      const cust = custMap.get(s.cname) || custMap.get(Number(s.cname));
+      const scanUser = userMap.get(Number(s.scan_by)) || userMap.get(s.scan_by);
+      const qcUser = userMap.get(Number(s.qc_by)) || userMap.get(s.qc_by);
+      const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
       const sublist = subplateMap[s.id] || [];
       const hours = worklogMap[s.id] || { scan_hr: 0, model_hr: 0 };
 
       return {
         ...s,
-        customername: cust?.customername || `Customer #${s.cname}`,
+        customername: cust?.customername || (isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
         customer_initials: cust?.initials || "",
         scan_by_name: scanUser?.initials || scanUser?.name || "—",
         qc_by_name: qcUser?.initials || qcUser?.name || "—",
@@ -220,7 +228,7 @@ export async function POST(req: NextRequest) {
       supabaseAdmin
         .from("scan")
         .select("id", { count: "exact", head: true })
-        .eq("cname", Number(cname)),
+        .eq("cname", String(cname)),
       supabaseAdmin
         .from("scan")
         .select("id")
@@ -241,7 +249,7 @@ export async function POST(req: NextRequest) {
           rdate: rdate || now.slice(0, 10),
           cdate: cdate || now.slice(0, 10),
           dispatchdate: cdate || now.slice(0, 10),
-          cname: Number(cname),
+          cname: String(cname),
           description: description.trim(),
           worktype: "Scanning",
           scan_by: scan_by ? Number(scan_by) : null,

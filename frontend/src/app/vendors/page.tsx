@@ -73,11 +73,14 @@ function CustomerPageContent() {
     const { currentUser } = useAuth();
     const isAdmin = currentUser?.role_id === 0;
 
-    const initialTab = searchParams?.get("tab") as UsertypeOption | "All" | null;
+    const tabParam = searchParams?.get("tab") as UsertypeOption | "All" | null;
     const urlSearch = searchParams?.get("search") || searchParams?.get("q") || "";
+
+    const isCustomerMode = false;
+
     const [activeTab, setActiveTab] = useState<"All" | UsertypeOption>(
-        initialTab && ["All", "Customer", "Vendor", "Transport", "Other"].includes(initialTab)
-            ? initialTab
+        tabParam && ["All", "Vendor", "Transport", "Other"].includes(tabParam)
+            ? tabParam
             : "All"
     );
     const [searchQuery, setSearchQuery] = useState(urlSearch);
@@ -89,11 +92,14 @@ function CustomerPageContent() {
         message: string;
     } | null>(null);
 
-    // Sync tab and search when search params change in URL (e.g. from sidebar links or global search)
+    // Sync tab and search when search params change in URL
     useEffect(() => {
-        const tabParam = searchParams?.get("tab") as UsertypeOption | "All" | null;
-        if (tabParam && ["All", "Customer", "Vendor", "Transport", "Other"].includes(tabParam)) {
-            setActiveTab(tabParam);
+        const currentParam = searchParams?.get("tab") as UsertypeOption | "All" | null;
+        if (currentParam && ["All", "Vendor", "Transport", "Other"].includes(currentParam)) {
+            setActiveTab(currentParam);
+            setCurrentPage(1);
+        } else {
+            setActiveTab("All");
             setCurrentPage(1);
         }
         if (urlSearch) {
@@ -167,9 +173,15 @@ function CustomerPageContent() {
     // Filter and search
     const filteredCustomers = useMemo(() => {
         return customers.filter((c) => {
-            // Tab filter
-            if (activeTab !== "All" && c.usertype !== activeTab) {
-                return false;
+            // Module Mode Isolation
+            if (isCustomerMode) {
+                if (c.usertype !== "Customer") return false;
+            } else {
+                // In Vendor / Transport mode, strictly exclude Customer records
+                if (c.usertype === "Customer") return false;
+                if (activeTab !== "All" && c.usertype !== activeTab) {
+                    return false;
+                }
             }
             // Search query
             if (!searchQuery.trim()) return true;
@@ -183,7 +195,7 @@ function CustomerPageContent() {
                 (c.address && c.address.toLowerCase().includes(q))
             );
         });
-    }, [customers, activeTab, searchQuery]);
+    }, [customers, isCustomerMode, activeTab, searchQuery]);
 
     const { getRowHighlightClass } = useTableHighlight(filteredCustomers, {
         currentPage,
@@ -220,14 +232,13 @@ function CustomerPageContent() {
         setModalMode("add");
         setSelectedCustomer(null);
 
-        let defaultType: UsertypeOption = "Vendor";
-        if (isAdmin) {
-            defaultType = preferredType || (activeTab !== "All" ? activeTab : "Customer");
+        let defaultType: UsertypeOption = "Customer";
+        if (isCustomerMode) {
+            defaultType = "Customer";
         } else {
-            // Non-admin can only create Vendor, Transport, Other
             if (preferredType && preferredType !== "Customer") {
                 defaultType = preferredType;
-            } else if (activeTab !== "All" && activeTab !== "Customer") {
+            } else if (activeTab === "Transport" || activeTab === "Other") {
                 defaultType = activeTab;
             } else {
                 defaultType = "Vendor";
@@ -459,23 +470,32 @@ function CustomerPageContent() {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-                            <Building2 className="h-3.5 w-3.5 text-blue-600" />
-                            <span>Master Data</span>
-                            <span>/</span>
-                            <span className="text-slate-600">
-                                {isAdmin ? "Customer & Partner Master" : "Vendors, Transport & Partners"}
-                            </span>
+                            {isCustomerMode ? (
+                                <>
+                                    <Building2 className="h-3.5 w-3.5 text-blue-600" />
+                                    <span>Master Data</span>
+                                    <span>/</span>
+                                    <span className="text-slate-600">Customer Creator</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Truck className="h-3.5 w-3.5 text-blue-600" />
+                                    <span>Master Data</span>
+                                    <span>/</span>
+                                    <span className="text-slate-600">Vendor / Transport</span>
+                                </>
+                            )}
                         </div>
                         <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                            {isAdmin ? "Customer / Vendor Management" : "Vendor & Logistics Management"}
+                            {isCustomerMode ? "Customer Creator" : "Vendor & Transport Management"}
                             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                 Live Supabase Connected
                             </span>
                         </h1>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            {isAdmin
-                                ? "Central directory for client customers (Admin restricted), vendors, transport logistics & external accounts"
+                            {isCustomerMode
+                                ? "Central directory for client customers and workpiece mould owners (Admin restricted)"
                                 : "Manage registered suppliers, logistics transporters, and outsourced service providers"}
                         </p>
                     </div>
@@ -485,24 +505,18 @@ function CustomerPageContent() {
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     {/* Filter Category Tabs */}
                     <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 border border-slate-200 rounded-xl">
-                        {(
-                            [
-                                "All",
-                                "Customer",
-                                "Vendor",
-                                "Transport",
-                                "Other",
-                            ] as const
-                        ).map((tab) => {
+                        {(["All", "Vendor", "Transport", "Other"] as const).map((tab) => {
                             const isActive = activeTab === tab;
-                            const count = counts[tab] || 0;
+                            const count = tab === "All"
+                                ? (counts.Vendor || 0) + (counts.Transport || 0) + (counts.Other || 0)
+                                : counts[tab] || 0;
                             return (
                                 <button
                                     key={tab}
                                     onClick={() => {
                                         setActiveTab(tab);
                                         setCurrentPage(1);
-                                        router.replace(tab === "All" ? "/customer" : `/customer?tab=${tab}`, { scroll: false });
+                                        router.replace(tab === "All" ? "/vendors" : `/vendors?tab=${tab}`, { scroll: false });
                                     }}
                                     className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                         isActive
@@ -511,14 +525,6 @@ function CustomerPageContent() {
                                     }`}
                                 >
                                     <span>{tab}</span>
-                                    {tab === "Customer" && !isAdmin && (
-                                        <span
-                                            className="text-[9px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300/60 font-semibold"
-                                            title="Read-only access for non-admin roles"
-                                        >
-                                            Read-Only
-                                        </span>
-                                    )}
                                     <span
                                         className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
                                             isActive
@@ -564,7 +570,7 @@ function CustomerPageContent() {
                         </button>
 
                         {/* Dedicated Admin-Only Customer Creation Button */}
-                        {isAdmin && (
+                        {isCustomerMode && isAdmin && (
                             <button
                                 onClick={() => handleOpenAdd("Customer")}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs shadow-blue-600/30 transition active:scale-95 cursor-pointer"
@@ -576,19 +582,17 @@ function CustomerPageContent() {
                             </button>
                         )}
 
-                        {/* Creation Button for Vendors / Transporters / Others (Accessible to All Permitted Roles) */}
-                        <button
-                            onClick={() => handleOpenAdd("Vendor")}
-                            className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg shadow-xs transition active:scale-95 cursor-pointer ${
-                                isAdmin
-                                    ? "text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300/80"
-                                    : "text-white bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/30"
-                            }`}
-                            title="Add a supplier, transport provider, or external partner"
-                        >
-                            <Truck className="w-4 h-4" />
-                            <span>Add Vendor / Partner</span>
-                        </button>
+                        {/* Creation Button for Vendors / Transporters / Others */}
+                        {!isCustomerMode && (
+                            <button
+                                onClick={() => handleOpenAdd(activeTab === "Transport" ? "Transport" : activeTab === "Other" ? "Other" : "Vendor")}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs shadow-indigo-600/30 transition active:scale-95 cursor-pointer"
+                                title="Add a supplier, transport provider, or external partner"
+                            >
+                                <Truck className="w-4 h-4" />
+                                <span>Add {activeTab === "Transport" ? "Transporter" : activeTab === "Other" ? "Partner" : "Vendor"}</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -1211,69 +1215,61 @@ function CustomerPageContent() {
                             />
                         </div>
 
-                        {/* Exact Usertype Radio Selector (Strictly restricted for non-admins) */}
+                        {/* Usertype Selection */}
                         <div>
                             <div className="flex items-center justify-between mb-1.5">
                                 <label className="font-medium text-slate-700">
-                                    Type (usertype) <span className="text-rose-500">*</span>
+                                    Account Type <span className="text-rose-500">*</span>
                                 </label>
                                 {modalMode === "edit" ? (
                                     <span className="text-[10px] text-amber-600 font-medium">
                                         Type cannot be modified once created
                                     </span>
-                                ) : !isAdmin ? (
-                                    <span className="text-[10px] text-indigo-600 font-medium flex items-center gap-1">
-                                        <ShieldCheck className="w-3 h-3" />
-                                        Customer role restricted to Admin
-                                    </span>
                                 ) : null}
                             </div>
-                            <div
-                                className={`grid gap-2 ${
-                                    isAdmin
-                                        ? "grid-cols-2 sm:grid-cols-4"
-                                        : "grid-cols-1 sm:grid-cols-3"
-                                }`}
-                            >
-                                {(
-                                    (isAdmin
-                                        ? ["Customer", "Vendor", "Transport", "Other"]
-                                        : ["Vendor", "Transport", "Other"]) as UsertypeOption[]
-                                ).map((type) => {
-                                    const isChecked = formData.usertype === type;
-                                    const isEditDisabled = modalMode === "edit";
-                                    return (
-                                        <label
-                                            key={type}
-                                            className={`flex items-center gap-2 p-2.5 rounded-lg border transition text-xs ${
-                                                isEditDisabled
-                                                    ? isChecked
-                                                        ? "bg-slate-100 border-slate-300 text-slate-700 font-semibold cursor-not-allowed"
-                                                        : "opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
-                                                    : isChecked
-                                                      ? "bg-blue-50 border-blue-500 text-blue-800 font-semibold cursor-pointer"
-                                                      : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
-                                            }`}
-                                        >
-                                            <input
-                                                type="radio"
-                                                name="usertype"
-                                                value={type}
-                                                disabled={isEditDisabled}
-                                                checked={isChecked}
-                                                onChange={() =>
-                                                    setFormData((p) => ({
-                                                        ...p,
-                                                        usertype: type,
-                                                    }))
-                                                }
-                                                className="text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-                                            />
-                                            <span>{type}</span>
-                                        </label>
-                                    );
-                                })}
-                            </div>
+                            {isCustomerMode ? (
+                                <div className="flex items-center gap-2.5 p-3 rounded-lg border bg-blue-50/70 border-blue-200 text-blue-900 text-xs font-semibold">
+                                    <Building2 className="w-4 h-4 text-blue-600" />
+                                    <span>Client Customer (Mould Owner / Billing Entity)</span>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(["Vendor", "Transport", "Other"] as UsertypeOption[]).map((type) => {
+                                        const isChecked = formData.usertype === type;
+                                        const isEditDisabled = modalMode === "edit";
+                                        return (
+                                            <label
+                                                key={type}
+                                                className={`flex items-center gap-2 p-2.5 rounded-lg border transition text-xs ${
+                                                    isEditDisabled
+                                                        ? isChecked
+                                                            ? "bg-slate-100 border-slate-300 text-slate-700 font-semibold cursor-not-allowed"
+                                                            : "opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
+                                                        : isChecked
+                                                        ? "bg-blue-50 border-blue-500 text-blue-800 font-semibold cursor-pointer"
+                                                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                                }`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="usertype"
+                                                    value={type}
+                                                    disabled={isEditDisabled}
+                                                    checked={isChecked}
+                                                    onChange={() =>
+                                                        setFormData((p) => ({
+                                                            ...p,
+                                                            usertype: type,
+                                                        }))
+                                                    }
+                                                    className="text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
+                                                />
+                                                <span>{type}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                         {/* Modal Footer */}

@@ -34,6 +34,7 @@ export interface Customer {
   initials: string;
   address: string | null;
   usertype: 'Customer' | 'Vendor' | 'Transport' | 'Other' | string;
+  deleted_at?: string | null;
   created_at: string;
   updated_at: string;
 }

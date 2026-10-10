@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Shield,
   Compass,
+  Building2,
 } from "lucide-react";
 import { Modal } from "./dialog";
 
@@ -103,11 +104,19 @@ const DEFAULT_NAV_COMMANDS: CommandItem[] = [
   },
   {
     id: "nav-customers",
-    title: "Customer & Vendor Directory",
-    subtitle: "Manage accounts, parties & billing addresses",
+    title: "Customer Creator",
+    subtitle: "Manage client customer accounts & billing profiles",
     category: "Navigation",
-    icon: Users,
-    href: "/customer",
+    icon: Building2,
+    href: "/customers",
+  },
+  {
+    id: "nav-vendors",
+    title: "Vendor / Transport",
+    subtitle: "Manage suppliers, logistics transporters & external partners",
+    category: "Navigation",
+    icon: Truck,
+    href: "/vendors",
   },
   {
     id: "nav-sample",

@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "127.0.0.1:3000",
   ],
+  async redirects() {
+    return [
+      {
+        source: "/customer",
+        destination: "/customers",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

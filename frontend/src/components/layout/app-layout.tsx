@@ -47,12 +47,14 @@ function AppLayoutContent({ children }: AppLayoutProps) {
       <TopProgressBar />
 
       {/* Sidebar */}
-      <Sidebar
-        collapsed={sidebarCollapsed}
-        mobileOpen={mobileDrawerOpen}
-        onMobileClose={() => setMobileDrawerOpen(false)}
-        currentUser={currentUser}
-      />
+      <React.Suspense fallback={null}>
+        <Sidebar
+          collapsed={sidebarCollapsed}
+          mobileOpen={mobileDrawerOpen}
+          onMobileClose={() => setMobileDrawerOpen(false)}
+          currentUser={currentUser}
+        />
+      </React.Suspense>
 
       {/* Main Content Area */}
       <div
@@ -61,11 +63,13 @@ function AppLayoutContent({ children }: AppLayoutProps) {
         }`}
       >
         {/* Topbar */}
-        <Topbar
-          onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
-          onToggleMobileMenu={() => setMobileDrawerOpen(!mobileDrawerOpen)}
-          currentUser={currentUser}
-        />
+        <React.Suspense fallback={<div className="h-16 border-b border-slate-200 bg-white" />}>
+          <Topbar
+            onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
+            onToggleMobileMenu={() => setMobileDrawerOpen(!mobileDrawerOpen)}
+            currentUser={currentUser}
+          />
+        </React.Suspense>
 
         {/* Dynamic Page Content (Seamless render) */}
         <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-full min-w-0 overflow-x-hidden">

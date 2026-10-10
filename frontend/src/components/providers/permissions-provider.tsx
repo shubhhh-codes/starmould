@@ -24,7 +24,8 @@ const PermissionsContext = createContext<PermissionsContextType | null>(null);
 // Mapping of route paths to corresponding navigation permission keys
 const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/": "nav_dashboard",
-  "/customer": "nav_vendor_transport", // fallback; specific query handled dynamically
+  "/customers": "nav_customer_creator",
+  "/vendors": "nav_vendor_transport",
   "/subplate": "nav_subplate",
   "/scanning": "nav_scanning",
   "/printing": "nav_printing",
@@ -104,11 +105,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       // Settings is strictly Admin only
       if (pathname.startsWith("/settings")) return false;
 
-      // Special check for Customer Creator vs Vendor
-      if (pathname.startsWith("/customer")) {
-        const hasCustomerAccess = hasPermission("nav_customer_creator", roleId);
-        const hasVendorAccess = hasPermission("nav_vendor_transport", roleId);
-        return hasCustomerAccess || hasVendorAccess;
+      if (pathname.startsWith("/customers")) {
+        return hasPermission("nav_customer_creator", roleId);
+      }
+      if (pathname.startsWith("/vendors")) {
+        return hasPermission("nav_vendor_transport", roleId);
       }
 
       for (const [routePrefix, permKey] of Object.entries(ROUTE_PERMISSION_MAP)) {

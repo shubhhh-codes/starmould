@@ -69,20 +69,25 @@ export async function GET(req: NextRequest) {
 
     const worklogs = wRes.data || [];
 
-    const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
-    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+    const custMap = new Map<string | number, any>();
+    for (const c of customers || []) {
+      custMap.set(c.id, c);
+      custMap.set(String(c.id), c);
+      custMap.set(Number(c.id), c);
+    }
+    const userMap = new Map((users || []).map((u: any) => [Number(u.id), u]));
     const scanMap = new Map((scans || []).map((s: any) => [s.projectid, s]));
     const subMap = new Map((subplates || []).map((sp: any) => [sp.subprojectid, sp]));
 
     const enriched = (worklogs || []).map((w) => {
-      const cust = custMap.get(w.customerid);
+      const cust = custMap.get(w.customerid) || custMap.get(Number(w.customerid));
       const usr = userMap.get(Number(w.userid));
       const scan = scanMap.get(w.projectid);
       const sub = subMap.get(w.subplateid);
 
       return {
         ...w,
-        customername: cust?.customername || `Customer #${w.customerid}`,
+        customername: cust?.customername || (isNaN(Number(w.customerid)) ? w.customerid : `Customer #${w.customerid}`),
         customer_initials: cust?.initials || "",
         workername: usr?.name || usr?.username || `User #${w.userid}`,
         worker_initials: usr?.initials || "—",

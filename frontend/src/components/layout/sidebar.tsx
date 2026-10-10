@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -49,7 +49,7 @@ export const navigationItems: NavItem[] = [
   },
   {
     title: "Customer Creator",
-    href: "/customer?tab=Customer",
+    href: "/customers",
     icon: Building2,
     badge: "Admin",
     allowedRoles: [0], // Admin only
@@ -57,7 +57,7 @@ export const navigationItems: NavItem[] = [
   },
   {
     title: "Vendor / Transport",
-    href: "/customer?tab=Vendor",
+    href: "/vendors",
     icon: Truck,
     allowedRoles: [0, 1], // Admin and Manager
     permKey: "nav_vendor_transport",
@@ -202,11 +202,28 @@ export function Sidebar({
   currentUser: propUser,
 }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { currentUser: authUser, logout } = useAuth();
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
   const { prefetchProjects, prefetchSubplates, prefetchCustomers, prefetchExpenses } = useSmartPrefetch();
   const activeUser = propUser !== undefined ? propUser : authUser;
   const userRoleId = activeUser?.role_id;
+
+  const isItemActive = React.useCallback(
+    (itemHref: string) => {
+      if (itemHref === "/customers") {
+        return pathname.startsWith("/customers");
+      }
+      if (itemHref === "/vendors") {
+        return pathname.startsWith("/vendors");
+      }
+      if (itemHref === "/") {
+        return pathname === "/";
+      }
+      return pathname === itemHref || (pathname.startsWith(itemHref) && !itemHref.includes("?"));
+    },
+    [pathname, searchParams]
+  );
 
   // ESC stack integration for mobile drawer
   React.useEffect(() => {
@@ -267,7 +284,7 @@ export function Sidebar({
   const handlePrefetch = (href: string) => {
     if (href === "/" || href === "/scanning") prefetchProjects();
     else if (href === "/subplate") prefetchSubplates();
-    else if (href === "/customer") prefetchCustomers();
+    else if (href === "/customers" || href === "/vendors") prefetchCustomers();
     else if (href === "/expense") prefetchExpenses();
   };
 
@@ -337,7 +354,7 @@ export function Sidebar({
           </div>
 
           {visibleItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive = isItemActive(item.href);
             const Icon = item.icon;
 
             return (

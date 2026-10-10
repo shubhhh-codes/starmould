@@ -173,7 +173,9 @@ export async function GET(req: NextRequest) {
         title: c.customername,
         subtitle: `${c.usertype || "Customer"} · Code: ${c.initials || "—"}${c.mobile ? ` · ${c.mobile}` : ""}`,
         category: "Customers & Parties",
-        href: `/customer?search=${encodeURIComponent(c.customername)}&highlight=${c.id}`,
+        href: c.usertype === "Customer"
+          ? `/customers?search=${encodeURIComponent(c.customername)}&highlight=${c.id}`
+          : `/vendors?search=${encodeURIComponent(c.customername)}&highlight=${c.id}`,
         meta: c.usertype || "Party",
       });
     });

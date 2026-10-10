@@ -218,10 +218,10 @@ function ScanningPageContent() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                Scanning & 3D Project Manager
+                New Mould List
               </h1>
               <p className="text-sm text-slate-500">
-                Unified scanning pipeline, mould modeling, staff assignment, and project tracking
+                Track and manage new mould projects, scanning pipeline, staff assignments, and production tracking
               </p>
             </div>
           </div>
@@ -232,7 +232,7 @@ function ScanningPageContent() {
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm"
             >
               <Plus className="w-4 h-4" />
-              New Scan Project
+              New Mould Project
             </button>
           </div>
         </div>
@@ -340,7 +340,7 @@ function ScanningPageContent() {
             >
               <option value="ALL">All Customers</option>
               {customers
-                .filter((c) => c.usertype === "Customer")
+                .filter((c) => !c.deleted_at && c.usertype === "Customer")
                 .map((c) => (
                   <option key={c.id} value={String(c.id)}>
                     {c.customername}
@@ -663,10 +663,10 @@ function ScanningPageContent() {
               </div>
               <div>
                 <h3 className="text-base font-bold text-slate-900">
-                  Create Scanning Project
+                  Create New Mould Project
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Initialize new mould workpiece scanning project
+                  Initialize new mould workpiece project and scanning pipeline
                 </p>
               </div>
             </div>
@@ -688,7 +688,7 @@ function ScanningPageContent() {
                 >
                   <option value="">Select Customer</option>
                   {customers
-                    .filter((c) => c.usertype === "Customer")
+                    .filter((c) => !c.deleted_at && c.usertype === "Customer")
                     .map((c) => (
                       <option key={c.id} value={String(c.id)}>
                         {c.customername}

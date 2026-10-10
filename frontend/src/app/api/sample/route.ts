@@ -31,7 +31,12 @@ export async function GET(req: NextRequest) {
       .select("id, customername, initials, usertype")
       .is("deleted_at", null);
 
-    const custMap = new Map((customers || []).map((c) => [c.id, c]));
+    const custMap = new Map<string | number, any>();
+    for (const c of customers || []) {
+      custMap.set(c.id, c);
+      custMap.set(String(c.id), c);
+      custMap.set(Number(c.id), c);
+    }
 
     // Fetch active users for staff dropdown
     const { data: users } = await supabaseAdmin
@@ -39,7 +44,7 @@ export async function GET(req: NextRequest) {
       .select("id, name, username, initials, status, role_id")
       .is("deleted_at", null);
 
-    const userMap = new Map((users || []).map((u) => [u.id, u]));
+    const userMap = new Map((users || []).map((u) => [Number(u.id), u]));
 
     // Fetch worklog hours aggregated per scan_print_id
     const scanIds = (scanRows || []).map((r) => r.id);
@@ -65,7 +70,7 @@ export async function GET(req: NextRequest) {
     }
 
     const enriched = (scanRows || []).map((row) => {
-      const cust = custMap.get(row.cname);
+      const cust = custMap.get(row.cname) || custMap.get(Number(row.cname));
       const scanUser = userMap.get(Number(row.scan_by));
       const qcUser = userMap.get(Number(row.qc_by));
       const modelUser = userMap.get(Number(row.modeldesign_by));
@@ -73,7 +78,7 @@ export async function GET(req: NextRequest) {
 
       return {
         ...row,
-        customername: cust?.customername || `Customer #${row.cname}`,
+        customername: cust?.customername || (isNaN(Number(row.cname)) ? row.cname : `Customer #${row.cname}`),
         customer_initials: cust?.initials || "",
         scan_by_name: scanUser?.name || scanUser?.initials || scanUser?.username || "—",
         qc_by_name: qcUser?.name || qcUser?.initials || qcUser?.username || "—",
