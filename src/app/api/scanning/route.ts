@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       scanQuery,
       getCachedCustomers(),
       getCachedUsers(),
-      getCached("scanning_kpi_metrics_v2", 30, async () => {
+      getCached("scanning_kpi_metrics_v2", 300, async () => {
         const [
           totalScansRes,
           pendingScansRes,
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       scanIds.length > 0
         ? supabaseAdmin
             .from("subplate")
-            .select("id, platename, projectid, subprojectid, material, location, sqty")
+            .select("id, platename, projectid, subprojectid, material, location, shape, width, height, length, weight, unit, sqty")
             .in("projectid", scanIds)
             .is("deleted_at", null)
         : Promise.resolve({ data: [] }),

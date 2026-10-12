@@ -202,9 +202,21 @@ export function formatSubplateDimensions(sp: {
 }): string {
   const norm = (sp.shape || "").trim().toLowerCase();
   const u = sp.unit || "mm";
-  const l = sp.length ?? 0;
-  const w = sp.width ?? 0;
-  const h = sp.height ?? 0;
+  const rawL = sp.length;
+  const rawW = sp.width;
+  const rawH = sp.height;
+
+  const hasL = rawL !== null && rawL !== undefined && rawL !== "" && !isNaN(Number(rawL)) && Number(rawL) > 0;
+  const hasW = rawW !== null && rawW !== undefined && rawW !== "" && !isNaN(Number(rawW)) && Number(rawW) > 0;
+  const hasH = rawH !== null && rawH !== undefined && rawH !== "" && !isNaN(Number(rawH)) && Number(rawH) > 0;
+
+  if (!hasL && !hasW && !hasH) {
+    return "—";
+  }
+
+  const l = hasL ? Number(rawL) : 0;
+  const w = hasW ? Number(rawW) : 0;
+  const h = hasH ? Number(rawH) : 0;
 
   if (norm === "round" || norm === "round bar") {
     return `OD ${w} × ${l} ${u}`;
@@ -216,3 +228,4 @@ export function formatSubplateDimensions(sp: {
 
   return `${l} × ${w} × ${h} ${u}`;
 }
+

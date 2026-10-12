@@ -67,6 +67,8 @@ export interface ScanProject {
   updated_at: string;
   total_plates?: number;
   completed_plates?: number;
+  subplates?: Subplate[];
+  subplate_count?: number;
 }
 
 export interface Subplate {

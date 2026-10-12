@@ -36,6 +36,7 @@ import {
   useUpdateProjectMutation,
   useDeleteProjectMutation,
 } from "@/lib/query/hooks";
+import { formatSubplateDimensions } from "@/lib/weight-calculator";
 
 function ScanningPageContent() {
   const { currentUser } = useAuth();
@@ -56,11 +57,7 @@ function ScanningPageContent() {
   }, [urlSearch]);
 
   // TanStack Query with Tier C Operational Caching & Prefetching
-  const projectsQuery = useProjectsQuery({
-    status: statusFilter,
-    customer: customerFilter,
-    search: searchQuery,
-  });
+  const projectsQuery = useProjectsQuery({ pageSize: 500 });
 
   const createProjectMutation = useCreateProjectMutation();
   const updateProjectMutation = useUpdateProjectMutation();
@@ -78,7 +75,7 @@ function ScanningPageContent() {
     totalRevenue: 0,
   };
 
-  const isLoading = projectsQuery.isLoading;
+  const isLoading = projectsQuery.isLoading && scans.length === 0;
   const isFetching = projectsQuery.isFetching;
   const fetchError = projectsQuery.error ? (projectsQuery.error as Error).message : null;
 
@@ -204,7 +201,7 @@ function ScanningPageContent() {
   // Linked subplates for selected project
   const projectSubplates = useMemo<Subplate[]>(() => {
     if (!selectedProject) return [];
-    return (selectedProject as any).subplates || [];
+    return selectedProject.subplates || [];
   }, [selectedProject]);
 
   return (
@@ -627,25 +624,44 @@ function ScanningPageContent() {
                   </p>
                 </div>
               ) : (
-                projectSubplates.map((sp) => (
-                  <div
-                    key={sp.id}
-                    className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 hover:bg-white transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm text-slate-800">
-                        {sp.platename}
-                      </span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                        {sp.location || "SM"}
-                      </span>
+                projectSubplates.map((sp) => {
+                  const dims = formatSubplateDimensions(sp);
+                  return (
+                    <div
+                      key={sp.id}
+                      className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5 hover:bg-white transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-slate-800">
+                            {sp.platename}
+                          </span>
+                          {sp.shape && (
+                            <span className="text-[10px] font-semibold text-slate-500 bg-slate-200/70 px-1.5 py-0.5 rounded">
+                              {sp.shape}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                          {sp.location || "SM"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 font-mono flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-700">{dims}</span>
+                        <span>•</span>
+                        <span>{sp.material || "MS-Bright"}</span>
+                        <span>•</span>
+                        <span>Qty: {sp.sqty || 1}</span>
+                        {sp.weight ? (
+                          <>
+                            <span>•</span>
+                            <span>{sp.weight} kg</span>
+                          </>
+                        ) : null}
+                      </p>
                     </div>
-                    <p className="text-xs text-slate-500 font-mono">
-                      {sp.length} × {sp.width} × {sp.height} {sp.unit} •{" "}
-                      {sp.material} • Qty: {sp.sqty}
-                    </p>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}

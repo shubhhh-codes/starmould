@@ -154,7 +154,32 @@ export function useUpdateProjectMutation() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
+    onMutate: async (updated) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.projects.all() });
+      const previousData = queryClient.getQueriesData({ queryKey: queryKeys.projects.all() });
+
+      queryClient.setQueriesData({ queryKey: queryKeys.projects.all() }, (old: any) => {
+        if (!old) return old;
+        const updateList = (list: any[]) =>
+          list.map((item) =>
+            item.id === updated.id ? { ...item, [updated.field]: updated.value } : item
+          );
+        if (Array.isArray(old)) return updateList(old);
+        if (old.scans) return { ...old, scans: updateList(old.scans) };
+        if (old.data) return { ...old, data: updateList(old.data) };
+        return old;
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _updated, context: any) => {
+      if (context?.previousData) {
+        for (const [key, val] of context.previousData) {
+          queryClient.setQueryData(key, val);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -168,7 +193,29 @@ export function useDeleteProjectMutation() {
       fetchJson<any>(`/api/scanning?id=${id}`, {
         method: "DELETE",
       }),
-    onSuccess: () => {
+    onMutate: async (deletedId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.projects.all() });
+      const previousData = queryClient.getQueriesData({ queryKey: queryKeys.projects.all() });
+
+      queryClient.setQueriesData({ queryKey: queryKeys.projects.all() }, (old: any) => {
+        if (!old) return old;
+        const filterList = (list: any[]) => list.filter((item) => item.id !== deletedId);
+        if (Array.isArray(old)) return filterList(old);
+        if (old.scans) return { ...old, scans: filterList(old.scans) };
+        if (old.data) return { ...old, data: filterList(old.data) };
+        return old;
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _id, context: any) => {
+      if (context?.previousData) {
+        for (const [key, val] of context.previousData) {
+          queryClient.setQueryData(key, val);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -272,7 +319,30 @@ export function useUpdateSubplateMutation() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-    onSuccess: (_data, variables) => {
+    onMutate: async (updated) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.subplates.all() });
+      const previousData = queryClient.getQueriesData({ queryKey: queryKeys.subplates.all() });
+
+      queryClient.setQueriesData({ queryKey: queryKeys.subplates.all() }, (old: any) => {
+        if (!old) return old;
+        const updateList = (list: any[]) =>
+          list.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
+        if (Array.isArray(old)) return updateList(old);
+        if (old.subplates) return { ...old, subplates: updateList(old.subplates) };
+        if (old.data) return { ...old, data: updateList(old.data) };
+        return old;
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _updated, context: any) => {
+      if (context?.previousData) {
+        for (const [key, val] of context.previousData) {
+          queryClient.setQueryData(key, val);
+        }
+      }
+    },
+    onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       if (variables?.projectid) {
         queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
@@ -290,7 +360,29 @@ export function useDeleteSubplateMutation() {
       fetchJson<any>(`/api/subplate?id=${id}`, {
         method: "DELETE",
       }),
-    onSuccess: () => {
+    onMutate: async (deletedId) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.subplates.all() });
+      const previousData = queryClient.getQueriesData({ queryKey: queryKeys.subplates.all() });
+
+      queryClient.setQueriesData({ queryKey: queryKeys.subplates.all() }, (old: any) => {
+        if (!old) return old;
+        const filterList = (list: any[]) => list.filter((item) => item.id !== deletedId);
+        if (Array.isArray(old)) return filterList(old);
+        if (old.subplates) return { ...old, subplates: filterList(old.subplates) };
+        if (old.data) return { ...old, data: filterList(old.data) };
+        return old;
+      });
+
+      return { previousData };
+    },
+    onError: (_err, _id, context: any) => {
+      if (context?.previousData) {
+        for (const [key, val] of context.previousData) {
+          queryClient.setQueryData(key, val);
+        }
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });

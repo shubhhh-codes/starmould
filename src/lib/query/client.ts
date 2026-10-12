@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, keepPreviousData } from "@tanstack/react-query";
 
 /**
  * Cache Freshness Tier Configurations (in milliseconds)
@@ -36,8 +36,9 @@ export function createQueryClient(): QueryClient {
         staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
         gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
         refetchOnWindowFocus: false,
-        refetchOnMount: true,
+        refetchOnMount: false,
         refetchOnReconnect: true,
+        placeholderData: keepPreviousData,
         retry: 1,
       },
       mutations: {
