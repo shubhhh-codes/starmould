@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions/defaults";
 
 // Role definitions:
 // 0: Admin
@@ -8,33 +7,6 @@ import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions/defaults";
 // 2: Supervisor
 // 3: Designer
 // 4: Worker
-
-/**
- * Maps route path prefixes to the nav_ permission key that controls access.
- * This is structural configuration only — the actual allowed role set per key
- * is determined at runtime from the admin-configured role_permissions.json.
- */
-const ROUTE_TO_PERMISSION_KEY: Record<string, string> = {
-  "/user": "nav_user_mgmt",
-  "/settings": "nav_settings",
-  "/expense": "nav_expense",
-  "/gram": "nav_gram",
-  "/customers": "nav_customer_creator",
-  "/vendors": "nav_vendor_transport",
-  "/export": "nav_export",
-  "/purchase-inward": "nav_purchase_inward",
-  "/purchase": "nav_purchase",
-  "/printing": "nav_printing",
-  "/challan": "nav_challan",
-  "/dispatch": "nav_dispatch",
-  "/inward": "nav_inward",
-  "/report": "nav_reports",
-  "/subplate": "nav_subplate",
-  "/sample": "nav_sample",
-  "/scanning": "nav_scanning",
-  "/work": "nav_work",
-  "/": "nav_dashboard",
-};
 
 async function verifySessionTokenEdge(token: string): Promise<{ id: number; role_id: number; role: string } | null> {
   if (!token || typeof token !== "string" || !token.includes(".")) return null;

@@ -8,7 +8,7 @@ import { TopProgressBar } from "@/components/ui/top-progress-bar";
 import { ShieldAlert } from "lucide-react";
 
 import { useAuth } from "@/components/providers/auth-provider";
-import { PermissionsProvider, useRolePermissions } from "@/components/providers/permissions-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 interface AppLayoutProps {
   children: React.ReactNode;

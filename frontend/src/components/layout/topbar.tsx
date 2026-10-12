@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Menu,
   Search,
@@ -10,7 +9,6 @@ import {
   LogOut,
   KeyRound,
   Shield,
-  Clock,
   Sparkles,
   ChevronDown,
   Command,
@@ -20,8 +18,6 @@ import {
   ShoppingCart,
   ArrowUpRight,
   Truck,
-  ArrowDownLeft,
-  Users,
   LayoutDashboard,
   Receipt,
   FileDown,
@@ -116,7 +112,6 @@ export function Topbar({
     };
   }, [showUserDropdown]);
 
-  const searchParams = useSearchParams();
   const currentPage = PAGE_INFO[pathname] || {
     title: "StarMould ERP",
     category: "Workspace",

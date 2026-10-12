@@ -1,13 +1,10 @@
 import { createClient } from "@supabase/supabase-js";
+import { env, validateEnv } from "@/lib/config/env";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+validateEnv();
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  if (process.env.NODE_ENV === "production") {
-    console.error("CRITICAL: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing from environment.");
-  }
-}
+const supabaseUrl = env.supabase.url;
+const supabaseServiceKey = env.supabase.serviceRoleKey;
 
 export const supabaseAdmin = createClient(supabaseUrl || "https://placeholder.supabase.co", supabaseServiceKey || "invalid-key", {
   auth: {

@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
     const prints = printRes.status === "fulfilled" ? printRes.value.data || [] : [];
 
     // Fetch customer names for found scans
-    let customerMap = new Map<number, string>();
+    const customerMap = new Map<number, string>();
     if (scans.length > 0) {
       const cids = Array.from(new Set(scans.map((s) => Number(s.cname)).filter(Boolean)));
       if (cids.length > 0) {

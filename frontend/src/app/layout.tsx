@@ -4,6 +4,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { AuthProvider } from "@/components/providers/auth-provider";
 import { PermissionsProvider } from "@/components/providers/permissions-provider";
 import { ClientErrorListener, GlobalErrorBoundary } from "@/components/providers/client-error-listener";
+import { ToastContainer } from "@/components/ui/toast-container";
 
 export const metadata: Metadata = {
   title: "Star Mould ERP — Precision Tooling & Manufacturing",
@@ -32,6 +33,7 @@ export default function RootLayout({
           <QueryProvider>
             <AuthProvider>
               <PermissionsProvider>{children}</PermissionsProvider>
+              <ToastContainer />
             </AuthProvider>
           </QueryProvider>
         </GlobalErrorBoundary>
