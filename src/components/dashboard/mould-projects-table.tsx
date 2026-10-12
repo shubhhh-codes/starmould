@@ -62,6 +62,7 @@ import {
   MATERIAL_DENSITIES,
 } from "@/lib/weight-calculator";
 import { useSmartPrefetch } from "@/lib/query/prefetch";
+import { useLongPress } from "@/lib/hooks/use-long-press";
 
 const REAL_MATERIALS = [
   "MS-Bright",
@@ -190,6 +191,20 @@ export function MouldProjectsTable({
       project,
     });
   };
+
+  const handleLongPress = React.useCallback((project: ScanProject, pos: { x: number; y: number }) => {
+    setContextMenu({
+      x: pos.x,
+      y: pos.y,
+      isOpen: true,
+      project,
+    });
+  }, []);
+
+  const longPress = useLongPress<ScanProject>(handleLongPress, {
+    threshold: 500,
+    vibrate: 50,
+  });
 
   const handleToggleProjectStatus = async (project: ScanProject) => {
     const isCompleted = (project.status || "").toLowerCase() === "completed";
@@ -684,178 +699,197 @@ export function MouldProjectsTable({
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Table Action & Filter Toolbar */}
-      <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
-        {/* Left: Filter Controls */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[280px]">
+      <div className="p-3 sm:p-4 border-b border-slate-200 bg-slate-50/60 space-y-2.5 sm:space-y-0 sm:flex sm:items-center sm:justify-between sm:gap-3">
+        {/* Left: Search Input & Filter Dropdowns */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-2.5 sm:flex-1">
           {/* Search Input */}
-          <div className="relative w-full sm:w-56">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <div className="relative w-full sm:w-60">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
               value={globalFilter ?? ""}
               onChange={(e) => setGlobalFilter(e.target.value)}
               placeholder="Search in table..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full pl-8 pr-8 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs transition-all"
             />
+            {globalFilter && (
+              <button
+                type="button"
+                onClick={() => setGlobalFilter("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                title="Clear search"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
 
-          {/* Customer Selector */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-            <Filter className="h-3 w-3 text-slate-400" />
-            <select
-              value={selectedCustomer}
-              onChange={(e) => setSelectedCustomer(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-            >
-              <option value="ALL">All Customers</option>
-              {uniqueCustomers.map((cust) => (
-                <option key={cust} value={cust}>
-                  {cust}
-                </option>
-              ))}
-            </select>
-          </div>
+          {/* Filters: 2-column on mobile, inline on desktop */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-2.5">
+            {/* Customer Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedCustomer}
+                onChange={(e) => setSelectedCustomer(e.target.value)}
+                className="w-full sm:w-auto min-w-[130px] pl-2.5 pr-7 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium truncate shadow-2xs appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Customers</option>
+                {uniqueCustomers.map((cust) => (
+                  <option key={cust} value={cust}>
+                    {cust}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-3 w-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
 
-          {/* Work Type Selector */}
-          <div className="flex items-center gap-1.5 text-xs text-slate-600">
-            <select
-              value={selectedWorktype}
-              onChange={(e) => setSelectedWorktype(e.target.value)}
-              className="px-2.5 py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
-            >
-              <option value="ALL">All Work Types</option>
-              {uniqueWorktypes.map((wt) => (
-                <option key={wt} value={wt}>
-                  {wt}
-                </option>
-              ))}
-            </select>
+            {/* Work Type Dropdown */}
+            <div className="relative">
+              <select
+                value={selectedWorktype}
+                onChange={(e) => setSelectedWorktype(e.target.value)}
+                className="w-full sm:w-auto min-w-[130px] pl-2.5 pr-7 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium truncate shadow-2xs appearance-none cursor-pointer"
+              >
+                <option value="ALL">All Work Types</option>
+                {uniqueWorktypes.map((wt) => (
+                  <option key={wt} value={wt}>
+                    {wt}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-3 w-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+            </div>
           </div>
-
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="p-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 transition-colors"
-              title="Refresh Data"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            </button>
-          )}
         </div>
 
-        {/* Right: Bulk Actions & Export Buttons */}
-        <div className="flex items-center gap-2">
-          {selectedCount > 0 && (
-            <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 font-medium">
-              <span>{selectedCount} selected</span>
+        {/* Right: Refresh, Bulk Actions & Export Buttons */}
+        <div className="flex items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0 border-t border-slate-200/60 sm:border-0">
+          <div className="flex items-center gap-2">
+            {onRefresh && (
               <button
-                onClick={async () => {
-                  const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
-                  if (selectedRows.length === 0) return;
-                  if (!confirm(`Mark ${selectedRows.length} selected moulds as Completed?`)) return;
-
-                  try {
-                    await Promise.all(
-                      selectedRows.map((r) =>
-                        fetch("/api/scanning", {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ id: r.id, field: "status", value: "completed" }),
-                        })
-                      )
-                    );
-                    setData((prev) =>
-                      prev.map((d) =>
-                        selectedRows.some((s) => s.id === d.id) ? { ...d, status: "completed" } : d
-                      )
-                    );
-                    setRowSelection({});
-                  } catch (err) {
-                    alert("Failed to update status");
-                  }
-                }}
-                className="hover:underline text-[11px] font-semibold text-blue-800 cursor-pointer"
+                onClick={onRefresh}
+                className="h-8 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 transition-colors shadow-2xs flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                title="Refresh Data"
               >
-                Mark Done
+                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-blue-600" : ""}`} />
+                <span className="sm:hidden text-slate-600 font-medium">Refresh</span>
               </button>
-              <span>•</span>
-              <button
-                onClick={async () => {
-                  const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
-                  if (selectedRows.length === 0) return;
-                  if (!confirm(`Delete ${selectedRows.length} selected moulds? This will mark them completed/soft-deleted.`)) return;
+            )}
 
-                  try {
-                    await Promise.all(
-                      selectedRows.map((r) =>
-                        fetch(`/api/scanning?id=${r.id}`, {
-                          method: "DELETE",
-                        })
-                      )
-                    );
-                    setData((prev) => prev.filter((d) => !selectedRows.some((s) => s.id === d.id)));
-                    setRowSelection({});
-                  } catch (err) {
-                    alert("Failed to delete moulds");
-                  }
-                }}
-                className="text-rose-600 hover:text-rose-700 text-[11px] cursor-pointer flex items-center gap-1"
-                title="Delete selected moulds"
-              >
-                <Trash2 className="h-3.5 w-3.5 inline" />
-                <span>Delete</span>
-              </button>
-            </div>
-          )}
+            {selectedCount > 0 && (
+              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 font-medium">
+                <span>{selectedCount} sel</span>
+                <button
+                  onClick={async () => {
+                    const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+                    if (selectedRows.length === 0) return;
+                    if (!confirm(`Mark ${selectedRows.length} selected moulds as Completed?`)) return;
 
-          <button
-            onClick={() => {
-              const headers = [
-                "ID",
-                "Project ID",
-                "Customer",
-                "Description",
-                "Received Date",
-                "Committed Date",
-                "Plates",
-                "Amount",
-                "Payment",
-              ];
-              const rows = data.map((d) => [
-                d.id,
-                `"${d.projectid}"`,
-                `"${d.customername}"`,
-                `"${(d.description || "").replace(/"/g, '""')}"`,
-                d.rdate,
-                d.cdate,
-                d.total_plates || 0,
-                d.amount || 0,
-                d.payment === 1 ? "Paid" : "Unpaid",
-              ]);
-              const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-              const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.setAttribute("download", `Mould_Projects_${new Date().toISOString().split("T")[0]}.csv`);
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            title="Download Excel/CSV"
-          >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
-            <span>Excel</span>
-          </button>
-          <button
-            onClick={() => window.print()}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-            title="Print / Save PDF"
-          >
-            <FileText className="h-3.5 w-3.5 text-rose-600" />
-            <span>PDF</span>
-          </button>
+                    try {
+                      await Promise.all(
+                        selectedRows.map((r) =>
+                          fetch("/api/scanning", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ id: r.id, field: "status", value: "completed" }),
+                          })
+                        )
+                      );
+                      setData((prev) =>
+                        prev.map((d) =>
+                          selectedRows.some((s) => s.id === d.id) ? { ...d, status: "completed" } : d
+                        )
+                      );
+                      setRowSelection({});
+                    } catch (err) {
+                      alert("Failed to update status");
+                    }
+                  }}
+                  className="hover:underline text-[11px] font-semibold text-blue-800 cursor-pointer"
+                >
+                  Done
+                </button>
+                <span>•</span>
+                <button
+                  onClick={async () => {
+                    const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+                    if (selectedRows.length === 0) return;
+                    if (!confirm(`Delete ${selectedRows.length} selected moulds? This will mark them completed/soft-deleted.`)) return;
+
+                    try {
+                      await Promise.all(
+                        selectedRows.map((r) =>
+                          fetch(`/api/scanning?id=${r.id}`, {
+                            method: "DELETE",
+                          })
+                        )
+                      );
+                      setData((prev) => prev.filter((d) => !selectedRows.some((s) => s.id === d.id)));
+                      setRowSelection({});
+                    } catch (err) {
+                      alert("Failed to delete moulds");
+                    }
+                  }}
+                  className="text-rose-600 hover:text-rose-700 text-[11px] cursor-pointer flex items-center gap-1"
+                  title="Delete selected moulds"
+                >
+                  <Trash2 className="h-3.5 w-3.5 inline" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                const headers = [
+                  "ID",
+                  "Project ID",
+                  "Customer",
+                  "Description",
+                  "Received Date",
+                  "Committed Date",
+                  "Plates",
+                  "Amount",
+                  "Payment",
+                ];
+                const rows = data.map((d) => [
+                  d.id,
+                  `"${d.projectid}"`,
+                  `"${d.customername}"`,
+                  `"${(d.description || "").replace(/"/g, '""')}"`,
+                  d.rdate,
+                  d.cdate,
+                  d.total_plates || 0,
+                  d.amount || 0,
+                  d.payment === 1 ? "Paid" : "Unpaid",
+                ]);
+                const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.href = url;
+                link.setAttribute("download", `Mould_Projects_${new Date().toISOString().split("T")[0]}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}
+              className="h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Download Excel/CSV"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Excel</span>
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="h-8 flex items-center gap-1.5 px-2.5 sm:px-3 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+              title="Print / Save PDF"
+            >
+              <FileText className="h-3.5 w-3.5 text-rose-600" />
+              <span>PDF</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -911,7 +945,8 @@ export function MouldProjectsTable({
                   <React.Fragment key={row.id}>
                     <tr
                       onContextMenu={(e) => handleRowContextMenu(e, project)}
-                      className={`transition-colors hover:bg-slate-50/80 cursor-context-menu ${
+                      {...longPress.getHandlers(project)}
+                      className={`transition-colors hover:bg-slate-50/80 cursor-context-menu select-none ${
                         row.getIsSelected() ? "bg-blue-50/50" : ""
                       } ${isExpanded ? "bg-blue-50/30 border-b-transparent font-medium" : ""}`}
                     >
@@ -1062,6 +1097,16 @@ export function MouldProjectsTable({
 
       {/* Mobile Card-List Fallback (block below md, hidden on md+) */}
       <div className="block md:hidden p-3 space-y-3">
+        <div className="flex items-center justify-between px-1 text-[11px] text-slate-500 font-medium">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <span>Hold card 0.5s for options</span>
+          </span>
+          <span className="text-slate-400 font-mono">
+            {table.getRowModel().rows.length} moulds
+          </span>
+        </div>
+
         {table.getRowModel().rows.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
             No moulds or projects match the selected filter.
@@ -1072,7 +1117,8 @@ export function MouldProjectsTable({
             return (
               <div
                 key={row.id}
-                className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                {...longPress.getHandlers(m)}
+                className="p-3.5 bg-white rounded-2xl border border-slate-200/90 space-y-2.5 text-xs shadow-xs select-none active:scale-[0.98] transition-all touch-manipulation hover:border-blue-300 relative"
               >
                 <div className="flex items-center justify-between">
                   <span className="font-mono font-bold text-blue-600">

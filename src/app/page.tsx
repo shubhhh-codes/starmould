@@ -151,18 +151,21 @@ export default function DashboardPage() {
 
       {/* Main Dense Data Grid */}
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold text-slate-800">
-              Active Project Register ({displayedProjects.length} Projects)
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h2 className="text-base font-bold text-slate-900 tracking-tight">
+              Active Project Register
             </h2>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              {displayedProjects.length} Projects
+            </span>
             {activeStage && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                 Filtered by Stage: {activeStage.toUpperCase()}
               </span>
             )}
           </div>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-slate-500">
             Click row actions to view subplate breakdowns or update stage completion
           </div>
         </div>
