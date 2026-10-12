@@ -176,6 +176,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validation: enforce valid, non-zero dimensions
+    const normShape = (shape || "Plate").trim().toLowerCase();
+    const isRound = normShape === "round" || normShape === "round bar";
+    const numLength = Number(length) || 0;
+    const numWidth = Number(width) || 0;
+    const numHeight = Number(height) || 0;
+    const numQty = Number(sqty) || 1;
+
+    if (numLength <= 0 || numWidth <= 0 || (!isRound && numHeight <= 0)) {
+      return NextResponse.json(
+        {
+          error: isRound
+            ? "Invalid dimensions: Length and Outer Diameter (OD) must be greater than 0."
+            : "Invalid dimensions: Length, Width, and Thickness/Height must be greater than 0.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (numQty < 1) {
+      return NextResponse.json(
+        { error: "Quantity must be at least 1" },
+        { status: 400 }
+      );
+    }
+
     const now = new Date().toISOString();
     const generatedSubprojectId =
       subprojectid?.trim() ||

@@ -468,6 +468,17 @@ function SubplatePageContent() {
 		[modalForm.shape]
 	);
 
+	const isModalFormValid = useMemo(() => {
+		if (!modalForm.platename?.trim() || !modalForm.projectid) return false;
+		const l = parseFloat(modalForm.length || "0");
+		const w = parseFloat(modalForm.width || "0");
+		const h = parseFloat(modalForm.height || "0");
+		const q = parseInt(modalForm.sqty || "0", 10);
+		if (isNaN(l) || isNaN(w) || l <= 0 || w <= 0 || q < 1) return false;
+		if (!heightDisabled && (isNaN(h) || h <= 0)) return false;
+		return true;
+	}, [modalForm.platename, modalForm.projectid, modalForm.length, modalForm.width, modalForm.height, modalForm.sqty, heightDisabled]);
+
 	// Dynamic auto-calculation of subplate weight based on geometry, density, unit, and quantity
 	const recalculateWeight = (form: typeof modalForm) => {
 		const calculated = calculateSubplateWeight({
@@ -1898,7 +1909,7 @@ function SubplatePageContent() {
 								<MotionButton
 									type="submit"
 									variant="primary"
-									disabled={isSubmitting || !modalForm.platename || !modalForm.projectid}
+									disabled={isSubmitting || !isModalFormValid}
 									isLoading={isSubmitting}
 									loadingText="Saving..."
 									successText="Subplate Saved!"

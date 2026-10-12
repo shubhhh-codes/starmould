@@ -289,6 +289,17 @@ export function MouldProjectsTable({
     [plateForm.shape]
   );
 
+  const isPlateFormValid = useMemo(() => {
+    if (!plateForm.platename?.trim()) return false;
+    const l = parseFloat(plateForm.length || "0");
+    const w = parseFloat(plateForm.width || "0");
+    const h = parseFloat(plateForm.height || "0");
+    const q = parseInt(plateForm.sqty || "0", 10);
+    if (isNaN(l) || isNaN(w) || l <= 0 || w <= 0 || q < 1) return false;
+    if (!plateHeightDisabled && (isNaN(h) || h <= 0)) return false;
+    return true;
+  }, [plateForm.platename, plateForm.length, plateForm.width, plateForm.height, plateForm.sqty, plateHeightDisabled]);
+
   // Dynamic auto-calculation of subplate weight based on geometry, density, unit and quantity
   const recalculatePlateWeight = (form: typeof plateForm) => {
     const calculated = calculateSubplateWeight({
@@ -1806,7 +1817,7 @@ export function MouldProjectsTable({
               <MotionButton
                 type="submit"
                 variant="primary"
-                disabled={isSubmittingPlate || !plateForm.platename}
+                disabled={isSubmittingPlate || !isPlateFormValid}
                 isLoading={isSubmittingPlate}
                 loadingText="Adding Plate..."
                 successText="Plate Added!"
