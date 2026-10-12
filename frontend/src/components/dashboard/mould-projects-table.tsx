@@ -18,6 +18,7 @@ import {
   FileText,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ChevronsLeft,
   ChevronsRight,
   Eye,
@@ -50,6 +51,7 @@ import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
 import {
   calculateSubplateWeight,
   isHeightDisabled,
@@ -116,6 +118,39 @@ export function MouldProjectsTable({
   const [viewSubplates, setViewSubplates] = useState<Subplate[]>([]);
   const [isLoadingSubplates, setIsLoadingSubplates] = useState(false);
 
+  // Inline Master-Detail Accordion State
+  const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
+  const [rowSubplatesCache, setRowSubplatesCache] = useState<Record<number, Subplate[]>>({});
+  const [loadingRowId, setLoadingRowId] = useState<number | null>(null);
+
+  const toggleRowExpand = async (project: ScanProject) => {
+    if (expandedRowId === project.id) {
+      setExpandedRowId(null);
+      return;
+    }
+    setExpandedRowId(project.id);
+    if (!rowSubplatesCache[project.id]) {
+      setLoadingRowId(project.id);
+      try {
+        const res = await fetch(`/api/subplate?projectid=${project.id}`);
+        const json = await res.json();
+        let plates = json.subplates || [];
+        if (plates.length === 0 && project.projectid) {
+          const altRes = await fetch(`/api/subplate?projectid=${encodeURIComponent(project.projectid)}`);
+          const altJson = await altRes.json();
+          if (altJson.subplates && altJson.subplates.length > 0) {
+            plates = altJson.subplates;
+          }
+        }
+        setRowSubplatesCache((prev) => ({ ...prev, [project.id]: plates }));
+      } catch (err) {
+        console.error("Failed to load inline subplates:", err);
+      } finally {
+        setLoadingRowId(null);
+      }
+    }
+  };
+
   // Add Subplate Modal State
   const [addPlateProject, setAddPlateProject] = useState<ScanProject | null>(null);
   const [isSubmittingPlate, setIsSubmittingPlate] = useState(false);
@@ -132,6 +167,68 @@ export function MouldProjectsTable({
     sqty: "1",
     location: "SM",
   });
+
+  // Context Menu State for Right-Click
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    isOpen: boolean;
+    project: ScanProject | null;
+  }>({
+    x: 0,
+    y: 0,
+    isOpen: false,
+    project: null,
+  });
+
+  const handleRowContextMenu = (e: React.MouseEvent, project: ScanProject) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      isOpen: true,
+      project,
+    });
+  };
+
+  const handleToggleProjectStatus = async (project: ScanProject) => {
+    const isCompleted = (project.status || "").toLowerCase() === "completed";
+    const nextStatus: "completed" | "registered" = isCompleted ? "registered" : "completed";
+    try {
+      const res = await fetch("/api/scanning", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: project.id, field: "status", value: nextStatus }),
+      });
+      if (res.ok) {
+        setData((prev) =>
+          prev.map((d) => (d.id === project.id ? { ...d, status: nextStatus } : d))
+        );
+        onRefresh?.();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to update project status");
+      }
+    } catch {
+      alert("Error updating project status");
+    }
+  };
+
+  const handleDeleteSingleProject = async (project: ScanProject) => {
+    if (!confirm(`Delete mould project "${project.projectid || `#${project.id}`}"?`)) return;
+    try {
+      const res = await fetch(`/api/scanning?id=${project.id}`, { method: "DELETE" });
+      if (res.ok) {
+        setData((prev) => prev.filter((d) => d.id !== project.id));
+        onRefresh?.();
+      } else {
+        const err = await res.json();
+        alert(err.error || "Failed to delete project");
+      }
+    } catch {
+      alert("Error deleting project");
+    }
+  };
 
   // Handlers for View & Add Plate Modals
   const fetchSubplatesForProject = async (project: ScanProject) => {
@@ -278,6 +375,22 @@ export function MouldProjectsTable({
         await fetchSubplatesForProject(viewProject);
       }
 
+      // Refresh inline accordion cache for this project
+      const createdPlate = await res.json();
+      if (createdPlate?.data) {
+        setRowSubplatesCache((prev) => ({
+          ...prev,
+          [addPlateProject.id]: [...(prev[addPlateProject.id] || []), createdPlate.data],
+        }));
+      } else {
+        // Invalidate cache so next toggle or auto-fetch gets freshest
+        setRowSubplatesCache((prev) => {
+          const next = { ...prev };
+          delete next[addPlateProject.id];
+          return next;
+        });
+      }
+
       setAddPlateProject(null);
       onRefresh?.();
     } catch (err: any) {
@@ -371,11 +484,40 @@ export function MouldProjectsTable({
       // Project Code / ID
       columnHelper.accessor("projectid", {
         header: "Project Code",
-        cell: (info) => (
-          <span className="font-mono font-semibold text-slate-800 text-[11px]">
-            {info.getValue() || `P-${info.row.original.id}`}
-          </span>
-        ),
+        cell: (info) => {
+          const isExpanded = expandedRowId === info.row.original.id;
+          const isLoadingThis = loadingRowId === info.row.original.id;
+          return (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleRowExpand(info.row.original);
+                }}
+                className={`p-1 rounded-md transition-colors cursor-pointer ${
+                  isExpanded
+                    ? "bg-blue-100 text-blue-700 font-bold"
+                    : "hover:bg-slate-200/60 text-slate-400 hover:text-slate-700"
+                }`}
+                title={isExpanded ? "Collapse Subplates" : "Expand Subplates Inline"}
+              >
+                {isLoadingThis ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                ) : (
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                      isExpanded ? "rotate-180" : "-rotate-90"
+                    }`}
+                  />
+                )}
+              </button>
+              <span className="font-mono font-semibold text-slate-800 text-[11px]">
+                {info.getValue() || `P-${info.row.original.id}`}
+              </span>
+            </div>
+          );
+        },
       }),
       // Received Date
       columnHelper.accessor("rdate", {
@@ -748,21 +890,160 @@ export function MouldProjectsTable({
                 </td>
               </tr>
             ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className={row.getIsSelected() ? "bg-blue-50/50" : ""}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              table.getRowModel().rows.map((row) => {
+                const project = row.original;
+                const isExpanded = expandedRowId === project.id;
+                const plates = rowSubplatesCache[project.id] || [];
+                const isLoadingPlates = loadingRowId === project.id;
+
+                return (
+                  <React.Fragment key={row.id}>
+                    <tr
+                      onContextMenu={(e) => handleRowContextMenu(e, project)}
+                      className={`transition-colors hover:bg-slate-50/80 cursor-context-menu ${
+                        row.getIsSelected() ? "bg-blue-50/50" : ""
+                      } ${isExpanded ? "bg-blue-50/30 border-b-transparent font-medium" : ""}`}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <td key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+
+                    {/* Inline Master-Detail Workbench */}
+                    {isExpanded && (
+                      <tr className="bg-slate-50/70 border-y border-blue-100/80 animate-in fade-in duration-150">
+                        <td colSpan={columns.length} className="p-0">
+                          <div className="p-4 sm:p-5 bg-gradient-to-b from-blue-50/40 via-slate-50/60 to-white space-y-3.5 border-l-4 border-blue-600">
+                            {/* Header inside detail workbench */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-200/80">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                                  <Layers className="w-4 h-4" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="text-xs font-bold text-slate-900 tracking-tight">
+                                      Subplate Register: {project.projectid || `#${project.id}`}
+                                    </h4>
+                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100/70 text-blue-700">
+                                      {plates.length} Plates Active
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 truncate">
+                                    {project.description} • {project.customername || project.cname || "Customer"}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAddPlate(project)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-emerald-600/20 transition-all cursor-pointer"
+                                >
+                                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  <span>Add Subplate</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenView(project)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>Full Studio Modal</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Subplates Table / Grid */}
+                            {isLoadingPlates ? (
+                              <div className="py-8 flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                                <span>Loading subplate specifications...</span>
+                              </div>
+                            ) : plates.length === 0 ? (
+                              <div className="py-6 px-4 text-center rounded-xl border border-dashed border-slate-300 bg-white/70 space-y-2">
+                                <p className="text-xs text-slate-500 font-medium">
+                                  No subplates have been defined for this mould project yet.
+                                </p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAddPlate(project)}
+                                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>Add First Subplate</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[11px] uppercase tracking-wider">
+                                    <tr>
+                                      <th className="py-2.5 px-3">Plate Name</th>
+                                      <th className="py-2.5 px-3">Subproject ID</th>
+                                      <th className="py-2.5 px-3">Dimensions</th>
+                                      <th className="py-2.5 px-3">Material</th>
+                                      <th className="py-2.5 px-3 text-right">Calc Weight</th>
+                                      <th className="py-2.5 px-3 text-center">Qty</th>
+                                      <th className="py-2.5 px-3 text-center">Status</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {plates.map((sp) => {
+                                      const dim = formatSubplateDimensions({
+                                        shape: sp.shape || "Plate",
+                                        length: sp.length,
+                                        width: sp.width,
+                                        height: sp.height,
+                                        unit: sp.unit || "mm",
+                                      });
+                                      return (
+                                        <tr key={sp.id} className="hover:bg-slate-50/70 transition-colors">
+                                          <td className="py-2.5 px-3 font-semibold text-slate-900">
+                                            {sp.platename}
+                                          </td>
+                                          <td className="py-2.5 px-3 font-mono text-[11px] text-blue-700">
+                                            {sp.subprojectid || "—"}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-slate-600 font-mono text-[11px]">
+                                            {dim}
+                                          </td>
+                                          <td className="py-2.5 px-3">
+                                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                                              {sp.material || "MS-Bright"}
+                                            </span>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                                            {sp.weight ? `${Number(sp.weight).toFixed(3)} kg` : "—"}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center font-bold text-slate-700">
+                                            {sp.sqty || 1}
+                                          </td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                              Active
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -1538,6 +1819,63 @@ export function MouldProjectsTable({
           </div>
         </form>
       </Modal>
+
+      {/* Right-Click Floating Context Menu */}
+      <ContextMenu
+        x={contextMenu.x}
+        y={contextMenu.y}
+        isOpen={contextMenu.isOpen}
+        onClose={() => setContextMenu((prev) => ({ ...prev, isOpen: false, project: null }))}
+        title={
+          contextMenu.project
+            ? `${contextMenu.project.projectid || `#${contextMenu.project.id}`} • ${
+                contextMenu.project.customername || contextMenu.project.cname || "Mould"
+              }`
+            : undefined
+        }
+        items={
+          contextMenu.project
+            ? [
+                {
+                  label: "Add Subplate",
+                  icon: Plus,
+                  variant: "primary",
+                  onClick: () => {
+                    if (contextMenu.project) handleOpenAddPlate(contextMenu.project);
+                  },
+                },
+                {
+                  label: "View Subplates",
+                  icon: Eye,
+                  variant: "default",
+                  onClick: () => {
+                    if (contextMenu.project) handleOpenView(contextMenu.project);
+                  },
+                },
+                {
+                  label:
+                    (contextMenu.project.status || "").toLowerCase() === "completed"
+                      ? "Mark In Progress"
+                      : "Mark Completed",
+                  icon: CheckCircle2,
+                  variant: "success",
+                  onClick: () => {
+                    if (contextMenu.project) handleToggleProjectStatus(contextMenu.project);
+                  },
+                },
+                {
+                  label: "Delete Mould",
+                  icon: Trash2,
+                  variant: "danger",
+                  separator: true,
+                  onClick: () => {
+                    if (contextMenu.project) handleDeleteSingleProject(contextMenu.project);
+                  },
+                },
+              ]
+            : []
+        }
+      />
     </div>
   );
 }

@@ -5,3 +5,5 @@ export * from "./command-palette";
 export * from "./staff-select";
 export * from "./top-progress-bar";
 export * from "./toast-container";
+export * from "./project-select";
+export * from "./context-menu";

@@ -37,6 +37,7 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { ProjectSelect } from "@/components/ui/project-select";
 import {
 	calculateSubplateWeight,
 	isHeightDisabled,
@@ -1481,29 +1482,18 @@ function SubplatePageContent() {
 									<span>Target Mould / Project</span>
 									<span className="text-rose-500 font-bold">*</span>
 								</label>
-								<select
-									required
+								<ProjectSelect
+									projects={scans}
 									value={modalForm.projectid}
-									onChange={(e) =>
-										setModalForm({
-											...modalForm,
-											projectid: e.target.value,
-										})
-									}
-									className="w-full max-w-full h-10 px-3.5 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 focus:bg-white transition-all shadow-xs cursor-pointer truncate"
-								>
-									<option value="">Select Project</option>
-									{scans.map((s) => {
-										const fullDesc = s.description || "Untitled";
-										const label = s.projectid ? `${s.projectid} — ${fullDesc}` : `Project #${s.id}`;
-										const shortLabel = label.length > 35 ? `${label.substring(0, 35)}...` : label;
-										return (
-											<option key={s.id} value={s.projectid || String(s.id)} title={label}>
-												{shortLabel}
-											</option>
-										);
-									})}
-								</select>
+									required
+									placeholder="Search or select mould / project..."
+									onChange={(val) => {
+										setModalForm((prev) => ({
+											...prev,
+											projectid: val,
+										}));
+									}}
+								/>
 							</div>
 						</div>
 
