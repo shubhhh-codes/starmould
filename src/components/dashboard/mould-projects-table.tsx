@@ -459,7 +459,7 @@ export function MouldProjectsTable({
       const plateResult = resData.subplate || resData.data;
 
       // If view modal is open for this same project, refresh its subplates
-      if (viewProject && viewProject.id === addPlateProject.id) {
+      if (viewProject && addPlateProject && viewProject.id === addPlateProject.id) {
         if (isEditing && plateResult) {
           setViewSubplates((prev) =>
             prev.map((p) => (p.id === editingSubplate!.id ? { ...p, ...plateResult } : p))
@@ -469,22 +469,23 @@ export function MouldProjectsTable({
         }
       }
 
-      // Refresh inline accordion cache for this project
+      // Refresh inline accordion cache across projects
       if (isEditing && plateResult) {
         setRowSubplatesCache((prev) => {
-          const pid = addPlateProject.id;
-          if (!prev[pid]) return prev;
-          return {
-            ...prev,
-            [pid]: prev[pid].map((p) => (p.id === editingSubplate!.id ? { ...p, ...plateResult } : p)),
-          };
+          const next = { ...prev };
+          for (const pid of Object.keys(next)) {
+            next[Number(pid)] = (next[Number(pid)] || []).map((p) =>
+              p.id === editingSubplate!.id ? { ...p, ...plateResult } : p
+            );
+          }
+          return next;
         });
-      } else if (plateResult) {
+      } else if (plateResult && addPlateProject) {
         setRowSubplatesCache((prev) => ({
           ...prev,
           [addPlateProject.id]: [...(prev[addPlateProject.id] || []), plateResult],
         }));
-      } else {
+      } else if (addPlateProject) {
         // Invalidate cache so next toggle or auto-fetch gets freshest
         setRowSubplatesCache((prev) => {
           const next = { ...prev };
@@ -504,7 +505,7 @@ export function MouldProjectsTable({
   };
 
   const handleDeleteSubplate = async (subplateId: number, projectId?: number) => {
-    if (!confirm("Are you sure you want to delete this subplate?")) return;
+    if (!confirm("Are you sure you want to permanently delete this subplate from the database? This action cannot be undone.")) return;
     try {
       const res = await fetch(`/api/subplate?id=${subplateId}`, {
         method: "DELETE",

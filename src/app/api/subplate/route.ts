@@ -357,6 +357,11 @@ export async function PUT(req: NextRequest) {
       updated_at: now,
     };
     delete updatePayload.id;
+    delete updatePayload.updates;
+
+    if (updatePayload.projectid !== undefined && updatePayload.projectid !== null) {
+      updatePayload.projectid = String(updatePayload.projectid);
+    }
 
     if (body.field && body.value !== undefined) {
       updatePayload[body.field] =
@@ -409,6 +414,26 @@ export async function PUT(req: NextRequest) {
       updatePayload.sqty = q;
     }
 
+    // Auto-calculate weight if length and width are updated and weight is zero/missing
+    if (
+      updatePayload.length !== undefined &&
+      updatePayload.width !== undefined &&
+      (!updatePayload.weight || Number(updatePayload.weight) <= 0)
+    ) {
+      const calc = calculateSubplateWeight({
+        shape: updatePayload.shape || "Plate",
+        material: updatePayload.material || "MS-Bright",
+        length: updatePayload.length,
+        width: updatePayload.width,
+        height: updatePayload.height,
+        unit: updatePayload.unit || "mm",
+        quantity: updatePayload.sqty || 1,
+      });
+      if (calc > 0) {
+        updatePayload.weight = calc;
+      }
+    }
+
     // Auto-set per-stage timestamp when the corresponding *_by assignment is set/changed
     const stageTimestampMap: Record<string, string> = {
       design_by: "design_at",
@@ -454,7 +479,7 @@ export async function PUT(req: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from("subplate")
       .update(updatePayload)
-      .eq("id", id)
+      .eq("id", subplateId)
       .select()
       .single();
 
@@ -467,8 +492,9 @@ export async function PUT(req: NextRequest) {
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");
+    invalidateCache("shared_scans_lookup");
 
-    return NextResponse.json({ subplate: data, message: "Subplate updated successfully" });
+    return NextResponse.json({ subplate: data, message: "Subplate updated successfully in database" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -477,7 +503,7 @@ export async function PUT(req: NextRequest) {
 
 export const PATCH = PUT;
 
-// DELETE /api/subplate - Soft delete subplate (Roles 0, 1, 2, 3)
+// DELETE /api/subplate - Hard delete subplate from database (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_subplate");
   if ("error" in auth) {
@@ -492,14 +518,16 @@ export async function DELETE(req: NextRequest) {
       id = body.id;
     }
 
-    if (!id) {
-      return NextResponse.json({ error: "Missing subplate id" }, { status: 400 });
+    const subplateId = Number(id);
+    if (!id || isNaN(subplateId) || subplateId <= 0) {
+      return NextResponse.json({ error: "Missing or invalid subplate id" }, { status: 400 });
     }
 
+    // Permanently hard delete the subplate directly from the database table
     const { error } = await supabaseAdmin
       .from("subplate")
-      .update({ deleted_at: new Date().toISOString() })
-      .eq("id", id);
+      .delete()
+      .eq("id", subplateId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -510,8 +538,9 @@ export async function DELETE(req: NextRequest) {
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");
+    invalidateCache("shared_scans_lookup");
 
-    return NextResponse.json({ success: true, message: "Subplate deleted successfully" });
+    return NextResponse.json({ success: true, message: "Subplate permanently deleted from database" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

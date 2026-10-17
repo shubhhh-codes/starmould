@@ -655,9 +655,9 @@ function SubplatePageContent() {
  // Auto-scroll and highlight matching search row
  const { getRowHighlightClass } = useTableHighlight(filteredSubplates, pageSize, setCurrentPage);
 
- // Handle Delete Subplate (Soft Delete)
+ // Handle Delete Subplate (Permanent DB Deletion)
  const handleDeleteSubplate = async (id: number, platename: string) => {
- if (!confirm(`Are you sure you want to delete subplate "${platename || `#${id}`}"? This will soft-delete the record.`)) {
+ if (!confirm(`Are you sure you want to permanently delete subplate "${platename || `#${id}`}" from the database? This action cannot be undone.`)) {
  return;
  }
  try {
