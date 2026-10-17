@@ -64,12 +64,13 @@ export interface UserRecord {
 }
 
 export default function UserManagementPage() {
-    const { data, isLoading, refetch } = useUsersQuery();
+    const { data, isLoading: queryLoading, refetch } = useUsersQuery();
     const createUserMutation = useCreateUserMutation();
     const updateUserMutation = useUpdateUserMutation();
     const deleteUserMutation = useDeleteUserMutation();
 
     const users = (data?.users || []) as UserRecord[];
+    const isLoading = queryLoading && users.length === 0;
 
     const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("All");
     const [statusFilter, setStatusFilter] = useState<

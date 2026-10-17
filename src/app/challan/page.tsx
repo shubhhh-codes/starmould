@@ -42,7 +42,7 @@ function ChallanPageContent() {
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
-  const { data, isLoading, error: fetchQueryError, refetch } = useChallansQuery();
+  const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useChallansQuery();
   const createChallanMutation = useCreateChallanMutation();
   const deleteChallanMutation = useDeleteChallanMutation();
 
@@ -50,6 +50,7 @@ function ChallanPageContent() {
   const customers = (data?.customers || []) as Customer[];
   const subplates = (data?.subplates || []) as Subplate[];
   const scans = (data?.scans || []) as ScanProject[];
+  const isLoading = queryLoading && challans.length === 0;
   const [extraSubplates, setExtraSubplates] = useState<Subplate[]>([]);
 
   const allSubplates = useMemo(() => {

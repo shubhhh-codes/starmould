@@ -36,7 +36,7 @@ import { MotionButton } from "@/components/ui/motion-button";
 import { useDispatchQuery, useCreateDispatchMutation, useDeleteDispatchMutation } from "@/lib/query/hooks";
 
 export default function DispatchPage() {
-  const { data, isLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
+  const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
   const createDispatchMutation = useCreateDispatchMutation();
   const deleteDispatchMutation = useDeleteDispatchMutation();
 
@@ -44,6 +44,7 @@ export default function DispatchPage() {
   const customers = data?.customers || [];
   const subplates = data?.subplates || [];
   const scans = data?.scans || [];
+  const isLoading = queryLoading && dispatches.length === 0;
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
   const [searchQuery, setSearchQuery] = useState("");

@@ -16,13 +16,14 @@ import { useProjectsQuery, useSubplatesQuery } from "@/lib/query/hooks";
 export default function DashboardPage() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
 
-  // Use TanStack Query hooks with Tier C operational caching
-  const projectsQuery = useProjectsQuery({ pageSize: 200 });
-  const subplatesQuery = useSubplatesQuery({ pageSize: 2000 });
+  // Standardized shared cache query hooks matching Scanning and Subplate modules
+  const projectsQuery = useProjectsQuery({ pageSize: 500 });
+  const subplatesQuery = useSubplatesQuery();
 
   const projects = projectsQuery.data?.scans || [];
   const subplates = subplatesQuery.data?.subplates || [];
-  const isLoading = projectsQuery.isLoading || subplatesQuery.isLoading;
+  // Only display skeleton placeholders if there is absolutely no cached data yet (0ms repeat visits)
+  const isLoading = (projectsQuery.isLoading && projects.length === 0) || (subplatesQuery.isLoading && subplates.length === 0);
   const isFetching = projectsQuery.isFetching || subplatesQuery.isFetching;
 
   const handleRefresh = () => {

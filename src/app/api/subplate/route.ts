@@ -59,83 +59,101 @@ export async function GET(req: NextRequest) {
       subplateQuery = subplateQuery.limit(limit);
     }
 
-    // Batch subplates query with cached scans, users, and KPI counts
-    const [subplatesRes, scans, users, kpis] = await Promise.all([
-      subplateQuery,
-      getCachedScansLookup(),
-      getCachedUsers(),
-      getCached("subplate_kpi_counts", 30, async () => {
-        const [totalActiveRes, inHouseRes, vendorRes] = await Promise.all([
-          supabaseAdmin
-            .from("subplate")
-            .select("id", { count: "exact", head: true })
-            .is("deleted_at", null),
-          supabaseAdmin
-            .from("subplate")
-            .select("id", { count: "exact", head: true })
-            .is("deleted_at", null)
-            .or("location.eq.SM,location.is.null"),
-          supabaseAdmin
-            .from("subplate")
-            .select("id", { count: "exact", head: true })
-            .is("deleted_at", null)
-            .neq("location", "SM")
-            .not("location", "is", null),
-        ]);
+    const isDefaultQuery = !search && (!material || material === "ALL") && (!location || location === "ALL") && (!projectid || projectid === "ALL") && (!page || page === 1);
+    const cacheKey = isDefaultQuery ? `subplate_default_${limit}` : null;
+
+    const executeFetch = async () => {
+      // Batch subplates query with cached scans, users, and KPI counts
+      const [subplatesRes, scans, users, kpis] = await Promise.all([
+        subplateQuery,
+        getCachedScansLookup(),
+        getCachedUsers(),
+        getCached("subplate_kpi_counts", 30, async () => {
+          const [totalActiveRes, inHouseRes, vendorRes] = await Promise.all([
+            supabaseAdmin
+              .from("subplate")
+              .select("id", { count: "exact", head: true })
+              .is("deleted_at", null),
+            supabaseAdmin
+              .from("subplate")
+              .select("id", { count: "exact", head: true })
+              .is("deleted_at", null)
+              .or("location.eq.SM,location.is.null"),
+            supabaseAdmin
+              .from("subplate")
+              .select("id", { count: "exact", head: true })
+              .is("deleted_at", null)
+              .neq("location", "SM")
+              .not("location", "is", null),
+          ]);
+          return {
+            totalCount: totalActiveRes.count || 0,
+            inHouseCount: inHouseRes.count || 0,
+            vendorCount: vendorRes.count || 0,
+          };
+        }),
+      ]);
+
+      if (subplatesRes.error) {
+        throw new Error(subplatesRes.error.message);
+      }
+
+      const subplates = subplatesRes.data || [];
+      const scanMap = new Map((scans || []).map((s: any) => [s.id, s]));
+      const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+
+      const enriched = subplates.map((sp: any) => {
+        const scan = scanMap.get(sp.projectid);
         return {
-          totalCount: totalActiveRes.count || 0,
-          inHouseCount: inHouseRes.count || 0,
-          vendorCount: vendorRes.count || 0,
+          ...sp,
+          mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
+          mould_description: scan?.description || "",
+          design_by_name: userMap.get(Number(sp.design_by))?.name || userMap.get(Number(sp.design_by))?.initials || "—",
+          order_by_name: userMap.get(Number(sp.order_by))?.name || userMap.get(Number(sp.order_by))?.initials || "—",
+          received_workby_name: userMap.get(Number(sp.received_workby))?.name || userMap.get(Number(sp.received_workby))?.initials || "—",
+          received_qcby_name: userMap.get(Number(sp.received_qcby))?.name || userMap.get(Number(sp.received_qcby))?.initials || "—",
+          vmc_workby_name: userMap.get(Number(sp.vmc_workby))?.name || userMap.get(Number(sp.vmc_workby))?.initials || "—",
+          vmc_qcby_name: userMap.get(Number(sp.vmc_qcby))?.name || userMap.get(Number(sp.vmc_qcby))?.initials || "—",
+          drilltap_workby_name: userMap.get(Number(sp.drilltap_workby))?.name || userMap.get(Number(sp.drilltap_workby))?.initials || "—",
+          final_qcby_name: userMap.get(Number(sp.final_qcby))?.name || userMap.get(Number(sp.final_qcby))?.initials || "—",
+          packing_workby_name: userMap.get(Number(sp.packing_workby))?.name || userMap.get(Number(sp.packing_workby))?.initials || "—",
         };
-      }),
-    ]);
+      });
 
-    if (subplatesRes.error) {
-      return NextResponse.json({ error: subplatesRes.error.message }, { status: 500 });
-    }
+      const totalCount = subplatesRes.count ?? enriched.length;
+      const totalPages = Math.ceil(totalCount / limit) || 1;
+      const currentPage = page || 1;
 
-    const subplates = subplatesRes.data || [];
-    const scanMap = new Map((scans || []).map((s: any) => [s.id, s]));
-    const userMap = new Map((users || []).map((u: any) => [u.id, u]));
-
-    const enriched = subplates.map((sp: any) => {
-      const scan = scanMap.get(sp.projectid);
       return {
-        ...sp,
-        mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
-        mould_description: scan?.description || "",
-        design_by_name: userMap.get(Number(sp.design_by))?.name || userMap.get(Number(sp.design_by))?.initials || "—",
-        order_by_name: userMap.get(Number(sp.order_by))?.name || userMap.get(Number(sp.order_by))?.initials || "—",
-        received_workby_name: userMap.get(Number(sp.received_workby))?.name || userMap.get(Number(sp.received_workby))?.initials || "—",
-        received_qcby_name: userMap.get(Number(sp.received_qcby))?.name || userMap.get(Number(sp.received_qcby))?.initials || "—",
-        vmc_workby_name: userMap.get(Number(sp.vmc_workby))?.name || userMap.get(Number(sp.vmc_workby))?.initials || "—",
-        vmc_qcby_name: userMap.get(Number(sp.vmc_qcby))?.name || userMap.get(Number(sp.vmc_qcby))?.initials || "—",
-        drilltap_workby_name: userMap.get(Number(sp.drilltap_workby))?.name || userMap.get(Number(sp.drilltap_workby))?.initials || "—",
-        final_qcby_name: userMap.get(Number(sp.final_qcby))?.name || userMap.get(Number(sp.final_qcby))?.initials || "—",
-        packing_workby_name: userMap.get(Number(sp.packing_workby))?.name || userMap.get(Number(sp.packing_workby))?.initials || "—",
+        subplates: enriched,
+        totalCount,
+        totalPages,
+        currentPage,
+        limit,
+        scans,
+        users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
+        kpis,
       };
-    });
+    };
 
-    const totalCount = subplatesRes.count ?? enriched.length;
-    const totalPages = Math.ceil(totalCount / limit) || 1;
-    const currentPage = page || 1;
+    const result = cacheKey ? await getCached(cacheKey, 20, executeFetch) : await executeFetch();
 
     const response = NextResponse.json({
-      subplates: enriched,
-      data: enriched,
+      subplates: result.subplates,
+      data: result.subplates,
       pagination: {
-        page: currentPage,
-        pageSize: limit,
-        total: totalCount,
-        totalPages,
-        hasNextPage: currentPage < totalPages,
-        hasPreviousPage: currentPage > 1,
+        page: result.currentPage,
+        pageSize: result.limit,
+        total: result.totalCount,
+        totalPages: result.totalPages,
+        hasNextPage: result.currentPage < result.totalPages,
+        hasPreviousPage: result.currentPage > 1,
       },
-      scans: scans,
-      users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
-      kpis,
+      scans: result.scans,
+      users: result.users,
+      kpis: result.kpis,
     });
-    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -236,6 +254,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("subplate_default_");
+    invalidateCache("scanning_default_");
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");
@@ -334,6 +354,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("subplate_default_");
+    invalidateCache("scanning_default_");
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");
@@ -375,6 +397,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("subplate_default_");
+    invalidateCache("scanning_default_");
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");

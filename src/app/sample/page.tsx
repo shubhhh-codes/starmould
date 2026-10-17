@@ -30,7 +30,7 @@ import { useSampleQuery, useCreateSampleMutation, useUpdateSampleMutation, useDe
 export default function SampleReworkPage() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
-  const { data, isLoading, error: fetchQueryError, refetch } = useSampleQuery();
+  const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useSampleQuery();
   const createSampleMutation = useCreateSampleMutation();
   const updateSampleMutation = useUpdateSampleMutation();
   const deleteSampleMutation = useDeleteSampleMutation();
@@ -38,6 +38,7 @@ export default function SampleReworkPage() {
   const projects = data?.projects || [];
   const customers = data?.customers || [];
   const users = data?.users || [];
+  const isLoading = queryLoading && projects.length === 0;
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
   const [isSubmitting, setIsSubmitting] = useState(false);

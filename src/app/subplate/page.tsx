@@ -392,7 +392,7 @@ function SubplatePageContent() {
 	const searchParams = useSearchParams();
 	const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
-	const { data, isLoading, error: fetchQueryError } = useSubplatesQuery();
+	const { data, isLoading: queryLoading, error: fetchQueryError } = useSubplatesQuery();
 	const createSubplateMutation = useCreateSubplateMutation();
 	const updateSubplateMutation = useUpdateSubplateMutation();
 	const deleteSubplateMutation = useDeleteSubplateMutation();
@@ -401,6 +401,7 @@ function SubplatePageContent() {
 	const scans = data?.scans || [];
 	const users = data?.users || [];
 	const kpis = data?.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 };
+	const isLoading = queryLoading && subplates.length === 0;
 	const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
 	const [isSubmitting, setIsSubmitting] = useState(false);

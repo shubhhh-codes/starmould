@@ -178,7 +178,7 @@ export const navigationItems: NavItem[] = [
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
-import { useSmartPrefetch } from "@/lib/query/prefetch";
+import { useSmartPrefetch, useBackgroundPrefetchWarmup } from "@/lib/query/prefetch";
 import { overlayStack } from "@/lib/overlay-stack";
 
 interface SidebarProps {
@@ -204,7 +204,8 @@ export function Sidebar({
   const searchParams = useSearchParams();
   const { currentUser: authUser, logout } = useAuth();
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
-  const { prefetchProjects, prefetchSubplates, prefetchCustomers, prefetchExpenses } = useSmartPrefetch();
+  const { prefetchRoute } = useSmartPrefetch();
+  useBackgroundPrefetchWarmup();
   const activeUser = propUser !== undefined ? propUser : authUser;
   const userRoleId = activeUser?.role_id;
 
@@ -281,10 +282,7 @@ export function Sidebar({
   };
 
   const handlePrefetch = (href: string) => {
-    if (href === "/" || href === "/scanning") prefetchProjects();
-    else if (href === "/subplate") prefetchSubplates();
-    else if (href === "/customers" || href === "/vendors") prefetchCustomers();
-    else if (href === "/expense") prefetchExpenses();
+    prefetchRoute(href);
   };
 
   return (

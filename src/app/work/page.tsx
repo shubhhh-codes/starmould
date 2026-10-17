@@ -83,7 +83,7 @@ export default function WorkPage() {
   const users = (worklogsQuery.data?.users || []) as User[];
   const kpis = worklogsQuery.data?.kpis || {};
 
-  const isLoading = worklogsQuery.isLoading;
+  const isLoading = worklogsQuery.isLoading && worklogs.length === 0;
   const isFetching = worklogsQuery.isFetching;
   const fetchError = worklogsQuery.error ? (worklogsQuery.error as Error).message : null;
 

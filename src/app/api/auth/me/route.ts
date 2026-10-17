@@ -7,5 +7,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ user: null, error: auth.error }, { status: 401 });
   }
 
-  return NextResponse.json({ user: auth.user });
+  const response = NextResponse.json({ user: auth.user });
+  response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+  return response;
 }

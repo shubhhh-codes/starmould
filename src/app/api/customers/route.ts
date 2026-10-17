@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { invalidateCache } from "@/lib/cache";
+import { getCached, invalidateCache } from "@/lib/cache";
 
 // GET /api/customers - fetch active customers/vendors from Supabase
 export async function GET(req: NextRequest) {
@@ -61,49 +61,64 @@ export async function GET(req: NextRequest) {
     }
 
     // 3. Main listing query with explicit columns and server-side filtering
-    let query = supabaseAdmin
-      .from("customers")
-      .select("id, customername, initials, mobile, mobile1, email, address, usertype, created_at, updated_at", { count: "exact" })
-      .is("deleted_at", null)
-      .order("id", { ascending: false });
+    const isDefaultQuery = !search && (!usertype || usertype === "All" || usertype === "ALL") && (!page || page === 1);
+    const cacheKey = isDefaultQuery ? `customers_default_${limit}` : null;
 
-    if (usertype && usertype !== "All" && usertype !== "ALL") {
-      query = query.eq("usertype", usertype);
-    }
-    if (search) {
-      query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
-    }
+    const executeFetch = async () => {
+      let query = supabaseAdmin
+        .from("customers")
+        .select("id, customername, initials, mobile, mobile1, email, address, usertype, created_at, updated_at", { count: "exact" })
+        .is("deleted_at", null)
+        .order("id", { ascending: false });
 
-    if (page && page > 0) {
-      const start = (page - 1) * limit;
-      query = query.range(start, start + limit - 1);
-    } else {
-      query = query.limit(limit);
-    }
+      if (usertype && usertype !== "All" && usertype !== "ALL") {
+        query = query.eq("usertype", usertype);
+      }
+      if (search) {
+        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
+      }
 
-    const { data, count, error } = await query;
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+      if (page && page > 0) {
+        const start = (page - 1) * limit;
+        query = query.range(start, start + limit - 1);
+      } else {
+        query = query.limit(limit);
+      }
 
-    const customers = data || [];
-    const totalCount = count ?? customers.length;
-    const totalPages = Math.ceil(totalCount / limit) || 1;
-    const currentPage = page || 1;
+      const { data, count, error } = await query;
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      const customers = data || [];
+      const totalCount = count ?? customers.length;
+      const totalPages = Math.ceil(totalCount / limit) || 1;
+      const currentPage = page || 1;
+
+      return {
+        customers,
+        totalCount,
+        totalPages,
+        currentPage,
+        limit,
+      };
+    };
+
+    const result = cacheKey ? await getCached(cacheKey, 30, executeFetch) : await executeFetch();
 
     const response = NextResponse.json({
-      customers,
-      data: customers,
+      customers: result.customers,
+      data: result.customers,
       pagination: {
-        page: currentPage,
-        pageSize: limit,
-        total: totalCount,
-        totalPages,
-        hasNextPage: currentPage < totalPages,
-        hasPreviousPage: currentPage > 1,
+        page: result.currentPage,
+        pageSize: result.limit,
+        total: result.totalCount,
+        totalPages: result.totalPages,
+        hasNextPage: result.currentPage < result.totalPages,
+        hasPreviousPage: result.currentPage > 1,
       },
     });
-    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -192,6 +207,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("customers_default_");
     invalidateCache("shared_customers");
     invalidateCache("api_counts_all");
 
@@ -282,6 +298,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("customers_default_");
     invalidateCache("shared_customers");
     invalidateCache("api_counts_all");
 
@@ -340,6 +357,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("customers_default_");
     invalidateCache("shared_customers");
     invalidateCache("api_counts_all");
 

@@ -44,11 +44,39 @@ const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/settings": "nav_settings", // Admin settings
 };
 
+const PERMS_CACHE_KEY = "starmould_role_perms_cache";
+const ORDERS_CACHE_KEY = "starmould_role_orders_cache";
+
+function getCachedPerms(): { matrix: RolePermissionsMatrix; menuOrders: RoleMenuOrders } | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const rawMatrix = localStorage.getItem(PERMS_CACHE_KEY);
+    const rawOrders = localStorage.getItem(ORDERS_CACHE_KEY);
+    if (rawMatrix) {
+      return {
+        matrix: JSON.parse(rawMatrix),
+        menuOrders: rawOrders ? JSON.parse(rawOrders) : DEFAULT_ROLE_MENU_ORDERS,
+      };
+    }
+  } catch {
+    // Ignore
+  }
+  return null;
+}
+
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
-  const [matrix, setMatrix] = useState<RolePermissionsMatrix>(DEFAULT_ROLE_PERMISSIONS);
-  const [menuOrders, setMenuOrders] = useState<RoleMenuOrders>(DEFAULT_ROLE_MENU_ORDERS);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [matrix, setMatrix] = useState<RolePermissionsMatrix>(() => {
+    const cached = getCachedPerms();
+    return cached ? cached.matrix : DEFAULT_ROLE_PERMISSIONS;
+  });
+  const [menuOrders, setMenuOrders] = useState<RoleMenuOrders>(() => {
+    const cached = getCachedPerms();
+    return cached ? cached.menuOrders : DEFAULT_ROLE_MENU_ORDERS;
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    return typeof window !== "undefined" && getCachedPerms() === null;
+  });
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const fetchPermissions = useCallback(async () => {
@@ -58,9 +86,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         const data = await res.json();
         if (data.permissions) {
           setMatrix(data.permissions);
+          try {
+            localStorage.setItem(PERMS_CACHE_KEY, JSON.stringify(data.permissions));
+          } catch {}
         }
         if (data.menu_orders) {
           setMenuOrders(data.menu_orders);
+          try {
+            localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(data.menu_orders));
+          } catch {}
         }
       }
     } catch (err) {
@@ -173,9 +207,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         if (res.ok) {
           if (data.permissions) {
             setMatrix(data.permissions);
+            try { localStorage.setItem(PERMS_CACHE_KEY, JSON.stringify(data.permissions)); } catch {}
           }
           if (data.menu_orders) {
             setMenuOrders(data.menu_orders);
+            try { localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(data.menu_orders)); } catch {}
           }
           return { success: true };
         }
@@ -206,9 +242,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
         if (res.ok) {
           if (data.permissions) {
             setMatrix(data.permissions);
+            try { localStorage.setItem(PERMS_CACHE_KEY, JSON.stringify(data.permissions)); } catch {}
           }
           if (data.menu_orders) {
             setMenuOrders(data.menu_orders);
+            try { localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(data.menu_orders)); } catch {}
           }
           return { success: true };
         }

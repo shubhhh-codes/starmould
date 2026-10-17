@@ -55,7 +55,7 @@ function PrintingPageContent() {
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
-  const { data, isLoading, error: fetchQueryError, refetch } = usePrintingQuery();
+  const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = usePrintingQuery();
   const createPrintingMutation = useCreatePrintingMutation();
   const updatePrintingMutation = useUpdatePrintingMutation();
   const deletePrintingMutation = useDeletePrintingMutation();
@@ -64,6 +64,7 @@ function PrintingPageContent() {
   const customers = data?.customers || [];
   const users = data?.users || [];
   const gramTiers = data?.gramTiers || [];
+  const isLoading = queryLoading && prints.length === 0;
   const kpis = data?.kpis || {
     totalPrints: 0,
     pendingPrints: 0,

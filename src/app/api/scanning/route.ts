@@ -48,134 +48,152 @@ export async function GET(req: NextRequest) {
       scanQuery = scanQuery.limit(limit);
     }
 
-    // Step 1: Batch fetch scans, cached customers, cached users, and cached KPIs
-    const [scansRes, customers, users, kpis] = await Promise.all([
-      scanQuery,
-      getCachedCustomers(),
-      getCachedUsers(),
-      getCached("scanning_kpi_metrics_v2", 300, async () => {
-        const [
-          totalScansRes,
-          pendingScansRes,
-          missingScannerRes,
-          missingQCRes,
-          missingDesignerRes,
-        ] = await Promise.all([
-          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
-          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
-          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("scan_by.eq.0,scan_by.is.null"),
-          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("qc_by.eq.0,qc_by.is.null"),
-          supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("modeldesign_by.eq.0,modeldesign_by.is.null"),
-        ]);
-        return {
-          totalScans: totalScansRes.count || 0,
-          pendingScans: pendingScansRes.count || 0,
-          missingScanner: missingScannerRes.count || 0,
-          missingQC: missingQCRes.count || 0,
-          missingDesigner: missingDesignerRes.count || 0,
-          totalRevenue: 0,
-        };
-      }),
-    ]);
+    const isDefaultQuery = !search && (!status || status === "ALL") && (!worktype || worktype === "ALL") && (!customer || customer === "ALL") && (!page || page === 1);
+    const cacheKey = isDefaultQuery ? `scanning_default_${limit}` : null;
 
-    if (scansRes.error) {
-      return NextResponse.json({ error: scansRes.error.message }, { status: 500 });
-    }
+    const executeFetch = async () => {
+      // Step 1: Batch fetch scans, cached customers, cached users, and cached KPIs
+      const [scansRes, customers, users, kpis] = await Promise.all([
+        scanQuery,
+        getCachedCustomers(),
+        getCachedUsers(),
+        getCached("scanning_kpi_metrics_v2", 300, async () => {
+          const [
+            totalScansRes,
+            pendingScansRes,
+            missingScannerRes,
+            missingQCRes,
+            missingDesignerRes,
+          ] = await Promise.all([
+            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
+            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
+            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("scan_by.eq.0,scan_by.is.null"),
+            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("qc_by.eq.0,qc_by.is.null"),
+            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("modeldesign_by.eq.0,modeldesign_by.is.null"),
+          ]);
+          return {
+            totalScans: totalScansRes.count || 0,
+            pendingScans: pendingScansRes.count || 0,
+            missingScanner: missingScannerRes.count || 0,
+            missingQC: missingQCRes.count || 0,
+            missingDesigner: missingDesignerRes.count || 0,
+            totalRevenue: 0,
+          };
+        }),
+      ]);
 
-    const scans = scansRes.data || [];
-    const custMap = new Map<string | number, any>();
-    for (const c of customers || []) {
-      custMap.set(c.id, c);
-      custMap.set(String(c.id), c);
-      custMap.set(Number(c.id), c);
-    }
-    const userMap = new Map<string | number, any>();
-    for (const u of users || []) {
-      userMap.set(u.id, u);
-      userMap.set(Number(u.id), u);
-      userMap.set(String(u.id), u);
-    }
-
-    // Step 2: Batch fetch child subplates and worklogs for current scans concurrently
-    const scanIds = scans.map((s: any) => s.id);
-
-    const [subplatesRes, worklogsRes] = await Promise.all([
-      scanIds.length > 0
-        ? supabaseAdmin
-            .from("subplate")
-            .select("id, platename, projectid, subprojectid, material, location, shape, width, height, length, weight, unit, sqty")
-            .in("projectid", scanIds)
-            .is("deleted_at", null)
-        : Promise.resolve({ data: [] }),
-      scanIds.length > 0
-        ? supabaseAdmin
-            .from("worklog")
-            .select("scan_print_id, design_hr, program_hr, machine_hr, driltap_hr, qc_hr, work_hr")
-            .in("scan_print_id", scanIds)
-        : Promise.resolve({ data: [] }),
-    ]);
-
-    const subplateMap: Record<number, any[]> = {};
-    for (const sp of subplatesRes.data || []) {
-      if (!subplateMap[sp.projectid]) subplateMap[sp.projectid] = [];
-      subplateMap[sp.projectid].push(sp);
-    }
-
-    const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
-    for (const w of worklogsRes.data || []) {
-      if (!w.scan_print_id) continue;
-      if (!worklogMap[w.scan_print_id]) {
-        worklogMap[w.scan_print_id] = { scan_hr: 0, model_hr: 0 };
+      if (scansRes.error) {
+        throw new Error(scansRes.error.message);
       }
-      worklogMap[w.scan_print_id].scan_hr += Number(w.machine_hr || 0) + Number(w.driltap_hr || 0);
-      worklogMap[w.scan_print_id].model_hr +=
-        Number(w.design_hr || 0) +
-        Number(w.program_hr || 0) +
-        Number(w.qc_hr || 0);
-    }
 
-    const enriched = scans.map((s: any) => {
-      const cust = custMap.get(s.cname) || custMap.get(Number(s.cname));
-      const scanUser = userMap.get(Number(s.scan_by)) || userMap.get(s.scan_by);
-      const qcUser = userMap.get(Number(s.qc_by)) || userMap.get(s.qc_by);
-      const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
-      const sublist = subplateMap[s.id] || [];
-      const hours = worklogMap[s.id] || { scan_hr: 0, model_hr: 0 };
+      const scans = scansRes.data || [];
+      const custMap = new Map<string | number, any>();
+      for (const c of customers || []) {
+        custMap.set(c.id, c);
+        custMap.set(String(c.id), c);
+        custMap.set(Number(c.id), c);
+      }
+      const userMap = new Map<string | number, any>();
+      for (const u of users || []) {
+        userMap.set(u.id, u);
+        userMap.set(Number(u.id), u);
+        userMap.set(String(u.id), u);
+      }
+
+      // Step 2: Batch fetch child subplates and worklogs for current scans concurrently
+      const scanIds = scans.map((s: any) => s.id);
+
+      const [subplatesRes, worklogsRes] = await Promise.all([
+        scanIds.length > 0
+          ? supabaseAdmin
+              .from("subplate")
+              .select("id, platename, projectid, subprojectid, material, location, shape, width, height, length, weight, unit, sqty")
+              .in("projectid", scanIds)
+              .is("deleted_at", null)
+          : Promise.resolve({ data: [] }),
+        scanIds.length > 0
+          ? supabaseAdmin
+              .from("worklog")
+              .select("scan_print_id, design_hr, program_hr, machine_hr, driltap_hr, qc_hr, work_hr")
+              .in("scan_print_id", scanIds)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const subplateMap: Record<number, any[]> = {};
+      for (const sp of subplatesRes.data || []) {
+        if (!subplateMap[sp.projectid]) subplateMap[sp.projectid] = [];
+        subplateMap[sp.projectid].push(sp);
+      }
+
+      const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
+      for (const w of worklogsRes.data || []) {
+        if (!w.scan_print_id) continue;
+        if (!worklogMap[w.scan_print_id]) {
+          worklogMap[w.scan_print_id] = { scan_hr: 0, model_hr: 0 };
+        }
+        worklogMap[w.scan_print_id].scan_hr += Number(w.machine_hr || 0) + Number(w.driltap_hr || 0);
+        worklogMap[w.scan_print_id].model_hr +=
+          Number(w.design_hr || 0) +
+          Number(w.program_hr || 0) +
+          Number(w.qc_hr || 0);
+      }
+
+      const enriched = scans.map((s: any) => {
+        const cust = custMap.get(s.cname) || custMap.get(Number(s.cname));
+        const scanUser = userMap.get(Number(s.scan_by)) || userMap.get(s.scan_by);
+        const qcUser = userMap.get(Number(s.qc_by)) || userMap.get(s.qc_by);
+        const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
+        const sublist = subplateMap[s.id] || [];
+        const hours = worklogMap[s.id] || { scan_hr: 0, model_hr: 0 };
+
+        return {
+          ...s,
+          customername: cust?.customername || (isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
+          customer_initials: cust?.initials || "",
+          scan_by_name: scanUser?.initials || scanUser?.name || "—",
+          qc_by_name: qcUser?.initials || qcUser?.name || "—",
+          modeldesign_by_name: modelUser?.initials || modelUser?.name || "—",
+          subplates: sublist,
+          subplate_count: sublist.length,
+          calc_scan_hr: hours.scan_hr || s.scan_hr || 0,
+          calc_model_hr: hours.model_hr || s.model_hr || 0,
+        };
+      });
+
+      const totalCount = scansRes.count ?? enriched.length;
+      const totalPages = Math.ceil(totalCount / limit) || 1;
+      const currentPage = page || 1;
 
       return {
-        ...s,
-        customername: cust?.customername || (isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
-        customer_initials: cust?.initials || "",
-        scan_by_name: scanUser?.initials || scanUser?.name || "—",
-        qc_by_name: qcUser?.initials || qcUser?.name || "—",
-        modeldesign_by_name: modelUser?.initials || modelUser?.name || "—",
-        subplates: sublist,
-        subplate_count: sublist.length,
-        calc_scan_hr: hours.scan_hr || s.scan_hr || 0,
-        calc_model_hr: hours.model_hr || s.model_hr || 0,
+        scans: enriched,
+        totalCount,
+        totalPages,
+        currentPage,
+        limit,
+        customers: customers || [],
+        users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
+        kpis,
       };
-    });
+    };
 
-    const totalCount = scansRes.count ?? enriched.length;
-    const totalPages = Math.ceil(totalCount / limit) || 1;
-    const currentPage = page || 1;
+    const result = cacheKey ? await getCached(cacheKey, 20, executeFetch) : await executeFetch();
 
     const response = NextResponse.json({
-      scans: enriched,
-      data: enriched,
+      scans: result.scans,
+      data: result.scans,
       pagination: {
-        page: currentPage,
-        pageSize: limit,
-        total: totalCount,
-        totalPages,
-        hasNextPage: currentPage < totalPages,
-        hasPreviousPage: currentPage > 1,
+        page: result.currentPage,
+        pageSize: result.limit,
+        total: result.totalCount,
+        totalPages: result.totalPages,
+        hasNextPage: result.currentPage < result.totalPages,
+        hasPreviousPage: result.currentPage > 1,
       },
-      customers: customers || [],
-      users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
-      kpis,
+      customers: result.customers,
+      users: result.users,
+      kpis: result.kpis,
     });
-    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -270,6 +288,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("scanning_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
@@ -355,6 +374,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("scanning_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
@@ -395,6 +415,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateCache("scanning_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");

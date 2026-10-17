@@ -62,13 +62,15 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       source: "view_po_pending_inward_qty",
       pendingReceiveItems: pendingReceiveList,
       receipts: enrichedReceipts,
       customers: customers || [],
       subplates: inSubplates || [],
     });
+    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

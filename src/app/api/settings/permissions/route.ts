@@ -24,13 +24,15 @@ export async function GET(req: NextRequest) {
     const permissions = await loadEffectivePermissions();
     const menu_orders = await loadEffectiveMenuOrders();
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       permissions,
       menu_orders,
       userRoleId: auth.user.role_id,
       isAdmin: auth.user.role_id === 0,
     });
+    response.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=300");
+    return response;
   } catch (err) {
     serverLogger.error("GET /api/settings/permissions failed", err, {
       route: "/api/settings/permissions",

@@ -45,7 +45,7 @@ function PurchasePageContent() {
     const searchParams = useSearchParams();
     const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
-    const { data, isLoading } = usePurchasesQuery({
+    const { data, isLoading: queryLoading } = usePurchasesQuery({
         limit: 200,
         includePlates: true,
     });
@@ -56,6 +56,7 @@ function PurchasePageContent() {
     const subplates = (data?.subplates || []) as Subplate[];
     const customers = (data?.customers || []) as Customer[];
     const scans = (data?.scans || []) as ScanProject[];
+    const isLoading = queryLoading && purchases.length === 0;
     const [extraSubplates, setExtraSubplates] = useState<Subplate[]>([]);
 
     const allSubplates = useMemo(() => {

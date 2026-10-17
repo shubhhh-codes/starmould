@@ -42,7 +42,7 @@ import {
 export default function InwardPage() {
     const {
         data,
-        isLoading,
+        isLoading: queryLoading,
         error: fetchQueryError,
         refetch,
     } = useInwardQuery();
@@ -54,6 +54,7 @@ export default function InwardPage() {
     const customers = (data?.customers || []) as Customer[];
     const subplates = (data?.subplates || []) as Subplate[];
     const kpis = data?.kpis || { totalInwards: 0, totalPendingChallanItems: 0 };
+    const isLoading = queryLoading && inwards.length === 0;
     const fetchError = fetchQueryError
         ? (fetchQueryError as Error).message
         : null;

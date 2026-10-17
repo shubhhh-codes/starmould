@@ -45,7 +45,7 @@ export default function ExpensePage() {
 
     const {
         data,
-        isLoading,
+        isLoading: queryLoading,
         error: fetchQueryError,
     } = useExpensesQuery({
         customerid: accountFilter,
@@ -60,6 +60,7 @@ export default function ExpensePage() {
 
     const expenses = data?.expenses || [];
     const customers = data?.accounts || [];
+    const isLoading = queryLoading && expenses.length === 0;
     const kpis = data?.kpis || {
         totalCredit: 0,
         totalDebit: 0,

@@ -6,23 +6,23 @@ import { QueryClient, keepPreviousData } from "@tanstack/react-query";
 export const CACHE_TIERS = {
   // Tier A: Very stable reference data (materials, gram masters, dropdown lookups)
   STABLE: {
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    gcTime: 30 * 60 * 1000,    // 30 minutes
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours (persistent cache lifetime)
   },
   // Tier B: Moderately changing master records (customers, vendors, users directory)
   MODERATE: {
-    staleTime: 2 * 60 * 1000,  // 2 minutes
-    gcTime: 15 * 60 * 1000,    // 15 minutes
+    staleTime: 5 * 60 * 1000,  // 5 minutes
+    gcTime: 24 * 60 * 60 * 1000,
   },
   // Tier C: Operational pipeline (Live projects, subplates, worklogs, challans, dispatch)
   OPERATIONAL: {
-    staleTime: 30 * 1000,      // 30 seconds
-    gcTime: 10 * 60 * 1000,    // 10 minutes
+    staleTime: 60 * 1000,      // 60 seconds
+    gcTime: 24 * 60 * 60 * 1000,
   },
   // Tier D: Sensitive & Dashboard Rollups (KPI counts, user session)
   DASHBOARD: {
-    staleTime: 15 * 1000,      // 15 seconds
-    gcTime: 5 * 60 * 1000,     // 5 minutes
+    staleTime: 45 * 1000,      // 45 seconds
+    gcTime: 24 * 60 * 60 * 1000,
   },
 } as const;
 

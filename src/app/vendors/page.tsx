@@ -117,7 +117,7 @@ function CustomerPageContent() {
     const deleteCustomerMutation = useDeleteCustomerMutation();
 
     const customers = customersQuery.data?.customers || [];
-    const isLoading = customersQuery.isLoading;
+    const isLoading = customersQuery.isLoading && customers.length === 0;
 
     const showNotification = useCallback(
         (type: "success" | "error", message: string) => {
