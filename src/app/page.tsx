@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PipelineStatGrid } from "@/components/dashboard/pipeline-stat-card";
 import { MouldProjectsTable } from "@/components/dashboard/mould-projects-table";
@@ -15,6 +15,11 @@ import { useProjectsQuery, useSubplatesQuery } from "@/lib/query/hooks";
 
 export default function DashboardPage() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Standardized shared cache query hooks matching Scanning and Subplate modules
   const projectsQuery = useProjectsQuery({ pageSize: 500 });
@@ -129,7 +134,7 @@ export default function DashboardPage() {
             onClick={handleRefresh}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer shadow-xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-blue-600" : ""}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${mounted && isFetching ? "animate-spin text-blue-600" : ""}`} />
             <span>Refresh</span>
           </button>
           <Link

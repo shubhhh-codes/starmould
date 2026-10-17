@@ -66,17 +66,9 @@ function getCachedPerms(): { matrix: RolePermissionsMatrix; menuOrders: RoleMenu
 
 export function PermissionsProvider({ children }: { children: React.ReactNode }) {
   const { currentUser } = useAuth();
-  const [matrix, setMatrix] = useState<RolePermissionsMatrix>(() => {
-    const cached = getCachedPerms();
-    return cached ? cached.matrix : DEFAULT_ROLE_PERMISSIONS;
-  });
-  const [menuOrders, setMenuOrders] = useState<RoleMenuOrders>(() => {
-    const cached = getCachedPerms();
-    return cached ? cached.menuOrders : DEFAULT_ROLE_MENU_ORDERS;
-  });
-  const [isLoading, setIsLoading] = useState<boolean>(() => {
-    return typeof window !== "undefined" && getCachedPerms() === null;
-  });
+  const [matrix, setMatrix] = useState<RolePermissionsMatrix>(DEFAULT_ROLE_PERMISSIONS);
+  const [menuOrders, setMenuOrders] = useState<RoleMenuOrders>(DEFAULT_ROLE_MENU_ORDERS);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   const fetchPermissions = useCallback(async () => {
@@ -105,6 +97,11 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
+    const cached = getCachedPerms();
+    if (cached) {
+      setMatrix(cached.matrix);
+      setMenuOrders(cached.menuOrders);
+    }
     fetchPermissions();
   }, [fetchPermissions]);
 
