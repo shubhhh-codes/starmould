@@ -45,6 +45,8 @@ import {
   MapPin,
   Minus,
   Sparkles,
+  Pencil,
+  Check,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
@@ -152,8 +154,9 @@ export function MouldProjectsTable({
     }
   };
 
-  // Add Subplate Modal State
+  // Add / Edit Subplate Modal State
   const [addPlateProject, setAddPlateProject] = useState<ScanProject | null>(null);
+  const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
   const [isSubmittingPlate, setIsSubmittingPlate] = useState(false);
   const [plateForm, setPlateForm] = useState({
     platename: "",
@@ -277,6 +280,7 @@ export function MouldProjectsTable({
   };
 
   const handleOpenAddPlate = (project: ScanProject) => {
+    setEditingSubplate(null);
     setAddPlateProject(project);
     const count = (project.total_plates || 0) + 1;
     setPlateForm({
@@ -291,6 +295,25 @@ export function MouldProjectsTable({
       unit: "mm",
       sqty: "1",
       location: "SM",
+    });
+  };
+
+  const handleOpenEditPlate = (subplate: Subplate, project?: ScanProject | null) => {
+    const proj = project || data.find((d) => String(d.id) === String(subplate.projectid) || d.projectid === String(subplate.projectid)) || null;
+    setEditingSubplate(subplate);
+    setAddPlateProject(proj);
+    setPlateForm({
+      platename: subplate.platename || "",
+      subprojectid: subplate.subprojectid || "",
+      material: subplate.material || "MS-Bright",
+      shape: subplate.shape || "Plate",
+      length: subplate.length !== null && subplate.length !== undefined ? String(subplate.length) : "",
+      width: subplate.width !== null && subplate.width !== undefined ? String(subplate.width) : "",
+      height: subplate.height !== null && subplate.height !== undefined ? String(subplate.height) : "",
+      weight: subplate.weight !== null && subplate.weight !== undefined ? String(subplate.weight) : "",
+      unit: subplate.unit || "mm",
+      sqty: subplate.sqty !== null && subplate.sqty !== undefined ? String(subplate.sqty) : "1",
+      location: subplate.location || "SM",
     });
   };
 
@@ -378,35 +401,88 @@ export function MouldProjectsTable({
 
   const handleSubmitPlate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addPlateProject || !plateForm.platename) return;
+    if (!addPlateProject || !plateForm.platename?.trim()) {
+      alert("Please enter a valid plate name.");
+      return;
+    }
+
+    if (!isPlateFormValid) {
+      alert("Please enter valid, positive dimensions.");
+      return;
+    }
 
     try {
       setIsSubmittingPlate(true);
-      const res = await fetch("/api/subplate", {
-        method: "POST",
+      const isEditing = Boolean(editingSubplate);
+      const url = "/api/subplate";
+      const method = isEditing ? "PUT" : "POST";
+      const payload = isEditing
+        ? {
+            id: editingSubplate!.id,
+            updates: {
+              platename: plateForm.platename.trim(),
+              subprojectid: plateForm.subprojectid?.trim() || undefined,
+              shape: plateForm.shape,
+              material: plateForm.material,
+              length: Number(plateForm.length),
+              width: Number(plateForm.width),
+              height: plateHeightDisabled ? null : Number(plateForm.height),
+              weight: Number(plateForm.weight || "0") || null,
+              unit: plateForm.unit || "mm",
+              sqty: Number(plateForm.sqty || "1"),
+              location: plateForm.location || "SM",
+            },
+          }
+        : {
+            ...plateForm,
+            platename: plateForm.platename.trim(),
+            length: Number(plateForm.length),
+            width: Number(plateForm.width),
+            height: plateHeightDisabled ? null : Number(plateForm.height),
+            weight: Number(plateForm.weight || "0") || null,
+            sqty: Number(plateForm.sqty || "1"),
+            projectid: addPlateProject.id,
+          };
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...plateForm,
-          projectid: addPlateProject.id,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || "Failed to create subplate");
+        throw new Error(err.error || `Failed to ${isEditing ? "update" : "create"} subplate`);
       }
+
+      const resData = await res.json();
+      const plateResult = resData.subplate || resData.data;
 
       // If view modal is open for this same project, refresh its subplates
       if (viewProject && viewProject.id === addPlateProject.id) {
-        await fetchSubplatesForProject(viewProject);
+        if (isEditing && plateResult) {
+          setViewSubplates((prev) =>
+            prev.map((p) => (p.id === editingSubplate!.id ? { ...p, ...plateResult } : p))
+          );
+        } else {
+          await fetchSubplatesForProject(viewProject);
+        }
       }
 
       // Refresh inline accordion cache for this project
-      const createdPlate = await res.json();
-      if (createdPlate?.data) {
+      if (isEditing && plateResult) {
+        setRowSubplatesCache((prev) => {
+          const pid = addPlateProject.id;
+          if (!prev[pid]) return prev;
+          return {
+            ...prev,
+            [pid]: prev[pid].map((p) => (p.id === editingSubplate!.id ? { ...p, ...plateResult } : p)),
+          };
+        });
+      } else if (plateResult) {
         setRowSubplatesCache((prev) => ({
           ...prev,
-          [addPlateProject.id]: [...(prev[addPlateProject.id] || []), createdPlate.data],
+          [addPlateProject.id]: [...(prev[addPlateProject.id] || []), plateResult],
         }));
       } else {
         // Invalidate cache so next toggle or auto-fetch gets freshest
@@ -417,23 +493,40 @@ export function MouldProjectsTable({
         });
       }
 
+      setEditingSubplate(null);
       setAddPlateProject(null);
       onRefresh?.();
     } catch (err: any) {
-      alert("Error adding subplate: " + err.message);
+      alert("Error saving subplate: " + err.message);
     } finally {
       setIsSubmittingPlate(false);
     }
   };
 
-  const handleDeleteSubplate = async (subplateId: number) => {
-    if (!confirm("Delete this subplate?")) return;
+  const handleDeleteSubplate = async (subplateId: number, projectId?: number) => {
+    if (!confirm("Are you sure you want to delete this subplate?")) return;
     try {
       const res = await fetch(`/api/subplate?id=${subplateId}`, {
         method: "DELETE",
       });
       if (res.ok) {
         setViewSubplates((prev) => prev.filter((p) => p.id !== subplateId));
+        setRowSubplatesCache((prev) => {
+          const next = { ...prev };
+          for (const pid of Object.keys(next)) {
+            next[Number(pid)] = (next[Number(pid)] || []).filter((p) => p.id !== subplateId);
+          }
+          return next;
+        });
+        if (projectId) {
+          setData((prev) =>
+            prev.map((d) =>
+              d.id === projectId
+                ? { ...d, total_plates: Math.max(0, (d.total_plates || 1) - 1) }
+                : d
+            )
+          );
+        }
         onRefresh?.();
       } else {
         const err = await res.json();
@@ -1038,6 +1131,7 @@ export function MouldProjectsTable({
                                       <th className="py-2.5 px-3 text-right">Calc Weight</th>
                                       <th className="py-2.5 px-3 text-center">Qty</th>
                                       <th className="py-2.5 px-3 text-center">Status</th>
+                                      <th className="py-2.5 px-3 text-right">Actions</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
@@ -1075,6 +1169,26 @@ export function MouldProjectsTable({
                                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                               Active
                                             </span>
+                                          </td>
+                                          <td className="py-2.5 px-3 text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenEditPlate(sp, project)}
+                                                title="Edit Subplate"
+                                                className="p-1 rounded-md hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                                              >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteSubplate(sp.id, project.id)}
+                                                title="Delete Subplate"
+                                                className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                                              >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
                                           </td>
                                         </tr>
                                       );
@@ -1412,7 +1526,14 @@ export function MouldProjectsTable({
                         </span>
                       </div>
                       <button
-                        onClick={() => handleDeleteSubplate(sp.id)}
+                        onClick={() => handleOpenEditPlate(sp, viewProject)}
+                        title="Edit Subplate"
+                        className="btn-interactive p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteSubplate(sp.id, viewProject.id)}
                         title="Delete Subplate"
                         className="btn-interactive p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                       >
@@ -1427,23 +1548,32 @@ export function MouldProjectsTable({
         )}
       </Drawer>
 
-      {/* Add Subplate Modal */}
+      {/* Add / Edit Subplate Modal */}
       <Modal
-        isOpen={Boolean(addPlateProject)}
-        onClose={() => setAddPlateProject(null)}
+        isOpen={Boolean(addPlateProject || editingSubplate)}
+        onClose={() => {
+          setAddPlateProject(null);
+          setEditingSubplate(null);
+        }}
         maxWidth="xl"
         title={
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-blue-500/10 shrink-0">
-              <Layers className="w-5 h-5 stroke-[2.2]" />
+              {editingSubplate ? (
+                <Pencil className="w-5 h-5 stroke-[2.2]" />
+              ) : (
+                <Layers className="w-5 h-5 stroke-[2.2]" />
+              )}
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 tracking-tight leading-snug">
-                Add Subplate Workpiece
+                {editingSubplate ? "Edit Subplate Workpiece" : "Add Subplate Workpiece"}
               </h3>
               <p className="text-xs text-slate-500">
-                {addPlateProject
-                  ? ("Attach workpiece plate to Mould " + (addPlateProject.projectid || ("#" + addPlateProject.id)))
+                {editingSubplate
+                  ? `Update specifications for "${editingSubplate.platename}"`
+                  : addPlateProject
+                  ? `Attach workpiece plate to Mould ${addPlateProject.projectid || `#${addPlateProject.id}`}`
                   : "Define workpiece dimensions, material and route to shopfloor"}
               </p>
             </div>
@@ -1855,7 +1985,10 @@ export function MouldProjectsTable({
               <MotionButton
                 type="button"
                 variant="outline"
-                onClick={() => setAddPlateProject(null)}
+                onClick={() => {
+                  setAddPlateProject(null);
+                  setEditingSubplate(null);
+                }}
                 className="flex-1 sm:flex-initial h-10 px-4 sm:px-5 rounded-xl text-xs font-semibold"
               >
                 Cancel
@@ -1865,12 +1998,12 @@ export function MouldProjectsTable({
                 variant="primary"
                 disabled={isSubmittingPlate || !isPlateFormValid}
                 isLoading={isSubmittingPlate}
-                loadingText="Adding Plate..."
-                successText="Plate Added!"
+                loadingText={editingSubplate ? "Saving Changes..." : "Adding Plate..."}
+                successText={editingSubplate ? "Saved!" : "Plate Added!"}
                 className="flex-1 sm:flex-initial h-10 px-4 sm:px-5 rounded-xl text-xs font-semibold shadow-sm"
               >
-                <Plus className="w-4 h-4" />
-                <span>Add Subplate</span>
+                {editingSubplate ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                <span>{editingSubplate ? "Save Changes" : "Add Subplate"}</span>
               </MotionButton>
             </div>
           </div>

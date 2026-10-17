@@ -31,6 +31,7 @@ import {
 	Lock,
 	Minus,
 	Check,
+	Pencil,
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
@@ -424,6 +425,7 @@ function SubplatePageContent() {
 
 	// Modal State for Add / Edit Subplate
 	const [isModalOpen, setIsModalOpen] = useState(false);
+	const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
 	const [modalForm, setModalForm] = useState({
 		platename: "",
 		projectid: "",
@@ -438,6 +440,44 @@ function SubplatePageContent() {
 		sqty: "1",
 		location: "SM",
 	});
+
+	const handleOpenAddModal = () => {
+		setEditingSubplate(null);
+		setModalForm({
+			platename: "",
+			projectid: scans[0]?.id ? String(scans[0].id) : "",
+			subprojectid: "",
+			shape: "Plate",
+			width: "",
+			height: "",
+			length: "",
+			weight: "",
+			unit: "mm",
+			material: "MS-Bright",
+			sqty: "1",
+			location: "SM",
+		});
+		setIsModalOpen(true);
+	};
+
+	const handleOpenEditModal = (sp: Subplate) => {
+		setEditingSubplate(sp);
+		setModalForm({
+			platename: sp.platename || "",
+			projectid: sp.projectid ? String(sp.projectid) : "",
+			subprojectid: sp.subprojectid || "",
+			shape: sp.shape || "Plate",
+			width: sp.width !== null && sp.width !== undefined ? String(sp.width) : "",
+			height: sp.height !== null && sp.height !== undefined ? String(sp.height) : "",
+			length: sp.length !== null && sp.length !== undefined ? String(sp.length) : "",
+			weight: sp.weight !== null && sp.weight !== undefined ? String(sp.weight) : "",
+			unit: sp.unit || "mm",
+			material: sp.material || "MS-Bright",
+			sqty: sp.sqty !== null && sp.sqty !== undefined ? String(sp.sqty) : "1",
+			location: sp.location || "SM",
+		});
+		setIsModalOpen(true);
+	};
 
 	// Toggle row expansion for detailed 9-stage stepper
 	const toggleRow = (id: number) => {
@@ -637,29 +677,53 @@ function SubplatePageContent() {
  ).length;
  const uniqueProjects = new Set(subplates.map((sp) => sp.projectid)).size;
 
- // Handle Create Subplate (Live API POST)
- const handleCreate = async (e: React.FormEvent) => {
+ // Handle Create / Update Subplate
+ const handleSubmitModal = async (e: React.FormEvent) => {
  e.preventDefault();
- if (!modalForm.platename || !modalForm.projectid) return;
+ if (!modalForm.platename?.trim() || !modalForm.projectid) {
+ alert("Please enter a plate name and select a project.");
+ return;
+ }
+
+ if (!isModalFormValid) {
+ alert("Please enter valid, positive dimensions.");
+ return;
+ }
 
  try {
  setIsSubmitting(true);
- await createSubplateMutation.mutateAsync(modalForm);
- setIsModalOpen(false);
- setModalForm({
- platename: "",
- projectid: "",
- subprojectid: "",
- shape: "Plate",
- width: "",
- height: "",
- length: "",
- weight: "",
- unit: "mm",
- material: "MS-Bright",
- sqty: "1",
- location: "SM",
+ if (editingSubplate) {
+ await updateSubplateMutation.mutateAsync({
+ id: editingSubplate.id,
+ updates: {
+ platename: modalForm.platename.trim(),
+ projectid: Number(modalForm.projectid),
+ subprojectid: modalForm.subprojectid?.trim() || undefined,
+ shape: modalForm.shape,
+ material: modalForm.material,
+ length: Number(modalForm.length),
+ width: Number(modalForm.width),
+ height: heightDisabled ? null : Number(modalForm.height),
+ weight: Number(modalForm.weight || "0") || null,
+ unit: modalForm.unit || "mm",
+ sqty: Number(modalForm.sqty || "1"),
+ location: modalForm.location || "SM",
+ },
  });
+ } else {
+ await createSubplateMutation.mutateAsync({
+ ...modalForm,
+ platename: modalForm.platename.trim(),
+ projectid: Number(modalForm.projectid),
+ length: Number(modalForm.length),
+ width: Number(modalForm.width),
+ height: heightDisabled ? null : Number(modalForm.height),
+ weight: Number(modalForm.weight || "0") || null,
+ sqty: Number(modalForm.sqty || "1"),
+ });
+ }
+ setIsModalOpen(false);
+ setEditingSubplate(null);
  } catch (err: any) {
  alert("Error: " + err.message);
  } finally {
@@ -729,7 +793,7 @@ function SubplatePageContent() {
 							<span>Export CSV</span>
 						</button>
 						<button
-							onClick={() => setIsModalOpen(true)}
+							onClick={handleOpenAddModal}
 							className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-xs shadow-blue-500/20 text-xs sm:text-sm cursor-pointer"
 						>
 							<Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1084,6 +1148,14 @@ function SubplatePageContent() {
 															</button>
 															<button
 																type="button"
+																onClick={() => handleOpenEditModal(row)}
+																className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+																title="Edit subplate"
+															>
+																<Pencil className="w-3.5 h-3.5" />
+															</button>
+															<button
+																type="button"
 																onClick={() => handleDeleteSubplate(row.id, row.platename)}
 																className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
 																title="Delete subplate"
@@ -1276,6 +1348,14 @@ function SubplatePageContent() {
 												</span>
 												<button
 													type="button"
+													onClick={() => handleOpenEditModal(row)}
+													className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+													title="Edit subplate"
+												>
+													<Pencil className="w-3.5 h-3.5" />
+												</button>
+												<button
+													type="button"
 													onClick={() => handleDeleteSubplate(row.id, row.platename)}
 													className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
 													title="Delete subplate"
@@ -1446,25 +1526,34 @@ function SubplatePageContent() {
  {/* Modal: Add Subplate (Physics-based Spring Modal) */}
 				<Modal
 					isOpen={isModalOpen}
-					onClose={() => setIsModalOpen(false)}
+					onClose={() => {
+						setIsModalOpen(false);
+						setEditingSubplate(null);
+					}}
 					maxWidth="xl"
 					title={
 						<div className="flex items-center gap-3">
 							<div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 text-white flex items-center justify-center shadow-md shadow-blue-500/10 shrink-0">
-								<Layers className="w-5 h-5 stroke-[2.2]" />
+								{editingSubplate ? (
+									<Pencil className="w-5 h-5 stroke-[2.2]" />
+								) : (
+									<Layers className="w-5 h-5 stroke-[2.2]" />
+								)}
 							</div>
 							<div>
 								<h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-snug truncate">
-									Add New Subplate
+									{editingSubplate ? "Edit Subplate Workpiece" : "Add New Subplate"}
 								</h3>
 								<p className="text-[11px] sm:text-xs text-slate-500 truncate">
-									Define workpiece specifications & allocate to project
+									{editingSubplate
+										? `Update specifications for "${editingSubplate.platename}"`
+										: "Define workpiece specifications & allocate to project"}
 								</p>
 							</div>
 						</div>
 					}
 				>
-					<form onSubmit={handleCreate} className="space-y-4">
+					<form onSubmit={handleSubmitModal} className="space-y-4">
 						{/* Group 1: Workpiece Identification & Mould Assignment */}
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
 							<div>
@@ -1902,7 +1991,10 @@ function SubplatePageContent() {
 								<MotionButton
 									type="button"
 									variant="outline"
-									onClick={() => setIsModalOpen(false)}
+									onClick={() => {
+										setIsModalOpen(false);
+										setEditingSubplate(null);
+									}}
 									className="flex-1 sm:flex-initial h-10 px-4 sm:px-5 rounded-xl text-xs font-semibold"
 								>
 									Cancel
@@ -1912,12 +2004,12 @@ function SubplatePageContent() {
 									variant="primary"
 									disabled={isSubmitting || !isModalFormValid}
 									isLoading={isSubmitting}
-									loadingText="Saving..."
-									successText="Subplate Saved!"
+									loadingText={editingSubplate ? "Saving Changes..." : "Saving..."}
+									successText={editingSubplate ? "Saved!" : "Subplate Saved!"}
 									className="flex-1 sm:flex-initial h-10 px-4 sm:px-5 rounded-xl text-xs font-semibold shadow-sm"
 								>
-									<Plus className="w-4 h-4" />
-									<span>Save Subplate</span>
+									{editingSubplate ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+									<span>{editingSubplate ? "Save Changes" : "Save Subplate"}</span>
 								</MotionButton>
 							</div>
 						</div>

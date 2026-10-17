@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { getCached, getCachedScansLookup, getCachedUsers, invalidateCache } from "@/lib/cache";
+import { calculateSubplateWeight } from "@/lib/weight-calculator";
 
 // GET /api/subplate - fetch subplates with project and staff lookups (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
@@ -187,59 +188,123 @@ export async function POST(req: NextRequest) {
       vmc_workby,
     } = body;
 
-    if (!platename || !projectid) {
+    // 1. Strict Plate Name Validation
+    const cleanPlateName = typeof platename === "string" ? platename.trim() : "";
+    if (!cleanPlateName || cleanPlateName.length < 1) {
       return NextResponse.json(
-        { error: "Plate name and Project ID are required" },
+        { error: "Plate name is required and cannot be empty." },
         { status: 400 }
       );
     }
 
-    // Validation: enforce valid, non-zero dimensions
-    const normShape = (shape || "Plate").trim().toLowerCase();
-    const isRound = normShape === "round" || normShape === "round bar";
-    const numLength = Number(length) || 0;
-    const numWidth = Number(width) || 0;
-    const numHeight = Number(height) || 0;
-    const numQty = Number(sqty) || 1;
+    // 2. Strict Project ID Validation & Existence Check
+    const numProjectId = Number(projectid);
+    if (!projectid || isNaN(numProjectId) || numProjectId <= 0) {
+      return NextResponse.json(
+        { error: "A valid positive Mould Project ID is required." },
+        { status: 400 }
+      );
+    }
 
-    if (numLength <= 0 || numWidth <= 0 || (!isRound && numHeight <= 0)) {
+    const { data: scanProject, error: scanErr } = await supabaseAdmin
+      .from("scans")
+      .select("id, projectid")
+      .eq("id", numProjectId)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    if (scanErr || !scanProject) {
+      return NextResponse.json(
+        { error: `Associated Mould Project #${numProjectId} does not exist or has been deleted.` },
+        { status: 400 }
+      );
+    }
+
+    // 3. Strict Dimensions Validation
+    const normShape = (shape || "Plate").trim();
+    const normShapeLower = normShape.toLowerCase();
+    const isRound = normShapeLower === "round" || normShapeLower === "round bar";
+    const numLength = Number(length);
+    const numWidth = Number(width);
+    const numHeight = Number(height);
+    const numQty = parseInt(String(sqty || 1), 10);
+
+    if (isNaN(numLength) || numLength <= 0) {
+      return NextResponse.json(
+        { error: "Invalid length: Length must be a number greater than 0." },
+        { status: 400 }
+      );
+    }
+
+    if (isNaN(numWidth) || numWidth <= 0) {
       return NextResponse.json(
         {
           error: isRound
-            ? "Invalid dimensions: Length and Outer Diameter (OD) must be greater than 0."
-            : "Invalid dimensions: Length, Width, and Thickness/Height must be greater than 0.",
+            ? "Invalid Outer Diameter: OD must be a number greater than 0."
+            : "Invalid width: Width must be a number greater than 0.",
         },
         { status: 400 }
       );
     }
 
-    if (numQty < 1) {
+    if (!isRound && (isNaN(numHeight) || numHeight <= 0)) {
       return NextResponse.json(
-        { error: "Quantity must be at least 1" },
+        { error: "Invalid thickness/height: Height must be a number greater than 0 for plates." },
         { status: 400 }
       );
     }
 
+    if (isNaN(numQty) || numQty < 1) {
+      return NextResponse.json(
+        { error: "Quantity must be an integer of 1 or greater." },
+        { status: 400 }
+      );
+    }
+
+    // 4. Ensure weight is accurately computed if missing or zero
+    let finalWeight = Number(weight) || 0;
+    if (finalWeight <= 0) {
+      finalWeight = calculateSubplateWeight({
+        shape: normShape,
+        material: material || "MS-Bright",
+        length: numLength,
+        width: numWidth,
+        height: isRound ? 0 : numHeight,
+        unit: unit || "mm",
+        quantity: numQty,
+      });
+    }
+
+    // 5. Clean subprojectid
+    let cleanSubprojectId = typeof subprojectid === "string" ? subprojectid.trim() : "";
+    if (!cleanSubprojectId) {
+      const { count } = await supabaseAdmin
+        .from("subplate")
+        .select("id", { count: "exact", head: true })
+        .eq("projectid", numProjectId)
+        .is("deleted_at", null);
+      const nextIndex = (count || 0) + 1;
+      const baseCode = scanProject.projectid || `PRJ${numProjectId}`;
+      cleanSubprojectId = `${baseCode}_${String(nextIndex).padStart(3, "0")}`;
+    }
+
     const now = new Date().toISOString();
-    const generatedSubprojectId =
-      subprojectid?.trim() ||
-      `${platename.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
 
     const { data, error } = await supabaseAdmin
       .from("subplate")
       .insert([
         {
-          platename: platename.trim(),
-          projectid: Number(projectid),
-          subprojectid: generatedSubprojectId,
-          shape: shape || "Plate",
-          width: width ? Number(width) : null,
-          height: height ? Number(height) : null,
-          length: length ? Number(length) : null,
-          weight: weight ? Number(weight) : null,
+          platename: cleanPlateName,
+          projectid: numProjectId,
+          subprojectid: cleanSubprojectId,
+          shape: normShape,
+          width: numWidth,
+          height: isRound ? null : numHeight,
+          length: numLength,
+          weight: finalWeight > 0 ? finalWeight : null,
           unit: unit || "mm",
           material: material || "MS-Bright",
-          sqty: sqty ? Number(sqty) : 1,
+          sqty: numQty,
           location: location || "SM",
           design_by: design_by ? Number(design_by) : null,
           vmc_workby: vmc_workby ? Number(vmc_workby) : null,
@@ -281,8 +346,9 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { id, updates } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: "Missing subplate id" }, { status: 400 });
+    const subplateId = Number(id);
+    if (!id || isNaN(subplateId) || subplateId <= 0) {
+      return NextResponse.json({ error: "Missing or invalid subplate id" }, { status: 400 });
     }
 
     const now = new Date().toISOString();
@@ -299,6 +365,48 @@ export async function PUT(req: NextRequest) {
           : body.value;
       delete updatePayload.field;
       delete updatePayload.value;
+    }
+
+    // Strict validation for updated fields
+    if (updatePayload.platename !== undefined) {
+      const cleanName = String(updatePayload.platename || "").trim();
+      if (!cleanName) {
+        return NextResponse.json({ error: "Plate name cannot be empty." }, { status: 400 });
+      }
+      updatePayload.platename = cleanName;
+    }
+
+    if (updatePayload.length !== undefined) {
+      const l = Number(updatePayload.length);
+      if (isNaN(l) || l <= 0) {
+        return NextResponse.json({ error: "Length must be greater than 0." }, { status: 400 });
+      }
+      updatePayload.length = l;
+    }
+
+    if (updatePayload.width !== undefined) {
+      const w = Number(updatePayload.width);
+      if (isNaN(w) || w <= 0) {
+        return NextResponse.json({ error: "Width/OD must be greater than 0." }, { status: 400 });
+      }
+      updatePayload.width = w;
+    }
+
+    if (updatePayload.height !== undefined && updatePayload.height !== null) {
+      const h = Number(updatePayload.height);
+      const isRound = String(updatePayload.shape || "").toLowerCase().includes("round");
+      if (!isRound && (isNaN(h) || h <= 0)) {
+        return NextResponse.json({ error: "Height/Thickness must be greater than 0." }, { status: 400 });
+      }
+      updatePayload.height = isRound ? null : h;
+    }
+
+    if (updatePayload.sqty !== undefined) {
+      const q = parseInt(String(updatePayload.sqty), 10);
+      if (isNaN(q) || q < 1) {
+        return NextResponse.json({ error: "Quantity must be an integer of 1 or greater." }, { status: 400 });
+      }
+      updatePayload.sqty = q;
     }
 
     // Auto-set per-stage timestamp when the corresponding *_by assignment is set/changed
