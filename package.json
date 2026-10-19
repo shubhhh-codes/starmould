@@ -16,6 +16,7 @@
     "@tanstack/react-query": "^5.103.1",
     "@tanstack/react-query-persist-client": "5.103.1",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.21",
     "@types/bcryptjs": "^2.4.6",
     "@types/lz-string": "^1.3.34",
     "bcryptjs": "^3.0.3",

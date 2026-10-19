@@ -110,6 +110,7 @@ const formatTimestamp = (ts: string | null | undefined): string => {
 import { useAuth, UserSession } from "@/components/providers/auth-provider";
 
 // Compact Interactive Stage Chip with Direct Quick-Assign Popover
+const StageChipPicker = React.memo(
 function StageChipPicker({
 	subplateId,
 	stage,
@@ -381,7 +382,20 @@ function StageChipPicker({
 			)}
 		</div>
 	);
-}
+},
+(prev, next) => {
+	return (
+		prev.subplateId === next.subplateId &&
+		prev.userId === next.userId &&
+		prev.userName === next.userName &&
+		prev.timestamp === next.timestamp &&
+		prev.isAdmin === next.isAdmin &&
+		prev.currentUser?.id === next.currentUser?.id &&
+		prev.stage.key === next.stage.key &&
+		prev.staff === next.staff &&
+		prev.onAssign === next.onAssign
+	);
+});
 
 import { useSearchParams } from "next/navigation";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";

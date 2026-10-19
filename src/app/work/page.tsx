@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   Briefcase,
@@ -232,6 +233,32 @@ export default function WorkPage() {
       return matchQuery && matchCust && matchProj && matchUsr;
     });
   }, [worklogs, historySearch, historyCustomer, historyProject, historyUser]);
+
+  // Virtualizer for Daily Worklog Table (60 FPS rendering)
+  const dailyParentRef = useRef<HTMLDivElement>(null);
+  const dailyVirtualizer = useVirtualizer({
+    count: dailyWorklogs.length,
+    getScrollElement: () => dailyParentRef.current,
+    estimateSize: () => 48,
+    overscan: 10,
+  });
+  const dailyVirtualRows = dailyVirtualizer.getVirtualItems();
+  const dailyTotalSize = dailyVirtualizer.getTotalSize();
+  const dailyPaddingTop = dailyVirtualRows.length > 0 ? dailyVirtualRows[0].start : 0;
+  const dailyPaddingBottom = dailyVirtualRows.length > 0 ? dailyTotalSize - dailyVirtualRows[dailyVirtualRows.length - 1].end : 0;
+
+  // Virtualizer for History Worklog Table (60 FPS rendering)
+  const historyParentRef = useRef<HTMLDivElement>(null);
+  const historyVirtualizer = useVirtualizer({
+    count: historyWorklogs.length,
+    getScrollElement: () => historyParentRef.current,
+    estimateSize: () => 48,
+    overscan: 10,
+  });
+  const historyVirtualRows = historyVirtualizer.getVirtualItems();
+  const historyTotalSize = historyVirtualizer.getTotalSize();
+  const historyPaddingTop = historyVirtualRows.length > 0 ? historyVirtualRows[0].start : 0;
+  const historyPaddingBottom = historyVirtualRows.length > 0 ? historyTotalSize - historyVirtualRows[historyVirtualRows.length - 1].end : 0;
 
   // Department breakdown user summary (Source: pendingwork.blade.php)
   const departmentBreakdown = useMemo(() => {
@@ -488,11 +515,11 @@ export default function WorkPage() {
 
             {/* Daily Table */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto custom-scrollbar">
+              {/* Desktop Table View - Virtualized for 60 FPS */}
+              <div ref={dailyParentRef} className="hidden md:block overflow-x-auto max-h-[650px] overflow-y-auto custom-scrollbar">
                 <table className="w-full min-w-[1100px] text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       <th className="py-3.5 px-4"># ID</th>
                       <th className="py-3.5 px-4">Worker</th>
                       <th className="py-3.5 px-4">Customer</th>
@@ -518,50 +545,66 @@ export default function WorkPage() {
                         </td>
                       </tr>
                     ) : (
-                      dailyWorklogs.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="hover:bg-slate-50/60 transition group"
-                        >
-                          <td className="py-3 px-4 font-mono text-xs text-slate-400">
-                            #{row.id}
-                          </td>
-                          <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
-                            {row.username || `User #${row.userid}`}
-                          </td>
-                          <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                            {row.customername || "—"}
-                          </td>
-                          <td className="py-3 px-4 font-mono font-bold text-xs text-indigo-600 whitespace-nowrap">
-                            {row.projectid}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-xs text-slate-600">
-                            {row.subplateid || "—"}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
-                            {row.workdescription || "—"}
-                          </td>
-                          <td className="py-3 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
-                            {row.starttime}
-                          </td>
-                          <td className="py-3 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
-                            {row.endtime}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                            {row.work_hr}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteWorklog(row.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                              title="Delete worklog"
+                      <>
+                        {dailyPaddingTop > 0 && (
+                          <tr>
+                            <td style={{ height: `${dailyPaddingTop}px` }} colSpan={10} />
+                          </tr>
+                        )}
+                        {dailyVirtualRows.map((virtualRow) => {
+                          const row = dailyWorklogs[virtualRow.index];
+                          if (!row) return null;
+                          return (
+                            <tr
+                              key={row.id}
+                              className="hover:bg-slate-50/60 transition group"
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                              <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                                #{row.id}
+                              </td>
+                              <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                                {row.username || `User #${row.userid}`}
+                              </td>
+                              <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
+                                {row.customername || "—"}
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-xs text-indigo-600 whitespace-nowrap">
+                                {row.projectid}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-xs text-slate-600">
+                                {row.subplateid || "—"}
+                              </td>
+                              <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                                {row.workdescription || "—"}
+                              </td>
+                              <td className="py-3 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
+                                {row.starttime}
+                              </td>
+                              <td className="py-3 px-4 text-xs font-mono text-slate-500 whitespace-nowrap">
+                                {row.endtime}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                                {row.work_hr}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteWorklog(row.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                  title="Delete worklog"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {dailyPaddingBottom > 0 && (
+                          <tr>
+                            <td style={{ height: `${dailyPaddingBottom}px` }} colSpan={10} />
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>
@@ -690,10 +733,10 @@ export default function WorkPage() {
             </div>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="overflow-x-auto custom-scrollbar">
+              <div ref={historyParentRef} className="overflow-x-auto max-h-[650px] overflow-y-auto custom-scrollbar">
                 <table className="w-full min-w-[1000px] text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       <th className="py-3.5 px-4">Date</th>
                       <th className="py-3.5 px-4">Worker</th>
                       <th className="py-3.5 px-4">Customer</th>
@@ -717,44 +760,60 @@ export default function WorkPage() {
                         </td>
                       </tr>
                     ) : (
-                      historyWorklogs.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="hover:bg-slate-50/60 transition group"
-                        >
-                          <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
-                            {formatDateStr(row.rdate)}
-                          </td>
-                          <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
-                            {row.username || `User #${row.userid}`}
-                          </td>
-                          <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
-                            {row.customername}
-                          </td>
-                          <td className="py-3 px-4 font-mono font-bold text-xs text-indigo-600 whitespace-nowrap">
-                            {row.projectid}
-                          </td>
-                          <td className="py-3 px-4 font-mono text-xs text-slate-600">
-                            {row.subplateid || "—"}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 max-w-md truncate">
-                            {row.workdescription}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                            {row.work_hr}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteWorklog(row.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                              title="Delete worklog"
+                      <>
+                        {historyPaddingTop > 0 && (
+                          <tr>
+                            <td style={{ height: `${historyPaddingTop}px` }} colSpan={8} />
+                          </tr>
+                        )}
+                        {historyVirtualRows.map((virtualRow) => {
+                          const row = historyWorklogs[virtualRow.index];
+                          if (!row) return null;
+                          return (
+                            <tr
+                              key={row.id}
+                              className="hover:bg-slate-50/60 transition group"
                             >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))
+                              <td className="py-3 px-4 text-slate-500 whitespace-nowrap text-xs">
+                                {formatDateStr(row.rdate)}
+                              </td>
+                              <td className="py-3 px-4 font-semibold text-slate-800 whitespace-nowrap">
+                                {row.username || `User #${row.userid}`}
+                              </td>
+                              <td className="py-3 px-4 text-slate-700 whitespace-nowrap">
+                                {row.customername}
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-xs text-indigo-600 whitespace-nowrap">
+                                {row.projectid}
+                              </td>
+                              <td className="py-3 px-4 font-mono text-xs text-slate-600">
+                                {row.subplateid || "—"}
+                              </td>
+                              <td className="py-3 px-4 text-slate-600 max-w-md truncate">
+                                {row.workdescription}
+                              </td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                                {row.work_hr}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteWorklog(row.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                  title="Delete worklog"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {historyPaddingBottom > 0 && (
+                          <tr>
+                            <td style={{ height: `${historyPaddingBottom}px` }} colSpan={8} />
+                          </tr>
+                        )}
+                      </>
                     )}
                   </tbody>
                 </table>

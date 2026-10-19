@@ -303,7 +303,7 @@ export function MouldProjectsTable({
   isLoading = false,
   onRefresh,
 }: MouldProjectsTableProps) {
-  const [data, setData] = useState<ScanProject[]>(initialData);
+  const data = initialData;
   const [sorting, setSorting] = useState<SortingState>([
     { id: "rdate", desc: true },
   ]);
@@ -391,9 +391,8 @@ export function MouldProjectsTable({
         body: JSON.stringify({ id: project.id, field: "status", value: nextStatus }),
       });
       if (res.ok) {
-        setData((prev) =>
-          prev.map((d) => (d.id === project.id ? { ...d, status: nextStatus } : d))
-        );
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
         onRefresh?.();
       } else {
         const err = await res.json();
@@ -409,7 +408,8 @@ export function MouldProjectsTable({
     try {
       const res = await fetch(`/api/scanning?id=${project.id}`, { method: "DELETE" });
       if (res.ok) {
-        setData((prev) => prev.filter((d) => d.id !== project.id));
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
         onRefresh?.();
       } else {
         const err = await res.json();
@@ -667,15 +667,6 @@ export function MouldProjectsTable({
         queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
         queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-        if (projectId) {
-          setData((prev) =>
-            prev.map((d) =>
-              d.id === projectId
-                ? { ...d, total_plates: Math.max(0, (d.total_plates || 1) - 1) }
-                : d
-            )
-          );
-        }
         onRefresh?.();
       } else {
         const err = await res.json();
@@ -685,11 +676,6 @@ export function MouldProjectsTable({
       alert("Error deleting subplate");
     }
   };
-
-  // Sync when initialData changes
-  React.useEffect(() => {
-    setData(initialData);
-  }, [initialData]);
 
   // Extract unique filters
   const uniqueCustomers = useMemo(() => {
@@ -886,7 +872,8 @@ export function MouldProjectsTable({
                 try {
                   const res = await fetch(`/api/scanning?id=${item.id}`, { method: "DELETE" });
                   if (res.ok) {
-                    setData((prev) => prev.filter((d) => d.id !== item.id));
+                    queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+                    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
                     onRefresh?.();
                   } else {
                     const err = await res.json();
@@ -1032,11 +1019,9 @@ export function MouldProjectsTable({
                           })
                         )
                       );
-                      setData((prev) =>
-                        prev.map((d) =>
-                          selectedRows.some((s) => s.id === d.id) ? { ...d, status: "completed" } : d
-                        )
-                      );
+                      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+                      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+                      onRefresh?.();
                       setRowSelection({});
                     } catch (err) {
                       alert("Failed to update status");
@@ -1061,7 +1046,9 @@ export function MouldProjectsTable({
                           })
                         )
                       );
-                      setData((prev) => prev.filter((d) => !selectedRows.some((s) => s.id === d.id)));
+                      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+                      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+                      onRefresh?.();
                       setRowSelection({});
                     } catch (err) {
                       alert("Failed to delete moulds");
@@ -1264,7 +1251,8 @@ export function MouldProjectsTable({
                         try {
                           const res = await fetch(`/api/scanning?id=${m.id}`, { method: "DELETE" });
                           if (res.ok) {
-                            setData((prev) => prev.filter((d) => d.id !== m.id));
+                            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+                            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
                             onRefresh?.();
                           } else {
                             const err = await res.json();
