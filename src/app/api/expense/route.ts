@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
 
     const latestBalance = expenses?.[0]?.balance ?? (totalCredit - totalDebit);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       expenses: enrichedExpenses,
       accounts: (accounts || []).filter((c) => c.usertype === "Other" || !c.usertype),
       kpis: {
@@ -67,6 +67,8 @@ export async function GET(req: NextRequest) {
         totalCount: (allExpenses || []).length,
       },
     });
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

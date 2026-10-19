@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, invalidateCache } from "@/lib/cache";
 
 // GET /api/dispatch - fetch dispatches, customers, subplates, scans (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
@@ -27,38 +27,38 @@ export async function GET(req: NextRequest) {
 
     const dIds = (dispatches || []).map((d) => d.id);
 
-    // 2. Fetch dispatch items
-    const { data: items, error: itErr } = await supabaseAdmin
-      .from("dispatch_items")
-      .select("*")
-      .in("dispatchid", dIds);
+    // 2. Fetch dispatch items and customers concurrently
+    const [itemsRes, customers] = await Promise.all([
+      dIds.length > 0
+        ? supabaseAdmin
+            .from("dispatch_items")
+            .select("*")
+            .in("dispatchid", dIds)
+        : Promise.resolve({ data: [], error: null }),
+      getCachedCustomers(),
+    ]);
 
-    if (itErr) {
-      return NextResponse.json({ error: itErr.message }, { status: 500 });
+    if (itemsRes.error) {
+      return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
     }
 
-    // 3. Lookups: customers, subplates, scans
-    const { data: customers } = await supabaseAdmin
-      .from("customers")
-      .select("id, customername, usertype, initials");
+    const items = itemsRes.data || [];
+    const custMap = new Map((customers || []).map((c: any) => [c.id, c.customername]));
 
-    const custMap = new Map((customers || []).map((c) => [c.id, c.customername]));
-
-    const { data: subplates } = await supabaseAdmin
-      .from("subplate")
-      .select("id, platename, projectid, material, sqty, location")
-      .limit(2000);
+    // Query ONLY subplates referenced by the fetched items
+    const itemPlateIds = Array.from(new Set(items.map((it) => it.plateid).filter(Boolean)));
+    const { data: subplates } = itemPlateIds.length > 0
+      ? await supabaseAdmin
+          .from("subplate")
+          .select("id, platename")
+          .in("id", itemPlateIds.slice(0, 500))
+      : { data: [] };
 
     const plateMap = new Map((subplates || []).map((sp) => [sp.id, sp.platename]));
 
-    const { data: scans } = await supabaseAdmin
-      .from("scan")
-      .select("id, description, cname, status")
-      .limit(1000);
-
-    // 4. Enrich dispatches
+    // 3. Enrich dispatches
     const enrichedDispatches = (dispatches || []).map((d) => {
-      const dItems = (items || [])
+      const dItems = items
         .filter((it) => it.dispatchid === d.id)
         .map((it) => ({
           ...it,
@@ -74,12 +74,11 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       dispatches: enrichedDispatches,
-      customers: customers || [],
-      subplates: subplates || [],
-      scans: scans || [],
     });
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

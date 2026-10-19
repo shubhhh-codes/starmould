@@ -81,13 +81,15 @@ export async function GET(req: NextRequest) {
     // Fetch roles table for enrichment
     const { data: roles } = await supabaseAdmin.from("roles").select("*").order("id", { ascending: true });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       users: (users || []).map((u) => ({
         ...u,
         username: u.username ? u.username.toLowerCase() : u.username,
       })),
       roles: roles || [],
     });
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -34,8 +34,8 @@ export async function GET(req: NextRequest) {
     const challanIds = Array.from(new Set((inwards || []).map((i) => i.challanid).filter(Boolean)));
     const inwardIds = (inwards || []).map((i) => i.id);
 
-    // 2. Fetch Customers, Challans, Items, Subplates, and Pending concurrently
-    const [customers, challansRes, itemsRes, subplatesRes, pendingChallansRes] = await Promise.all([
+    // 2. Fetch Customers, Challans, Items, and Pending concurrently
+    const [customers, challansRes, itemsRes, pendingChallansRes] = await Promise.all([
       getCachedCustomers(),
       supabaseAdmin
         .from("challan")
@@ -48,11 +48,6 @@ export async function GET(req: NextRequest) {
             .in("inchallanid", inwardIds.slice(0, 500))
         : Promise.resolve({ data: [] }),
       supabaseAdmin
-        .from("subplate")
-        .select("id, platename, subprojectid, projectid, material, location")
-        .is("deleted_at", null)
-        .limit(2000),
-      supabaseAdmin
         .from("view_pending_inward_qty")
         .select("*")
         .gt("pending_qty", 0)
@@ -61,11 +56,21 @@ export async function GET(req: NextRequest) {
 
     const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
     const challanMap = new Map((challansRes.data || []).map((c) => [c.id, c]));
-    const subplates = subplatesRes.data || [];
-    const subMap = new Map(subplates.map((sp: any) => [sp.id, sp]));
+    const rawItems = itemsRes.data || [];
+
+    // Query ONLY subplates referenced by the fetched inward items
+    const itemPlateIds = Array.from(new Set(rawItems.map((it: any) => it.plateid).filter(Boolean)));
+    const { data: subplates } = itemPlateIds.length > 0
+      ? await supabaseAdmin
+          .from("subplate")
+          .select("id, platename, subprojectid, material")
+          .in("id", itemPlateIds.slice(0, 500))
+      : { data: [] };
+
+    const subMap = new Map((subplates || []).map((sp: any) => [sp.id, sp]));
 
     const itemsMap: Record<number, any[]> = {};
-    for (const item of itemsRes.data || []) {
+    for (const item of rawItems) {
       if (!itemsMap[item.inchallanid]) itemsMap[item.inchallanid] = [];
       itemsMap[item.inchallanid].push(item);
     }
@@ -77,9 +82,9 @@ export async function GET(req: NextRequest) {
       const vendor = custMap.get(inw.vendorid);
       const transporter = custMap.get(inw.vendortid);
       const ch = challanMap.get(inw.challanid);
-      const rawItems = itemsMap[inw.id] || [];
+      const inItems = itemsMap[inw.id] || [];
 
-      const enrichedItems = rawItems.map((it) => {
+      const enrichedItems = inItems.map((it) => {
         const sp = subMap.get(it.plateid);
         return {
           ...it,
@@ -100,16 +105,16 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       inwards: enriched,
-      customers: customers || [],
       pendingChallans: pendingChallans || [],
-      subplates: subplates || [],
       kpis: {
         totalInwards: enriched.length,
         totalPendingChallanItems: (pendingChallans || []).length,
       },
     });
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

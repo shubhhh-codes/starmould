@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedScansLookup, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, invalidateCache } from "@/lib/cache";
 
 // GET /api/challan - Fetch outward challans, child items, pending return status from view_pending_inward_qty, and lookups
 export async function GET(req: NextRequest) {
@@ -33,8 +33,8 @@ export async function GET(req: NextRequest) {
 
     const challanIds = (challans || []).map((c) => c.id);
 
-    // 2. Fetch Customers, Challan Items, Subplates, and Pending Qtys in PARALLEL
-    const [customers, itemsRes, subplatesRes, pendingRowsRes] = await Promise.all([
+    // 2. Fetch Customers, Challan Items, Pending Qtys, and KPI in PARALLEL
+    const [customers, itemsRes, pendingRowsRes, kpiRes] = await Promise.all([
       getCachedCustomers(),
       challanIds.length > 0
         ? supabaseAdmin
@@ -42,25 +42,34 @@ export async function GET(req: NextRequest) {
             .select("*")
             .in("challanid", challanIds.slice(0, 500))
         : Promise.resolve({ data: [] }),
-      supabaseAdmin
-        .from("subplate")
-        .select("id, platename, subprojectid, projectid, material, location")
-        .is("deleted_at", null)
-        .limit(2000),
       challanIds.length > 0
         ? supabaseAdmin
             .from("view_pending_inward_qty")
             .select("id, inward_qty, pending_qty")
             .in("id", challanIds.slice(0, 500))
         : Promise.resolve({ data: [] }),
+      supabaseAdmin
+        .from("challan")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "1"),
     ]);
 
     const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
-    const subplates = subplatesRes.data || [];
-    const subMap = new Map(subplates.map((sp: any) => [sp.id, sp]));
+    const rawItems = itemsRes.data || [];
+
+    // Query ONLY specific subplates referenced by the fetched challan items
+    const itemPlateIds = Array.from(new Set(rawItems.map((it: any) => it.plateid).filter(Boolean)));
+    const { data: subplates } = itemPlateIds.length > 0
+      ? await supabaseAdmin
+          .from("subplate")
+          .select("id, platename, subprojectid, material")
+          .in("id", itemPlateIds.slice(0, 500))
+      : { data: [] };
+
+    const subMap = new Map((subplates || []).map((sp: any) => [sp.id, sp]));
 
     const itemsMap: Record<number, any[]> = {};
-    for (const item of itemsRes.data || []) {
+    for (const item of rawItems) {
       if (!itemsMap[item.challanid]) itemsMap[item.challanid] = [];
       itemsMap[item.challanid].push(item);
     }
@@ -78,10 +87,10 @@ export async function GET(req: NextRequest) {
       const cust = custMap.get(c.customerid);
       const vendor = custMap.get(c.vendorid);
       const transporter = custMap.get(c.vendortid);
-      const rawItems = itemsMap[c.id] || [];
+      const cItems = itemsMap[c.id] || [];
       const pendingInfo = pendingMap[c.id] || { inward_qty: 0, pending_qty: 0 };
 
-      const enrichedItems = rawItems.map((it) => {
+      const enrichedItems = cItems.map((it) => {
         const sp = subMap.get(it.plateid);
         return {
           ...it,
@@ -103,26 +112,14 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Compute KPIs
-    const { count: totalActive } = await supabaseAdmin
-      .from("challan")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "1");
-
-    // 6. Fetch scans lookup for mould projects (cached)
-    const scans = await getCachedScansLookup();
-
     const response = NextResponse.json({
       challans: enriched,
-      customers: customers || [],
-      subplates: subplates || [],
-      scans: scans || [],
       kpis: {
-        totalChallans: totalActive || 0,
+        totalChallans: kpiRes.count || 0,
         activeCount: enriched.length,
       },
     });
-    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

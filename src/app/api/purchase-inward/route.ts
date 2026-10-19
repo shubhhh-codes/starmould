@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { getCachedCustomers } from "@/lib/cache";
 
 // GET /api/purchase-inward - fetch open pending items directly from view_po_pending_inward_qty (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -10,44 +11,54 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1. Query view_po_pending_inward_qty directly (single source of truth)
-    const { data: viewData, error: viewErr } = await supabaseAdmin
-      .from("view_po_pending_inward_qty")
-      .select("*")
-      .gt("pending_qty", 0)
-      .order("id", { ascending: false });
+    // 1. Concurrently query pending inward qty view, recent po_inward receipts, and cached customers
+    const [viewRes, receiptsRes, customers] = await Promise.all([
+      supabaseAdmin
+        .from("view_po_pending_inward_qty")
+        .select("*")
+        .gt("pending_qty", 0)
+        .order("id", { ascending: false }),
+      supabaseAdmin
+        .from("po_inward")
+        .select("*")
+        .order("id", { ascending: false })
+        .limit(50),
+      getCachedCustomers(),
+    ]);
 
-    if (viewErr) {
-      return NextResponse.json({ error: viewErr.message }, { status: 500 });
+    if (viewRes.error) {
+      return NextResponse.json({ error: viewRes.error.message }, { status: 500 });
     }
 
-    const pendingReceiveList = viewData || [];
+    const pendingReceiveList = viewRes.data || [];
+    const receipts = receiptsRes.data || [];
 
-    // 2. Fetch recent inward receipts history from po_inward
-    const { data: receipts } = await supabaseAdmin
-      .from("po_inward")
-      .select("*")
-      .order("id", { ascending: false })
-      .limit(50);
+    const receiptIds = receipts.map((r) => r.id);
+    let receiptItems: any[] = [];
+    let inSubplates: any[] = [];
 
-    const receiptIds = (receipts || []).map((r) => r.id);
-    const { data: receiptItems } = await supabaseAdmin
-      .from("purchase_inward_items")
-      .select("*")
-      .in("inpid", receiptIds);
+    if (receiptIds.length > 0) {
+      const { data: rItems } = await supabaseAdmin
+        .from("purchase_inward_items")
+        .select("*")
+        .in("inpid", receiptIds);
+      receiptItems = rItems || [];
 
-    const { data: customers } = await supabaseAdmin.from("customers").select("id, customername");
+      const inPlateIds = Array.from(new Set(receiptItems.map((it) => it.plateid).filter(Boolean)));
+      if (inPlateIds.length > 0) {
+        const { data: sps } = await supabaseAdmin
+          .from("subplate")
+          .select("id, platename")
+          .in("id", inPlateIds.slice(0, 500));
+        inSubplates = sps || [];
+      }
+    }
+
     const custMap = new Map((customers || []).map((c) => [c.id, c.customername]));
+    const inPlateMap = new Map(inSubplates.map((sp) => [sp.id, sp.platename]));
 
-    const inPlateIds = Array.from(new Set((receiptItems || []).map((it) => it.plateid)));
-    const { data: inSubplates } = await supabaseAdmin
-      .from("subplate")
-      .select("id, platename")
-      .in("id", inPlateIds.slice(0, 500));
-    const inPlateMap = new Map((inSubplates || []).map((sp) => [sp.id, sp.platename]));
-
-    const enrichedReceipts = (receipts || []).map((r) => {
-      const items = (receiptItems || [])
+    const enrichedReceipts = receipts.map((r) => {
+      const items = receiptItems
         .filter((it) => it.inpid === r.id)
         .map((it) => ({
           ...it,
@@ -66,10 +77,8 @@ export async function GET(req: NextRequest) {
       source: "view_po_pending_inward_qty",
       pendingReceiveItems: pendingReceiveList,
       receipts: enrichedReceipts,
-      customers: customers || [],
-      subplates: inSubplates || [],
     });
-    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

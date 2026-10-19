@@ -37,6 +37,10 @@ import {
   useWorklogsQuery,
   useCreateWorklogMutation,
   useDeleteWorklogMutation,
+  useCustomerDropdownQuery,
+  useUserDropdownQuery,
+  useProjectsQuery,
+  useSubplatesByProjectQuery,
 } from "@/lib/query/hooks";
 
 // Helper to format ISO or datetime to YYYY-MM-DD
@@ -76,11 +80,12 @@ export default function WorkPage() {
   const createWorklogMutation = useCreateWorklogMutation();
   const deleteWorklogMutation = useDeleteWorklogMutation();
 
+  const { data: customers = [] } = useCustomerDropdownQuery();
+  const { data: users = [] } = useUserDropdownQuery();
+  const { data: projectsData } = useProjectsQuery({ pageSize: 500 });
+  const scans = (projectsData?.scans || []) as ScanProject[];
+
   const worklogs = (worklogsQuery.data?.worklogs || []) as Worklog[];
-  const customers = (worklogsQuery.data?.customers || []) as Customer[];
-  const scans = (worklogsQuery.data?.scans || []) as ScanProject[];
-  const subplates = (worklogsQuery.data?.subplates || []) as Subplate[];
-  const users = (worklogsQuery.data?.users || []) as User[];
   const kpis = worklogsQuery.data?.kpis || {};
 
   const isLoading = worklogsQuery.isLoading && worklogs.length === 0;
@@ -158,15 +163,14 @@ export default function WorkPage() {
     return scans.find((s) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
   }, [modalForm.projectid, scans]);
 
+  const lookupProjectId = selectedMould?.id || modalForm.projectid || undefined;
+  const { data: dynamicSubplates = [] } = useSubplatesByProjectQuery(lookupProjectId);
+
   // Subplates for selected mould in modal
   const mouldSubplates = useMemo(() => {
     if (!modalForm.projectid) return [];
-    return subplates.filter(
-      (sp) =>
-        sp.projectid === modalForm.projectid ||
-        sp.projectid === String(selectedMould?.id)
-    );
-  }, [modalForm.projectid, subplates, selectedMould]);
+    return dynamicSubplates as Subplate[];
+  }, [modalForm.projectid, dynamicSubplates]);
 
   // Auto-calculated work duration based on start/end date & time
   const calculatedDuration = useMemo(() => {

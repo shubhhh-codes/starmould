@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCached, getCachedCustomers, getCachedScansLookup, getCachedUsers, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedScansLookup, getCachedUsers, invalidateCache } from "@/lib/cache";
 
 // GET /api/worklog - Fetch worklogs with customer, user, scan, and subplate lookups + department statistics
 export async function GET(req: NextRequest) {
@@ -48,19 +48,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Execute worklog query and get cached lookups concurrently
-    const [wRes, customers, users, scans, subplates] = await Promise.all([
+    const [wRes, customers, users, scans] = await Promise.all([
       worklogQuery,
       getCachedCustomers(),
       getCachedUsers(),
       getCachedScansLookup(),
-      getCached("subplates_worklog_lookup", 30, async () => {
-        const { data } = await supabaseAdmin
-          .from("subplate")
-          .select("id, platename, subprojectid, projectid")
-          .is("deleted_at", null)
-          .limit(2000);
-        return data || [];
-      }),
     ]);
 
     if (wRes.error) {
@@ -68,6 +60,19 @@ export async function GET(req: NextRequest) {
     }
 
     const worklogs = wRes.data || [];
+
+    // Query only referenced subplate IDs instead of dumping 2000 plates
+    const subplateIds = Array.from(
+      new Set(worklogs.map((w: any) => w.subplateid).filter(Boolean))
+    );
+    let subplates: any[] = [];
+    if (subplateIds.length > 0) {
+      const { data } = await supabaseAdmin
+        .from("subplate")
+        .select("id, platename, subprojectid, projectid")
+        .in("subprojectid", subplateIds.slice(0, 500));
+      subplates = data || [];
+    }
 
     const custMap = new Map<string | number, any>();
     for (const c of customers || []) {
@@ -136,10 +141,6 @@ export async function GET(req: NextRequest) {
         hasNextPage: currentPage < totalPages,
         hasPreviousPage: currentPage > 1,
       },
-      customers: customers || [],
-      users: (users || []).filter((u: any) => String(u.status) === "1" || u.status === 1),
-      scans: scans || [],
-      subplates: subplates || [],
       kpis: {
         totalEntries: enriched.length,
         totalWorkHours: (totalWorkMinutes / 60).toFixed(1),
@@ -150,7 +151,7 @@ export async function GET(req: NextRequest) {
         totalQCHours: (totalQCMinutes / 60).toFixed(1),
       },
     });
-    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

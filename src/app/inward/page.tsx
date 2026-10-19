@@ -37,6 +37,7 @@ import {
     useInwardQuery,
     useCreateInwardMutation,
     useDeleteInwardMutation,
+    useCustomerDropdownQuery,
 } from "@/lib/query/hooks";
 
 export default function InwardPage() {
@@ -46,12 +47,13 @@ export default function InwardPage() {
         error: fetchQueryError,
         refetch,
     } = useInwardQuery();
+    const { data: customerLookup = [] } = useCustomerDropdownQuery();
     const createInwardMutation = useCreateInwardMutation();
     const deleteInwardMutation = useDeleteInwardMutation();
 
     const inwards = (data?.inwards || []) as Inward[];
     const pendingChallans = (data?.pendingChallans || []) as any[];
-    const customers = (data?.customers || []) as Customer[];
+    const customers = (customerLookup.length > 0 ? customerLookup : (data?.customers || [])) as Customer[];
     const subplates = (data?.subplates || []) as Subplate[];
     const kpis = data?.kpis || { totalInwards: 0, totalPendingChallanItems: 0 };
     const isLoading = queryLoading && inwards.length === 0;

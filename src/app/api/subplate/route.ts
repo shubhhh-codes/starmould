@@ -60,6 +60,17 @@ export async function GET(req: NextRequest) {
       subplateQuery = subplateQuery.limit(limit);
     }
 
+    // Lean mode: when querying by specific projectid (dropdowns/accordions), return immediately without heavy lookups or KPI counts
+    if (projectid && projectid !== "ALL") {
+      const { data: plates, error: pError } = await subplateQuery;
+      if (pError) {
+        return NextResponse.json({ error: pError.message }, { status: 500 });
+      }
+      const leanRes = NextResponse.json({ subplates: plates || [] });
+      leanRes.headers.set("Cache-Control", "private, no-store, must-revalidate");
+      return leanRes;
+    }
+
     const isDefaultQuery = !search && (!material || material === "ALL") && (!location || location === "ALL") && (!projectid || projectid === "ALL") && (!page || page === 1);
     const cacheKey = isDefaultQuery ? `subplate_default_${limit}` : null;
 
@@ -154,7 +165,7 @@ export async function GET(req: NextRequest) {
       users: result.users,
       kpis: result.kpis,
     });
-    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

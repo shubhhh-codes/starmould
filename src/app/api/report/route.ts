@@ -158,7 +158,7 @@ export async function GET(req: NextRequest) {
       workflowCounts,
       totalSubplates,
     });
-    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=30");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

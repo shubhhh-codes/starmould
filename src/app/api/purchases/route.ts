@@ -104,7 +104,7 @@ export async function GET(req: NextRequest) {
       subplates: plates,
       scans: scans,
     });
-    response.headers.set("Cache-Control", "private, max-age=5, stale-while-revalidate=20");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

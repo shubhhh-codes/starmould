@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
         hasPreviousPage: result.currentPage > 1,
       },
     });
-    response.headers.set("Cache-Control", "private, max-age=10, stale-while-revalidate=60");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

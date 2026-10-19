@@ -36,20 +36,29 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
-import { useChallansQuery, useCreateChallanMutation, useDeleteChallanMutation, useSubplatesByProjectQuery } from "@/lib/query/hooks";
+import {
+  useChallansQuery,
+  useCreateChallanMutation,
+  useDeleteChallanMutation,
+  useSubplatesByProjectQuery,
+  useCustomerDropdownQuery,
+  useProjectsQuery,
+} from "@/lib/query/hooks";
 
 function ChallanPageContent() {
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useChallansQuery();
+  const { data: customerLookup = [] } = useCustomerDropdownQuery();
+  const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
   const createChallanMutation = useCreateChallanMutation();
   const deleteChallanMutation = useDeleteChallanMutation();
 
   const challans = (data?.challans || []) as Challan[];
-  const customers = (data?.customers || []) as Customer[];
+  const customers = (customerLookup.length > 0 ? customerLookup : (data?.customers || [])) as Customer[];
   const subplates = (data?.subplates || []) as Subplate[];
-  const scans = (data?.scans || []) as ScanProject[];
+  const scans = (projectsLookup?.scans?.length ? projectsLookup.scans : (data?.scans || [])) as ScanProject[];
   const isLoading = queryLoading && challans.length === 0;
 
   const kpis = data?.kpis || { totalChallans: 0, activeCount: 0 };

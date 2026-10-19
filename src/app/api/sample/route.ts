@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     const reworkPending = enriched.filter((r) => r.worktype === "Rework" && r.status === "pending").length;
     const reworkTotal = enriched.filter((r) => r.worktype === "Rework").length;
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       projects: enriched,
       customers: customers || [],
       users: (users || []).filter((u) => String(u.status) === "1" || u.status === 1),
@@ -105,6 +105,8 @@ export async function GET(req: NextRequest) {
         reworkTotal,
       },
     });
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

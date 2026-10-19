@@ -32,15 +32,16 @@ import type {
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
-import { usePurchaseInwardQuery, useCreatePurchaseInwardMutation } from "@/lib/query/hooks";
+import { usePurchaseInwardQuery, useCreatePurchaseInwardMutation, useCustomerDropdownQuery } from "@/lib/query/hooks";
 
 export default function PurchaseInwardPage() {
     const { data: inwardData, isLoading, refetch } = usePurchaseInwardQuery();
     const createInwardMutation = useCreatePurchaseInwardMutation();
+    const { data: customerData = [] } = useCustomerDropdownQuery();
 
     const purchases: PurchaseOrder[] = [];
     const poInwards = inwardData?.receipts || [];
-    const customers = inwardData?.customers || [];
+    const customers = (customerData.length > 0 ? customerData : inwardData?.customers) || [];
     const subplates = inwardData?.subplates || [];
     const livePendingItems = inwardData?.pendingReceiveItems || null;
 

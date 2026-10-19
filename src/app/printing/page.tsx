@@ -26,7 +26,15 @@ import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
-import { usePrintingQuery, useCreatePrintingMutation, useUpdatePrintingMutation, useDeletePrintingMutation } from "@/lib/query/hooks";
+import {
+  usePrintingQuery,
+  useCreatePrintingMutation,
+  useUpdatePrintingMutation,
+  useDeletePrintingMutation,
+  useCustomerDropdownQuery,
+  useUserDropdownQuery,
+  useGramTiersQuery,
+} from "@/lib/query/hooks";
 
 // Dynamic Gram pricing calculation matching legacy PrintingController.php:170-183
 // Authentic legacy query: where("lessthan", ">=", $gram)->where("graterthan", "<=", $gram)
@@ -60,10 +68,14 @@ function PrintingPageContent() {
   const updatePrintingMutation = useUpdatePrintingMutation();
   const deletePrintingMutation = useDeletePrintingMutation();
 
+  const { data: customerData = [] } = useCustomerDropdownQuery();
+  const { data: userData = [] } = useUserDropdownQuery();
+  const { data: gramTierData = [] } = useGramTiersQuery();
+
   const prints = data?.prints || [];
-  const customers = data?.customers || [];
-  const users = data?.users || [];
-  const gramTiers = data?.gramTiers || [];
+  const customers = (customerData.length > 0 ? customerData : data?.customers) || [];
+  const users = (userData.length > 0 ? userData : data?.users) || [];
+  const gramTiers = (gramTierData.length > 0 ? gramTierData : data?.gramTiers) || [];
   const isLoading = queryLoading && prints.length === 0;
   const kpis = data?.kpis || {
     totalPrints: 0,

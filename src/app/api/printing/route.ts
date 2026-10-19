@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedUsers, invalidateCache } from "@/lib/cache";
 
 // Helper: Calculate amount from grams using dynamic gram_calc table
 async function calculateGramAmount(gram: number): Promise<number> {
@@ -49,16 +49,17 @@ export async function GET(req: NextRequest) {
       query = query.eq("status", status);
     }
 
-    const { data: printRows, error: pErr } = await query;
-    if (pErr) {
-      return NextResponse.json({ error: pErr.message }, { status: 500 });
+    const [pRes, customers, users] = await Promise.all([
+      query,
+      getCachedCustomers(),
+      getCachedUsers(),
+    ]);
+
+    if (pRes.error) {
+      return NextResponse.json({ error: pRes.error.message }, { status: 500 });
     }
 
-    // Fetch customers lookup
-    const { data: customers } = await supabaseAdmin
-      .from("customers")
-      .select("id, customername, initials, usertype")
-      .is("deleted_at", null);
+    const printRows = pRes.data || [];
 
     const custMap = new Map<string | number, any>();
     for (const c of customers || []) {
@@ -67,19 +68,7 @@ export async function GET(req: NextRequest) {
       custMap.set(Number(c.id), c);
     }
 
-    // Fetch active users for staff dropdown
-    const { data: users } = await supabaseAdmin
-      .from("users")
-      .select("id, name, username, initials, status, role_id")
-      .is("deleted_at", null);
-
     const userMap = new Map((users || []).map((u) => [Number(u.id), u]));
-
-    // Fetch gram calculation tiers for client-side simulator
-    const { data: gramTiers } = await supabaseAdmin
-      .from("gram_calc")
-      .select("*")
-      .order("graterthan", { ascending: true });
 
     const enriched = (printRows || []).map((p) => {
       const cust = custMap.get(p.cname) || custMap.get(Number(p.cname));
@@ -104,11 +93,8 @@ export async function GET(req: NextRequest) {
       0
     );
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       prints: enriched,
-      customers: customers || [],
-      users: (users || []).filter((u) => String(u.status) === "1" || u.status === 1),
-      gramTiers: gramTiers || [],
       kpis: {
         totalPrints,
         pendingPrints,
@@ -116,6 +102,8 @@ export async function GET(req: NextRequest) {
         totalRevenue,
       },
     });
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

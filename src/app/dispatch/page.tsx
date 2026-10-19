@@ -33,26 +33,19 @@ import type {
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
-import { useDispatchQuery, useCreateDispatchMutation, useDeleteDispatchMutation } from "@/lib/query/hooks";
+import {
+  useDispatchQuery,
+  useCreateDispatchMutation,
+  useDeleteDispatchMutation,
+  useCustomerDropdownQuery,
+  useProjectsQuery,
+  useSubplatesByProjectQuery,
+} from "@/lib/query/hooks";
 
 export default function DispatchPage() {
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
-  const createDispatchMutation = useCreateDispatchMutation();
-  const deleteDispatchMutation = useDeleteDispatchMutation();
-
-  const dispatches = data?.dispatches || [];
-  const customers = data?.customers || [];
-  const subplates = data?.subplates || [];
-  const scans = data?.scans || [];
-  const isLoading = queryLoading && dispatches.length === 0;
-  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
-
-  const [searchQuery, setSearchQuery] = useState("");
-  const [customerFilter, setCustomerFilter] = useState("ALL");
-  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
-
-  // Add Dispatch Challan Modal State (Source: dispatch/index.blade.php lines 96-280)
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { data: customerLookup = [] } = useCustomerDropdownQuery();
+  const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
   const [modalForm, setModalForm] = useState<{
     chdate: string;
     customerid: string;
@@ -84,11 +77,27 @@ export default function DispatchPage() {
     vehicleno: "",
     deliverytype: "Door Delivery",
     freightmode: "To Pay",
-    freightcharge: "N/A",
+    freightcharge: "",
     noofcases: "1",
     items: [],
   });
+  const { data: dynamicSubplates = [] } = useSubplatesByProjectQuery(modalForm.projectid || undefined);
+  const createDispatchMutation = useCreateDispatchMutation();
+  const deleteDispatchMutation = useDeleteDispatchMutation();
 
+  const dispatches = data?.dispatches || [];
+  const customers = customerLookup.length > 0 ? customerLookup : (data?.customers || []);
+  const scans = projectsLookup?.scans?.length ? projectsLookup.scans : (data?.scans || []);
+  const subplates = dynamicSubplates.length > 0 ? dynamicSubplates : (data?.subplates || []);
+  const isLoading = queryLoading && dispatches.length === 0;
+  const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("ALL");
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+
+  // Add Dispatch Challan Modal State (Source: dispatch/index.blade.php lines 96-280)
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Filtered dropdown lists strictly based on legacy usertype

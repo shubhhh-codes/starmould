@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     }
 
     const response = NextResponse.json({ tiers: data || [] });
-    response.headers.set("Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+    response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
