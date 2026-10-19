@@ -36,7 +36,7 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
-import { useChallansQuery, useCreateChallanMutation, useDeleteChallanMutation } from "@/lib/query/hooks";
+import { useChallansQuery, useCreateChallanMutation, useDeleteChallanMutation, useSubplatesByProjectQuery } from "@/lib/query/hooks";
 
 function ChallanPageContent() {
   const searchParams = useSearchParams();
@@ -51,14 +51,6 @@ function ChallanPageContent() {
   const subplates = (data?.subplates || []) as Subplate[];
   const scans = (data?.scans || []) as ScanProject[];
   const isLoading = queryLoading && challans.length === 0;
-  const [extraSubplates, setExtraSubplates] = useState<Subplate[]>([]);
-
-  const allSubplates = useMemo(() => {
-    const map = new Map<number, Subplate>();
-    subplates.forEach((s) => map.set(s.id, s));
-    extraSubplates.forEach((s) => map.set(s.id, s));
-    return Array.from(map.values());
-  }, [subplates, extraSubplates]);
 
   const kpis = data?.kpis || { totalChallans: 0, activeCount: 0 };
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
@@ -125,6 +117,16 @@ function ChallanPageContent() {
     return scans.find((s: ScanProject) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
   }, [scans, modalForm.projectid]);
 
+  const lookupProjectId = selectedScan ? selectedScan.id : (modalForm.projectid || undefined);
+  const { data: dynamicSubplates = [] } = useSubplatesByProjectQuery(lookupProjectId);
+
+  const allSubplates = useMemo(() => {
+    const map = new Map<number, Subplate>();
+    subplates.forEach((s) => map.set(s.id, s));
+    dynamicSubplates.forEach((s) => map.set(s.id, s));
+    return Array.from(map.values());
+  }, [subplates, dynamicSubplates]);
+
   // Available subplates for selected project with pending outward quantity
   const availablePlates = useMemo(() => {
     if (!modalForm.projectid) return [];
@@ -136,26 +138,6 @@ function ChallanPageContent() {
         (sp.subprojectid && sp.subprojectid.includes(modalForm.projectid))
     );
   }, [allSubplates, modalForm.projectid, selectedScan]);
-
-  // Dynamically load subplates for chosen mould if not present in client cache
-  React.useEffect(() => {
-    if (!modalForm.projectid) return;
-    const scan = selectedScan || scans.find((s: ScanProject) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid);
-    const lookupId = scan ? scan.id : modalForm.projectid;
-    
-    fetch(`/api/subplate?projectid=${lookupId}&limit=500`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.subplates && data.subplates.length > 0) {
-          setExtraSubplates((prev) => {
-            const existing = new Set(prev.map((p) => p.id));
-            const fresh = data.subplates.filter((p: Subplate) => !existing.has(p.id));
-            return fresh.length > 0 ? [...prev, ...fresh] : prev;
-          });
-        }
-      })
-      .catch((err) => console.error("Error loading project subplates:", err));
-  }, [modalForm.projectid, selectedScan, scans]);
 
   // Expand / collapse child items row
   const toggleRow = (id: number) => {

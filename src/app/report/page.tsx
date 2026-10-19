@@ -30,6 +30,7 @@ import {
     TableSkeletonRows,
     CardGridSkeleton,
 } from "@/components/ui/skeleton";
+import { useReportMetricsQuery } from "@/lib/query/hooks";
 
 // Exact 7 downtime/hour categories tracked in ReportController.php
 export interface MonthDowntimeHourRecord {
@@ -45,17 +46,10 @@ export interface MonthDowntimeHourRecord {
 }
 
 export default function ReportPage() {
-    const [records, setRecords] = useState<MonthDowntimeHourRecord[]>([]);
-    const [workflowCounts, setWorkflowCounts] = useState<{
-        pulpMould: number;
-        tf: number;
-        rework: number;
-        machinePart: number;
-        accessories: number;
-        sample: number;
-        other: number;
-        totalProjects: number;
-    }>({
+    const { data: reportData, isLoading, refetch } = useReportMetricsQuery();
+
+    const records = (reportData?.downtimeRecords || []) as MonthDowntimeHourRecord[];
+    const workflowCounts = reportData?.workflowCounts || {
         pulpMould: 0,
         tf: 0,
         rework: 0,
@@ -64,40 +58,9 @@ export default function ReportPage() {
         sample: 0,
         other: 0,
         totalProjects: 0,
-    });
-    const [totalSubplates, setTotalSubplates] = useState(0);
-    const [totalWorklogs, setTotalWorklogs] = useState(0);
-    const [isLoading, setIsLoading] = useState(true);
-
-    const fetchReportData = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            const res = await fetch("/api/report");
-            const data = await res.json();
-            if (res.ok) {
-                if (Array.isArray(data.downtimeRecords)) {
-                    setRecords(data.downtimeRecords);
-                }
-                if (data.workflowCounts) {
-                    setWorkflowCounts(data.workflowCounts);
-                }
-                if (data.totalSubplates !== undefined) {
-                    setTotalSubplates(data.totalSubplates);
-                }
-                if (data.totalWorklogs !== undefined) {
-                    setTotalWorklogs(data.totalWorklogs);
-                }
-            }
-        } catch (err) {
-            console.error("Failed to load report data:", err);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchReportData();
-    }, [fetchReportData]);
+    };
+    const totalSubplates = reportData?.totalSubplates ?? 0;
+    const totalWorklogs = reportData?.totalWorklogs ?? 0;
 
     // Totals for summary breakdown
     const totalVmc = records.reduce((acc, r) => acc + (r.vmc || 0), 0);
@@ -242,7 +205,7 @@ export default function ReportPage() {
                     </div>
 
                     <button
-                        onClick={fetchReportData}
+                        onClick={() => refetch()}
                         disabled={isLoading}
                         className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
                     >

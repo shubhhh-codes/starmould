@@ -21,6 +21,12 @@ import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { Modal, ConfirmDialog } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { formatCurrency } from "@/lib/utils";
+import {
+    useGramTiersQuery,
+    useCreateGramMutation,
+    useUpdateGramMutation,
+    useDeleteGramMutation,
+} from "@/lib/query/hooks";
 
 export interface GramTier {
     id: number;
@@ -31,14 +37,19 @@ export interface GramTier {
 }
 
 export default function GramMasterPage() {
-    const [tiers, setTiers] = useState<GramTier[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { data: tiersData = [], isLoading, refetch } = useGramTiersQuery();
+    const createMutation = useCreateGramMutation();
+    const updateMutation = useUpdateGramMutation();
+    const deleteMutation = useDeleteGramMutation();
+
+    const tiers = tiersData as GramTier[];
+    const isSubmitting = createMutation.isPending || updateMutation.isPending;
+    const isDeleting = deleteMutation.isPending;
+
     const [testWeight, setTestWeight] = useState<number>(240);
     const [showModal, setShowModal] = useState(false);
     const [editingTier, setEditingTier] = useState<GramTier | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<GramTier | null>(null);
-    const [isDeleting, setIsDeleting] = useState(false);
     const [notification, setNotification] = useState<{
         type: "success" | "error";
         message: string;
@@ -58,35 +69,6 @@ export default function GramMasterPage() {
             );
         }, 4000);
     };
-
-    // Live fetch from Supabase gram_calc table
-    const fetchTiers = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            const res = await fetch("/api/gram");
-            const data = await res.json();
-            if (res.ok && Array.isArray(data.tiers)) {
-                setTiers(data.tiers);
-            } else {
-                showNotification(
-                    "error",
-                    data.error || "Failed to load gram tiers",
-                );
-            }
-        } catch (err: unknown) {
-            const msg =
-                err instanceof Error
-                    ? err.message
-                    : "Failed to load gram tiers";
-            showNotification("error", msg);
-        } finally {
-            setIsLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        fetchTiers();
-    }, [fetchTiers]);
 
     // Price Calculation Logic matching legacy PrintingController store formula:
     // if ($fix != 0) { $amount = $fix; } else { $amount = $multiply * $gram; }
@@ -147,57 +129,22 @@ export default function GramMasterPage() {
         }
 
         try {
-            setIsSubmitting(true);
             if (editingTier) {
-                const res = await fetch("/api/gram", {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        id: editingTier.id,
-                        graterthan: formMin,
-                        lessthan: formMax,
-                        fix: formFix,
-                        multiply: formMultiply,
-                    }),
+                await updateMutation.mutateAsync({
+                    id: editingTier.id,
+                    graterthan: formMin,
+                    lessthan: formMax,
+                    fix: formFix,
+                    multiply: formMultiply,
                 });
-                const result = await res.json();
-                if (!res.ok) {
-                    showNotification(
-                        "error",
-                        result.error || "Failed to update tier",
-                    );
-                    return;
-                }
-                setTiers((prev) =>
-                    prev.map((t) =>
-                        t.id === editingTier.id ? result.tier : t,
-                    ),
-                );
                 showNotification("success", "Gram tier updated successfully.");
             } else {
-                const res = await fetch("/api/gram", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        graterthan: formMin,
-                        lessthan: formMax,
-                        fix: formFix,
-                        multiply: formMultiply,
-                    }),
+                await createMutation.mutateAsync({
+                    graterthan: formMin,
+                    lessthan: formMax,
+                    fix: formFix,
+                    multiply: formMultiply,
                 });
-                const result = await res.json();
-                if (!res.ok) {
-                    showNotification(
-                        "error",
-                        result.error || "Failed to create tier",
-                    );
-                    return;
-                }
-                setTiers((prev) =>
-                    [...prev, result.tier].sort(
-                        (a, b) => a.graterthan - b.graterthan,
-                    ),
-                );
                 showNotification(
                     "success",
                     "Gram pricing tier added successfully.",
@@ -208,35 +155,19 @@ export default function GramMasterPage() {
             const msg =
                 err instanceof Error ? err.message : "Failed to save tier";
             showNotification("error", msg);
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
         try {
-            setIsDeleting(true);
-            const res = await fetch(`/api/gram?id=${deleteTarget.id}`, {
-                method: "DELETE",
-            });
-            const result = await res.json();
-            if (!res.ok) {
-                showNotification(
-                    "error",
-                    result.error || "Failed to delete tier",
-                );
-                return;
-            }
-            setTiers((prev) => prev.filter((t) => t.id !== deleteTarget.id));
+            await deleteMutation.mutateAsync(deleteTarget.id);
             showNotification("success", "Weight tier deleted successfully.");
             setDeleteTarget(null);
         } catch (err: unknown) {
             const msg =
                 err instanceof Error ? err.message : "Failed to delete tier";
             showNotification("error", msg);
-        } finally {
-            setIsDeleting(false);
         }
     };
 
@@ -294,7 +225,7 @@ export default function GramMasterPage() {
 
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={fetchTiers}
+                            onClick={() => refetch()}
                             disabled={isLoading}
                             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
                             title="Refresh tiers from database"

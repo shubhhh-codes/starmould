@@ -32,48 +32,17 @@ import type {
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { usePurchaseInwardQuery, useCreatePurchaseInwardMutation } from "@/lib/query/hooks";
 
 export default function PurchaseInwardPage() {
-    const [purchases, setPurchases] = useState<PurchaseOrder[]>([]);
-    const [poInwards, setPoInwards] = useState<PurchaseInwardReceipt[]>([]);
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [subplates, setSubplates] = useState<Subplate[]>([]);
-    const [livePendingItems, setLivePendingItems] = useState<
-        ViewPoPendingInwardQty[] | null
-    >(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const { data: inwardData, isLoading, refetch } = usePurchaseInwardQuery();
+    const createInwardMutation = useCreatePurchaseInwardMutation();
 
-    // Live Supabase fetch for pending inward items and inward receipts
-    const fetchInwardData = async () => {
-        try {
-            setIsLoading(true);
-            const res = await fetch("/api/purchase-inward");
-            const data = await res.json();
-            if (data.pendingReceiveItems) {
-                setLivePendingItems(data.pendingReceiveItems);
-            }
-            if (data.receipts) {
-                setPoInwards(data.receipts);
-            }
-            if (data.customers) {
-                setCustomers(data.customers);
-            }
-            if (data.subplates) {
-                setSubplates(data.subplates);
-            }
-        } catch (err) {
-            console.error(
-                "Failed to load live purchase inward from Supabase:",
-                err,
-            );
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    React.useEffect(() => {
-        fetchInwardData();
-    }, []);
+    const purchases: PurchaseOrder[] = [];
+    const poInwards = inwardData?.receipts || [];
+    const customers = inwardData?.customers || [];
+    const subplates = inwardData?.subplates || [];
+    const livePendingItems = inwardData?.pendingReceiveItems || null;
 
     // Navigation Tabs: Pending Receive vs. Received Inward History
     const [activeTab, setActiveTab] = useState<
@@ -263,44 +232,30 @@ export default function PurchaseInwardPage() {
         }
 
         try {
-            setIsLoading(true);
-            const res = await fetch("/api/purchase-inward", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    pid: selectedPendingPO.id,
-                    inpono: receiveForm.inpono.trim() || null,
-                    cname: selectedPendingPO.cname,
-                    vname: selectedPendingPO.vname,
-                    projectid: selectedPendingPO.projectid,
-                    odate: receiveForm.odate,
-                    items: [
-                        {
-                            plateid: selectedPendingPO.plateid,
-                            material: selectedPendingPO.material,
-                            imaterial: selectedPendingPO.material,
-                            materialtype: selectedPendingPO.materialtype,
-                            qty: selectedPendingPO.qty,
-                            inward_qty: receivingQty,
-                        },
-                    ],
-                }),
+            await createInwardMutation.mutateAsync({
+                pid: selectedPendingPO.id,
+                inpono: receiveForm.inpono.trim() || null,
+                cname: selectedPendingPO.cname,
+                vname: selectedPendingPO.vname,
+                projectid: selectedPendingPO.projectid,
+                odate: receiveForm.odate,
+                items: [
+                    {
+                        plateid: selectedPendingPO.plateid,
+                        material: selectedPendingPO.material,
+                        imaterial: selectedPendingPO.material,
+                        materialtype: selectedPendingPO.materialtype,
+                        qty: selectedPendingPO.qty,
+                        inward_qty: receivingQty,
+                    },
+                ],
             });
 
-            if (!res.ok) {
-                const data = await res.json();
-                setReceiveError(data.error || "Failed to record receipt");
-                return;
-            }
-
             setIsReceiveModalOpen(false);
-            await fetchInwardData();
         } catch (err: unknown) {
             const message =
                 err instanceof Error ? err.message : "Error saving receipt";
             setReceiveError(message);
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -1228,7 +1183,7 @@ export default function PurchaseInwardPage() {
                                 </button>
                                 <MotionButton
                                     type="submit"
-                                    loading={isLoading}
+                                    loading={createInwardMutation.isPending}
                                     variant="primary"
                                     size="sm"
                                 >

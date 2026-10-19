@@ -39,6 +39,7 @@ import {
     usePurchasesQuery,
     useCreatePurchaseMutation,
     useDeletePurchaseMutation,
+    useSubplatesByProjectQuery,
 } from "@/lib/query/hooks";
 
 function PurchasePageContent() {
@@ -57,14 +58,6 @@ function PurchasePageContent() {
     const customers = (data?.customers || []) as Customer[];
     const scans = (data?.scans || []) as ScanProject[];
     const isLoading = queryLoading && purchases.length === 0;
-    const [extraSubplates, setExtraSubplates] = useState<Subplate[]>([]);
-
-    const allSubplates = useMemo(() => {
-        const map = new Map<number, Subplate>();
-        subplates.forEach((s) => map.set(s.id, s));
-        extraSubplates.forEach((s) => map.set(s.id, s));
-        return Array.from(map.values());
-    }, [subplates, extraSubplates]);
 
     // Navigation Tabs: All Purchase Orders vs. Pending Purchase (needing PO)
     const [activeTab, setActiveTab] = useState<"orders" | "pending_plates">(
@@ -145,6 +138,16 @@ function PurchasePageContent() {
         );
     }, [scans, formData.projectid]);
 
+    const lookupProjectId = selectedScan ? selectedScan.id : (formData.projectid || undefined);
+    const { data: dynamicSubplates = [] } = useSubplatesByProjectQuery(lookupProjectId);
+
+    const allSubplates = useMemo(() => {
+        const map = new Map<number, Subplate>();
+        subplates.forEach((s) => map.set(s.id, s));
+        dynamicSubplates.forEach((s) => map.set(s.id, s));
+        return Array.from(map.values());
+    }, [subplates, dynamicSubplates]);
+
     // Subplates matching the selected mould in Add modal
     // Source: CustomerController.php:294-297 (getprojectsubplates):
     // ScanningModel::join('subplate', 'scan.id', '=', 'subplate.projectid')->where('scan.projectid', $request->projectid)
@@ -159,39 +162,6 @@ function PurchasePageContent() {
                     sp.subprojectid.includes(formData.projectid)),
         );
     }, [allSubplates, formData.projectid, selectedScan]);
-
-    // Dynamically load subplates for chosen mould if not present in client cache
-    React.useEffect(() => {
-        if (!formData.projectid) return;
-        const scan =
-            selectedScan ||
-            scans.find(
-                (s) =>
-                    s.projectid === formData.projectid ||
-                    String(s.id) === formData.projectid,
-            );
-        const lookupId = scan ? scan.id : formData.projectid;
-
-        fetch(`/api/subplate?projectid=${lookupId}&limit=500`)
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-                if (data?.subplates && data.subplates.length > 0) {
-                    setExtraSubplates((prev) => {
-                        const existing = new Set(prev.map((p) => p.id));
-                        const fresh = data.subplates.filter(
-                            (p: Subplate) => !existing.has(p.id),
-                        );
-                        return fresh.length > 0 ? [...prev, ...fresh] : prev;
-                    });
-                }
-            })
-            .catch((err) =>
-                console.error(
-                    "Error loading mould subplates in Purchase:",
-                    err,
-                ),
-            );
-    }, [formData.projectid, selectedScan, scans]);
 
     // Distinct projects available from scans & purchases for table filters
     const availableProjects = useMemo(() => {

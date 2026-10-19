@@ -65,6 +65,9 @@ import {
 } from "@/lib/weight-calculator";
 import { useSmartPrefetch } from "@/lib/query/prefetch";
 import { useLongPress } from "@/lib/hooks/use-long-press";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSubplatesByProjectQuery } from "@/lib/query/hooks";
+import { queryKeys } from "@/lib/query/keys";
 
 const REAL_MATERIALS = [
   "MS-Bright",
@@ -94,6 +97,199 @@ const REAL_MATERIALS = [
 
 const SHAPES = SUPPORTED_SHAPES;
 
+function ProjectSubplatesRow({
+  project,
+  columnsCount,
+  onAddPlate,
+  onOpenView,
+  onEditPlate,
+  onDeletePlate,
+}: {
+  project: ScanProject;
+  columnsCount: number;
+  onAddPlate: (p: ScanProject) => void;
+  onOpenView: (p: ScanProject) => void;
+  onEditPlate: (sp: Subplate, p: ScanProject) => void;
+  onDeletePlate: (id: number, projectId?: number) => void;
+}) {
+  const idQuery = useSubplatesByProjectQuery(project.id);
+  const codeQuery = useSubplatesByProjectQuery(project.projectid || undefined);
+
+  const plates = (idQuery.data && idQuery.data.length > 0)
+    ? idQuery.data
+    : (codeQuery.data && codeQuery.data.length > 0)
+    ? codeQuery.data
+    : (idQuery.data || []);
+
+  const isLoading = idQuery.isLoading || (idQuery.data?.length === 0 && codeQuery.isLoading);
+  const isError = idQuery.isError && codeQuery.isError;
+
+  return (
+    <tr className="bg-slate-50/70 border-y border-blue-100/80 animate-in fade-in duration-150">
+      <td colSpan={columnsCount} className="p-0">
+        <div className="p-4 sm:p-5 bg-gradient-to-b from-blue-50/40 via-slate-50/60 to-white space-y-3.5 border-l-4 border-blue-600">
+          {/* Header inside detail workbench */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-200/80">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                <Layers className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-bold text-slate-900 tracking-tight">
+                    Subplate Register: {project.projectid || `#${project.id}`}
+                  </h4>
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100/70 text-blue-700">
+                    {plates.length} Plates Active
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 truncate">
+                  {project.description} • {project.customername || project.cname || "Customer"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onAddPlate(project)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Add Subplate</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenView(project)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
+              >
+                <Eye className="w-3.5 h-3.5 text-blue-600" />
+                <span>Full Studio Modal</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Subplates Table / Grid */}
+          {isLoading ? (
+            <div className="py-8 flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+              <span>Loading subplate specifications...</span>
+            </div>
+          ) : isError ? (
+            <div className="py-6 px-4 text-center rounded-xl border border-rose-200 bg-rose-50/50 space-y-2">
+              <p className="text-xs text-rose-600 font-medium">
+                Failed to load subplates for this project.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  idQuery.refetch();
+                  codeQuery.refetch();
+                }}
+                className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry</span>
+              </button>
+            </div>
+          ) : plates.length === 0 ? (
+            <div className="py-6 px-4 text-center rounded-xl border border-dashed border-slate-300 bg-white/70 space-y-2">
+              <p className="text-xs text-slate-500 font-medium">
+                No subplates have been defined for this mould project yet.
+              </p>
+              <button
+                type="button"
+                onClick={() => onAddPlate(project)}
+                className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add First Subplate</span>
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[11px] uppercase tracking-wider">
+                  <tr>
+                    <th className="py-2.5 px-3">Plate Name</th>
+                    <th className="py-2.5 px-3">Subproject ID</th>
+                    <th className="py-2.5 px-3">Dimensions</th>
+                    <th className="py-2.5 px-3">Material</th>
+                    <th className="py-2.5 px-3 text-right">Calc Weight</th>
+                    <th className="py-2.5 px-3 text-center">Qty</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {plates.map((sp) => {
+                    const dim = formatSubplateDimensions({
+                      shape: sp.shape || "Plate",
+                      length: sp.length,
+                      width: sp.width,
+                      height: sp.height,
+                      unit: sp.unit || "mm",
+                    });
+                    return (
+                      <tr key={sp.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-2.5 px-3 font-semibold text-slate-900">
+                          {sp.platename}
+                        </td>
+                        <td className="py-2.5 px-3 font-mono text-[11px] text-blue-700">
+                          {sp.subprojectid || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-slate-600 font-mono text-[11px]">
+                          {dim}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                            {sp.material || "MS-Bright"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
+                          {sp.weight ? `${Number(sp.weight).toFixed(3)} kg` : "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-bold text-slate-700">
+                          {sp.sqty || 1}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Active
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => onEditPlate(sp, project)}
+                              title="Edit Subplate"
+                              className="p-1 rounded-md hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeletePlate(sp.id, project.id)}
+                              title="Delete Subplate"
+                              className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 interface MouldProjectsTableProps {
   initialData?: ScanProject[];
   isLoading?: boolean;
@@ -121,37 +317,13 @@ export function MouldProjectsTable({
   const [viewSubplates, setViewSubplates] = useState<Subplate[]>([]);
   const [isLoadingSubplates, setIsLoadingSubplates] = useState(false);
 
+  const queryClient = useQueryClient();
+
   // Inline Master-Detail Accordion State
   const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
-  const [rowSubplatesCache, setRowSubplatesCache] = useState<Record<number, Subplate[]>>({});
-  const [loadingRowId, setLoadingRowId] = useState<number | null>(null);
 
-  const toggleRowExpand = async (project: ScanProject) => {
-    if (expandedRowId === project.id) {
-      setExpandedRowId(null);
-      return;
-    }
-    setExpandedRowId(project.id);
-    if (!rowSubplatesCache[project.id]) {
-      setLoadingRowId(project.id);
-      try {
-        const res = await fetch(`/api/subplate?projectid=${project.id}`);
-        const json = await res.json();
-        let plates = json.subplates || [];
-        if (plates.length === 0 && project.projectid) {
-          const altRes = await fetch(`/api/subplate?projectid=${encodeURIComponent(project.projectid)}`);
-          const altJson = await altRes.json();
-          if (altJson.subplates && altJson.subplates.length > 0) {
-            plates = altJson.subplates;
-          }
-        }
-        setRowSubplatesCache((prev) => ({ ...prev, [project.id]: plates }));
-      } catch (err) {
-        console.error("Failed to load inline subplates:", err);
-      } finally {
-        setLoadingRowId(null);
-      }
-    }
+  const toggleRowExpand = (project: ScanProject) => {
+    setExpandedRowId((prev) => (prev === project.id ? null : project.id));
   };
 
   // Add / Edit Subplate Modal State
@@ -469,30 +641,10 @@ export function MouldProjectsTable({
         }
       }
 
-      // Refresh inline accordion cache across projects
-      if (isEditing && plateResult) {
-        setRowSubplatesCache((prev) => {
-          const next = { ...prev };
-          for (const pid of Object.keys(next)) {
-            next[Number(pid)] = (next[Number(pid)] || []).map((p) =>
-              p.id === editingSubplate!.id ? { ...p, ...plateResult } : p
-            );
-          }
-          return next;
-        });
-      } else if (plateResult && addPlateProject) {
-        setRowSubplatesCache((prev) => ({
-          ...prev,
-          [addPlateProject.id]: [...(prev[addPlateProject.id] || []), plateResult],
-        }));
-      } else if (addPlateProject) {
-        // Invalidate cache so next toggle or auto-fetch gets freshest
-        setRowSubplatesCache((prev) => {
-          const next = { ...prev };
-          delete next[addPlateProject.id];
-          return next;
-        });
-      }
+      // Invalidate queries so TanStack Query updates all active subplate tables/accordions
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
 
       setEditingSubplate(null);
       setAddPlateProject(null);
@@ -512,13 +664,9 @@ export function MouldProjectsTable({
       });
       if (res.ok) {
         setViewSubplates((prev) => prev.filter((p) => p.id !== subplateId));
-        setRowSubplatesCache((prev) => {
-          const next = { ...prev };
-          for (const pid of Object.keys(next)) {
-            next[Number(pid)] = (next[Number(pid)] || []).filter((p) => p.id !== subplateId);
-          }
-          return next;
-        });
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
         if (projectId) {
           setData((prev) =>
             prev.map((d) =>
@@ -606,7 +754,6 @@ export function MouldProjectsTable({
         header: "Project Code",
         cell: (info) => {
           const isExpanded = expandedRowId === info.row.original.id;
-          const isLoadingThis = loadingRowId === info.row.original.id;
           return (
             <div className="flex items-center gap-1.5">
               <button
@@ -622,15 +769,11 @@ export function MouldProjectsTable({
                 }`}
                 title={isExpanded ? "Collapse Subplates" : "Expand Subplates Inline"}
               >
-                {isLoadingThis ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                ) : (
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                      isExpanded ? "rotate-180" : "-rotate-90"
-                    }`}
-                  />
-                )}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isExpanded ? "rotate-180" : "-rotate-90"
+                  }`}
+                />
               </button>
               <span className="font-mono font-semibold text-slate-800 text-[11px]">
                 {info.getValue() || `P-${info.row.original.id}`}
@@ -1032,8 +1175,6 @@ export function MouldProjectsTable({
               table.getRowModel().rows.map((row) => {
                 const project = row.original;
                 const isExpanded = expandedRowId === project.id;
-                const plates = rowSubplatesCache[project.id] || [];
-                const isLoadingPlates = loadingRowId === project.id;
 
                 return (
                   <React.Fragment key={row.id}>
@@ -1056,151 +1197,14 @@ export function MouldProjectsTable({
 
                     {/* Inline Master-Detail Workbench */}
                     {isExpanded && (
-                      <tr className="bg-slate-50/70 border-y border-blue-100/80 animate-in fade-in duration-150">
-                        <td colSpan={columns.length} className="p-0">
-                          <div className="p-4 sm:p-5 bg-gradient-to-b from-blue-50/40 via-slate-50/60 to-white space-y-3.5 border-l-4 border-blue-600">
-                            {/* Header inside detail workbench */}
-                            <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-200/80">
-                              <div className="flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
-                                  <Layers className="w-4 h-4" />
-                                </div>
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="text-xs font-bold text-slate-900 tracking-tight">
-                                      Subplate Register: {project.projectid || `#${project.id}`}
-                                    </h4>
-                                    <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100/70 text-blue-700">
-                                      {plates.length} Plates Active
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 truncate">
-                                    {project.description} • {project.customername || project.cname || "Customer"}
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenAddPlate(project)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-emerald-600/20 transition-all cursor-pointer"
-                                >
-                                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                                  <span>Add Subplate</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenView(project)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-semibold shadow-2xs transition-all cursor-pointer"
-                                >
-                                  <Eye className="w-3.5 h-3.5 text-blue-600" />
-                                  <span>Full Studio Modal</span>
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Subplates Table / Grid */}
-                            {isLoadingPlates ? (
-                              <div className="py-8 flex items-center justify-center gap-2 text-xs text-slate-500 font-medium">
-                                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                                <span>Loading subplate specifications...</span>
-                              </div>
-                            ) : plates.length === 0 ? (
-                              <div className="py-6 px-4 text-center rounded-xl border border-dashed border-slate-300 bg-white/70 space-y-2">
-                                <p className="text-xs text-slate-500 font-medium">
-                                  No subplates have been defined for this mould project yet.
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenAddPlate(project)}
-                                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                  <span>Add First Subplate</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
-                                <table className="w-full text-left text-xs">
-                                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold text-[11px] uppercase tracking-wider">
-                                    <tr>
-                                      <th className="py-2.5 px-3">Plate Name</th>
-                                      <th className="py-2.5 px-3">Subproject ID</th>
-                                      <th className="py-2.5 px-3">Dimensions</th>
-                                      <th className="py-2.5 px-3">Material</th>
-                                      <th className="py-2.5 px-3 text-right">Calc Weight</th>
-                                      <th className="py-2.5 px-3 text-center">Qty</th>
-                                      <th className="py-2.5 px-3 text-center">Status</th>
-                                      <th className="py-2.5 px-3 text-right">Actions</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {plates.map((sp) => {
-                                      const dim = formatSubplateDimensions({
-                                        shape: sp.shape || "Plate",
-                                        length: sp.length,
-                                        width: sp.width,
-                                        height: sp.height,
-                                        unit: sp.unit || "mm",
-                                      });
-                                      return (
-                                        <tr key={sp.id} className="hover:bg-slate-50/70 transition-colors">
-                                          <td className="py-2.5 px-3 font-semibold text-slate-900">
-                                            {sp.platename}
-                                          </td>
-                                          <td className="py-2.5 px-3 font-mono text-[11px] text-blue-700">
-                                            {sp.subprojectid || "—"}
-                                          </td>
-                                          <td className="py-2.5 px-3 text-slate-600 font-mono text-[11px]">
-                                            {dim}
-                                          </td>
-                                          <td className="py-2.5 px-3">
-                                            <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
-                                              {sp.material || "MS-Bright"}
-                                            </span>
-                                          </td>
-                                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                                            {sp.weight ? `${Number(sp.weight).toFixed(3)} kg` : "—"}
-                                          </td>
-                                          <td className="py-2.5 px-3 text-center font-bold text-slate-700">
-                                            {sp.sqty || 1}
-                                          </td>
-                                          <td className="py-2.5 px-3 text-center">
-                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                              Active
-                                            </span>
-                                          </td>
-                                          <td className="py-2.5 px-3 text-right">
-                                            <div className="flex items-center justify-end gap-1">
-                                              <button
-                                                type="button"
-                                                onClick={() => handleOpenEditPlate(sp, project)}
-                                                title="Edit Subplate"
-                                                className="p-1 rounded-md hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                                              >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleDeleteSubplate(sp.id, project.id)}
-                                                title="Delete Subplate"
-                                                className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                                              >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                      <ProjectSubplatesRow
+                        project={project}
+                        columnsCount={columns.length}
+                        onAddPlate={handleOpenAddPlate}
+                        onOpenView={handleOpenView}
+                        onEditPlate={handleOpenEditPlate}
+                        onDeletePlate={handleDeleteSubplate}
+                      />
                     )}
                   </React.Fragment>
                 );

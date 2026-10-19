@@ -16,6 +16,8 @@ import type {
   Expense,
   PrintProject,
   GramCalc,
+  PurchaseInwardReceipt,
+  ViewPoPendingInwardQty,
 } from "@/lib/supabase/types";
 
 // Standard pagination response structure
@@ -1098,5 +1100,171 @@ export function useDeletePrintingMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
+  });
+}
+
+/* =========================================================================
+   14. PURCHASE INWARD QUERIES & MUTATIONS
+   ========================================================================= */
+
+export function usePurchaseInwardQuery() {
+  return useQuery({
+    queryKey: queryKeys.purchaseInward.list(),
+    queryFn: async () => {
+      const data = await fetchJson<any>("/api/purchase-inward");
+      return {
+        pendingReceiveItems: (data.pendingReceiveItems || []) as ViewPoPendingInwardQty[],
+        receipts: (data.receipts || []) as PurchaseInwardReceipt[],
+        customers: (data.customers || []) as Customer[],
+        subplates: (data.subplates || []) as Subplate[],
+      };
+    },
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+  });
+}
+
+export function useCreatePurchaseInwardMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: any) =>
+      fetchJson<any>("/api/purchase-inward", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+    },
+  });
+}
+
+export function useDeletePurchaseInwardMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      fetchJson<any>(`/api/purchase-inward?id=${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+    },
+  });
+}
+
+/* =========================================================================
+   15. GRAM TIERS QUERIES & MUTATIONS
+   ========================================================================= */
+
+export function useGramTiersQuery() {
+  return useQuery({
+    queryKey: queryKeys.grams.list(),
+    queryFn: async () => {
+      const data = await fetchJson<any>("/api/gram");
+      return (data.tiers || []) as GramCalc[];
+    },
+    staleTime: CACHE_TIERS.STABLE.staleTime,
+    gcTime: CACHE_TIERS.STABLE.gcTime,
+  });
+}
+
+export function useCreateGramMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { graterthan: number; lessthan: number; fix: number; multiply: number }) =>
+      fetchJson<any>("/api/gram", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.grams.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
+    },
+  });
+}
+
+export function useUpdateGramMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { id: number; graterthan: number; lessthan: number; fix: number; multiply: number }) =>
+      fetchJson<any>("/api/gram", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.grams.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
+    },
+  });
+}
+
+export function useDeleteGramMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      fetchJson<any>(`/api/gram?id=${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.grams.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
+    },
+  });
+}
+
+/* =========================================================================
+   16. REPORT METRICS QUERIES
+   ========================================================================= */
+
+export interface ReportMetricsData {
+  downtimeRecords: any[];
+  totalWorklogs: number;
+  workflowCounts: {
+    pulpMould: number;
+    tf: number;
+    rework: number;
+    machinePart: number;
+    accessories: number;
+    sample: number;
+    other: number;
+    totalProjects: number;
+  };
+  totalSubplates: number;
+}
+
+export function useReportMetricsQuery(year?: string) {
+  return useQuery({
+    queryKey: queryKeys.reports.summary({ year: year || "2023" }),
+    queryFn: async () => {
+      const url = year ? `/api/report?year=${encodeURIComponent(year)}` : "/api/report";
+      const data = await fetchJson<ReportMetricsData>(url);
+      return data;
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+  });
+}
+
+/* =========================================================================
+   17. EXPORT COUNTS QUERY
+   ========================================================================= */
+
+export function useExportCountsQuery() {
+  return useQuery({
+    queryKey: queryKeys.exports.counts(),
+    queryFn: async () => {
+      const data = await fetchJson<any>("/api/export?type=counts");
+      return data.counts || {};
+    },
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
   });
 }

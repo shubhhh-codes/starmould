@@ -89,4 +89,12 @@ export const queryKeys = {
     all: () => ["grams"] as const,
     list: (params?: Record<string, any>) => ["grams", "list", params ?? {}] as const,
   },
+  reports: {
+    all: () => ["reports"] as const,
+    summary: (params?: Record<string, any>) => ["reports", "summary", params ?? {}] as const,
+  },
+  exports: {
+    all: () => ["exports"] as const,
+    counts: () => ["exports", "counts"] as const,
+  },
 };
