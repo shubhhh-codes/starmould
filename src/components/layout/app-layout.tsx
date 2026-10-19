@@ -89,16 +89,6 @@ function AppLayoutContent({ children }: AppLayoutProps) {
             </div>
           )}
         </main>
-
-        {/* Global Footer */}
-        <footer className="py-3 px-4 sm:px-6 border-t border-slate-200 bg-white text-slate-500 text-xs flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>2026 © Star Mould ERP Solutions</span>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Server: Supabase Postgres</span>
-            <span>•</span>
-            <span>Client: Next.js 16 (Turbopack)</span>
-          </div>
-        </footer>
       </div>
     </div>
   );
