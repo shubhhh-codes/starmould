@@ -222,26 +222,34 @@ export async function POST(req: NextRequest) {
           .select("id, location")
           .in("id", plateIds);
 
+        const locMap = new Map<string, number[]>();
+        for (const sp of plates || []) {
+          const rawLoc = sp.location || "SM";
+          const parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
+          const smFound = parts.includes("SM");
+          const vendorFound = parts.includes(vendorInitials);
+
+          let newLoc = vendorInitials;
+          if (vendorInitials === "SM" || smFound || vendorFound) {
+            newLoc = vendorInitials;
+          } else {
+            parts.push(vendorInitials);
+            newLoc = parts.join(",");
+          }
+
+          if (!locMap.has(newLoc)) {
+            locMap.set(newLoc, []);
+          }
+          locMap.get(newLoc)!.push(sp.id);
+        }
+
         await Promise.all(
-          (plates || []).map(async (sp: any) => {
-            const rawLoc = sp.location || "SM";
-            const parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
-            const smFound = parts.includes("SM");
-            const vendorFound = parts.includes(vendorInitials);
-
-            let newLoc = vendorInitials;
-            if (vendorInitials === "SM" || smFound || vendorFound) {
-              newLoc = vendorInitials;
-            } else {
-              parts.push(vendorInitials);
-              newLoc = parts.join(",");
-            }
-
-            return supabaseAdmin
+          Array.from(locMap.entries()).map(([loc, ids]) =>
+            supabaseAdmin
               .from("subplate")
-              .update({ location: newLoc, updated_at: now })
-              .eq("id", sp.id);
-          })
+              .update({ location: loc, updated_at: now })
+              .in("id", ids)
+          )
         );
       }
     }

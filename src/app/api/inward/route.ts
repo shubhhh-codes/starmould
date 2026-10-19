@@ -247,34 +247,42 @@ export async function POST(req: NextRequest) {
 
         const plateMap = new Map((plates || []).map((p: any) => [p.id, p]));
 
-        await Promise.all(
-          items.map(async (it: any) => {
-            if (!it.plateid) return;
-            const sp = plateMap.get(Number(it.plateid));
-            if (!sp) return;
+        const locMap = new Map<string, number[]>();
+        for (const it of items) {
+          if (!it.plateid) continue;
+          const sp = plateMap.get(Number(it.plateid));
+          if (!sp) continue;
 
-            const pendingQty = Math.max(0, (Number(it.qty) || 0) - (Number(it.inward_qty) || 0));
-            const rawLoc = sp.location || "SM";
-            let parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
+          const pendingQty = Math.max(0, (Number(it.qty) || 0) - (Number(it.inward_qty) || 0));
+          const rawLoc = sp.location || "SM";
+          let parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
 
-            let newLoc = "SM";
-            if (pendingQty <= 0) {
-              // Fully returned from vendor: remove vendor initials from location chain
-              parts = parts.filter((p: string) => p !== vendorInitials && p !== "SM");
-              newLoc = parts.length > 0 ? parts.join(",") : "SM";
-            } else {
-              // Partially returned: ensure vendor initials remain in location chain
-              if (vendorInitials && !parts.includes(vendorInitials)) {
-                parts.push(vendorInitials);
-              }
-              newLoc = parts.join(",");
+          let newLoc = "SM";
+          if (pendingQty <= 0) {
+            // Fully returned from vendor: remove vendor initials from location chain
+            parts = parts.filter((p: string) => p !== vendorInitials && p !== "SM");
+            newLoc = parts.length > 0 ? parts.join(",") : "SM";
+          } else {
+            // Partially returned: ensure vendor initials remain in location chain
+            if (vendorInitials && !parts.includes(vendorInitials)) {
+              parts.push(vendorInitials);
             }
+            newLoc = parts.join(",");
+          }
 
-            return supabaseAdmin
+          if (!locMap.has(newLoc)) {
+            locMap.set(newLoc, []);
+          }
+          locMap.get(newLoc)!.push(sp.id);
+        }
+
+        await Promise.all(
+          Array.from(locMap.entries()).map(([loc, ids]) =>
+            supabaseAdmin
               .from("subplate")
-              .update({ location: newLoc, updated_at: now })
-              .eq("id", sp.id);
-          })
+              .update({ location: loc, updated_at: now })
+              .in("id", ids)
+          )
         );
       }
     } catch (innerErr: unknown) {

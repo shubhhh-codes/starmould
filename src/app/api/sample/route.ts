@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedUsers, invalidateCache } from "@/lib/cache";
 
 // GET /api/sample - Fetch Sample and Rework projects (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
@@ -20,16 +20,17 @@ export async function GET(req: NextRequest) {
       .in("worktype", worktype ? [worktype] : ["Sample", "Rework"])
       .order("id", { ascending: false });
 
-    const { data: scanRows, error: scanErr } = await query;
-    if (scanErr) {
-      return NextResponse.json({ error: scanErr.message }, { status: 500 });
+    const [scanRes, customers, users] = await Promise.all([
+      query,
+      getCachedCustomers(),
+      getCachedUsers(),
+    ]);
+
+    if (scanRes.error) {
+      return NextResponse.json({ error: scanRes.error.message }, { status: 500 });
     }
 
-    // Fetch customers lookup
-    const { data: customers } = await supabaseAdmin
-      .from("customers")
-      .select("id, customername, initials, usertype")
-      .is("deleted_at", null);
+    const scanRows = scanRes.data || [];
 
     const custMap = new Map<string | number, any>();
     for (const c of customers || []) {
@@ -38,13 +39,7 @@ export async function GET(req: NextRequest) {
       custMap.set(Number(c.id), c);
     }
 
-    // Fetch active users for staff dropdown
-    const { data: users } = await supabaseAdmin
-      .from("users")
-      .select("id, name, username, initials, status, role_id")
-      .is("deleted_at", null);
-
-    const userMap = new Map((users || []).map((u) => [Number(u.id), u]));
+    const userMap = new Map((users || []).map((u: any) => [Number(u.id), u]));
 
     // Fetch worklog hours aggregated per scan_print_id
     const scanIds = (scanRows || []).map((r) => r.id);

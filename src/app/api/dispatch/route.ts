@@ -14,35 +14,35 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit") || "100");
 
-    // 1. Fetch dispatch headers
-    const { data: dispatches, error: dErr } = await supabaseAdmin
-      .from("dispatch")
-      .select("*")
-      .order("id", { ascending: false })
-      .limit(limit);
-
-    if (dErr) {
-      return NextResponse.json({ error: dErr.message }, { status: 500 });
-    }
-
-    const dIds = (dispatches || []).map((d) => d.id);
-
-    // 2. Fetch dispatch items and customers concurrently
-    const [itemsRes, customers] = await Promise.all([
-      dIds.length > 0
-        ? supabaseAdmin
-            .from("dispatch_items")
-            .select("*")
-            .in("dispatchid", dIds)
-        : Promise.resolve({ data: [], error: null }),
+    // 1. Fetch dispatch headers and cached customers concurrently
+    const [dRes, customers] = await Promise.all([
+      supabaseAdmin
+        .from("dispatch")
+        .select("*")
+        .order("id", { ascending: false })
+        .limit(limit),
       getCachedCustomers(),
     ]);
 
-    if (itemsRes.error) {
-      return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
+    if (dRes.error) {
+      return NextResponse.json({ error: dRes.error.message }, { status: 500 });
     }
 
-    const items = itemsRes.data || [];
+    const dispatches = dRes.data || [];
+    const dIds = dispatches.map((d) => d.id);
+
+    // 2. Fetch dispatch items
+    let items: any[] = [];
+    if (dIds.length > 0) {
+      const itemsRes = await supabaseAdmin
+        .from("dispatch_items")
+        .select("*")
+        .in("dispatchid", dIds);
+      if (itemsRes.error) {
+        return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
+      }
+      items = itemsRes.data || [];
+    }
     const custMap = new Map((customers || []).map((c: any) => [c.id, c.customername]));
 
     // Query ONLY subplates referenced by the fetched items

@@ -37,30 +37,42 @@ export async function GET(req: NextRequest) {
 
       if (cErr || !challan) return NextResponse.json({ error: "Challan not found" }, { status: 404 });
 
-      const { data: vendor } = await supabaseAdmin
-        .from("customers")
-        .select("id, customername, mobile, mobile1, address, email")
-        .eq("id", challan.vendorid)
-        .single();
+      const [vendorRes, custRes, itemsRes] = await Promise.all([
+        challan.vendorid
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername, mobile, mobile1, address, email")
+              .eq("id", challan.vendorid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        challan.customerid
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername")
+              .eq("id", challan.customerid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabaseAdmin
+          .from("challan_items")
+          .select("*")
+          .eq("challanid", challan.id),
+      ]);
 
-      const { data: customer } = await supabaseAdmin
-        .from("customers")
-        .select("id, customername")
-        .eq("id", challan.customerid)
-        .single();
+      const vendor = vendorRes.data;
+      const customer = custRes.data;
+      const items = itemsRes.data || [];
 
-      const { data: items } = await supabaseAdmin
-        .from("challan_items")
-        .select("*")
-        .eq("challanid", challan.id);
+      const plateIds = items.map((it) => it.plateid).filter(Boolean);
+      let subplates: any[] = [];
+      if (plateIds.length > 0) {
+        const { data: sps } = await supabaseAdmin
+          .from("subplate")
+          .select("id, platename, subprojectid, material, width, height, length")
+          .in("id", plateIds);
+        subplates = sps || [];
+      }
 
-      const plateIds = (items || []).map((it) => it.plateid).filter(Boolean);
-      const { data: subplates } = await supabaseAdmin
-        .from("subplate")
-        .select("id, platename, subprojectid, material, width, height, length")
-        .in("id", plateIds);
-
-      const plateMap = new Map((subplates || []).map((sp) => [sp.id, sp]));
+      const plateMap = new Map(subplates.map((sp) => [sp.id, sp]));
 
       return NextResponse.json({
         docType: "OUTWARD JOB WORK CHALLAN",
@@ -69,7 +81,7 @@ export async function GET(req: NextRequest) {
         party: vendor,
         customerName: customer?.customername || "",
         projectCode: challan.projectid,
-        items: (items || []).map((it, idx) => ({
+        items: items.map((it, idx) => ({
           srNo: idx + 1,
           particulars: it.particulars || plateMap.get(it.plateid)?.platename || "Mould Plate",
           material: plateMap.get(it.plateid)?.material || "",
@@ -91,16 +103,22 @@ export async function GET(req: NextRequest) {
 
       if (inErr || !inward) return NextResponse.json({ error: "Inward record not found" }, { status: 404 });
 
-      const { data: vendor } = await supabaseAdmin
-        .from("customers")
-        .select("id, customername, mobile, address")
-        .eq("id", inward.vendorid)
-        .single();
+      const [vendorRes, itemsRes] = await Promise.all([
+        inward.vendorid
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername, mobile, address")
+              .eq("id", inward.vendorid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabaseAdmin
+          .from("inward_items")
+          .select("*")
+          .eq("inchallanid", inward.id),
+      ]);
 
-      const { data: items } = await supabaseAdmin
-        .from("inward_items")
-        .select("*")
-        .eq("inchallanid", inward.id);
+      const vendor = vendorRes.data;
+      const items = itemsRes.data || [];
 
       return NextResponse.json({
         docType: "JOB WORK INWARD RECEIPT",
@@ -108,7 +126,7 @@ export async function GET(req: NextRequest) {
         docDate: inward.chdate,
         party: vendor,
         projectCode: inward.projectid,
-        items: (items || []).map((it, idx) => ({
+        items: items.map((it, idx) => ({
           srNo: idx + 1,
           particulars: it.particulars || "Tooling Component",
           orderedQty: it.qty || 0,
@@ -127,16 +145,22 @@ export async function GET(req: NextRequest) {
 
       if (pErr || !purchase) return NextResponse.json({ error: "Purchase Order not found" }, { status: 404 });
 
-      const { data: vendor } = await supabaseAdmin
-        .from("customers")
-        .select("id, customername, mobile, mobile1, address, email")
-        .eq("id", purchase.vname)
-        .single();
+      const [vendorRes, itemsRes] = await Promise.all([
+        purchase.vname
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername, mobile, mobile1, address, email")
+              .eq("id", purchase.vname)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabaseAdmin
+          .from("purchase_items")
+          .select("*")
+          .eq("pid", purchase.id),
+      ]);
 
-      const { data: items } = await supabaseAdmin
-        .from("purchase_items")
-        .select("*")
-        .eq("pid", purchase.id);
+      const vendor = vendorRes.data;
+      const items = itemsRes.data || [];
 
       return NextResponse.json({
         docType: "RAW MATERIAL PURCHASE ORDER",
@@ -144,7 +168,7 @@ export async function GET(req: NextRequest) {
         docDate: purchase.odate,
         party: vendor,
         projectCode: purchase.projectid,
-        items: (items || []).map((it, idx) => ({
+        items: items.map((it, idx) => ({
           srNo: idx + 1,
           particulars: it.material || "Raw Material Plate",
           materialType: it.materialtype || "",
@@ -163,22 +187,30 @@ export async function GET(req: NextRequest) {
 
       if (dErr || !dispatch) return NextResponse.json({ error: "Dispatch record not found" }, { status: 404 });
 
-      const { data: customer } = await supabaseAdmin
-        .from("customers")
-        .select("id, customername, mobile, mobile1, address, email")
-        .eq("id", dispatch.customerid)
-        .single();
+      const [custRes, transpRes, itemsRes] = await Promise.all([
+        dispatch.customerid
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername, mobile, mobile1, address, email")
+              .eq("id", dispatch.customerid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        dispatch.vendortid
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername")
+              .eq("id", dispatch.vendortid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        supabaseAdmin
+          .from("dispatch_items")
+          .select("*")
+          .eq("dispatchid", dispatch.id),
+      ]);
 
-      const { data: transporter } = await supabaseAdmin
-        .from("customers")
-        .select("id, customername")
-        .eq("id", dispatch.vendortid)
-        .single();
-
-      const { data: items } = await supabaseAdmin
-        .from("dispatch_items")
-        .select("*")
-        .eq("dispatchid", dispatch.id);
+      const customer = custRes.data;
+      const transporter = transpRes.data;
+      const items = itemsRes.data || [];
 
       return NextResponse.json({
         docType: "FINISHED MOULD DELIVERY CHALLAN",
@@ -192,7 +224,7 @@ export async function GET(req: NextRequest) {
         freightMode: dispatch.freightmode,
         noOfCases: dispatch.noofcases,
         projectCode: dispatch.projectid,
-        items: (items || []).map((it, idx) => ({
+        items: items.map((it, idx) => ({
           srNo: idx + 1,
           particulars: it.custom_plate_name || it.particulars || "Mould Tooling Component",
           condition: it.condition || "NEW",
@@ -214,33 +246,44 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Work Order record not found" }, { status: 404 });
       }
 
-      const { data: customer } = await supabaseAdmin
-        .from("customers")
-        .select("id, customername, mobile, mobile1, address, email")
-        .eq("id", worklog.customerid)
-        .single();
-
-      const { data: operator } = await supabaseAdmin
-        .from("users")
-        .select("id, name, username, usertype, usersubtype")
-        .eq("id", worklog.userid)
-        .single();
-
-      const { data: scan } = await supabaseAdmin
-        .from("scan")
-        .select("id, projectid, description, worktype, cname")
-        .eq("projectid", worklog.projectid)
-        .limit(1)
-        .maybeSingle();
-
       const cleanSubplateId = String(worklog.subplateid || "").replace(/[(),.%]/g, "");
-      const { data: subplates } = await supabaseAdmin
-        .from("subplate")
-        .select("id, platename, subprojectid, material, width, height, length, unit")
-        .or(`id.eq.${Number(cleanSubplateId) || 0},subprojectid.eq.${cleanSubplateId || "none"}`)
-        .limit(1);
 
-      const subplate = subplates?.[0];
+      const [custRes, opRes, scanRes, spRes] = await Promise.all([
+        worklog.customerid
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername, mobile, mobile1, address, email")
+              .eq("id", worklog.customerid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        worklog.userid
+          ? supabaseAdmin
+              .from("users")
+              .select("id, name, username, usertype, usersubtype")
+              .eq("id", worklog.userid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        worklog.projectid
+          ? supabaseAdmin
+              .from("scan")
+              .select("id, projectid, description, worktype, cname")
+              .eq("projectid", worklog.projectid)
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        cleanSubplateId
+          ? supabaseAdmin
+              .from("subplate")
+              .select("id, platename, subprojectid, material, width, height, length, unit")
+              .or(`id.eq.${Number(cleanSubplateId) || 0},subprojectid.eq.${cleanSubplateId || "none"}`)
+              .limit(1)
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      const customer = custRes.data;
+      const operator = opRes.data;
+      const scan = scanRes.data;
+      const subplate = spRes.data?.[0];
 
       return NextResponse.json({
         docType: "MANUFACTURING WORK ORDER & LOG",
