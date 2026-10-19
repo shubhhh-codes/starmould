@@ -79,6 +79,29 @@ async function run() {
     console.error('Could not verify users column:', err.message);
   }
 
+  // Verify performance RPC functions
+  console.log('\n--- Verifying performance RPC functions ---');
+  try {
+    const resTableCounts = await client.query('SELECT public.get_table_counts() AS counts;');
+    console.log('get_table_counts():', resTableCounts.rows[0]?.counts);
+  } catch (err) {
+    console.error('Could not verify get_table_counts():', err.message);
+  }
+
+  try {
+    const resExpenseTotals = await client.query('SELECT public.get_expense_totals() AS totals;');
+    console.log('get_expense_totals():', resExpenseTotals.rows[0]?.totals);
+  } catch (err) {
+    console.error('Could not verify get_expense_totals():', err.message);
+  }
+
+  try {
+    const resWorkflow = await client.query('SELECT public.get_report_workflow_summary() AS summary;');
+    console.log('get_report_workflow_summary():', resWorkflow.rows[0]?.summary);
+  } catch (err) {
+    console.error('Could not verify get_report_workflow_summary():', err.message);
+  }
+
   await client.end();
   console.log('\nDatabase migration completed.');
 }

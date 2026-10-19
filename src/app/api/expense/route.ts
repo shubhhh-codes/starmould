@@ -38,20 +38,30 @@ export async function GET(req: NextRequest) {
       customername: custMap.get(e.customerid) || `Account #${e.customerid}`,
     }));
 
-    // Calculate totals across all records
-    const { data: allExpenses } = await supabaseAdmin
-      .from("expense")
-      .select("payment_type, amount");
-
+    // Calculate totals across all records via fast SQL aggregation RPC with fallback
     let totalCredit = 0;
     let totalDebit = 0;
     let totalOutstanding = 0;
+    let totalCount = 0;
 
-    for (const exp of allExpenses || []) {
-      const amt = Number(exp.amount) || 0;
-      if (exp.payment_type === "Credit") totalCredit += amt;
-      else if (exp.payment_type === "Debit") totalDebit += amt;
-      else if (exp.payment_type === "Outstanding") totalOutstanding += amt;
+    const { data: rpcTotals, error: rpcErr } = await supabaseAdmin.rpc("get_expense_totals");
+    if (!rpcErr && rpcTotals) {
+      totalCredit = Number(rpcTotals.totalCredit || 0);
+      totalDebit = Number(rpcTotals.totalDebit || 0);
+      totalOutstanding = Number(rpcTotals.totalOutstanding || 0);
+      totalCount = Number(rpcTotals.totalCount || 0);
+    } else {
+      const { data: allExpenses } = await supabaseAdmin
+        .from("expense")
+        .select("payment_type, amount");
+
+      for (const exp of allExpenses || []) {
+        const amt = Number(exp.amount) || 0;
+        if (exp.payment_type === "Credit") totalCredit += amt;
+        else if (exp.payment_type === "Debit") totalDebit += amt;
+        else if (exp.payment_type === "Outstanding") totalOutstanding += amt;
+      }
+      totalCount = (allExpenses || []).length;
     }
 
     const latestBalance = expenses?.[0]?.balance ?? (totalCredit - totalDebit);
@@ -64,7 +74,7 @@ export async function GET(req: NextRequest) {
         totalDebit,
         totalOutstanding,
         currentBalance: latestBalance,
-        totalCount: (allExpenses || []).length,
+        totalCount,
       },
     });
     response.headers.set("Cache-Control", "private, no-store, must-revalidate");

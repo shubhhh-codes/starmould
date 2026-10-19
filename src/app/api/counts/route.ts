@@ -29,6 +29,16 @@ export async function GET(req: NextRequest) {
   ];
 
   const counts = await getCached("api_counts_all", 15, async () => {
+    // 1. Fast aggregation RPC (1 roundtrip instead of 16 individual queries)
+    try {
+      const { data: rpcCounts, error: rpcErr } = await supabaseAdmin.rpc("get_table_counts");
+      if (!rpcErr && rpcCounts && typeof rpcCounts === "object") {
+        return rpcCounts as Record<string, number | string>;
+      }
+    } catch {
+      // Fallback to table queries
+    }
+
     const resCounts: Record<string, number | string> = {};
     const softDeletableTables = new Set(["customers", "users", "subplate"]);
 

@@ -118,6 +118,15 @@ export async function GET(req: NextRequest) {
 
     // 2. Fetch scan table task counts by worktype and subplate counts with cache
     const { workflowCounts, totalSubplates } = await getCached(`report_workflow_summary`, 30, async () => {
+      const { data: rpcSummary, error: rpcErr } = await supabaseAdmin.rpc("get_report_workflow_summary");
+      if (!rpcErr && rpcSummary) {
+        return {
+          workflowCounts: rpcSummary.workflowCounts,
+          totalSubplates: Number(rpcSummary.totalSubplates || 0),
+        };
+      }
+
+      // Fallback if RPC not yet created in PostgreSQL
       const [scansRes, subplateCountRes] = await Promise.all([
         supabaseAdmin.from("scan").select("worktype"),
         supabaseAdmin.from("subplate").select("id", { count: "exact", head: true }).is("deleted_at", null),
