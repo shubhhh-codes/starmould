@@ -36,6 +36,7 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
+import { useIsRestoring } from "@tanstack/react-query";
 import {
   useChallansQuery,
   useCreateChallanMutation,
@@ -49,6 +50,7 @@ function ChallanPageContent() {
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
+  const isRestoring = useIsRestoring();
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useChallansQuery();
   const { data: customerLookup = [] } = useCustomerDropdownQuery();
   const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
@@ -59,7 +61,8 @@ function ChallanPageContent() {
   const customers = (customerLookup.length > 0 ? customerLookup : (data?.customers || [])) as Customer[];
   const subplates = (data?.subplates || []) as Subplate[];
   const scans = (projectsLookup?.scans?.length ? projectsLookup.scans : (data?.scans || [])) as ScanProject[];
-  const isLoading = queryLoading && challans.length === 0;
+  const hasLoadedData = challans.length > 0 || (!!data && !queryLoading);
+  const isLoading = isRestoring || (!hasLoadedData && queryLoading);
 
   const kpis = data?.kpis || { totalChallans: 0, activeCount: 0 };
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;

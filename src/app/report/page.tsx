@@ -30,6 +30,7 @@ import {
     TableSkeletonRows,
     CardGridSkeleton,
 } from "@/components/ui/skeleton";
+import { useIsRestoring } from "@tanstack/react-query";
 import { useReportMetricsQuery } from "@/lib/query/hooks";
 
 // Exact 7 downtime/hour categories tracked in ReportController.php
@@ -46,9 +47,12 @@ export interface MonthDowntimeHourRecord {
 }
 
 export default function ReportPage() {
-    const { data: reportData, isLoading, refetch } = useReportMetricsQuery();
+    const isRestoring = useIsRestoring();
+    const { data: reportData, isLoading: queryLoading, refetch } = useReportMetricsQuery();
 
     const records = (reportData?.downtimeRecords || []) as MonthDowntimeHourRecord[];
+    const hasLoadedData = records.length > 0 || (!!reportData && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && queryLoading);
     const workflowCounts = reportData?.workflowCounts || {
         pulpMould: 0,
         tf: 0,

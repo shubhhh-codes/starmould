@@ -35,6 +35,7 @@ import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
+import { useIsRestoring } from "@tanstack/react-query";
 import {
     usePurchasesQuery,
     useCreatePurchaseMutation,
@@ -46,6 +47,7 @@ function PurchasePageContent() {
     const searchParams = useSearchParams();
     const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
+    const isRestoring = useIsRestoring();
     const { data, isLoading: queryLoading } = usePurchasesQuery({
         limit: 200,
         includePlates: true,
@@ -57,7 +59,8 @@ function PurchasePageContent() {
     const subplates = (data?.subplates || []) as Subplate[];
     const customers = (data?.customers || []) as Customer[];
     const scans = (data?.scans || []) as ScanProject[];
-    const isLoading = queryLoading && purchases.length === 0;
+    const hasLoadedData = purchases.length > 0 || (!!data && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && queryLoading);
 
     // Navigation Tabs: All Purchase Orders vs. Pending Purchase (needing PO)
     const [activeTab, setActiveTab] = useState<"orders" | "pending_plates">(

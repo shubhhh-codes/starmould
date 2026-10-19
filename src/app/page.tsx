@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
+import { useIsRestoring } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PipelineStatGrid } from "@/components/dashboard/pipeline-stat-card";
 import { MouldProjectsTable } from "@/components/dashboard/mould-projects-table";
@@ -15,21 +16,24 @@ import { useProjectsQuery, useSubplatesQuery } from "@/lib/query/hooks";
 
 export default function DashboardPage() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const isRestoring = useIsRestoring();
 
   // Standardized shared cache query hooks matching Scanning and Subplate modules
   const projectsQuery = useProjectsQuery({ pageSize: 500 });
   const subplatesQuery = useSubplatesQuery();
 
-  const projects = mounted ? (projectsQuery.data?.scans || []) : [];
-  const subplates = mounted ? (subplatesQuery.data?.subplates || []) : [];
-  // Only display skeleton placeholders if there is absolutely no cached data yet or before mount (prevents hydration mismatch)
-  const isLoading = !mounted || (projectsQuery.isLoading && projects.length === 0) || (subplatesQuery.isLoading && subplates.length === 0);
-  const isFetching = mounted && (projectsQuery.isFetching || subplatesQuery.isFetching);
+  const projects = projectsQuery.data?.scans || [];
+  const subplates = subplatesQuery.data?.subplates || [];
+
+  // Robust loading guard:
+  // True while restoring from device storage, or when initial queries are pending and no data exists yet.
+  // Never drops to false when data is empty unless query is genuinely settled with 0 items.
+  const hasLoadedProjects = projects.length > 0 || (projectsQuery.isSuccess && !projectsQuery.isFetching);
+  const hasLoadedSubplates = subplates.length > 0 || (subplatesQuery.isSuccess && !subplatesQuery.isFetching);
+  const hasData = hasLoadedProjects && hasLoadedSubplates;
+
+  const isLoading = isRestoring || (!hasData && (projectsQuery.isLoading || projectsQuery.isPending || subplatesQuery.isLoading || subplatesQuery.isPending));
+  const isFetching = projectsQuery.isFetching || subplatesQuery.isFetching;
 
   const handleRefresh = () => {
     projectsQuery.refetch();
@@ -134,7 +138,7 @@ export default function DashboardPage() {
             onClick={handleRefresh}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer shadow-xs"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${mounted && isFetching ? "animate-spin text-blue-600" : ""}`} />
+            <RefreshCw suppressHydrationWarning className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-blue-600" : ""}`} />
             <span>Refresh</span>
           </button>
           <Link
@@ -162,8 +166,8 @@ export default function DashboardPage() {
             <h2 className="text-base font-bold text-slate-900 tracking-tight">
               Active Project Register
             </h2>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-              {mounted ? displayedProjects.length : 0} Projects
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200" suppressHydrationWarning>
+              {displayedProjects.length} Projects
             </span>
             {activeStage && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">

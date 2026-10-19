@@ -65,7 +65,7 @@ import {
 } from "@/lib/weight-calculator";
 import { useSmartPrefetch } from "@/lib/query/prefetch";
 import { useLongPress } from "@/lib/hooks/use-long-press";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useIsRestoring } from "@tanstack/react-query";
 import { useSubplatesByProjectQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
 
@@ -303,6 +303,8 @@ export function MouldProjectsTable({
   isLoading = false,
   onRefresh,
 }: MouldProjectsTableProps) {
+  const isRestoring = useIsRestoring();
+  const showSkeleton = isLoading || isRestoring;
   const data = initialData;
   const [sorting, setSorting] = useState<SortingState>([
     { id: "rdate", desc: true },
@@ -1147,7 +1149,7 @@ export function MouldProjectsTable({
             ))}
           </thead>
           <tbody>
-            {isLoading ? (
+            {showSkeleton ? (
               <TableSkeletonRows rows={8} columns={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
               <tr>
@@ -1213,7 +1215,9 @@ export function MouldProjectsTable({
           </span>
         </div>
 
-        {table.getRowModel().rows.length === 0 ? (
+        {showSkeleton ? (
+          <div className="py-8 text-center text-slate-400 text-xs animate-pulse">Loading moulds...</div>
+        ) : table.getRowModel().rows.length === 0 ? (
           <div className="py-8 text-center text-slate-400 text-xs">
             No moulds or projects match the selected filter.
           </div>

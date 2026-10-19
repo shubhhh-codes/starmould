@@ -30,6 +30,7 @@ import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
+import { useIsRestoring } from "@tanstack/react-query";
 import {
   useProjectsQuery,
   useCreateProjectMutation,
@@ -75,7 +76,9 @@ function ScanningPageContent() {
     totalRevenue: 0,
   };
 
-  const isLoading = projectsQuery.isLoading && scans.length === 0;
+  const isRestoring = useIsRestoring();
+  const hasLoadedData = scans.length > 0 || (projectsQuery.isSuccess && !projectsQuery.isFetching);
+  const isLoading = isRestoring || (!hasLoadedData && (projectsQuery.isLoading || projectsQuery.isPending));
   const isFetching = projectsQuery.isFetching;
   const fetchError = projectsQuery.error ? (projectsQuery.error as Error).message : null;
 

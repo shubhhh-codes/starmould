@@ -39,8 +39,10 @@ import {
     useDeleteInwardMutation,
     useCustomerDropdownQuery,
 } from "@/lib/query/hooks";
+import { useIsRestoring } from "@tanstack/react-query";
 
 export default function InwardPage() {
+    const isRestoring = useIsRestoring();
     const {
         data,
         isLoading: queryLoading,
@@ -56,7 +58,8 @@ export default function InwardPage() {
     const customers = (customerLookup.length > 0 ? customerLookup : (data?.customers || [])) as Customer[];
     const subplates = (data?.subplates || []) as Subplate[];
     const kpis = data?.kpis || { totalInwards: 0, totalPendingChallanItems: 0 };
-    const isLoading = queryLoading && inwards.length === 0;
+    const hasLoadedData = inwards.length > 0 || (!!data && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && queryLoading);
     const fetchError = fetchQueryError
         ? (fetchQueryError as Error).message
         : null;

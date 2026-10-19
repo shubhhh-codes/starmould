@@ -33,6 +33,7 @@ import type {
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useIsRestoring } from "@tanstack/react-query";
 import {
   useDispatchQuery,
   useCreateDispatchMutation,
@@ -43,6 +44,7 @@ import {
 } from "@/lib/query/hooks";
 
 export default function DispatchPage() {
+  const isRestoring = useIsRestoring();
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
   const { data: customerLookup = [] } = useCustomerDropdownQuery();
   const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
@@ -89,7 +91,8 @@ export default function DispatchPage() {
   const customers = customerLookup.length > 0 ? customerLookup : (data?.customers || []);
   const scans = projectsLookup?.scans?.length ? projectsLookup.scans : (data?.scans || []);
   const subplates = dynamicSubplates.length > 0 ? dynamicSubplates : (data?.subplates || []);
-  const isLoading = queryLoading && dispatches.length === 0;
+  const hasLoadedData = dispatches.length > 0 || (!!data && !queryLoading);
+  const isLoading = isRestoring || (!hasLoadedData && queryLoading);
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
   const [searchQuery, setSearchQuery] = useState("");

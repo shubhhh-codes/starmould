@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useIsRestoring } from "@tanstack/react-query";
 import {
     useExpensesQuery,
     useCreateExpenseMutation,
@@ -37,6 +38,7 @@ import {
 } from "@/lib/query/hooks";
 
 export default function ExpensePage() {
+    const isRestoring = useIsRestoring();
     const [searchQuery, setSearchQuery] = useState("");
     const [accountFilter, setAccountFilter] = useState("ALL");
     const [typeFilter, setTypeFilter] = useState("ALL");
@@ -60,7 +62,8 @@ export default function ExpensePage() {
 
     const expenses = data?.expenses || [];
     const customers = data?.accounts || [];
-    const isLoading = queryLoading && expenses.length === 0;
+    const hasLoadedData = expenses.length > 0 || (!!data && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && queryLoading);
     const kpis = data?.kpis || {
         totalCredit: 0,
         totalDebit: 0,

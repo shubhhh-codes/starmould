@@ -32,10 +32,12 @@ import type {
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useIsRestoring } from "@tanstack/react-query";
 import { usePurchaseInwardQuery, useCreatePurchaseInwardMutation, useCustomerDropdownQuery } from "@/lib/query/hooks";
 
 export default function PurchaseInwardPage() {
-    const { data: inwardData, isLoading, refetch } = usePurchaseInwardQuery();
+    const isRestoring = useIsRestoring();
+    const { data: inwardData, isLoading: queryLoading, refetch } = usePurchaseInwardQuery();
     const createInwardMutation = useCreatePurchaseInwardMutation();
     const { data: customerData = [] } = useCustomerDropdownQuery();
 
@@ -44,6 +46,8 @@ export default function PurchaseInwardPage() {
     const customers = (customerData.length > 0 ? customerData : inwardData?.customers) || [];
     const subplates = inwardData?.subplates || [];
     const livePendingItems = inwardData?.pendingReceiveItems || null;
+    const hasLoadedData = (poInwards.length > 0 || (livePendingItems && livePendingItems.length > 0)) || (!!inwardData && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && queryLoading);
 
     // Navigation Tabs: Pending Receive vs. Received Inward History
     const [activeTab, setActiveTab] = useState<

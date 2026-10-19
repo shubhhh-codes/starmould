@@ -399,6 +399,7 @@ function StageChipPicker({
 
 import { useSearchParams } from "next/navigation";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
+import { useIsRestoring } from "@tanstack/react-query";
 import { useSubplatesQuery, useCreateSubplateMutation, useUpdateSubplateMutation, useDeleteSubplateMutation } from "@/lib/query/hooks";
 
 function SubplatePageContent() {
@@ -407,6 +408,7 @@ function SubplatePageContent() {
 	const searchParams = useSearchParams();
 	const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
+	const isRestoring = useIsRestoring();
 	const { data, isLoading: queryLoading, error: fetchQueryError } = useSubplatesQuery();
 	const createSubplateMutation = useCreateSubplateMutation();
 	const updateSubplateMutation = useUpdateSubplateMutation();
@@ -416,7 +418,8 @@ function SubplatePageContent() {
 	const scans = data?.scans || [];
 	const users = data?.users || [];
 	const kpis = data?.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 };
-	const isLoading = queryLoading && subplates.length === 0;
+	const hasLoadedData = subplates.length > 0 || (!!data && !queryLoading);
+	const isLoading = isRestoring || (!hasLoadedData && queryLoading);
 	const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
 	const [isSubmitting, setIsSubmitting] = useState(false);

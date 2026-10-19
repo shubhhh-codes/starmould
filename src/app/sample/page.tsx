@@ -25,11 +25,13 @@ import { StaffSelect } from "@/components/ui/staff-select";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useIsRestoring } from "@tanstack/react-query";
 import { useSampleQuery, useCreateSampleMutation, useUpdateSampleMutation, useDeleteSampleMutation } from "@/lib/query/hooks";
 
 export default function SampleReworkPage() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const isRestoring = useIsRestoring();
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useSampleQuery();
   const createSampleMutation = useCreateSampleMutation();
   const updateSampleMutation = useUpdateSampleMutation();
@@ -38,7 +40,8 @@ export default function SampleReworkPage() {
   const projects = data?.projects || [];
   const customers = data?.customers || [];
   const users = data?.users || [];
-  const isLoading = queryLoading && projects.length === 0;
+  const hasLoadedData = projects.length > 0 || (!!data && !queryLoading);
+  const isLoading = isRestoring || (!hasLoadedData && queryLoading);
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
   const [isSubmitting, setIsSubmitting] = useState(false);

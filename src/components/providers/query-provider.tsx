@@ -10,23 +10,15 @@ import { RealtimeSyncListener } from "@/lib/query/realtime";
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => createQueryClient());
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
 
   const persister = useMemo(() => {
-    if (typeof window === "undefined" || !isMounted) return null;
+    if (typeof window === "undefined") return null;
     const session = getCachedSession();
     const userSuffix = session?.id ? `${session.id}_${session.role_id ?? 0}` : "anon";
     return createIDBPersister(userSuffix);
-  }, [isMounted]);
+  }, []);
 
-  // During SSR and initial client hydration, render with standard QueryClientProvider
-  // to prevent hydration mismatch against empty SSR cache.
-  // Once mounted, PersistQueryClientProvider restores IndexedDB cache smoothly.
-  if (!isMounted || !persister) {
+  if (!persister) {
     return (
       <QueryClientProvider client={queryClient}>
         <RealtimeSyncListener />
@@ -41,12 +33,11 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 24 * 60 * 60 * 1000,
-        buster: "v3.0.0",
+        buster: "v3.1.0",
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
             return (
               query.state.status === "success" &&
-              query.queryKey[0] !== "worklogs" &&
               query.queryKey[0] !== "search"
             );
           },

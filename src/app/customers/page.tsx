@@ -30,6 +30,7 @@ import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
+import { useIsRestoring } from "@tanstack/react-query";
 import {
     useCustomersQuery,
     useCreateCustomerMutation,
@@ -100,8 +101,10 @@ function CustomerPageContent() {
     const updateCustomerMutation = useUpdateCustomerMutation();
     const deleteCustomerMutation = useDeleteCustomerMutation();
 
+    const isRestoring = useIsRestoring();
     const customers = customersQuery.data?.customers || [];
-    const isLoading = customersQuery.isLoading && customers.length === 0;
+    const hasLoadedData = customers.length > 0 || (!!customersQuery.data && !customersQuery.isLoading);
+    const isLoading = isRestoring || (!hasLoadedData && customersQuery.isLoading);
 
     const showNotification = useCallback(
         (type: "success" | "error", message: string) => {
