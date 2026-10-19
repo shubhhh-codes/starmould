@@ -25,11 +25,11 @@ export default function DashboardPage() {
   const projectsQuery = useProjectsQuery({ pageSize: 500 });
   const subplatesQuery = useSubplatesQuery();
 
-  const projects = projectsQuery.data?.scans || [];
-  const subplates = subplatesQuery.data?.subplates || [];
-  // Only display skeleton placeholders if there is absolutely no cached data yet (0ms repeat visits)
-  const isLoading = (projectsQuery.isLoading && projects.length === 0) || (subplatesQuery.isLoading && subplates.length === 0);
-  const isFetching = projectsQuery.isFetching || subplatesQuery.isFetching;
+  const projects = mounted ? (projectsQuery.data?.scans || []) : [];
+  const subplates = mounted ? (subplatesQuery.data?.subplates || []) : [];
+  // Only display skeleton placeholders if there is absolutely no cached data yet or before mount (prevents hydration mismatch)
+  const isLoading = !mounted || (projectsQuery.isLoading && projects.length === 0) || (subplatesQuery.isLoading && subplates.length === 0);
+  const isFetching = mounted && (projectsQuery.isFetching || subplatesQuery.isFetching);
 
   const handleRefresh = () => {
     projectsQuery.refetch();
@@ -163,7 +163,7 @@ export default function DashboardPage() {
               Active Project Register
             </h2>
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-              {displayedProjects.length} Projects
+              {mounted ? displayedProjects.length : 0} Projects
             </span>
             {activeStage && (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
