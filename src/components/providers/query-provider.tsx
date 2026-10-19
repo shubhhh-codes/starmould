@@ -6,6 +6,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createQueryClient } from "@/lib/query/client";
 import { createIDBPersister } from "@/lib/query/persister";
 import { getCachedSession } from "@/components/providers/auth-provider";
+import { RealtimeSyncListener } from "@/lib/query/realtime";
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => createQueryClient());
@@ -26,7 +27,12 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   // to prevent hydration mismatch against empty SSR cache.
   // Once mounted, PersistQueryClientProvider restores IndexedDB cache smoothly.
   if (!isMounted || !persister) {
-    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    return (
+      <QueryClientProvider client={queryClient}>
+        <RealtimeSyncListener />
+        {children}
+      </QueryClientProvider>
+    );
   }
 
   return (
@@ -47,6 +53,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         },
       }}
     >
+      <RealtimeSyncListener />
       {children}
     </PersistQueryClientProvider>
   );

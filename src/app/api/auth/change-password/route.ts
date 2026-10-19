@@ -4,8 +4,20 @@ import bcrypt from "bcryptjs";
 import { authenticateRequest } from "@/lib/auth";
 import { invalidateCache } from "@/lib/cache";
 import { serverLogger } from "@/lib/server-logger";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const ip = (forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") ?? "unknown").trim();
+  const rateCheck = checkRateLimit(ip, 10, 15 * 60 * 1000, 30 * 60 * 1000, "change-password");
+  if (!rateCheck.allowed) {
+    const mins = Math.ceil((rateCheck.retryAfterSeconds ?? 1800) / 60);
+    return NextResponse.json(
+      { error: `Too many password change attempts. Please try again in ${mins} minute${mins !== 1 ? "s" : ""}.` },
+      { status: 429, headers: { "Retry-After": String(rateCheck.retryAfterSeconds ?? 1800) } }
+    );
+  }
+
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
     serverLogger.warn("POST /api/auth/change-password: Authentication failed", {

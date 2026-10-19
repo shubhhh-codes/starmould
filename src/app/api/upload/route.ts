@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 import crypto from "crypto";
 
 const ALLOWED_BUCKETS = new Set(["subplate-photos", "mould-attachments", "general-attachments"]);
@@ -28,6 +29,16 @@ function isValidImageMagicBytes(buf: Buffer): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const ip = (forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") ?? "unknown").trim();
+  const rateCheck = checkRateLimit(ip, 20, 15 * 60 * 1000, 15 * 60 * 1000, "upload");
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: "Upload rate limit exceeded. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(rateCheck.retryAfterSeconds ?? 900) } }
+    );
+  }
+
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

@@ -26,10 +26,15 @@ import {
   Compass,
   Building2,
 } from "lucide-react";
-import { CommandPalette } from "@/components/ui/command-palette";
+import dynamic from "next/dynamic";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useAuth } from "@/components/providers/auth-provider";
+
+const CommandPalette = dynamic(
+  () => import("@/components/ui/command-palette").then((mod) => mod.CommandPalette),
+  { ssr: false }
+);
 
 interface TopbarProps {
   onToggleSidebar?: () => void;

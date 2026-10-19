@@ -37,10 +37,17 @@ export interface RateLimitResult {
   attemptsRemaining?: number;
 }
 
-export function checkRateLimit(ip: string): RateLimitResult {
+export function checkRateLimit(
+  ip: string,
+  maxAttempts: number = MAX_ATTEMPTS,
+  windowMs: number = WINDOW_MS,
+  lockoutMs: number = LOCKOUT_MS,
+  prefix: string = ""
+): RateLimitResult {
   pruneExpired();
   const now = Date.now();
-  const entry = store.get(ip);
+  const storeKey = prefix ? `${prefix}:${ip}` : ip;
+  const entry = store.get(storeKey);
 
   // Locked out
   if (entry?.lockedUntil && now < entry.lockedUntil) {
@@ -50,26 +57,27 @@ export function checkRateLimit(ip: string): RateLimitResult {
     };
   }
 
-  if (!entry || now - entry.windowStart > WINDOW_MS) {
+  if (!entry || now - entry.windowStart > windowMs) {
     // Fresh window
-    store.set(ip, { count: 1, windowStart: now });
-    return { allowed: true, attemptsRemaining: MAX_ATTEMPTS - 1 };
+    store.set(storeKey, { count: 1, windowStart: now });
+    return { allowed: true, attemptsRemaining: maxAttempts - 1 };
   }
 
   entry.count++;
 
-  if (entry.count > MAX_ATTEMPTS) {
-    entry.lockedUntil = now + LOCKOUT_MS;
+  if (entry.count > maxAttempts) {
+    entry.lockedUntil = now + lockoutMs;
     return {
       allowed: false,
-      retryAfterSeconds: Math.ceil(LOCKOUT_MS / 1000),
+      retryAfterSeconds: Math.ceil(lockoutMs / 1000),
     };
   }
 
-  return { allowed: true, attemptsRemaining: MAX_ATTEMPTS - entry.count };
+  return { allowed: true, attemptsRemaining: maxAttempts - entry.count };
 }
 
-/** Call on successful login to reset the counter for this IP. */
-export function resetRateLimit(ip: string): void {
-  store.delete(ip);
+/** Call to reset the counter for this IP/prefix. */
+export function resetRateLimit(ip: string, prefix: string = ""): void {
+  const storeKey = prefix ? `${prefix}:${ip}` : ip;
+  store.delete(storeKey);
 }

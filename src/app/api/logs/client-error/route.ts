@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverLogger, ClientErrorReport } from "@/lib/server-logger";
 import { verifySessionToken } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // Deduplication map to prevent terminal flooding (cleared every 15s)
 const recentErrorHashes = new Map<string, { count: number; firstSeen: number }>();
@@ -20,6 +21,15 @@ setInterval(() => {
 }, 15_000);
 
 export async function POST(req: NextRequest) {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const ip = (forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") ?? "unknown").trim();
+  const rateCheck = checkRateLimit(ip, 30, 60 * 1000, 60 * 1000, "client-error");
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: "Logging rate limit exceeded" },
+      { status: 429, headers: { "Retry-After": String(rateCheck.retryAfterSeconds ?? 60) } }
+    );
+  }
   try {
     const report: ClientErrorReport = await req.json();
 

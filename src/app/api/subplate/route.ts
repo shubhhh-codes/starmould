@@ -33,22 +33,26 @@ export async function GET(req: NextRequest) {
       subplateQuery = subplateQuery.eq("location", location);
     }
     if (search) {
-      subplateQuery = subplateQuery.or(`platename.ilike.%${search}%,subprojectid.ilike.%${search}%`);
+      const safeSearch = search.replace(/[(),%]/g, "").trim();
+      if (safeSearch) {
+        subplateQuery = subplateQuery.or(`platename.ilike.%${safeSearch}%,subprojectid.ilike.%${safeSearch}%`);
+      }
     }
 
     if (projectid && projectid !== "ALL") {
-      if (/^\d+$/.test(projectid)) {
-        subplateQuery = subplateQuery.eq("projectid", projectid);
+      const safeProjectId = projectid.replace(/[(),%]/g, "").trim();
+      if (/^\d+$/.test(safeProjectId)) {
+        subplateQuery = subplateQuery.eq("projectid", safeProjectId);
       } else {
         const { data: matchedScan } = await supabaseAdmin
           .from("scan")
           .select("id")
-          .eq("projectid", projectid)
+          .eq("projectid", safeProjectId)
           .maybeSingle();
         if (matchedScan) {
-          subplateQuery = subplateQuery.or(`projectid.eq.${matchedScan.id},subprojectid.ilike.${projectid}%`);
+          subplateQuery = subplateQuery.or(`projectid.eq.${matchedScan.id},subprojectid.ilike.${safeProjectId}%`);
         } else {
-          subplateQuery = subplateQuery.ilike("subprojectid", `${projectid}%`);
+          subplateQuery = subplateQuery.ilike("subprojectid", `${safeProjectId}%`);
         }
       }
     }

@@ -18,6 +18,8 @@ export const CACHE_TIERS = {
   OPERATIONAL: {
     staleTime: 60 * 1000,      // 60 seconds
     gcTime: 24 * 60 * 60 * 1000,
+    refetchInterval: 45 * 1000, // 45s active-tab background polling fallback
+    refetchIntervalInBackground: false,
   },
   // Tier D: Sensitive & Dashboard Rollups (KPI counts, user session)
   DASHBOARD: {
@@ -35,6 +37,8 @@ export function createQueryClient(): QueryClient {
       queries: {
         staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
         gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+        refetchInterval: CACHE_TIERS.OPERATIONAL.refetchInterval,
+        refetchIntervalInBackground: CACHE_TIERS.OPERATIONAL.refetchIntervalInBackground,
         refetchOnWindowFocus: false,
         refetchOnMount: true,
         refetchOnReconnect: true,

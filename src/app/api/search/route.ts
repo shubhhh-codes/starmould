@@ -1,8 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function GET(req: NextRequest) {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const ip = (forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") ?? "unknown").trim();
+  const rateCheck = checkRateLimit(ip, 60, 60 * 1000, 60 * 1000, "search");
+  if (!rateCheck.allowed) {
+    return NextResponse.json(
+      { error: "Search rate limit exceeded. Please slow down." },
+      { status: 429, headers: { "Retry-After": String(rateCheck.retryAfterSeconds ?? 60) } }
+    );
+  }
+
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
