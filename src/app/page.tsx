@@ -158,9 +158,16 @@ export default function DashboardPage() {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer shadow-xs ${isRefreshing ? "opacity-80" : ""}`}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition cursor-pointer shadow-xs ${
+              isRefreshing
+                ? "border-blue-300 bg-blue-50/70 text-blue-700"
+                : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+            }`}
           >
-            <RefreshCw suppressHydrationWarning className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-blue-600" : ""}`} />
+            <RefreshCw
+              suppressHydrationWarning
+              className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin-fast text-blue-600" : "text-slate-500"}`}
+            />
             <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
           <Link

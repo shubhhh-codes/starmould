@@ -996,10 +996,18 @@ export function MouldProjectsTable({
             {onRefresh && (
               <button
                 onClick={onRefresh}
-                className="h-8 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 transition-colors shadow-2xs flex items-center gap-1.5 text-xs font-medium cursor-pointer"
+                disabled={isRefreshing}
+                className={`h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer ${
+                  isRefreshing
+                    ? "border-blue-300 bg-blue-50/70 text-blue-700"
+                    : "border-slate-300 bg-white hover:bg-slate-100 text-slate-600"
+                }`}
                 title="Refresh Data"
               >
-                <RefreshCw suppressHydrationWarning className={`h-3.5 w-3.5 ${isRefreshing || isLoading ? "animate-spin text-blue-600" : ""}`} />
+                <RefreshCw
+                  suppressHydrationWarning
+                  className={`h-3.5 w-3.5 ${isRefreshing || isLoading ? "animate-spin-fast text-blue-600" : ""}`}
+                />
                 <span className="sm:hidden text-slate-600 font-medium">Refresh</span>
               </button>
             )}

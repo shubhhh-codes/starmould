@@ -316,6 +316,20 @@ body {
 .stagger-3 { animation-delay: 120ms; }
 .stagger-4 { animation-delay: 160ms; }
 
+/* Explicit Keyframe Spin for Guaranteed Smooth Icon Rotation */
+@keyframes spin-clockwise {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-fast {
+  animation: spin-clockwise 0.75s linear infinite !important;
+}
+
 /* =========================================================================
    REDUCED MOTION ACCESSIBILITY
    ========================================================================= */
