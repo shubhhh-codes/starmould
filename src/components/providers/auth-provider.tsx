@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { createIDBPersister } from "@/lib/query/persister";
 
 export interface UserSession {
   id?: number;
@@ -33,7 +34,7 @@ const AuthContext = createContext<AuthContextType>({
 
 const SESSION_STORAGE_KEY = "starmould_user_session";
 
-function getCachedSession(): UserSession | null {
+export function getCachedSession(): UserSession | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(SESSION_STORAGE_KEY);
@@ -137,6 +138,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error("Error logging out:", err);
     } finally {
+      try {
+        const cached = getCachedSession();
+        const userSuffix = cached?.id ? `${cached.id}_${cached.role_id ?? 0}` : "anon";
+        const persister = createIDBPersister(userSuffix);
+        await persister?.removeClient();
+      } catch (e) {
+        // Ignore persister removal error
+      }
       queryClient.clear();
       setUser(null);
       router.push("/login");

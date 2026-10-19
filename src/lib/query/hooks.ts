@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
 import { CACHE_TIERS } from "./client";
@@ -103,28 +104,31 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
   });
 
   // Intelligent Prefetching: prefetch next page if it exists
-  if (query.data?.pagination?.hasNextPage) {
-    const nextPageParams = { ...params, page: page + 1 };
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.projects.list(nextPageParams),
-      queryFn: async () => {
-        const searchParams = new URLSearchParams();
-        searchParams.set("page", String(page + 1));
-        searchParams.set("limit", String(pageSize));
-        if (params.status && params.status !== "ALL") searchParams.set("status", params.status);
-        if (params.search) searchParams.set("search", params.search);
-        const data = await fetchJson<any>(`/api/scanning?${searchParams.toString()}`);
-        return {
-          scans: (data.scans || data.data || []) as ScanProject[],
-          customers: (data.customers || []) as Customer[],
-          users: (data.users || []) as User[],
-          kpis: data.kpis || {},
-          pagination: data.pagination,
-        };
-      },
-      staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-    });
-  }
+  const hasNextPage = query.data?.pagination?.hasNextPage;
+  useEffect(() => {
+    if (hasNextPage) {
+      const nextPageParams = { ...params, page: page + 1 };
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.projects.list(nextPageParams),
+        queryFn: async () => {
+          const searchParams = new URLSearchParams();
+          searchParams.set("page", String(page + 1));
+          searchParams.set("limit", String(pageSize));
+          if (params.status && params.status !== "ALL") searchParams.set("status", params.status);
+          if (params.search) searchParams.set("search", params.search);
+          const data = await fetchJson<any>(`/api/scanning?${searchParams.toString()}`);
+          return {
+            scans: (data.scans || data.data || []) as ScanProject[],
+            customers: (data.customers || []) as Customer[],
+            users: (data.users || []) as User[],
+            kpis: data.kpis || {},
+            pagination: data.pagination,
+          };
+        },
+        staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+      });
+    }
+  }, [hasNextPage, params, page, pageSize, queryClient]);
 
   return query;
 }

@@ -36,7 +36,7 @@ export function createQueryClient(): QueryClient {
         staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
         gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
         refetchOnWindowFocus: false,
-        refetchOnMount: false,
+        refetchOnMount: true,
         refetchOnReconnect: true,
         placeholderData: keepPreviousData,
         retry: 1,

@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
 import { CACHE_TIERS } from "./client";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 
 // Fetch helper with error extraction
 async function fetchJson<T>(url: string): Promise<T> {
@@ -22,65 +22,74 @@ async function fetchJson<T>(url: string): Promise<T> {
 export function useSmartPrefetch() {
   const queryClient = useQueryClient();
 
-  const prefetchProjects = (params: any = { pageSize: 500 }) => {
-    const key = queryKeys.projects.list(params);
-    if (queryClient.getQueryData(key)) return; // Already cached
+  const prefetchProjects = useCallback(
+    (params: any = { pageSize: 500 }) => {
+      const key = queryKeys.projects.list(params);
+      if (queryClient.getQueryData(key)) return; // Already cached
 
-    queryClient.prefetchQuery({
-      queryKey: key,
-      queryFn: async () => {
-        const data = await fetchJson<any>(`/api/scanning?limit=${params.pageSize || 500}`);
-        return {
-          scans: data.scans || data.data || [],
-          customers: data.customers || [],
-          users: data.users || [],
-          kpis: data.kpis || {},
-          pagination: data.pagination,
-        };
-      },
-      staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-    });
-  };
+      queryClient.prefetchQuery({
+        queryKey: key,
+        queryFn: async () => {
+          const data = await fetchJson<any>(`/api/scanning?limit=${params.pageSize || 500}`);
+          return {
+            scans: data.scans || data.data || [],
+            customers: data.customers || [],
+            users: data.users || [],
+            kpis: data.kpis || {},
+            pagination: data.pagination,
+          };
+        },
+        staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+      });
+    },
+    [queryClient]
+  );
 
-  const prefetchSubplates = (params: any = {}) => {
-    const key = queryKeys.subplates.list(params);
-    if (queryClient.getQueryData(key)) return;
+  const prefetchSubplates = useCallback(
+    (params: any = {}) => {
+      const key = queryKeys.subplates.list(params);
+      if (queryClient.getQueryData(key)) return;
 
-    queryClient.prefetchQuery({
-      queryKey: key,
-      queryFn: async () => {
-        const qs = params.projectid ? `?projectid=${encodeURIComponent(params.projectid)}` : "?limit=1000";
-        const data = await fetchJson<any>(`/api/subplate${qs}`);
-        return {
-          subplates: data.subplates || data.data || [],
-          scans: data.scans || [],
-          users: data.users || [],
-          kpis: data.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 },
-          pagination: data.pagination,
-        };
-      },
-      staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-    });
-  };
+      queryClient.prefetchQuery({
+        queryKey: key,
+        queryFn: async () => {
+          const qs = params.projectid ? `?projectid=${encodeURIComponent(params.projectid)}` : "?limit=1000";
+          const data = await fetchJson<any>(`/api/subplate${qs}`);
+          return {
+            subplates: data.subplates || data.data || [],
+            scans: data.scans || [],
+            users: data.users || [],
+            kpis: data.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 },
+            pagination: data.pagination,
+          };
+        },
+        staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+      });
+    },
+    [queryClient]
+  );
 
-  const prefetchCustomers = (params: any = { pageSize: 2000 }) => {
-    const key = queryKeys.customers.list(params);
-    if (queryClient.getQueryData(key)) return;
+  const prefetchCustomers = useCallback(
+    (params: any = { pageSize: 2000 }) => {
+      const key = queryKeys.customers.list(params);
+      if (queryClient.getQueryData(key)) return;
 
-    queryClient.prefetchQuery({
-      queryKey: key,
-      queryFn: async () => {
-        const data = await fetchJson<any>("/api/customers?limit=2000");
-        return {
-          customers: data.customers || data.data || [],
-          pagination: data.pagination,
-        };
-      },
-      staleTime: CACHE_TIERS.MODERATE.staleTime,
-    });
-  };
+      queryClient.prefetchQuery({
+        queryKey: key,
+        queryFn: async () => {
+          const data = await fetchJson<any>("/api/customers?limit=2000");
+          return {
+            customers: data.customers || data.data || [],
+            pagination: data.pagination,
+          };
+        },
+        staleTime: CACHE_TIERS.MODERATE.staleTime,
+      });
+    },
+    [queryClient]
+  );
 
-  const prefetchWorklogs = () => {
+  const prefetchWorklogs = useCallback(() => {
     const key = queryKeys.worklogs.list({});
     if (queryClient.getQueryData(key)) return;
 
@@ -99,9 +108,9 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchPurchases = () => {
+  const prefetchPurchases = useCallback(() => {
     const key = queryKeys.purchases.list({ limit: 200, includePlates: true });
     if (queryClient.getQueryData(key)) return;
 
@@ -119,9 +128,9 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchChallans = () => {
+  const prefetchChallans = useCallback(() => {
     const key = queryKeys.challans.list({});
     if (queryClient.getQueryData(key)) return;
 
@@ -139,9 +148,9 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchDispatch = () => {
+  const prefetchDispatch = useCallback(() => {
     const key = queryKeys.dispatch.list({ limit: 200 });
     if (queryClient.getQueryData(key)) return;
 
@@ -158,9 +167,9 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchInward = () => {
+  const prefetchInward = useCallback(() => {
     const key = queryKeys.inward.list({});
     if (queryClient.getQueryData(key)) return;
 
@@ -178,10 +187,11 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchExpenses = () => {
-    const key = queryKeys.expenses.list({});
+  const prefetchExpenses = useCallback(() => {
+    const initialParams = { customerid: "ALL", payment_type: "ALL", startDate: "", endDate: "" };
+    const key = queryKeys.expenses.list(initialParams);
     if (queryClient.getQueryData(key)) return;
 
     queryClient.prefetchQuery({
@@ -196,9 +206,9 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchSample = () => {
+  const prefetchSample = useCallback(() => {
     const key = queryKeys.samples.list();
     if (queryClient.getQueryData(key)) return;
 
@@ -214,9 +224,9 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchPrinting = () => {
+  const prefetchPrinting = useCallback(() => {
     const key = queryKeys.printing.list();
     if (queryClient.getQueryData(key)) return;
 
@@ -234,9 +244,9 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     });
-  };
+  }, [queryClient]);
 
-  const prefetchUsers = () => {
+  const prefetchUsers = useCallback(() => {
     const key = queryKeys.users.list({});
     if (queryClient.getQueryData(key)) return;
 
@@ -251,57 +261,73 @@ export function useSmartPrefetch() {
       },
       staleTime: CACHE_TIERS.MODERATE.staleTime,
     });
-  };
+  }, [queryClient]);
 
   /**
    * Universal route prefetch dispatcher
    */
-  const prefetchRoute = (href: string) => {
-    const cleanPath = href.split("?")[0];
-    switch (cleanPath) {
-      case "/":
-      case "/scanning":
-        prefetchProjects();
-        break;
-      case "/subplate":
-        prefetchSubplates();
-        break;
-      case "/customers":
-      case "/vendors":
-        prefetchCustomers();
-        break;
-      case "/work":
-        prefetchWorklogs();
-        break;
-      case "/purchase":
-        prefetchPurchases();
-        break;
-      case "/challan":
-        prefetchChallans();
-        break;
-      case "/dispatch":
-        prefetchDispatch();
-        break;
-      case "/inward":
-        prefetchInward();
-        break;
-      case "/expense":
-        prefetchExpenses();
-        break;
-      case "/sample":
-        prefetchSample();
-        break;
-      case "/printing":
-        prefetchPrinting();
-        break;
-      case "/user":
-      case "/settings":
-        prefetchUsers();
-        break;
-      default:
-        break;
-    }
-  };
+  const prefetchRoute = useCallback(
+    (href: string) => {
+      const cleanPath = href.split("?")[0];
+      switch (cleanPath) {
+        case "/":
+        case "/scanning":
+          prefetchProjects();
+          break;
+        case "/subplate":
+          prefetchSubplates();
+          break;
+        case "/customers":
+        case "/vendors":
+          prefetchCustomers();
+          break;
+        case "/work":
+          prefetchWorklogs();
+          break;
+        case "/purchase":
+          prefetchPurchases();
+          break;
+        case "/challan":
+          prefetchChallans();
+          break;
+        case "/dispatch":
+          prefetchDispatch();
+          break;
+        case "/inward":
+          prefetchInward();
+          break;
+        case "/expense":
+          prefetchExpenses();
+          break;
+        case "/sample":
+          prefetchSample();
+          break;
+        case "/printing":
+          prefetchPrinting();
+          break;
+        case "/user":
+        case "/settings":
+          prefetchUsers();
+          break;
+        default:
+          break;
+      }
+    },
+    [
+      prefetchProjects,
+      prefetchSubplates,
+      prefetchCustomers,
+      prefetchWorklogs,
+      prefetchPurchases,
+      prefetchChallans,
+      prefetchDispatch,
+      prefetchInward,
+      prefetchExpenses,
+      prefetchSample,
+      prefetchPrinting,
+      prefetchUsers,
+    ]
+  );
 
   return {
     prefetchProjects,

@@ -1,59 +1,44 @@
 "use client";
 
-import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
-import { removeOldestQuery } from "@tanstack/react-query-persist-client";
-import LZString from "lz-string";
+import { get, set, del } from "idb-keyval";
+import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
 
-export const CACHE_STORAGE_KEY = "STARMOULD_PERSISTED_QUERY_CACHE_V2";
+export const CACHE_STORAGE_KEY_PREFIX = "STARMOULD_CACHE_V3";
 
 /**
- * Creates a synchronous, compressed localStorage persister for TanStack Query.
- * Compresses data using LZ-String to reduce footprint by 70-85%, preventing
- * browser quota overflow while enabling instant 0ms rehydration on repeat visits.
+ * Creates an asynchronous, non-blocking IndexedDB persister for TanStack Query.
+ * Stores native JS objects in IndexedDB via idb-keyval without main-thread
+ * JSON.stringify or LZ-String compression bottlenecks, scoped by user identity.
  */
-export function createCompressedPersister() {
+export function createIDBPersister(userKeySuffix: string = "default"): Persister | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  try {
-    return createSyncStoragePersister({
-      storage: window.localStorage,
-      key: CACHE_STORAGE_KEY,
-      throttleTime: 1200,
-      serialize: (persistedClient) => {
-        try {
-          const json = JSON.stringify(persistedClient);
-          return LZString.compressToUTF16(json);
-        } catch (err) {
-          console.warn("[Persister] Compression error, falling back:", err);
-          return "";
-        }
-      },
-      deserialize: (cachedString) => {
-        if (!cachedString) return undefined as any;
-        try {
-          // Attempt LZ decompression
-          const decompressed = LZString.decompressFromUTF16(cachedString);
-          if (decompressed) {
-            return JSON.parse(decompressed);
-          }
-          // Fallback if previously saved as raw uncompressed JSON
-          return JSON.parse(cachedString);
-        } catch (err) {
-          console.warn("[Persister] Deserialization error, resetting cache key:", err);
-          try {
-            window.localStorage.removeItem(CACHE_STORAGE_KEY);
-          } catch {
-            // Ignore
-          }
-          return undefined as any;
-        }
-      },
-      retry: removeOldestQuery,
-    });
-  } catch (err) {
-    console.warn("[Persister] Failed to initialize persister:", err);
-    return null;
-  }
+  const idbKey = `${CACHE_STORAGE_KEY_PREFIX}_${userKeySuffix}`;
+
+  return {
+    persistClient: async (client: PersistedClient) => {
+      try {
+        await set(idbKey, client);
+      } catch (err) {
+        console.warn("[IDBPersister] Failed to persist cache:", err);
+      }
+    },
+    restoreClient: async () => {
+      try {
+        return await get<PersistedClient>(idbKey);
+      } catch (err) {
+        console.warn("[IDBPersister] Failed to restore cache:", err);
+        return undefined;
+      }
+    },
+    removeClient: async () => {
+      try {
+        await del(idbKey);
+      } catch (err) {
+        console.warn("[IDBPersister] Failed to remove cache:", err);
+      }
+    },
+  };
 }

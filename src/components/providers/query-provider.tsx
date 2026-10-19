@@ -1,38 +1,45 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { persistQueryClient } from "@tanstack/query-persist-client-core";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createQueryClient } from "@/lib/query/client";
-import { createCompressedPersister } from "@/lib/query/persister";
+import { createIDBPersister } from "@/lib/query/persister";
+import { getCachedSession } from "@/components/providers/auth-provider";
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => createQueryClient());
 
-  useEffect(() => {
-    const persister = createCompressedPersister();
-    if (!persister) return;
+  const persister = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    const session = getCachedSession();
+    const userSuffix = session?.id ? `${session.id}_${session.role_id ?? 0}` : "anon";
+    return createIDBPersister(userSuffix);
+  }, []);
 
-    const [unsubscribe] = persistQueryClient({
-      queryClient,
-      persister,
-      maxAge: 24 * 60 * 60 * 1000,
-      buster: "v2.1",
-      dehydrateOptions: {
-        shouldDehydrateQuery: (query) => {
-          return (
-            query.state.status === "success" &&
-            query.state.data !== undefined &&
-            query.state.data !== null
-          );
+  if (!persister) {
+    return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  }
+
+  return (
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 24 * 60 * 60 * 1000,
+        buster: "v3.0.0",
+        dehydrateOptions: {
+          shouldDehydrateQuery: (query) => {
+            return (
+              query.state.status === "success" &&
+              query.queryKey[0] !== "worklogs" &&
+              query.queryKey[0] !== "search"
+            );
+          },
         },
-      },
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, [queryClient]);
-
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+      }}
+    >
+      {children}
+    </PersistQueryClientProvider>
+  );
 }
