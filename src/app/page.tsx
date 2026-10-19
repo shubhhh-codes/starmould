@@ -36,15 +36,29 @@ export default function DashboardPage() {
 
   const isLoading = isRestoring || (!hasData && (projectsQuery.isLoading || projectsQuery.isPending || subplatesQuery.isLoading || subplatesQuery.isPending));
   const isFetching = projectsQuery.isFetching || subplatesQuery.isFetching;
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const isRefreshing = isManualRefreshing || isFetching;
 
   const handleRefresh = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() }),
-      projectsQuery.refetch(),
-      subplatesQuery.refetch(),
-    ]);
+    setIsManualRefreshing(true);
+    const start = Date.now();
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() }),
+        projectsQuery.refetch(),
+        subplatesQuery.refetch(),
+      ]);
+    } finally {
+      // Ensure the user visibly sees the refresh spinning animation for at least 700ms
+      const elapsed = Date.now() - start;
+      if (elapsed < 700) {
+        setTimeout(() => setIsManualRefreshing(false), 700 - elapsed);
+      } else {
+        setIsManualRefreshing(false);
+      }
+    }
   };
 
   // Real pipeline metrics computed from subplate tracking records & active projects
@@ -143,10 +157,11 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2.5">
           <button
             onClick={handleRefresh}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer shadow-xs"
+            disabled={isRefreshing}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer shadow-xs ${isRefreshing ? "opacity-80" : ""}`}
           >
-            <RefreshCw suppressHydrationWarning className={`h-3.5 w-3.5 ${isFetching ? "animate-spin text-blue-600" : ""}`} />
-            <span>Refresh</span>
+            <RefreshCw suppressHydrationWarning className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin text-blue-600" : ""}`} />
+            <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
           <Link
             href="/scanning"
@@ -190,7 +205,7 @@ export default function DashboardPage() {
         <MouldProjectsTable
           initialData={displayedProjects}
           isLoading={isLoading}
-          isRefreshing={isFetching}
+          isRefreshing={isRefreshing}
           onRefresh={handleRefresh}
         />
       </div>
