@@ -8,9 +8,9 @@ import { createIDBPersister } from "@/lib/query/persister";
 export interface UserSession {
   id?: number;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
-  initials: string;
+  initials?: string | null;
   role_id?: number;
   username?: string;
   must_change_password?: boolean;
@@ -49,12 +49,25 @@ export function getCachedSession(): UserSession | null {
   return null;
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser = null,
+}: {
+  children: React.ReactNode;
+  initialUser?: UserSession | null;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const [currentUser, setCurrentUserState] = useState<UserSession | null>(null);
-  const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(false);
+
+  // Synchronous initial state resolution: SSR initialUser -> LocalStorage cached session -> null
+  const [currentUser, setCurrentUserState] = useState<UserSession | null>(() => {
+    if (initialUser) return initialUser;
+    return getCachedSession();
+  });
+  const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(() => {
+    return Boolean(initialUser || getCachedSession());
+  });
 
   const setUser = useCallback((user: UserSession | null) => {
     setCurrentUserState(user);
@@ -100,7 +113,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           role_id: data.user.role_id,
           must_change_password: data.user.must_change_password === true,
         };
-        setUser(formattedUser);
+        // Update state and cache only if data has changed to prevent UI re-render flickers
+        setCurrentUserState((prev) => {
+          if (
+            prev &&
+            prev.id === formattedUser.id &&
+            prev.role_id === formattedUser.role_id &&
+            prev.name === formattedUser.name &&
+            prev.role === formattedUser.role &&
+            prev.must_change_password === formattedUser.must_change_password
+          ) {
+            return prev;
+          }
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(formattedUser));
+            } catch {}
+          }
+          return formattedUser;
+        });
       }
     } catch (err) {
       console.error("Error loading session:", err);
@@ -109,15 +140,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [setUser]);
 
-  // Hydrate from localStorage immediately on mount, then verify with server
+  // Hydrate from localStorage immediately on mount if state wasn't populated yet, then verify in background
   useEffect(() => {
-    const cached = getCachedSession();
-    if (cached) {
-      setCurrentUserState(cached);
-      setIsSessionLoaded(true);
+    if (!currentUser) {
+      const cached = getCachedSession();
+      if (cached) {
+        setCurrentUserState(cached);
+        setIsSessionLoaded(true);
+      }
     }
     fetchSession();
-  }, [fetchSession]);
+  }, [fetchSession, currentUser]);
 
   // Handle mandatory password reset redirect
   useEffect(() => {

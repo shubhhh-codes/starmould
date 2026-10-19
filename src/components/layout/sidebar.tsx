@@ -176,12 +176,12 @@ export const navigationItems: NavItem[] = [
   },
 ];
 
-import { useAuth } from "@/components/providers/auth-provider";
+import { useAuth, getCachedSession } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useSmartPrefetch, useBackgroundPrefetchWarmup } from "@/lib/query/prefetch";
 import { overlayStack } from "@/lib/overlay-stack";
 
-interface SidebarProps {
+export interface SidebarProps {
   collapsed?: boolean;
   mobileOpen?: boolean;
   onMobileClose?: () => void;
@@ -206,7 +206,8 @@ export function Sidebar({
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
   const { prefetchRoute } = useSmartPrefetch();
   useBackgroundPrefetchWarmup();
-  const activeUser = propUser !== undefined ? propUser : authUser;
+  const cachedUser = typeof window !== "undefined" ? getCachedSession() : null;
+  const activeUser = propUser !== undefined ? (propUser || cachedUser) : (authUser || cachedUser);
   const userRoleId = activeUser?.role_id;
 
   const isItemActive = React.useCallback(
@@ -241,7 +242,14 @@ export function Sidebar({
 
   // Filter and sort menu items strictly by user role and active permission matrix & menu order
   const visibleItems = React.useMemo(() => {
-    const roleId = Number(userRoleId ?? 4);
+    let effectiveRoleId = userRoleId;
+    if (effectiveRoleId === undefined && typeof window !== "undefined") {
+      const cached = getCachedSession();
+      if (cached && cached.role_id !== undefined) {
+        effectiveRoleId = cached.role_id;
+      }
+    }
+    const roleId = Number(effectiveRoleId ?? (activeUser ? 4 : 0));
     
     // First, filter items that the role has permission to view
     const allowed = navigationItems.filter((item) => {
@@ -393,10 +401,10 @@ export function Sidebar({
                   <UserIcon className="h-3.5 w-3.5" />
                 </div>
                 <div className="overflow-hidden">
-                  <p className="font-semibold text-white truncate text-[11px]">
+                  <p className="font-semibold text-white truncate text-[11px]" suppressHydrationWarning>
                     {activeUser?.name || "User"}
                   </p>
-                  <p className="text-[10px] text-slate-400 truncate">
+                  <p className="text-[10px] text-slate-400 truncate" suppressHydrationWarning>
                     {activeUser?.role || "Staff"}
                   </p>
                 </div>

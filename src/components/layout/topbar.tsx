@@ -29,7 +29,7 @@ import {
 import dynamic from "next/dynamic";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
-import { useAuth } from "@/components/providers/auth-provider";
+import { useAuth, getCachedSession, type UserSession } from "@/components/providers/auth-provider";
 
 const CommandPalette = dynamic(
   () => import("@/components/ui/command-palette").then((mod) => mod.CommandPalette),
@@ -39,14 +39,7 @@ const CommandPalette = dynamic(
 interface TopbarProps {
   onToggleSidebar?: () => void;
   onToggleMobileMenu?: () => void;
-  currentUser?: {
-    name: string;
-    email: string;
-    role: string;
-    initials: string;
-    role_id?: number;
-    username?: string;
-  } | null;
+  currentUser?: UserSession | null;
 }
 
 // Map pathnames to clean page titles & icons
@@ -76,7 +69,9 @@ export function Topbar({
 }: TopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuth();
+  const { logout, currentUser: authUser } = useAuth();
+  const cachedUser = typeof window !== "undefined" ? getCachedSession() : null;
+  const activeUser = currentUser || authUser || cachedUser;
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -271,29 +266,32 @@ export function Topbar({
               className="flex items-center gap-2.5 p-1 pl-2 rounded-xl hover:bg-slate-800 transition-colors text-left cursor-pointer border border-transparent hover:border-slate-700"
             >
               <div className="flex flex-col text-right hidden sm:flex">
-                <span className="text-xs font-bold text-white leading-tight">
-                  {currentUser?.name || "User"}
+                <span className="text-xs font-bold text-white leading-tight" suppressHydrationWarning>
+                  {activeUser?.name || "User"}
                 </span>
-                <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1 capitalize font-medium">
+                <span className="text-[10px] text-slate-400 flex items-center justify-end gap-1 capitalize font-medium" suppressHydrationWarning>
                   <Shield className="h-2.5 w-2.5 text-blue-400" />
-                  {currentUser?.role || "Staff"}
+                  {activeUser?.role || "Staff"}
                 </span>
               </div>
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-500/20">
-                {currentUser?.initials || currentUser?.name?.slice(0, 2).toUpperCase() || "SM"}
+              <div
+                className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-500/20"
+                suppressHydrationWarning
+              >
+                {activeUser?.initials || activeUser?.name?.slice(0, 2).toUpperCase() || "SM"}
               </div>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
             </button>
 
             {/* Dropdown Menu */}
-            {currentUser && showUserDropdown && (
+            {activeUser && showUserDropdown && (
               <div className="absolute right-0 mt-2 w-56 rounded-xl bg-slate-900 border border-slate-800 shadow-2xl py-1 text-xs text-slate-300 z-50 animate-in fade-in zoom-in-95 duration-100">
                 <div className="px-4 py-2.5 border-b border-slate-800">
-                  <p className="font-bold text-white text-xs">{currentUser.name}</p>
-                  <p className="text-[11px] text-slate-400 truncate mt-0.5">@{currentUser.username || currentUser.email}</p>
-                  <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-900/40 border border-blue-700/50 text-blue-300 text-[10px] font-semibold capitalize">
+                  <p className="font-bold text-white text-xs" suppressHydrationWarning>{activeUser.name}</p>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5" suppressHydrationWarning>@{activeUser.username || activeUser.email}</p>
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-blue-900/40 border border-blue-700/50 text-blue-300 text-[10px] font-semibold capitalize" suppressHydrationWarning>
                     <Sparkles className="h-2.5 w-2.5 text-blue-400" />
-                    Role: {currentUser.role}
+                    Role: {activeUser.role}
                   </div>
                 </div>
 

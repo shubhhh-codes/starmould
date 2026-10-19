@@ -64,10 +64,27 @@ function getCachedPerms(): { matrix: RolePermissionsMatrix; menuOrders: RoleMenu
   return null;
 }
 
-export function PermissionsProvider({ children }: { children: React.ReactNode }) {
-  const { currentUser } = useAuth();
-  const [matrix, setMatrix] = useState<RolePermissionsMatrix>(DEFAULT_ROLE_PERMISSIONS);
-  const [menuOrders, setMenuOrders] = useState<RoleMenuOrders>(DEFAULT_ROLE_MENU_ORDERS);
+import { getCachedSession } from "./auth-provider";
+
+export function PermissionsProvider({
+  children,
+  initialUser = null,
+}: {
+  children: React.ReactNode;
+  initialUser?: any;
+}) {
+  const { currentUser: authUser } = useAuth();
+  const activeUser = authUser || initialUser;
+
+  // Initialize matrix and menuOrders synchronously from cache if present
+  const [matrix, setMatrix] = useState<RolePermissionsMatrix>(() => {
+    const cached = getCachedPerms();
+    return cached?.matrix || DEFAULT_ROLE_PERMISSIONS;
+  });
+  const [menuOrders, setMenuOrders] = useState<RoleMenuOrders>(() => {
+    const cached = getCachedPerms();
+    return cached?.menuOrders || DEFAULT_ROLE_MENU_ORDERS;
+  });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
@@ -107,15 +124,22 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const hasPermission = useCallback(
     (permissionKey: string, customRoleId?: number): boolean => {
-      const roleId = customRoleId !== undefined ? customRoleId : currentUser?.role_id ?? 4;
+      let roleId = customRoleId !== undefined ? customRoleId : activeUser?.role_id;
+      if (roleId === undefined && typeof window !== "undefined") {
+        const cached = getCachedSession();
+        if (cached && cached.role_id !== undefined) {
+          roleId = cached.role_id;
+        }
+      }
       if (roleId === 0) return true; // Admin has universal access
+      if (roleId === undefined) return false;
       // Role & Permissions (nav_settings) is strictly Admin only
       if (permissionKey === "nav_settings") return false;
       const rolePerms = matrix[roleId];
       if (!rolePerms) return false;
       return rolePerms[permissionKey] ?? false;
     },
-    [currentUser?.role_id, matrix]
+    [activeUser?.role_id, matrix]
   );
 
   const getRoleMenuOrder = useCallback(
@@ -130,8 +154,15 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
 
   const canAccessRoute = useCallback(
     (pathname: string, customRoleId?: number): boolean => {
-      const roleId = customRoleId !== undefined ? customRoleId : currentUser?.role_id ?? 4;
+      let roleId = customRoleId !== undefined ? customRoleId : activeUser?.role_id;
+      if (roleId === undefined && typeof window !== "undefined") {
+        const cached = getCachedSession();
+        if (cached && cached.role_id !== undefined) {
+          roleId = cached.role_id;
+        }
+      }
       if (roleId === 0) return true;
+      if (roleId === undefined) return false;
 
       // Settings is strictly Admin only
       if (pathname.startsWith("/settings")) return false;
@@ -150,7 +181,7 @@ export function PermissionsProvider({ children }: { children: React.ReactNode })
       }
       return true;
     },
-    [currentUser?.role_id, hasPermission]
+    [activeUser?.role_id, hasPermission]
   );
 
   const updateRolePermissions = useCallback(
