@@ -990,28 +990,9 @@ export function MouldProjectsTable({
           </div>
         </div>
 
-        {/* Right: Refresh, Bulk Actions & Export Buttons */}
+        {/* Right: Bulk Actions & Export Buttons */}
         <div className="flex items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0 border-t border-slate-200/60 sm:border-0">
           <div className="flex items-center gap-2">
-            {onRefresh && (
-              <button
-                onClick={onRefresh}
-                disabled={isRefreshing}
-                className={`h-8 px-2.5 rounded-lg border text-xs font-medium transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer ${
-                  isRefreshing
-                    ? "border-blue-300 bg-blue-50/70 text-blue-700"
-                    : "border-slate-300 bg-white hover:bg-slate-100 text-slate-600"
-                }`}
-                title="Refresh Data"
-              >
-                <RefreshCw
-                  suppressHydrationWarning
-                  className={`h-3.5 w-3.5 ${isRefreshing || isLoading ? "animate-spin-fast text-blue-600" : ""}`}
-                />
-                <span className="sm:hidden text-slate-600 font-medium">Refresh</span>
-              </button>
-            )}
-
             {selectedCount > 0 && (
               <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 font-medium">
                 <span>{selectedCount} sel</span>

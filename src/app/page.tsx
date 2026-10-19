@@ -158,6 +158,7 @@ export default function DashboardPage() {
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
+            suppressHydrationWarning
             className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-semibold transition cursor-pointer shadow-xs ${
               isRefreshing
                 ? "border-blue-300 bg-blue-50/70 text-blue-700"
@@ -168,7 +169,7 @@ export default function DashboardPage() {
               suppressHydrationWarning
               className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin-fast text-blue-600" : "text-slate-500"}`}
             />
-            <span>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
+            <span suppressHydrationWarning>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
           <Link
             href="/scanning"
