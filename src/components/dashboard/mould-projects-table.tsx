@@ -293,6 +293,7 @@ function ProjectSubplatesRow({
 interface MouldProjectsTableProps {
   initialData?: ScanProject[];
   isLoading?: boolean;
+  isRefreshing?: boolean;
   onRefresh?: () => void;
 }
 
@@ -301,6 +302,7 @@ const columnHelper = createColumnHelper<ScanProject>();
 export function MouldProjectsTable({
   initialData = [],
   isLoading = false,
+  isRefreshing = false,
   onRefresh,
 }: MouldProjectsTableProps) {
   const isRestoring = useIsRestoring();
@@ -997,7 +999,7 @@ export function MouldProjectsTable({
                 className="h-8 px-2.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 transition-colors shadow-2xs flex items-center gap-1.5 text-xs font-medium cursor-pointer"
                 title="Refresh Data"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin text-blue-600" : ""}`} />
+                <RefreshCw suppressHydrationWarning className={`h-3.5 w-3.5 ${isRefreshing || isLoading ? "animate-spin text-blue-600" : ""}`} />
                 <span className="sm:hidden text-slate-600 font-medium">Refresh</span>
               </button>
             )}

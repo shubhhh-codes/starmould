@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { useIsRestoring } from "@tanstack/react-query";
+import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
 import { PipelineStatGrid } from "@/components/dashboard/pipeline-stat-card";
 import { MouldProjectsTable } from "@/components/dashboard/mould-projects-table";
@@ -13,10 +13,12 @@ import {
 import Link from "next/link";
 import type { Subplate } from "@/lib/supabase/types";
 import { useProjectsQuery, useSubplatesQuery } from "@/lib/query/hooks";
+import { queryKeys } from "@/lib/query/keys";
 
 export default function DashboardPage() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const isRestoring = useIsRestoring();
+  const queryClient = useQueryClient();
 
   // Standardized shared cache query hooks matching Scanning and Subplate modules
   const projectsQuery = useProjectsQuery({ pageSize: 500 });
@@ -35,9 +37,14 @@ export default function DashboardPage() {
   const isLoading = isRestoring || (!hasData && (projectsQuery.isLoading || projectsQuery.isPending || subplatesQuery.isLoading || subplatesQuery.isPending));
   const isFetching = projectsQuery.isFetching || subplatesQuery.isFetching;
 
-  const handleRefresh = () => {
-    projectsQuery.refetch();
-    subplatesQuery.refetch();
+  const handleRefresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() }),
+      projectsQuery.refetch(),
+      subplatesQuery.refetch(),
+    ]);
   };
 
   // Real pipeline metrics computed from subplate tracking records & active projects
@@ -183,6 +190,7 @@ export default function DashboardPage() {
         <MouldProjectsTable
           initialData={displayedProjects}
           isLoading={isLoading}
+          isRefreshing={isFetching}
           onRefresh={handleRefresh}
         />
       </div>
