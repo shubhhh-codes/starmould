@@ -1,7 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
+import { useIsRestoring } from "@tanstack/react-query";
+import { useExportCountsQuery } from "@/lib/query/hooks";
 import {
     FileDown,
     FileSpreadsheet,
@@ -172,27 +174,11 @@ export const exportDatasets: ExportDataset[] = [
 export default function ExportPage() {
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
-    const [counts, setCounts] = useState<Record<string, number>>({});
-    const [isLoadingCounts, setIsLoadingCounts] = useState(true);
-
-    const fetchCounts = async () => {
-        try {
-            setIsLoadingCounts(true);
-            const res = await fetch("/api/export?type=counts");
-            const data = await res.json();
-            if (data.counts) {
-                setCounts(data.counts);
-            }
-        } catch (e) {
-            console.error("Failed to fetch export counts:", e);
-        } finally {
-            setIsLoadingCounts(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchCounts();
-    }, []);
+    const isRestoring = useIsRestoring();
+    const { data: countsData, isLoading: queryLoading, isFetching, refetch } = useExportCountsQuery();
+    const counts = (countsData || {}) as Record<string, number>;
+    const hasCounts = Object.keys(counts).length > 0 || (!!countsData && !queryLoading);
+    const isLoadingCounts = isRestoring || (!hasCounts && queryLoading);
 
     const handleExport = async (dataset: ExportDataset) => {
         setDownloadingId(dataset.id);
@@ -247,12 +233,13 @@ export default function ExportPage() {
                     </div>
 
                     <button
-                        onClick={fetchCounts}
-                        disabled={isLoadingCounts}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
+                        onClick={() => refetch()}
+                        disabled={isLoadingCounts || isFetching}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm disabled:opacity-50 cursor-pointer"
                     >
                         <RefreshCw
-                            className={`w-3.5 h-3.5 text-slate-500 ${isLoadingCounts ? "animate-spin" : ""}`}
+                            suppressHydrationWarning
+                            className={`w-3.5 h-3.5 text-slate-500 ${isFetching || isLoadingCounts ? "animate-spin text-blue-600" : ""}`}
                         />
                         <span>Refresh Counts</span>
                     </button>
