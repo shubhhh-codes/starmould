@@ -29,6 +29,7 @@ import {
 import { CommandPalette } from "@/components/ui/command-palette";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useAuth } from "@/components/providers/auth-provider";
 
 interface TopbarProps {
   onToggleSidebar?: () => void;
@@ -70,6 +71,7 @@ export function Topbar({
 }: TopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const { logout } = useAuth();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -164,12 +166,10 @@ export function Topbar({
 
   const handleLogout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await logout();
     } catch (err) {
       console.error("Logout error:", err);
-    } finally {
       router.push("/login");
-      router.refresh();
     }
   };
 

@@ -73,7 +73,8 @@ export async function getCachedCustomers(): Promise<any[]> {
   return getCached("shared_customers", 60, async () => {
     const { data } = await supabaseAdmin
       .from("customers")
-      .select("id, customername, initials, usertype, deleted_at");
+      .select("id, customername, initials, usertype, deleted_at")
+      .is("deleted_at", null);
     return data || [];
   });
 }

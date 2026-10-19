@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: scanProject, error: scanErr } = await supabaseAdmin
-      .from("scans")
+      .from("scan")
       .select("id, projectid")
       .eq("id", numProjectId)
       .is("deleted_at", null)

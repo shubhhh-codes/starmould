@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { invalidateCachePrefix } from "@/lib/cache";
+import { invalidateCache } from "@/lib/cache";
 
 // GET /api/expense - fetch expenses with customers lookup and summary KPIs (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    invalidateCachePrefix("counts:");
+    invalidateCache("api_counts_all");
     return NextResponse.json({ expense: data, message: "Expense record created successfully." }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -223,7 +223,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    invalidateCachePrefix("counts:");
+    invalidateCache("api_counts_all");
     return NextResponse.json({ expense: data, message: "Expense updated successfully." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
@@ -280,7 +280,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    invalidateCachePrefix("counts:");
+    invalidateCache("api_counts_all");
     return NextResponse.json({ success: true, message: "Latest expense record deleted successfully." });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
