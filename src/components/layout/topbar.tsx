@@ -180,10 +180,10 @@ export function Topbar({
         onClose={() => setShowCommandPalette(false)}
       />
 
-      <header className="sticky top-0 z-30 h-16 bg-slate-900 border-b border-slate-800 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-3 sm:gap-6 shadow-sm">
+      <header className="sticky top-0 z-30 h-16 bg-slate-900/95 backdrop-blur-md border-b border-slate-800/80 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2.5 sm:gap-4 shadow-sm">
         
         {/* Left Section: Menu Toggle & Dynamic Breadcrumb / Page Title */}
-        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
           <button
             onClick={() => {
               if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -200,17 +200,17 @@ export function Topbar({
           </button>
 
           {/* Current Page Context Badge */}
-          <div className="hidden sm:flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
               <PageIcon className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 leading-none">
+              <div className="hidden sm:flex items-center gap-1.5 leading-none">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
                   {currentPage.category}
                 </span>
               </div>
-              <h2 className="text-sm font-bold text-white tracking-tight truncate mt-0.5">
+              <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate max-w-[130px] sm:max-w-[180px] md:max-w-[240px]">
                 {currentPage.title}
               </h2>
             </div>
@@ -218,54 +218,45 @@ export function Topbar({
         </div>
 
         {/* Center: Global Fast Search & Command Palette Trigger */}
-        <div className="flex-1 max-w-md mx-auto min-w-[160px]">
+        <div className="flex-1 max-w-sm md:max-w-md mx-auto px-1 sm:px-3">
           <button
             type="button"
             onClick={() => setShowCommandPalette(true)}
-            className="w-full group flex items-center justify-between pl-3.5 pr-2.5 py-2 text-xs rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-400 hover:text-slate-200 transition-all cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="w-full group flex items-center justify-between pl-3 sm:pl-3.5 pr-2.5 py-1.5 sm:py-2 text-xs rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-400 hover:text-slate-200 transition-all cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
-            <div className="flex items-center gap-2.5 min-w-0 truncate">
-              <Search className="h-4 w-4 text-slate-400 group-hover:text-blue-400 transition-colors shrink-0" />
+            <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 truncate">
+              <Search className="h-3.5 sm:h-4 w-3.5 sm:w-4 text-slate-400 group-hover:text-blue-400 transition-colors shrink-0" />
               <span className="truncate text-slate-400 group-hover:text-slate-200 text-xs">
-                Search order ID, mould, subplate…
+                Search order ID, mould, plate…
               </span>
             </div>
-            <kbd className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-slate-900/90 rounded-md border border-slate-700/90 group-hover:border-slate-600 shadow-2xs shrink-0 ml-2">
+            <kbd className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-slate-900/90 rounded-md border border-slate-700/90 group-hover:border-slate-600 shadow-2xs shrink-0 ml-2">
               <Command className="w-3 h-3 text-slate-400" /> K
             </kbd>
           </button>
         </div>
 
         {/* Right Section: Shift Status, Notifications & User Profile */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          
-          {/* Shift / Work Time indicator */}
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/80 text-[11px] font-medium text-slate-300 border border-slate-700/60 shadow-2xs">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="font-semibold text-slate-200">Production Active</span>
-          </div>
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
 
           {/* Quick Notifications Button */}
           <button
             type="button"
             title="System Alerts & Activity"
             onClick={() => setShowCommandPalette(true)}
-            className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700 cursor-pointer"
+            className="relative p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700 cursor-pointer shrink-0"
           >
             <Bell className="h-4 w-4" />
             <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-blue-500 ring-2 ring-slate-900" />
           </button>
 
           {/* User Profile Menu with Popover */}
-          <div ref={dropdownRef} className="relative">
+          <div ref={dropdownRef} className="relative shrink-0">
             <button
               onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="flex items-center gap-2.5 p-1 pl-2 rounded-xl hover:bg-slate-800 transition-colors text-left cursor-pointer border border-transparent hover:border-slate-700"
+              className="flex items-center gap-2 p-1 sm:pl-2 rounded-xl hover:bg-slate-800 transition-colors text-left cursor-pointer border border-transparent hover:border-slate-700"
             >
-              <div className="flex flex-col text-right hidden sm:flex">
+              <div className="flex flex-col text-right hidden md:flex">
                 <span className="text-xs font-bold text-white leading-tight" suppressHydrationWarning>
                   {activeUser?.name || "User"}
                 </span>
@@ -275,7 +266,7 @@ export function Topbar({
                 </span>
               </div>
               <div
-                className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-500/20"
+                className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-500/20 shrink-0"
                 suppressHydrationWarning
               >
                 {activeUser?.initials || activeUser?.name?.slice(0, 2).toUpperCase() || "SM"}
