@@ -14,9 +14,11 @@ import Link from "next/link";
 import type { Subplate } from "@/lib/supabase/types";
 import { useProjectsQuery, useSubplatesQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
+import { NewMouldModal } from "@/components/mould/new-mould-modal";
 
 export default function DashboardPage() {
   const [activeStage, setActiveStage] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const isRestoring = useIsRestoring();
   const queryClient = useQueryClient();
 
@@ -171,13 +173,14 @@ export default function DashboardPage() {
             />
             <span suppressHydrationWarning>{isRefreshing ? "Refreshing..." : "Refresh"}</span>
           </button>
-          <Link
-            href="/scanning"
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
           >
             <Plus className="h-4 w-4" />
             <span>New Mould Entry</span>
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -217,6 +220,13 @@ export default function DashboardPage() {
           onRefresh={handleRefresh}
         />
       </div>
+
+      {/* New Mould Entry Quick Modal */}
+      <NewMouldModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        customers={projectsQuery.data?.customers}
+      />
     </AppLayout>
   );
 }

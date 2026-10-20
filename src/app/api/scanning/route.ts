@@ -215,6 +215,7 @@ export async function POST(req: NextRequest) {
       cdate,
       cname,
       description,
+      worktype,
       scan_by,
       qc_by,
       modeldesign_by,
@@ -229,6 +230,19 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const VALID_WORKTYPES = [
+      "Pulp Mould",
+      "TF",
+      "Rework",
+      "Accessories",
+      "Machine part",
+      "Other",
+    ];
+    const finalWorktype =
+      worktype && typeof worktype === "string" && worktype.trim()
+        ? worktype.trim()
+        : "Pulp Mould";
 
     const now = new Date().toISOString();
 
@@ -269,7 +283,7 @@ export async function POST(req: NextRequest) {
           dispatchdate: cdate || now.slice(0, 10),
           cname: String(cname),
           description: description.trim(),
-          worktype: "Scanning",
+          worktype: finalWorktype,
           scan_by: scan_by ? Number(scan_by) : null,
           qc_by: qc_by ? Number(qc_by) : null,
           modeldesign_by: modeldesign_by ? Number(modeldesign_by) : null,
@@ -277,6 +291,7 @@ export async function POST(req: NextRequest) {
           mail_done: 0,
           note: note?.trim() || "",
           subnote: subnote?.trim() || "",
+          created_by: auth.user?.id ? Number(auth.user.id) : null,
           created_at: now,
           updated_at: now,
         },

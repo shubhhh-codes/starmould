@@ -50,6 +50,26 @@ export function Modal({
 
       // Focus first interactive input or container on initial open only
       const timer = setTimeout(() => {
+        // 1. Look for explicit autofocus element
+        const autoFocusEl = containerRef.current?.querySelector<HTMLElement>(
+          '[data-autofocus]:not([disabled]):not([tabindex="-1"]), [autofocus]:not([disabled]):not([tabindex="-1"])'
+        );
+        if (autoFocusEl) {
+          autoFocusEl.focus();
+          return;
+        }
+
+        // 2. Look for first interactive element inside modal body content
+        const bodyContent = containerRef.current?.querySelector<HTMLElement>('.overflow-y-auto');
+        const bodyInput = bodyContent?.querySelector<HTMLElement>(
+          'button:not([disabled]):not([tabindex="-1"]), input:not([disabled]):not([readonly]):not([tabindex="-1"]), select:not([disabled]):not([tabindex="-1"]), textarea:not([disabled]):not([tabindex="-1"])'
+        );
+        if (bodyInput) {
+          bodyInput.focus();
+          return;
+        }
+
+        // 3. Fallback to any focusable element or container
         const firstInput = containerRef.current?.querySelector<HTMLElement>(
           'input:not([disabled]):not([readonly]):not([tabindex="-1"]), select:not([disabled]):not([tabindex="-1"]), textarea:not([disabled]):not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"])'
         );

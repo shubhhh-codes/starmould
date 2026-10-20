@@ -7,3 +7,4 @@ export * from "./top-progress-bar";
 export * from "./toast-container";
 export * from "./project-select";
 export * from "./context-menu";
+export * from "./customer-select";
