@@ -18,6 +18,8 @@ export const queryKeys = {
     lists: () => ["projects", "list"] as const,
     list: (params?: Record<string, any>) => ["projects", "list", params ?? {}] as const,
     detail: (id: number | string) => ["projects", "detail", String(id)] as const,
+    nextIdPreview: (customerId?: string | number | null) =>
+      ["projects", "preview-id", customerId ? String(customerId) : "none"] as const,
   },
   subplates: {
     all: () => ["subplates"] as const,

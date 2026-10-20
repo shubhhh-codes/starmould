@@ -246,61 +246,24 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
-    // Fetch customer initials
-    const { data: cust } = await supabaseAdmin
-      .from("customers")
-      .select("initials")
-      .eq("id", Number(cname))
-      .single();
+    // Atomic creation via PostgreSQL RPC with pg_advisory_xact_lock
+    const { data: createdProject, error: rpcError } = await supabaseAdmin.rpc(
+      "create_project_with_code",
+      {
+        p_cname: String(cname),
+        p_description: description.trim(),
+        p_worktype: finalWorktype,
+        p_rdate: rdate || now.slice(0, 10),
+        p_cdate: cdate || now.slice(0, 10),
+        p_dispatchdate: cdate || now.slice(0, 10),
+        p_note: note?.trim() || "",
+        p_subnote: subnote?.trim() || "",
+        p_created_by: auth.user?.id ? Number(auth.user.id) : null,
+      }
+    );
 
-    const initials = cust?.initials || "GEN";
-
-    // Auto-generate project code matching PHP: {maxId+1 padded 4}_{customerInitials}_{customerProjectCount+1 padded 3}
-    const [{ count: custProjectsCount }, { data: maxRows }] = await Promise.all([
-      supabaseAdmin
-        .from("scan")
-        .select("id", { count: "exact", head: true })
-        .eq("cname", String(cname)),
-      supabaseAdmin
-        .from("scan")
-        .select("id")
-        .order("id", { ascending: false })
-        .limit(1),
-    ]);
-
-    const nextId = (maxRows?.[0]?.id || 0) + 1;
-    const cidStr = String(nextId).padStart(4, "0");
-    const custCountStr = String((custProjectsCount || 0) + 1).padStart(3, "0");
-    const projectid = `${cidStr}_${initials}_${custCountStr}`;
-
-    const { data, error } = await supabaseAdmin
-      .from("scan")
-      .insert([
-        {
-          projectid,
-          rdate: rdate || now.slice(0, 10),
-          cdate: cdate || now.slice(0, 10),
-          dispatchdate: cdate || now.slice(0, 10),
-          cname: String(cname),
-          description: description.trim(),
-          worktype: finalWorktype,
-          scan_by: scan_by ? Number(scan_by) : null,
-          qc_by: qc_by ? Number(qc_by) : null,
-          modeldesign_by: modeldesign_by ? Number(modeldesign_by) : null,
-          status: "pending",
-          mail_done: 0,
-          note: note?.trim() || "",
-          subnote: subnote?.trim() || "",
-          created_by: auth.user?.id ? Number(auth.user.id) : null,
-          created_at: now,
-          updated_at: now,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (rpcError) {
+      return NextResponse.json({ error: rpcError.message }, { status: 500 });
     }
 
     invalidateCache("scanning_default_");
@@ -309,7 +272,12 @@ export async function POST(req: NextRequest) {
     invalidateCache("api_counts_all");
 
     return NextResponse.json(
-      { scan: data, message: "Scanning project created successfully" },
+      {
+        scan: createdProject,
+        data: createdProject,
+        project: createdProject,
+        message: "Scanning project created successfully",
+      },
       { status: 201 }
     );
   } catch (err: unknown) {
@@ -401,7 +369,7 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// DELETE /api/scanning - Soft-delete scan project (matches PHP status = 'completed')
+// DELETE /api/scanning - Delete scan project with subplate dependency protection
 export async function DELETE(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1]);
   if ("error" in auth) {
@@ -420,24 +388,81 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing project id" }, { status: 400 });
     }
 
-    // Matches PHP ScanningController / ScanAdminController: soft delete by marking status = 'completed'
-    const { error } = await supabaseAdmin
+    // 1. Fetch project to ensure it exists and get details
+    const { data: project, error: fetchErr } = await supabaseAdmin
       .from("scan")
-      .update({ status: "completed", updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .select("id, projectid, cname")
+      .eq("id", id)
+      .single();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (fetchErr || !project) {
+      return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
+    // 2. Check if child subplates exist for this project
+    const { count: subplateCount, error: subplateErr } = await supabaseAdmin
+      .from("subplate")
+      .select("id", { count: "exact", head: true })
+      .eq("projectid", id)
+      .is("deleted_at", null);
+
+    if (subplateErr) {
+      return NextResponse.json({ error: subplateErr.message }, { status: 500 });
+    }
+
+    if (subplateCount && subplateCount > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot delete project: Child subplates/mould components are registered to this project code. Complete or archive instead.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 3. Check if logged worklog hours exist
+    const { count: worklogCount, error: worklogErr } = await supabaseAdmin
+      .from("worklog")
+      .select("id", { count: "exact", head: true })
+      .eq("scan_print_id", id);
+
+    if (worklogErr) {
+      return NextResponse.json({ error: worklogErr.message }, { status: 500 });
+    }
+
+    if (worklogCount && worklogCount > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Cannot delete project: Operator worklogs exist for this project. Complete or archive instead.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // 4. Hard delete project row to release high-water mark sequence if it was the latest
+    const { error: deleteErr } = await supabaseAdmin
+      .from("scan")
+      .delete()
+      .eq("id", id);
+
+    if (deleteErr) {
+      return NextResponse.json({ error: deleteErr.message }, { status: 500 });
+    }
+
+    // 5. Invalidate server-side caches
     invalidateCache("scanning_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
 
-    return NextResponse.json({ success: true, message: "Project marked as completed successfully" });
+    return NextResponse.json({
+      success: true,
+      message: `Project ${project.projectid || id} deleted successfully`,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+

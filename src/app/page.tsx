@@ -149,9 +149,6 @@ export default function DashboardPage() {
           </div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             Mould & Workpiece Pipeline
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-              Live Stage Tracking
-            </span>
           </h1>
         </div>
 

@@ -151,6 +151,38 @@ export function useCreateProjectMutation() {
   });
 }
 
+export interface NextProjectIdPreview {
+  nextId: number;
+  cidStr: string;
+  initials: string | null;
+  custCountStr: string | null;
+  projectid: string | null;
+  previewCode: string | null;
+  isComplete: boolean;
+}
+
+export function useNextProjectIdQuery(
+  customerId?: string | number | null,
+  initials?: string | null,
+  enabled: boolean = true
+) {
+  return useQuery({
+    queryKey: queryKeys.projects.nextIdPreview(customerId),
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (customerId) params.set("customerId", String(customerId));
+      if (initials) params.set("initials", initials);
+      const qs = params.toString();
+      return fetchJson<NextProjectIdPreview>(
+        `/api/scanning/preview-id${qs ? `?${qs}` : ""}`
+      );
+    },
+    enabled,
+    staleTime: 5000,
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useUpdateProjectMutation() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -491,10 +491,6 @@ function CustomerPageContent() {
                         </div>
                         <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                             {isCustomerMode ? "Customer Creator" : "Vendor & Transport Management"}
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Live Supabase Connected
-                            </span>
                         </h1>
                         <p className="text-xs text-slate-500 mt-0.5">
                             {isCustomerMode

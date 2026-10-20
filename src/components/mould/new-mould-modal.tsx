@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Layers,
   Flame,
@@ -14,11 +14,18 @@ import {
   FileText,
   AlertCircle,
   Check,
+  Copy,
+  Loader2,
 } from "lucide-react";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { CustomerSelect } from "@/components/ui/customer-select";
-import { useCreateProjectMutation, useCustomerDropdownQuery } from "@/lib/query/hooks";
+import { appStore } from "@/lib/state/store";
+import {
+  useCreateProjectMutation,
+  useCustomerDropdownQuery,
+  useNextProjectIdQuery,
+} from "@/lib/query/hooks";
 import type { Customer } from "@/lib/supabase/types";
 
 export type WorkType =
@@ -126,7 +133,36 @@ export function NewMouldModal({
     note: "",
   });
 
+  const selectedCustomer = useMemo(() => {
+    if (!form.cname) return null;
+    return customerList.find((c) => String(c.id) === String(form.cname)) || null;
+  }, [customerList, form.cname]);
+
+  const nextIdQuery = useNextProjectIdQuery(
+    form.cname,
+    selectedCustomer?.initials,
+    isOpen
+  );
+
+  const cidStr = nextIdQuery.data?.cidStr || "----";
+  const isComplete = Boolean(
+    form.cname && nextIdQuery.data?.isComplete && nextIdQuery.data?.previewCode
+  );
+  const isGenerating = Boolean(form.cname && nextIdQuery.isFetching);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const text = nextIdQuery.data?.previewCode || "";
+    if (text) {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   // Fast keyboard & selection continuity
   const selectWorkTypeAndAdvance = (wtId: WorkType) => {
@@ -186,6 +222,7 @@ export function NewMouldModal({
         note: "",
       });
       setErrorMessage(null);
+      setCopied(false);
 
       // Focus the first Work Type box immediately so Tab navigation works right away
       const focusTimer = setTimeout(() => {
@@ -218,8 +255,18 @@ export function NewMouldModal({
         note: form.note.trim(),
       });
 
+      const created = res?.scan || res?.project || res?.data || res;
+      const assignedCode = created?.projectid || created?.id;
+      if (assignedCode) {
+        appStore.addToast({
+          type: "success",
+          message: `Project ${assignedCode} created successfully!`,
+          duration: 4000,
+        });
+      }
+
       if (onSuccess) {
-        onSuccess(res?.data || res);
+        onSuccess(created);
       }
       onClose();
     } catch (err: any) {
@@ -231,7 +278,7 @@ export function NewMouldModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      maxWidth="lg"
+      maxWidth="xl"
       title={
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shrink-0">
@@ -247,7 +294,7 @@ export function NewMouldModal({
               </span>
             </div>
             <p className="text-xs text-slate-500 truncate">
-              Initialize workpiece project and configure pipeline tracking
+              Initialize mould project and configure pipeline tracking
             </p>
           </div>
         </div>
@@ -465,13 +512,68 @@ export function NewMouldModal({
         </div>
 
         {/* 6. Footer Action Bar (Responsive) */}
-        <div className="pt-3 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100">
-          <div className="flex items-center gap-2 text-[11px] text-slate-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-            <span>Project ID will be auto-generated upon submission</span>
+        <div className="pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+              Next ID:
+            </span>
+
+            {isComplete ? (
+              <div
+                role="status"
+                aria-readonly="true"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-200 bg-emerald-50/90 text-emerald-800 text-xs font-mono font-bold tracking-wider select-all whitespace-nowrap shadow-xs transition-all"
+                title="Tentative Project ID (computed from high-water mark; atomically confirmed upon submission)"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span>{nextIdQuery.data?.previewCode}</span>
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  title={copied ? "Copied to clipboard!" : "Copy tentative ID"}
+                  className="ml-0.5 p-1 text-emerald-700 hover:text-emerald-950 rounded hover:bg-emerald-200/60 transition-colors cursor-pointer"
+                  aria-label="Copy tentative Project ID"
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                  )}
+                </button>
+              </div>
+            ) : isGenerating || (form.cname && selectedCustomer) ? (
+              <div
+                role="status"
+                aria-readonly="true"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-blue-200 bg-blue-50/80 text-blue-700 text-xs font-mono whitespace-nowrap"
+                title="Calculating tentative Project ID..."
+              >
+                <Loader2 className="w-3 h-3 animate-spin text-blue-600 shrink-0" />
+                <span className="font-bold text-slate-800">{cidStr}</span>
+                <span className="text-slate-300">_</span>
+                <span className="font-semibold text-blue-800">
+                  {selectedCustomer?.initials || "..."}
+                </span>
+                <span className="text-slate-400">_...</span>
+              </div>
+            ) : (
+              <div
+                role="status"
+                aria-readonly="true"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 text-xs font-mono whitespace-nowrap select-none transition-all"
+                title="Next sequence number reserved. Select customer to generate tentative project code."
+              >
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="font-bold text-slate-700">{cidStr}</span>
+                <span className="text-slate-300">_</span>
+                <span className="text-[11px] font-sans font-medium text-slate-400 italic">
+                  select customer
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="flex items-center gap-2 justify-end w-full sm:w-auto">
+          <div className="flex items-center gap-2 justify-end w-full sm:w-auto shrink-0">
             <MotionButton
               type="button"
               variant="secondary"

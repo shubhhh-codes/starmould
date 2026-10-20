@@ -182,23 +182,6 @@ function CustomerPageContent() {
         onPageChange: setCurrentPage,
     });
 
-    // Counts by category
-    const counts = useMemo(() => {
-        const map: Record<string, number> = {
-            All: customers.length,
-            Customer: 0,
-            Vendor: 0,
-            Transport: 0,
-            Other: 0,
-        };
-        customers.forEach((c) => {
-            if (map[c.usertype] !== undefined) {
-                map[c.usertype]++;
-            }
-        });
-        return map;
-    }, [customers]);
-
     // Pagination slice
     const totalPages = Math.ceil(filteredCustomers.length / pageSize) || 1;
     const paginatedCustomers = useMemo(() => {
@@ -441,30 +424,12 @@ function CustomerPageContent() {
                             <span>/</span>
                             <span className="text-slate-600">Customer Creator</span>
                         </div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                        <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                             Customer Creator
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Live Supabase Connected
-                            </span>
                         </h1>
                         <p className="text-xs text-slate-500 mt-0.5">
                             Central directory for client customers and workpiece mould owners (Admin restricted)
                         </p>
-                    </div>
-                </div>
-
-                {/* Top Action Bar & Stat Tabs */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Filter Category Tabs */}
-                    <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 border border-slate-200 rounded-xl">
-                        <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white text-slate-900 shadow-xs border border-slate-200/80">
-                            <Building2 className="w-3.5 h-3.5 text-blue-600" />
-                            <span>Customers</span>
-                            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-mono bg-blue-50 text-blue-700 font-bold">
-                                {counts.Customer || 0}
-                            </span>
-                        </div>
                     </div>
 
                     {/* Action Buttons */}
