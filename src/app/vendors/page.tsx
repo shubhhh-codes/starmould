@@ -24,6 +24,9 @@ import {
     Loader2,
     ShieldCheck,
     Lock,
+    Landmark,
+    CreditCard,
+    FileText,
 } from "lucide-react";
 import type { Customer } from "@/lib/supabase/types";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
@@ -155,6 +158,13 @@ function CustomerPageContent() {
         email: string;
         address: string;
         usertype: UsertypeOption;
+        vendor_code: string;
+        city: string;
+        gstin: string;
+        pan: string;
+        bank_name: string;
+        account_no: string;
+        ifsc_code: string;
     }>({
         customername: "",
         initials: "",
@@ -163,6 +173,13 @@ function CustomerPageContent() {
         email: "",
         address: "",
         usertype: "Customer",
+        vendor_code: "",
+        city: "",
+        gstin: "",
+        pan: "",
+        bank_name: "",
+        account_no: "",
+        ifsc_code: "",
     });
 
     // Validation messages (replicates legacy checkusername & checkinitials)
@@ -192,6 +209,11 @@ function CustomerPageContent() {
             return (
                 (c.customername && c.customername.toLowerCase().includes(q)) ||
                 (c.initials && c.initials.toLowerCase().includes(q)) ||
+                (c.vendor_code && c.vendor_code.toLowerCase().includes(q)) ||
+                (c.city && c.city.toLowerCase().includes(q)) ||
+                (c.gstin && c.gstin.toLowerCase().includes(q)) ||
+                (c.pan && c.pan.toLowerCase().includes(q)) ||
+                (c.bank_name && c.bank_name.toLowerCase().includes(q)) ||
                 (c.mobile && c.mobile.toLowerCase().includes(q)) ||
                 (c.mobile1 && c.mobile1.toLowerCase().includes(q)) ||
                 (c.email && c.email.toLowerCase().includes(q)) ||
@@ -256,6 +278,13 @@ function CustomerPageContent() {
             email: "",
             address: "",
             usertype: defaultType,
+            vendor_code: "",
+            city: "",
+            gstin: "",
+            pan: "",
+            bank_name: "",
+            account_no: "",
+            ifsc_code: "",
         });
         setInitialError(null);
         setNameError(null);
@@ -282,6 +311,13 @@ function CustomerPageContent() {
             email: customer.email || "",
             address: customer.address || "",
             usertype: (customer.usertype as UsertypeOption) || "Customer",
+            vendor_code: customer.vendor_code || "",
+            city: customer.city || "",
+            gstin: customer.gstin || "",
+            pan: customer.pan || "",
+            bank_name: customer.bank_name || "",
+            account_no: customer.account_no || "",
+            ifsc_code: customer.ifsc_code || "",
         });
         setInitialError(null);
         setNameError(null);
@@ -411,6 +447,13 @@ function CustomerPageContent() {
             "ID",
             "Name",
             "Initials",
+            "Vendor Code",
+            "City",
+            "GSTIN",
+            "PAN",
+            "Bank Name",
+            "Account No",
+            "IFSC Code",
             "Mobile 1",
             "Mobile 2",
             "Email",
@@ -421,6 +464,13 @@ function CustomerPageContent() {
             c.id,
             `"${(c.customername || "").replace(/"/g, '""')}"`,
             `"${c.initials || ""}"`,
+            `"${c.vendor_code || ""}"`,
+            `"${(c.city || "").replace(/"/g, '""')}"`,
+            `"${c.gstin || ""}"`,
+            `"${c.pan || ""}"`,
+            `"${(c.bank_name || "").replace(/"/g, '""')}"`,
+            `"${c.account_no || ""}"`,
+            `"${c.ifsc_code || ""}"`,
             `"${c.mobile || ""}"`,
             `"${c.mobile1 || ""}"`,
             `"${c.email || ""}"`,
@@ -663,22 +713,21 @@ function CustomerPageContent() {
                 <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
                     {/* Desktop Table View */}
                     <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
-                        <table className="w-full min-w-[1000px] text-left text-xs">
+                        <table className="w-full min-w-[1100px] text-left text-xs">
                             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                                 <tr>
-                                    <th className="py-3 px-4 w-[24%]">Name</th>
+                                    <th className="py-3 px-4 w-[24%]">Vendor / Partner</th>
                                     <th className="py-3 px-3 w-[8%] text-center">
                                         Initials
                                     </th>
-                                    <th className="py-3 px-3 w-[12%]">
-                                        Mobile No. 1
+                                    <th className="py-3 px-3 w-[14%]">
+                                        City & Address
                                     </th>
-                                    <th className="py-3 px-3 w-[12%]">
-                                        Mobile No. 2
+                                    <th className="py-3 px-3 w-[15%]">
+                                        Tax & Banking
                                     </th>
-                                    <th className="py-3 px-4 w-[14%]">Email</th>
-                                    <th className="py-3 px-4">Address</th>
-                                    <th className="py-3 px-3 w-[10%] text-center">
+                                    <th className="py-3 px-3 w-[14%]">Contact</th>
+                                    <th className="py-3 px-3 w-[9%] text-center">
                                         Type
                                     </th>
                                     <th className="py-3 px-4 w-[10%] text-right">
@@ -716,7 +765,7 @@ function CustomerPageContent() {
                                                 id={`row-${c.id}`}
                                                 className={`hover:bg-slate-50/70 transition-colors ${getRowHighlightClass(c.id)}`}
                                             >
-                                                {/* Name */}
+                                                {/* Name & Vendor Code */}
                                                 <td className="py-3 px-4">
                                                     <div className="flex items-center gap-2.5">
                                                         <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[11px] shrink-0 border border-blue-200/60">
@@ -725,9 +774,16 @@ function CustomerPageContent() {
                                                                 "CO"
                                                             ).slice(0, 2)}
                                                         </div>
-                                                        <span className="font-semibold text-slate-800 line-clamp-1">
-                                                            {c.customername}
-                                                        </span>
+                                                        <div className="min-w-0">
+                                                            <span className="font-semibold text-slate-800 line-clamp-1">
+                                                                {c.customername}
+                                                            </span>
+                                                            {c.vendor_code && (
+                                                                <span className="inline-block mt-0.5 font-mono text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded border border-indigo-200/80">
+                                                                    Code: {c.vendor_code}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
 
@@ -738,73 +794,68 @@ function CustomerPageContent() {
                                                     </span>
                                                 </td>
 
-                                                {/* Mobile No. 1 */}
-                                                <td className="py-3 px-3 text-slate-700">
-                                                    {c.mobile ? (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                            <span className="font-mono text-[11px]">
-                                                                {c.mobile}
-                                                            </span>
+                                                {/* City & Address */}
+                                                <td className="py-3 px-3 text-slate-600 max-w-[180px]">
+                                                    {c.city ? (
+                                                        <div className="font-medium text-slate-800 flex items-center gap-1">
+                                                            <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                                                            <span className="truncate">{c.city}</span>
                                                         </div>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-[11px]">
-                                                            —
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                {/* Mobile No. 2 */}
-                                                <td className="py-3 px-3 text-slate-700">
-                                                    {c.mobile1 ? (
-                                                        <div className="flex items-center gap-1.5">
-                                                            <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                            <span className="font-mono text-[11px]">
-                                                                {c.mobile1}
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-[11px]">
-                                                            —
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                {/* Email */}
-                                                <td className="py-3 px-4 text-slate-600 truncate max-w-[180px]">
-                                                    {c.email ? (
-                                                        <div
-                                                            className="flex items-center gap-1.5"
-                                                            title={c.email}
-                                                        >
-                                                            <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                            <span className="truncate">
-                                                                {c.email}
-                                                            </span>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-[11px]">
-                                                            —
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                {/* Address */}
-                                                <td className="py-3 px-4 text-slate-600 max-w-xs">
+                                                    ) : null}
                                                     {c.address ? (
                                                         <div
-                                                            className="flex items-center gap-1.5 truncate"
+                                                            className="text-[11px] text-slate-500 truncate"
                                                             title={c.address}
                                                         >
-                                                            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                            <span className="truncate">
-                                                                {c.address}
-                                                            </span>
+                                                            {c.address}
                                                         </div>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-[11px]">
-                                                            —
-                                                        </span>
+                                                    ) : !c.city ? (
+                                                        <span className="text-slate-400 text-[11px]">—</span>
+                                                    ) : null}
+                                                </td>
+
+                                                {/* Tax & Banking */}
+                                                <td className="py-3 px-3">
+                                                    <div className="space-y-1">
+                                                        {c.gstin ? (
+                                                            <span
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-mono text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold"
+                                                                title={`GSTIN: ${c.gstin}${c.pan ? ` | PAN: ${c.pan}` : ''}`}
+                                                            >
+                                                                GST: {c.gstin.slice(0, 10)}...
+                                                            </span>
+                                                        ) : null}
+                                                        {c.bank_name ? (
+                                                            <div
+                                                                className="flex items-center gap-1 text-[10px] text-slate-600 truncate"
+                                                                title={`Bank: ${c.bank_name}${c.account_no ? ` | A/C: ${c.account_no}` : ''}${c.ifsc_code ? ` | IFSC: ${c.ifsc_code}` : ''}`}
+                                                            >
+                                                                <Landmark className="w-3 h-3 text-slate-400 shrink-0" />
+                                                                <span className="truncate max-w-[130px] font-medium">{c.bank_name}</span>
+                                                            </div>
+                                                        ) : null}
+                                                        {!c.gstin && !c.bank_name && (
+                                                            <span className="text-slate-400 text-[11px]">—</span>
+                                                        )}
+                                                    </div>
+                                                </td>
+
+                                                {/* Contact: Phone & Email */}
+                                                <td className="py-3 px-3 text-slate-700">
+                                                    {c.mobile ? (
+                                                        <div className="flex items-center gap-1 text-[11px]">
+                                                            <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                                                            <span className="font-mono">{c.mobile}</span>
+                                                        </div>
+                                                    ) : null}
+                                                    {c.email ? (
+                                                        <div className="flex items-center gap-1 text-[11px] text-slate-500 truncate max-w-[140px]" title={c.email}>
+                                                            <Mail className="w-3 h-3 text-slate-400 shrink-0" />
+                                                            <span className="truncate">{c.email}</span>
+                                                        </div>
+                                                    ) : null}
+                                                    {!c.mobile && !c.email && (
+                                                        <span className="text-slate-400 text-[11px]">—</span>
                                                     )}
                                                 </td>
 
@@ -906,6 +957,38 @@ function CustomerPageContent() {
                                                 <span>{typeCfg.label}</span>
                                             </span>
                                         </div>
+
+                                        {(c.vendor_code || c.city) && (
+                                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                                                {c.vendor_code && (
+                                                    <span className="font-mono text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">
+                                                        Code: {c.vendor_code}
+                                                    </span>
+                                                )}
+                                                {c.city && (
+                                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-700">
+                                                        <MapPin className="w-3 h-3 text-slate-400" />
+                                                        {c.city}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {(c.gstin || c.bank_name) && (
+                                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/40 text-[10px]">
+                                                {c.gstin && (
+                                                    <span className="font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
+                                                        GST: {c.gstin}
+                                                    </span>
+                                                )}
+                                                {c.bank_name && (
+                                                    <span className="inline-flex items-center gap-1 text-slate-600 font-medium">
+                                                        <Landmark className="w-3 h-3 text-slate-400" />
+                                                        {c.bank_name}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
 
                                         <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
                                             <div>
@@ -1212,6 +1295,153 @@ function CustomerPageContent() {
                                 placeholder="Factory, office, or workshop address"
                                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                             />
+                        </div>
+
+                        {/* Financial, Tax & Location Information (Optional) */}
+                        <div className="pt-3 border-t border-slate-200 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <Landmark className="w-4 h-4 text-indigo-600" />
+                                <span className="font-semibold text-slate-800 text-xs">
+                                    Tax, Banking & Location Details (Optional)
+                                </span>
+                            </div>
+
+                            {/* Vendor Code & City */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        Vendor Code
+                                        <span className="text-[11px] text-slate-400 font-normal ml-1">
+                                            (e.g. SM14YZ6D)
+                                        </span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.vendor_code}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                vendor_code: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="SM______"
+                                        className="w-full px-3 py-2 uppercase font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        City / Location
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.city}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                city: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="e.g. Rajkot, Ahmedabad"
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* GSTIN & PAN */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        GSTIN Number
+                                    </label>
+                                    <input
+                                        type="text"
+                                        maxLength={15}
+                                        value={formData.gstin}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                gstin: e.target.value.toUpperCase(),
+                                            }))
+                                        }
+                                        placeholder="24AAXFD0282E1ZG"
+                                        className="w-full px-3 py-2 font-mono uppercase bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        PAN Number
+                                    </label>
+                                    <input
+                                        type="text"
+                                        maxLength={10}
+                                        value={formData.pan}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                pan: e.target.value.toUpperCase(),
+                                            }))
+                                        }
+                                        placeholder="AAXFD0282E"
+                                        className="w-full px-3 py-2 font-mono uppercase bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Bank Name, Account No & IFSC */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        Bank Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.bank_name}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                bank_name: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="e.g. HDFC Bank, Axis Bank"
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        Account Number
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.account_no}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                account_no: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="Account number"
+                                        className="w-full px-3 py-2 font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        IFSC Code
+                                    </label>
+                                    <input
+                                        type="text"
+                                        maxLength={11}
+                                        value={formData.ifsc_code}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                ifsc_code: e.target.value.toUpperCase(),
+                                            }))
+                                        }
+                                        placeholder="HDFC0009028"
+                                        className="w-full px-3 py-2 font-mono uppercase bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                    />
+                                </div>
+                            </div>
                         </div>
 
                         {/* Usertype Selection */}

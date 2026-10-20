@@ -107,12 +107,25 @@ export default function PrintDocumentPage({ params }: PageProps) {
 
         {/* Party Details & Metadata */}
         <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6 text-xs print:bg-transparent print:border-slate-300">
-          <div>
+          <div className="space-y-0.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Billed / Dispatched To</p>
             <p className="font-bold text-slate-900 text-sm">{doc.party?.customername || "—"}</p>
-            <p className="text-slate-600">{doc.party?.address || "Registered Factory Address"}</p>
+            {doc.party?.vendor_code && (
+              <p className="text-[11px] font-mono font-semibold text-slate-600">Vendor Code: {doc.party.vendor_code}</p>
+            )}
+            <p className="text-slate-600">{doc.party?.address || (doc.party?.city ? `${doc.party.city}, India` : "Registered Factory Address")}</p>
             {doc.party?.mobile && <p className="text-slate-600">Phone: {doc.party.mobile}</p>}
-            {doc.party?.gst && <p className="text-slate-600 font-mono">GSTIN: {doc.party.gst}</p>}
+            {(doc.party?.gstin || doc.party?.gst) && (
+              <p className="text-slate-700 font-mono font-semibold">GSTIN: {doc.party.gstin || doc.party.gst}</p>
+            )}
+            {doc.party?.pan && <p className="text-slate-600 font-mono">PAN: {doc.party.pan}</p>}
+            {doc.party?.bank_name && (
+              <div className="mt-1 pt-1 border-t border-slate-200/60 text-[11px] text-slate-600">
+                <p className="font-semibold text-slate-700">Bank: {doc.party.bank_name}</p>
+                {doc.party.account_no && <p className="font-mono">A/C: {doc.party.account_no}</p>}
+                {doc.party.ifsc_code && <p className="font-mono">IFSC: {doc.party.ifsc_code}</p>}
+              </div>
+            )}
           </div>
           <div className="text-right space-y-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Project & Reference</p>

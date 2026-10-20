@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
         challan.vendorid
           ? supabaseAdmin
               .from("customers")
-              .select("id, customername, mobile, mobile1, address, email")
+              .select("id, customername, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
               .eq("id", challan.vendorid)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
         inward.vendorid
           ? supabaseAdmin
               .from("customers")
-              .select("id, customername, mobile, address")
+              .select("id, customername, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
               .eq("id", inward.vendorid)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -149,7 +149,7 @@ export async function GET(req: NextRequest) {
         purchase.vname
           ? supabaseAdmin
               .from("customers")
-              .select("id, customername, mobile, mobile1, address, email")
+              .select("id, customername, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
               .eq("id", purchase.vname)
               .maybeSingle()
           : Promise.resolve({ data: null }),

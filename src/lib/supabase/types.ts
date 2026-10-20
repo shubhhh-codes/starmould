@@ -34,6 +34,16 @@ export interface Customer {
   initials: string;
   address: string | null;
   usertype: 'Customer' | 'Vendor' | 'Transport' | 'Other' | string;
+  vendor_code?: string | null;
+  city?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  bank_name?: string | null;
+  account_no?: string | null;
+  ifsc_code?: string | null;
+  ifsc?: string | null;
+  contact_person?: string | null;
+  status_of_beneficiary?: string | null;
   deleted_at?: string | null;
   created_at: string;
   updated_at: string;

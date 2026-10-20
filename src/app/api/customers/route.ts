@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     const executeFetch = async () => {
       let query = supabaseAdmin
         .from("customers")
-        .select("id, customername, initials, mobile, mobile1, email, address, usertype, created_at, updated_at", { count: "exact" })
+        .select("id, customername, initials, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, created_at, updated_at", { count: "exact" })
         .is("deleted_at", null)
         .order("id", { ascending: false });
 
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         query = query.eq("usertype", usertype);
       }
       if (search) {
-        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
+        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,vendor_code.ilike.%${search}%,city.ilike.%${search}%,gstin.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
       }
 
       if (page && page > 0) {
@@ -135,7 +135,22 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { customername, mobile, mobile1, email, initials, address, usertype } = body;
+    const {
+      customername,
+      mobile,
+      mobile1,
+      email,
+      initials,
+      address,
+      usertype,
+      vendor_code,
+      city,
+      gstin,
+      pan,
+      bank_name,
+      account_no,
+      ifsc_code,
+    } = body;
 
     const cleanName = customername?.trim();
     const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
@@ -194,6 +209,13 @@ export async function POST(req: NextRequest) {
           email: email?.trim() || null,
           address: address?.trim() || null,
           usertype,
+          vendor_code: vendor_code?.trim() || null,
+          city: city?.trim() || null,
+          gstin: gstin?.trim()?.toUpperCase() || null,
+          pan: pan?.trim()?.toUpperCase() || null,
+          bank_name: bank_name?.trim() || null,
+          account_no: account_no?.trim() || null,
+          ifsc_code: ifsc_code?.trim()?.toUpperCase() || null,
           created_at: now,
           updated_at: now,
           created_by: auth.user.id,
@@ -227,7 +249,22 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, customername, mobile, mobile1, email, address, usertype } = body;
+    const {
+      id,
+      customername,
+      mobile,
+      mobile1,
+      email,
+      address,
+      usertype,
+      vendor_code,
+      city,
+      gstin,
+      pan,
+      bank_name,
+      account_no,
+      ifsc_code,
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Missing customer id" }, { status: 400 });
@@ -279,9 +316,19 @@ export async function PUT(req: NextRequest) {
       mobile1: mobile1?.trim() || null,
       email: email?.trim() || null,
       address: address?.trim() || null,
+      vendor_code: vendor_code !== undefined ? (vendor_code?.trim() || null) : undefined,
+      city: city !== undefined ? (city?.trim() || null) : undefined,
+      gstin: gstin !== undefined ? (gstin?.trim()?.toUpperCase() || null) : undefined,
+      pan: pan !== undefined ? (pan?.trim()?.toUpperCase() || null) : undefined,
+      bank_name: bank_name !== undefined ? (bank_name?.trim() || null) : undefined,
+      account_no: account_no !== undefined ? (account_no?.trim() || null) : undefined,
+      ifsc_code: ifsc_code !== undefined ? (ifsc_code?.trim()?.toUpperCase() || null) : undefined,
       updated_at: now,
       updated_by: auth.user.id,
     };
+
+    // Remove undefined properties
+    Object.keys(updatePayload).forEach((k) => updatePayload[k] === undefined && delete updatePayload[k]);
 
     if (usertype) {
       updatePayload.usertype = usertype;

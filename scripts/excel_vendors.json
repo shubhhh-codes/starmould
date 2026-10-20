@@ -1,0 +1,3582 @@
+﻿[
+    {
+        "vendor_code":  "SM14YZ6D",
+        "customername":  "A B Automation",
+        "city":  "Rajkot",
+        "gstin":  "24AAYFA0367J1Z5",
+        "pan":  "AAYFA0367J",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM21IG3Y",
+        "customername":  "A.r. Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24ABOFA7969H1ZW",
+        "pan":  "ABOFA7969H",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM92TG1S",
+        "customername":  "AAKASH ROADWAYS",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM67MC1V",
+        "customername":  "Aayam Overseas",
+        "city":  "Rajkot",
+        "gstin":  "24CMOPD1076P1ZO",
+        "pan":  "CMOPD1076P",
+        "bank_name":  "YES BANK",
+        "account_no":  "047563400001980",
+        "ifsc_code":  "YESB0000475"
+    },
+    {
+        "vendor_code":  "SM93AT6Y",
+        "customername":  "Accurate Export",
+        "city":  "Rajkot",
+        "gstin":  "24AAYFA3195J1ZX",
+        "pan":  "AAYFA3195J",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200041285964",
+        "ifsc_code":  "HDFC0009028"
+    },
+    {
+        "vendor_code":  "SM14RV1S",
+        "customername":  "Accurate Spring Works",
+        "city":  "Rajkot",
+        "gstin":  "24CWKPP6770N1ZP",
+        "pan":  "CWKPP6770N",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "4711876107",
+        "ifsc_code":  "KKBK0002792"
+    },
+    {
+        "vendor_code":  "SM44BS7Y",
+        "customername":  "Active Grinding Works",
+        "city":  "Rajkot",
+        "gstin":  "24DNCPS5543C1Z5",
+        "pan":  "DNCPS5543C",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM71SV9B",
+        "customername":  "Adi Impex",
+        "city":  "Rajkot",
+        "gstin":  "24ABCFA5922A1Z5",
+        "pan":  "ABCFA5922A",
+        "bank_name":  "union bank of india",
+        "account_no":  "560101000071043",
+        "ifsc_code":  "UBIN0906131"
+    },
+    {
+        "vendor_code":  "SM57VA8B",
+        "customername":  "Advance Metrology",
+        "city":  "Ahmedabad",
+        "gstin":  "24BYYPP9838G1ZG",
+        "pan":  "BYYPP9838G",
+        "bank_name":  "YES BANK",
+        "account_no":  "136263200000488",
+        "ifsc_code":  "YESB0001362"
+    },
+    {
+        "vendor_code":  "SM60OV2N",
+        "customername":  "Aetrol India",
+        "city":  "Rajkot",
+        "gstin":  "24ACBFA6160G1ZS",
+        "pan":  "ACBFA6160G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM55VR2A",
+        "customername":  "Ahmedabad Raipur Transport Co",
+        "city":  "Ahmedabad",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM78YY8Q",
+        "customername":  "Airwin Pneumatics Llp",
+        "city":  "Rajkot",
+        "gstin":  "24ABNFA3379E1ZF",
+        "pan":  "ABNFA3379E",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200035552683",
+        "ifsc_code":  "HDFC0003101"
+    },
+    {
+        "vendor_code":  "SM67LA9F",
+        "customername":  "Ajanta Steel",
+        "city":  "Rajkot",
+        "gstin":  "24ABEFA2282K1ZJ",
+        "pan":  "ABEFA2282K",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9429500343",
+        "ifsc_code":  "KKBK0002798"
+    },
+    {
+        "vendor_code":  "SM82XG9Q",
+        "customername":  "Ajit Agro Industries",
+        "city":  "Rajkot",
+        "gstin":  "24ACXPP9449D1ZY",
+        "pan":  "ACXPP9449D",
+        "bank_name":  "CANARA BANK",
+        "account_no":  "0392201002342",
+        "ifsc_code":  "CNRB0000392"
+    },
+    {
+        "vendor_code":  "SM11JB4S",
+        "customername":  "Akshar Dm Water Technology",
+        "city":  "Rajkot",
+        "gstin":  "24ACMFA0945J1ZD",
+        "pan":  "ACMFA0945J",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9727402226",
+        "ifsc_code":  "KKBK0002792"
+    },
+    {
+        "vendor_code":  "SM91NN9J",
+        "customername":  "Alfa Steel",
+        "city":  "Rajkot",
+        "gstin":  "24AOWPS0180B1ZX",
+        "pan":  "AOWPS0180B",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "6951004913",
+        "ifsc_code":  "KKBK0002806"
+    },
+    {
+        "vendor_code":  "SM52FV4W",
+        "customername":  "Alfa Trading Co.",
+        "city":  "Rajkot",
+        "gstin":  "24AEPPB6263B1ZU",
+        "pan":  "AEPPB6263B",
+        "bank_name":  "PUNJAB NATIONAL BANK",
+        "account_no":  "0923109300000021",
+        "ifsc_code":  "PUNB0092310"
+    },
+    {
+        "vendor_code":  "SM53FH1F",
+        "customername":  "Alloy Tech Solution",
+        "city":  "Ahmedabad",
+        "gstin":  "24AFFPO4431H1ZN",
+        "pan":  "AFFPO4431H",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9265057074",
+        "ifsc_code":  "KKBK0002610"
+    },
+    {
+        "vendor_code":  "SM61ZL4S",
+        "customername":  "ALPESH ROADWAYS",
+        "city":  "Rajkot",
+        "gstin":  "24AAEFA9684Q1ZP",
+        "pan":  "AAEFA9684Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM54MW9X",
+        "customername":  "Amitraj Tradelink Llp",
+        "city":  "Rajkot",
+        "gstin":  "24ACBFA6710E1Z0",
+        "pan":  "ACBFA6710E",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "99909824230059",
+        "ifsc_code":  "HDFC0009028"
+    },
+    {
+        "vendor_code":  "SM42XD3R",
+        "customername":  "Amrutalco Private Limited",
+        "city":  "Surat",
+        "gstin":  "24AAYCA3972E1ZD",
+        "pan":  "AAYCA3972E",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM80QI3Q",
+        "customername":  "Anand Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24AADFA3340A1ZE",
+        "pan":  "AADFA3340A",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM28TL2L",
+        "customername":  "Anmol Cast Industries",
+        "city":  "Rajkot",
+        "gstin":  "24AAJFA6643A1ZW",
+        "pan":  "AAJFA6643A",
+        "bank_name":  "HDFC BANK LTD.",
+        "account_no":  "01012790000975",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM16PH0F",
+        "customername":  "Anmol Surface Grinding",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "AVUPD0698L",
+        "bank_name":  "THE CO-OPERATIVE BANK",
+        "account_no":  "0016110100002338",
+        "ifsc_code":  "YESB0RAJ016"
+    },
+    {
+        "vendor_code":  "SM71IJ2R",
+        "customername":  "Arrow Fine Chemicals",
+        "city":  "Rajkot",
+        "gstin":  "24AAQFA3330B1Z1",
+        "pan":  "AAQFA3330B",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM54LQ6B",
+        "customername":  "Arya Industries",
+        "city":  "Ahmedabad",
+        "gstin":  "24BWPPK9155A1ZG",
+        "pan":  "BWPPK9155A",
+        "bank_name":  "Hdfc Bank",
+        "account_no":  "50200023673163",
+        "ifsc_code":  "HDFC0000300"
+    },
+    {
+        "vendor_code":  "SM73XX7C",
+        "customername":  "Asphalt Syndicate Llp",
+        "city":  "Rajkot",
+        "gstin":  "24ABTFA1712D1ZU",
+        "pan":  "ABTFA1712D",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM73ZZ9V",
+        "customername":  "Associated Road Carriers Limited",
+        "city":  "Metoda",
+        "gstin":  "24AACCA4861C2Z4",
+        "pan":  "AACCA4861C",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM18GD8V",
+        "customername":  "ATC TRANSPORT CO.",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM28JV3O",
+        "customername":  "Aura Laser Die",
+        "city":  "Rajkot",
+        "gstin":  "24BEAPG9563B1ZU",
+        "pan":  "BEAPG9563B",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9909282078",
+        "ifsc_code":  "KKBK0002800"
+    },
+    {
+        "vendor_code":  "SM78CP4P",
+        "customername":  "Avinash Cargo Private Limited",
+        "city":  "Mumbai",
+        "gstin":  "27AAFCA7488L3ZY",
+        "pan":  "AAFCA7488L",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "646005002419",
+        "ifsc_code":  "ICIC0006460"
+    },
+    {
+        "vendor_code":  "SM29QO5A",
+        "customername":  "B M Steel",
+        "city":  "Mumbai",
+        "gstin":  "27AADPJ1095M1ZH",
+        "pan":  "AADPJ1095M",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "034805004537",
+        "ifsc_code":  "ICIC0000348"
+    },
+    {
+        "vendor_code":  "SM05XN2N",
+        "customername":  "Balaji Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24AANFB1788M1ZY",
+        "pan":  "AANFB1788M",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "5020006078951",
+        "ifsc_code":  "HDFC0003529"
+    },
+    {
+        "vendor_code":  "SM49DY1G",
+        "customername":  "Balaji Engineering - RAJKOT",
+        "city":  "Rajkot",
+        "gstin":  "24AMKPV3566E1ZS",
+        "pan":  "AMKPV3566E",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "38760200000164",
+        "ifsc_code":  "BARB0RINRAJ"
+    },
+    {
+        "vendor_code":  "SM68HO6I",
+        "customername":  "Balaji Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AHWPC4999H1ZP",
+        "pan":  "AHWPC4999H",
+        "bank_name":  "FEDRAL BANK",
+        "account_no":  "19080200001981",
+        "ifsc_code":  "FDRL0001908"
+    },
+    {
+        "vendor_code":  "SM35SM0K",
+        "customername":  "Balaji Products",
+        "city":  "Rajkot",
+        "gstin":  "24AACFB0518N1ZP",
+        "pan":  "AACFB0518N",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "01012020007488",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM94QK5F",
+        "customername":  "Balaji Springs",
+        "city":  "Rajkot",
+        "gstin":  "24ARFPK5760M1ZH",
+        "pan":  "ARFPK5760M",
+        "bank_name":  "INDUSIND BANK",
+        "account_no":  "201003100357",
+        "ifsc_code":  "INDB0001387"
+    },
+    {
+        "vendor_code":  "SM65CH9G",
+        "customername":  "Bhagvati Anodizing Co.",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "AWMPS5396P",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "1612051749",
+        "ifsc_code":  "KKBK0002788"
+    },
+    {
+        "vendor_code":  "SM41XP8C",
+        "customername":  "Bhavya Machine Tools Llp.",
+        "city":  "Ahmedabad",
+        "gstin":  "24AATFB8613R1ZO",
+        "pan":  "AATFB8613R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM76JI8E",
+        "customername":  "Bhojalram Industries",
+        "city":  "Rajkot",
+        "gstin":  "24DNJPM1731D1ZC",
+        "pan":  "DNJPM1731D",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "50200077620641",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM42OL9D",
+        "customername":  "C K ENTERPRISE",
+        "city":  "Rajkot",
+        "gstin":  "24AOUPP3754L1Z7",
+        "pan":  "AOUPP3754L",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM03JX7Y",
+        "customername":  "Central Manufacturing Technology Institute",
+        "city":  "Rajkot",
+        "gstin":  "24AAATC2085K1ZT",
+        "pan":  "AAATC2085K",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "39424464179",
+        "ifsc_code":  "SBIN0003297"
+    },
+    {
+        "vendor_code":  "SM08UB8C",
+        "customername":  "Channel Industries",
+        "city":  "Mumbai",
+        "gstin":  "27ADKPV6991N3Z9",
+        "pan":  "ADKPV6991N",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM32QR0N",
+        "customername":  "Charmi Cotton Waste",
+        "city":  "Rajkot",
+        "gstin":  "24AXFPK2785C1ZN",
+        "pan":  "AXFPK2785C",
+        "bank_name":  "ICIC BANK LTD.",
+        "account_no":  "201105000471",
+        "ifsc_code":  "ICICI0002011"
+    },
+    {
+        "vendor_code":  "SM85OO0P",
+        "customername":  "Charmi Techno Services Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AADCC1092N1ZM",
+        "pan":  "AADCC1092N",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "6611811936",
+        "ifsc_code":  "KKBK0002794"
+    },
+    {
+        "vendor_code":  "SM01BI1B",
+        "customername":  "Chetna Welding",
+        "city":  "Rajkot",
+        "gstin":  "24ANSPP9535A1ZR",
+        "pan":  "ANSPP9535A",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "71880200002289",
+        "ifsc_code":  "BARB0DBDHEB"
+    },
+    {
+        "vendor_code":  "SM64LU0H",
+        "customername":  "Codewing Technology Private Limited",
+        "city":  "Kheda",
+        "gstin":  "24AAGCC4011J1Z2",
+        "pan":  "AAGCC4011J",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "250005000161",
+        "ifsc_code":  "ICIC0002500"
+    },
+    {
+        "vendor_code":  "SM37SO5F",
+        "customername":  "Com - Tech  Services",
+        "city":  "Rajkot",
+        "gstin":  "24AADFC4376N1Z7",
+        "pan":  "AADFC4376N",
+        "bank_name":  "HDFC BANK LTD.",
+        "account_no":  "01012020006278",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM35VK2B",
+        "customername":  "Confidence Automation Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAGCC0742G1Z3",
+        "pan":  "AAGCC0742G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM08PK1J",
+        "customername":  "Dcoded Innovations LLP",
+        "city":  "Rajkot",
+        "gstin":  "24AAUFD3429Q1ZR",
+        "pan":  "AAUFD3429Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM74GV5B",
+        "customername":  "Deep Electricals And Home Appliances",
+        "city":  "Rajkot",
+        "gstin":  "24AAIFM8027H1Z9",
+        "pan":  "AAIFM8027H",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9413745539",
+        "ifsc_code":  "KKBK0002798"
+    },
+    {
+        "vendor_code":  "SM59XT5U",
+        "customername":  "Delhi Punjab Goods Carriers",
+        "city":  "Rajkot",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM64EK3B",
+        "customername":  "Delhi Rajasthan Transport Company Limited",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM66HS3D",
+        "customername":  "Delhivery Limited",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM67FD8X",
+        "customername":  "Devik Die \u0026 Mould Solutions (Dhiraj policing)",
+        "city":  "Rajkot",
+        "gstin":  "24EADPK9628H1ZI",
+        "pan":  "EADPK9628H",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "39370074812",
+        "ifsc_code":  "SBIN0011001"
+    },
+    {
+        "vendor_code":  "SM43WS4Z",
+        "customername":  "Dharti Pipe And Steel.",
+        "city":  "Rajkot",
+        "gstin":  "24ADFPJ3102N1ZT",
+        "pan":  "ADFPJ3102N",
+        "bank_name":  "State Bank Of India",
+        "account_no":  "66017276856",
+        "ifsc_code":  "SBIN0060314"
+    },
+    {
+        "vendor_code":  "SM21WE1B",
+        "customername":  "Drashti Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AAXFD0282E1ZG",
+        "pan":  "AAXFD0282E",
+        "bank_name":  "AXIS BANK LTD",
+        "account_no":  "925020055378440",
+        "ifsc_code":  "UTIB0000809"
+    },
+    {
+        "vendor_code":  "SM82PD4F",
+        "customername":  "Drive And Control System",
+        "city":  "Rajkot",
+        "gstin":  "24AIYPP2370A1Z8",
+        "pan":  "AIYPP2370A",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200024931427",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM45SI2Y",
+        "customername":  "Drive And Control System Unit-2",
+        "city":  "Rajkot",
+        "gstin":  "24AAXFD3121C1ZS",
+        "pan":  "AAXFD3121C",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200105396272",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM44NR1R",
+        "customername":  "Dura Crates",
+        "city":  "Rajkot",
+        "gstin":  "24AGTPA5693A1ZH",
+        "pan":  "AGTPA5693A",
+        "bank_name":  "IDFC FIRST BANK LIMITED",
+        "account_no":  "61110111112",
+        "ifsc_code":  "IDFB0042425"
+    },
+    {
+        "vendor_code":  "SM65WK1T",
+        "customername":  "Dynamic Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24AARFD9789J1ZH",
+        "pan":  "AARFD9789J",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "73420200001588",
+        "ifsc_code":  "BARBODBKWRD"
+    },
+    {
+        "vendor_code":  "SM48WC2B",
+        "customername":  "Eagle Security Service",
+        "city":  "Rajkot",
+        "gstin":  "24AJKPR0541E2ZG",
+        "pan":  "AJKPR0541E",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "138305501201",
+        "ifsc_code":  "ICIC0001383"
+    },
+    {
+        "vendor_code":  "SM05ZM9H",
+        "customername":  "Eagle Tradelinks Pvt.Ltd.",
+        "city":  "Rajkot",
+        "gstin":  "24AACCE1602K1Z3",
+        "pan":  "AACCE1602K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM21KO1K",
+        "customername":  "Ekart Transporter",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM76BR9E",
+        "customername":  "Ekta Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "AXPPB5710J",
+        "bank_name":  "Punjab National Bank",
+        "account_no":  "3870002100011029",
+        "ifsc_code":  "PUNB0387000"
+    },
+    {
+        "vendor_code":  "SM21WY7S",
+        "customername":  "Electro Power Enterprise",
+        "city":  "Ahmedabad",
+        "gstin":  "24ABXPB1420D1Z7",
+        "pan":  "ABXPB1420D",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM25QS4G",
+        "customername":  "Eleple Engineers",
+        "city":  "Rajkot",
+        "gstin":  "24AAKFE2916K1ZE",
+        "pan":  "AAKFE2916K",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "99900018111811",
+        "ifsc_code":  "HDFC0001696"
+    },
+    {
+        "vendor_code":  "SM39HF6U",
+        "customername":  "Eletonics Instruments",
+        "city":  "Gautambuddha Nagar",
+        "gstin":  "09BHTPK3875L1ZD",
+        "pan":  "BHTPK3875L",
+        "bank_name":  "DCB BANK LIMITED",
+        "account_no":  "11922900002394",
+        "ifsc_code":  "DCBL0000119"
+    },
+    {
+        "vendor_code":  "SM33XK4P",
+        "customername":  "Falcon Cargo",
+        "city":  "Mumbai Suburban",
+        "gstin":  "27AAMPK5075B2ZP",
+        "pan":  "AAMPK5075B",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM97EU7Y",
+        "customername":  "Fibrox 3d Technologies Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAFCF3971K1ZF",
+        "pan":  "AAFCF3971K",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "99990000009779",
+        "ifsc_code":  "HDFC0003101"
+    },
+    {
+        "vendor_code":  "SM81ES8X",
+        "customername":  "Fitwell Hydraulics",
+        "city":  "Rajkot",
+        "gstin":  "24AHUPB3953G1ZA",
+        "pan":  "AHUPB3953G",
+        "bank_name":  "Indusind Bank",
+        "account_no":  "250005674041",
+        "ifsc_code":  "INDB0000079"
+    },
+    {
+        "vendor_code":  "SM13CS6B",
+        "customername":  "G S Enterprises",
+        "city":  "Mumbai",
+        "gstin":  "27DUXPM9242N1ZF",
+        "pan":  "DUXPM9242N",
+        "bank_name":  "saraswat co-op bank ltd.",
+        "account_no":  "610000000016354",
+        "ifsc_code":  "SRCB0000013"
+    },
+    {
+        "vendor_code":  "SM07ED1J",
+        "customername":  "Gajanand Grinding",
+        "city":  "Rajkot",
+        "gstin":  "24BPVPS6638K1ZX",
+        "pan":  "BPVPS6638K",
+        "bank_name":  "Kotak Mahindra Bank",
+        "account_no":  "2611687274",
+        "ifsc_code":  "KKBK0002789"
+    },
+    {
+        "vendor_code":  "SM79OE6D",
+        "customername":  "Gajera Infocom",
+        "city":  "Rajkot",
+        "gstin":  "24APRPG8444C1ZV",
+        "pan":  "APRPG8444C",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM29BN1A",
+        "customername":  "Galaxy Hydraulic",
+        "city":  "Rajkot",
+        "gstin":  "24AAWFG3788M1ZG",
+        "pan":  "AAWFG3788M",
+        "bank_name":  "ICICI BANK LTD",
+        "account_no":  "201105000910",
+        "ifsc_code":  "ICIC0002011"
+    },
+    {
+        "vendor_code":  "SM13LQ9E",
+        "customername":  "Ganga Plastic Mall",
+        "city":  "Rajkot",
+        "gstin":  "24AAOFG8965G1ZW",
+        "pan":  "AAOFG8965G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM59UA1D",
+        "customername":  "Ganpati Trans-Logistics Old",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM16BM8W",
+        "customername":  "Gel Krupa Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24BQHPV6677C1ZG",
+        "pan":  "BQHPV6677C",
+        "bank_name":  "KOTAK MAHINDRA BANK LTD.",
+        "account_no":  "8447188022",
+        "ifsc_code":  "KKBK0002789"
+    },
+    {
+        "vendor_code":  "SM79HK7Z",
+        "customername":  "Ghiya Bearings",
+        "city":  "Rajkot",
+        "gstin":  "24AABFG7791H2Z8",
+        "pan":  "AABFG7791H",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "59229374079591",
+        "ifsc_code":  "HDFC0000378"
+    },
+    {
+        "vendor_code":  "SM89XM2K",
+        "customername":  "Giri Cargo Movers",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM14NR6H",
+        "customername":  "Girnar Cargo Escort",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM50PG0Q",
+        "customername":  "Global Automate Solutions",
+        "city":  "Pune",
+        "gstin":  "27BVPPA6964G1Z7",
+        "pan":  "BVPPA6964G",
+        "bank_name":  "IDFC BANK",
+        "account_no":  "59730382785",
+        "ifsc_code":  "IDFB0041434"
+    },
+    {
+        "vendor_code":  "SM55YG9D",
+        "customername":  "Global Cnc Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAJCG0332R1ZF",
+        "pan":  "AAJCG0332R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM17LQ3Q",
+        "customername":  "Glorious Industries",
+        "city":  "Rajkot",
+        "gstin":  "24AAZFG7863N1ZB",
+        "pan":  "AAZFG7863N",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM05DF9X",
+        "customername":  "Gokul Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AXLPS3591C1ZB",
+        "pan":  "AXLPS3591C",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM34RR3A",
+        "customername":  "Gopi Graphics",
+        "city":  "Rajkot",
+        "gstin":  "24AAIPZ7210R1ZZ",
+        "pan":  "AAIPZ7210R",
+        "bank_name":  "Kotak Mahindra Bank",
+        "account_no":  "7512087505",
+        "ifsc_code":  "KKBK0002797"
+    },
+    {
+        "vendor_code":  "SM92XX0H",
+        "customername":  "GRC Parcel Service",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM89KA9C",
+        "customername":  "Greenroad Carriers Transline LLP",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM26NO7U",
+        "customername":  "Gugal Tools And Hardware",
+        "city":  "Rajkot",
+        "gstin":  "24BCOPV2656L1ZW",
+        "pan":  "BCOPV2656L",
+        "bank_name":  "AXIS BANK",
+        "account_no":  "918020041400641",
+        "ifsc_code":  "UTIB0000809"
+    },
+    {
+        "vendor_code":  "SM94UL4J",
+        "customername":  "Gujarat Nut Bolt Co",
+        "city":  "Rajkot",
+        "gstin":  "24AAHFG4931F1ZN",
+        "pan":  "AAHFG4931F",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "03782320000533",
+        "ifsc_code":  "HDFC0000378"
+    },
+    {
+        "vendor_code":  "SM15AV0X",
+        "customername":  "Gujrat Goods Service",
+        "city":  "Mumbai",
+        "gstin":  "27AAFFG8339R1ZK",
+        "pan":  "AAFFG8339R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM41WP6V",
+        "customername":  "H D M POWER CORPORATION",
+        "city":  "Rajkot",
+        "gstin":  "24AHQPJ6940D1ZB",
+        "pan":  "AHQPJ6940D",
+        "bank_name":  "UNION BANK OF INDIA",
+        "account_no":  "565141000033460",
+        "ifsc_code":  "UBIN0901911"
+    },
+    {
+        "vendor_code":  "SM86VG8N",
+        "customername":  "H P ENTERPRISE",
+        "city":  "Rajkot",
+        "gstin":  "24CIEPG3356B1ZT",
+        "pan":  "CIEPG3356B",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9848407545",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM70IM7W",
+        "customername":  "Harsiddhi Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24AFXPJ5746A1ZC",
+        "pan":  "AFXPJ5746A",
+        "bank_name":  "BANK OF INDIA",
+        "account_no":  "312120100030615",
+        "ifsc_code":  "BKID0003121"
+    },
+    {
+        "vendor_code":  "SM13QQ4G",
+        "customername":  "Harsiddhi Tool Room",
+        "city":  "Rajkot",
+        "gstin":  "24AAFFH5499H1Z3",
+        "pan":  "AAFFH5499H",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM69VN4V",
+        "customername":  "Hawa Valves And Pneumatics",
+        "city":  "Rajkot",
+        "gstin":  "24AAFFH2754K1ZC",
+        "pan":  "AAFFH2754K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM04HZ7K",
+        "customername":  "Heavy Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AJVPM4642A1Z9",
+        "pan":  "AJVPM4642A",
+        "bank_name":  "PUNJAB NATIONAL BANK",
+        "account_no":  "3870002100015317",
+        "ifsc_code":  "PUNB0387000"
+    },
+    {
+        "vendor_code":  "SM47KJ2P",
+        "customername":  "Hexa Cool Process Cooling",
+        "city":  "Ahmedabad",
+        "gstin":  "24AALFH7565C1ZC",
+        "pan":  "AALFH7565C",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "720505000316",
+        "ifsc_code":  "ICIC0007205"
+    },
+    {
+        "vendor_code":  "SM77YH0F",
+        "customername":  "Hindustan Nut Bolt And Tools",
+        "city":  "Rajkot",
+        "gstin":  "24AAIFH5737P1ZU",
+        "pan":  "AAIFH5737P",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "2911587854",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM90ND7F",
+        "customername":  "Hiral Enterprise. (Anjani Courier)",
+        "city":  "Rajkot",
+        "gstin":  "24AAJPO6579R1ZN",
+        "pan":  "AAJPO6579R",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200011162136",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM47XZ3B",
+        "customername":  "HR Technotronics",
+        "city":  "Pune",
+        "gstin":  "27COJPB5893K1ZE",
+        "pan":  "COJPB5893K",
+        "bank_name":  "Canara Bank",
+        "account_no":  "120024161266",
+        "ifsc_code":  "CNRB0008662"
+    },
+    {
+        "vendor_code":  "SM72WP3D",
+        "customername":  "Hytron Metals",
+        "city":  "Ahmedabad",
+        "gstin":  "24CBEPB4787J1ZJ",
+        "pan":  "CBEPB4787J",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM33EW6E",
+        "customername":  "Imola Mould",
+        "city":  "Morbi",
+        "gstin":  "24AAIFI4594D1ZD",
+        "pan":  "AAIFI4594D",
+        "bank_name":  "TJSB SAHAKARI BANK LTD",
+        "account_no":  "136130100000018",
+        "ifsc_code":  "TJSB0000136"
+    },
+    {
+        "vendor_code":  "SM43AX8W",
+        "customername":  "Info Edge India Ltd",
+        "city":  "Gautambuddha Nagar",
+        "gstin":  "09AAACI1838D1ZU",
+        "pan":  "AAACI1838D",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM63YA6C",
+        "customername":  "INLAND WORLD LOGISTICS PRIVATE LIMITED",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM11CS1Y",
+        "customername":  "Innovative Engineering Product Pvt.ltd.",
+        "city":  "Rajkot",
+        "gstin":  "24AABCI8355E1ZP",
+        "pan":  "AABCI8355E",
+        "bank_name":  "DBS Bank",
+        "account_no":  "870200060738",
+        "ifsc_code":  "DBSS0IN0870"
+    },
+    {
+        "vendor_code":  "SM07QO5X",
+        "customername":  "Isha Steel World",
+        "city":  "Rajkot",
+        "gstin":  "24ACIPV1338G1ZL",
+        "pan":  "ACIPV1338G",
+        "bank_name":  "CENTRAL BANK OF INDIA",
+        "account_no":  "3583919722",
+        "ifsc_code":  "CBIN0280568"
+    },
+    {
+        "vendor_code":  "SM65BT5O",
+        "customername":  "J K Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24AAWFJ3525H1Z5",
+        "pan":  "AAWFJ3525H",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9601470083",
+        "ifsc_code":  "KKBK0002792"
+    },
+    {
+        "vendor_code":  "SM57RR6V",
+        "customername":  "J K Engitech",
+        "city":  "Rajkot",
+        "gstin":  "24GNGPS0326J1ZW",
+        "pan":  "GNGPS0326J",
+        "bank_name":  "UNION BANK OF INDIA",
+        "account_no":  "578001010050865",
+        "ifsc_code":  "UBIN0557803"
+    },
+    {
+        "vendor_code":  "SM44WB5C",
+        "customername":  "J. B. Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24ARTPP3221E1ZV",
+        "pan":  "ARTPP3221E",
+        "bank_name":  "HDFC Bank",
+        "account_no":  "50200028377621",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM05LQ8X",
+        "customername":  "Jai Logistics",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM16HE6A",
+        "customername":  "Jai Orient",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM29PO8J",
+        "customername":  "Jajal Infotech",
+        "city":  "Rajkot",
+        "gstin":  "24ANFPJ7674R1Z7",
+        "pan":  "ANFPJ7674R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM11NA5E",
+        "customername":  "JAMNAGAR TRANSPORT COMPANY (SD)",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM39TP2H",
+        "customername":  "Janvi Logistics India Private Limited",
+        "city":  "Rajkot",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM47XR8R",
+        "customername":  "Janvi Metal",
+        "city":  "Rajkot",
+        "gstin":  "24AAPFJ2177E1ZC",
+        "pan":  "AAPFJ2177E",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "0000008707",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM66DZ6N",
+        "customername":  "Janvi Steel Traders",
+        "city":  "Rajkot",
+        "gstin":  "24AAMFJ9737H1ZX",
+        "pan":  "AAMFJ9737H",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "1812892265",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM44BK9S",
+        "customername":  "Jay Heat Industries",
+        "city":  "Ahmedabad",
+        "gstin":  "24ARZPP6106E1ZJ",
+        "pan":  "ARZPP6106E",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM43BL8L",
+        "customername":  "Jay Shree Krushna Concrete Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAFCJ1771R1Z3",
+        "pan":  "AAFCJ1771R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM21LO9X",
+        "customername":  "Jay Somnath Engineers",
+        "city":  "Rajkot",
+        "gstin":  "24ABJPD0400B1ZT",
+        "pan":  "ABJPD0400B",
+        "bank_name":  "State Bank of India",
+        "account_no":  "36699413733",
+        "ifsc_code":  "SBIN0011001"
+    },
+    {
+        "vendor_code":  "SM14DO6X",
+        "customername":  "Jay Yogeshwar Metal",
+        "city":  "Rajkot",
+        "gstin":  "24AFSPL1982P1ZM",
+        "pan":  "AFSPL1982P",
+        "bank_name":  "Indian Overseas Bank",
+        "account_no":  "042702000002051",
+        "ifsc_code":  "IOBA0000427"
+    },
+    {
+        "vendor_code":  "SM66CY2U",
+        "customername":  "Jayshree Machinetools Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AADCJ9290K1Z5",
+        "pan":  "AADCJ9290K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM83HR5A",
+        "customername":  "Jemini Dormat Co.",
+        "city":  "Rajkot",
+        "gstin":  "24AAMFJ3826F1ZF",
+        "pan":  "AAMFJ3826F",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "8812090868",
+        "ifsc_code":  "KKBK0000831"
+    },
+    {
+        "vendor_code":  "SM28IP3Y",
+        "customername":  "Jiva Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AATFJ1135C1ZO",
+        "pan":  "AATFJ1135C",
+        "bank_name":  "Punjab National Bank",
+        "account_no":  "9178009300000261",
+        "ifsc_code":  "PUNB0917800"
+    },
+    {
+        "vendor_code":  "SM08WF1D",
+        "customername":  "Jiyan Products",
+        "city":  "Rajkot",
+        "gstin":  "24AANFJ5861F1Z7",
+        "pan":  "AANFJ5861F",
+        "bank_name":  "CENTRAL BANK OF INDIA",
+        "account_no":  "3642177002",
+        "ifsc_code":  "CBIN0281657"
+    },
+    {
+        "vendor_code":  "SM89SK6A",
+        "customername":  "Joy Pack India Pvt Ltd",
+        "city":  "North West Delhi",
+        "gstin":  "07AACCJ0762D1ZY",
+        "pan":  "AACCJ0762D",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM65WJ6I",
+        "customername":  "K B Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24BSUPS2455J1Z3",
+        "pan":  "BSUPS2455J",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200005491930",
+        "ifsc_code":  "HDFC0009368"
+    },
+    {
+        "vendor_code":  "SM08WE1G",
+        "customername":  "K K Engineering Works",
+        "city":  "Rajkot",
+        "gstin":  "24AHEPV6917C1ZC",
+        "pan":  "AHEPV6917C",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM99RK2J",
+        "customername":  "Kaka Steels",
+        "city":  "Rajkot",
+        "gstin":  "24AAIFK5955G1Z6",
+        "pan":  "AAIFK5955G",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "7512150346",
+        "ifsc_code":  "KKBK0000831"
+    },
+    {
+        "vendor_code":  "SM83OK3P",
+        "customername":  "Kamnath Tooling Solution",
+        "city":  "Rajkot",
+        "gstin":  "24AQQPT2986G1Z6",
+        "pan":  "AQQPT2986G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM95WT7P",
+        "customername":  "Kappa Electricals",
+        "city":  "Chennai",
+        "gstin":  "33AAMFK8688E1ZV",
+        "pan":  "AAMFK8688E",
+        "bank_name":  "Union Bank of India",
+        "account_no":  "395701010041017",
+        "ifsc_code":  "UBIN0539571"
+    },
+    {
+        "vendor_code":  "SM94AK4D",
+        "customername":  "Karvat Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24DBXPB1212E1Z4",
+        "pan":  "DBXPB1212E",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "38838013358",
+        "ifsc_code":  "SBIN0003829"
+    },
+    {
+        "vendor_code":  "SM54GL3V",
+        "customername":  "KASMANI AMIN FIROJBHAI",
+        "city":  ".",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM29FV3S",
+        "customername":  "Kgm Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24AEVPC1028H1ZQ",
+        "pan":  "AEVPC1028H",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM01YI1I",
+        "customername":  "Khodiyar Enterprise",
+        "city":  "Jamnagar",
+        "gstin":  "24AZRPM0636J1Z4",
+        "pan":  "AZRPM0636J",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "348605501048",
+        "ifsc_code":  "ICIC0003486"
+    },
+    {
+        "vendor_code":  "SM84TO3U",
+        "customername":  "King Music And Mobile",
+        "city":  "Amreli",
+        "gstin":  "24CPXPK9149E1ZB",
+        "pan":  "CPXPK9149E",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "363605500097",
+        "ifsc_code":  "ICICI0003636"
+    },
+    {
+        "vendor_code":  "SM65YF1Y",
+        "customername":  "Kishan Alloy Steel Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24ADIPK1621Q1ZF",
+        "pan":  "ADIPK1621Q",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "1611516430",
+        "ifsc_code":  "KKBK0000831"
+    },
+    {
+        "vendor_code":  "SM69JR7J",
+        "customername":  "Kishan Bright Bar",
+        "city":  "Rajkot",
+        "gstin":  "24ADIPK1871C1ZW",
+        "pan":  "ADIPK1871C",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "03782560002736",
+        "ifsc_code":  "HDFC0001696"
+    },
+    {
+        "vendor_code":  "SM94XE5N",
+        "customername":  "Kishan Industrial Electricals",
+        "city":  "Rajkot",
+        "gstin":  "24AAKFK4651K1Z4",
+        "pan":  "AAKFK4651K",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "03590400006442",
+        "ifsc_code":  "BARB0INDRAJ"
+    },
+    {
+        "vendor_code":  "SM52BG5N",
+        "customername":  "Krishna Rubber And Plastic Industries",
+        "city":  "Rajkot",
+        "gstin":  "24EQJPS7300N1ZD",
+        "pan":  "EQJPS7300N",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "183505001541",
+        "ifsc_code":  "ICIC0001835"
+    },
+    {
+        "vendor_code":  "SM19VE4V",
+        "customername":  "Kuber Tech",
+        "city":  "Rajkot",
+        "gstin":  "24AHHPJ0670P1Z4",
+        "pan":  "AHHPJ0670P",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200110959331",
+        "ifsc_code":  "HDFC0009368"
+    },
+    {
+        "vendor_code":  "SM85CU6E",
+        "customername":  "Laxmi Exports",
+        "city":  "Rajkot",
+        "gstin":  "24AAAFL7266R1ZQ",
+        "pan":  "AAAFL7266R",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "07460200000091",
+        "ifsc_code":  "BARB0DHEBAR"
+    },
+    {
+        "vendor_code":  "SM86CO5X",
+        "customername":  "Legal Entity Identifier India Limited",
+        "city":  "Mumbai",
+        "gstin":  "27AACCL9508M1Z1",
+        "pan":  "AACCL9508M",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM88OF4J",
+        "customername":  "Loyrex Meta Craft",
+        "city":  "Jamnagar",
+        "gstin":  "24ATYPM5162C1ZH",
+        "pan":  "ATYPM5162C",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "348605501794",
+        "ifsc_code":  "ICIC0003486"
+    },
+    {
+        "vendor_code":  "SM81MM4S",
+        "customername":  "Luna Technologies Private Limited",
+        "city":  "Mumbai",
+        "gstin":  "27AAECL4491R1ZP",
+        "pan":  "AAECL4491R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM60IS0D",
+        "customername":  "Luna Technologies Private Limited Uttar Pradesh",
+        "city":  "Gautambuddha Nagar",
+        "gstin":  "09AAECL4491R1ZN",
+        "pan":  "AAECL4491R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM73IG9L",
+        "customername":  "Mahadev Alloy Steel",
+        "city":  "Rajkot",
+        "gstin":  "24AGKPG5818L1Z6",
+        "pan":  "AGKPG5818L",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200043615825",
+        "ifsc_code":  "HDFC0001696"
+    },
+    {
+        "vendor_code":  "SM81JI5R",
+        "customername":  "Mankush Technologies",
+        "city":  "Bengaluru Urban",
+        "gstin":  "29ABCFM0326J1ZC",
+        "pan":  "ABCFM0326J",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM93FX8I",
+        "customername":  "Mark Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24ABWFM2027J1Z0",
+        "pan":  "ABWFM2027J",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM42XP6S",
+        "customername":  "Maruti Computer",
+        "city":  "Rajkot",
+        "gstin":  "24AVUPV4414G1Z7",
+        "pan":  "AVUPV4414G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM49IL0Y",
+        "customername":  "Maruti Metal Graphics",
+        "city":  "Rajkot",
+        "gstin":  "24ABTFM7095B1ZY",
+        "pan":  "ABTFM7095B",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "1946498630",
+        "ifsc_code":  "KKBK0002803"
+    },
+    {
+        "vendor_code":  "SM30MB7G",
+        "customername":  "Maruti Oil Trading",
+        "city":  "Rajkot",
+        "gstin":  "24ABSPT4304R1ZW",
+        "pan":  "ABSPT4304R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM19VX9L",
+        "customername":  "Maruti Tools \u0026 Cutter Re-Grining",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "N/A",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "33780873969",
+        "ifsc_code":  "SBIN0011001"
+    },
+    {
+        "vendor_code":  "SM56SF3U",
+        "customername":  "Mascot CNC Tools \u0026 Equipments Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAECM9881G1Z5",
+        "pan":  "AAECM9881G",
+        "bank_name":  "INDUSIND BANK LTD",
+        "account_no":  "650014058472",
+        "ifsc_code":  "INDB0000079"
+    },
+    {
+        "vendor_code":  "SM75AC6J",
+        "customername":  "Mascot Electronics",
+        "city":  "Rajkot",
+        "gstin":  "24AARPV9890N1ZC",
+        "pan":  "AARPV9890N",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM65RS3O",
+        "customername":  "Mascot Metrological Lab LLP",
+        "city":  "Rajkot",
+        "gstin":  "24ABEFM4161H1ZG",
+        "pan":  "ABEFM4161H",
+        "bank_name":  "Indusind Bank Limited",
+        "account_no":  "201001388504",
+        "ifsc_code":  "INDB0000403"
+    },
+    {
+        "vendor_code":  "SM85CS7H",
+        "customername":  "Master Hydraulics",
+        "city":  "Rajkot",
+        "gstin":  "24AFEPT8624E2ZD",
+        "pan":  "AFEPT8624E",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM24PF9I",
+        "customername":  "Matcut Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AAMFK7341J1Z3",
+        "pan":  "AAMFK7341J",
+        "bank_name":  "HDFC BANK LTD.",
+        "account_no":  "50200022468066",
+        "ifsc_code":  "HDFC0000379"
+    },
+    {
+        "vendor_code":  "SM45PL5E",
+        "customername":  "Mayur Steel",
+        "city":  "Rajkot",
+        "gstin":  "24AATFM2552L1ZV",
+        "pan":  "AATFM2552L",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM30AO6X",
+        "customername":  "Mech Tech Tools",
+        "city":  "Rajkot",
+        "gstin":  "24ACBFM0120G1Z0",
+        "pan":  "ACBFM0120G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM34KO5P",
+        "customername":  "Mercury Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24FTMPM7819H1Z6",
+        "pan":  "FTMPM7819H",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200047207841",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM53LZ9S",
+        "customername":  "Metal Arena",
+        "city":  "Mumbai",
+        "gstin":  "27CJVPS9698Q1Z8",
+        "pan":  "CJVPS9698Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM66RE9U",
+        "customername":  "Metal Fast",
+        "city":  "Pune",
+        "gstin":  "27KXEPS7453G1ZT",
+        "pan":  "KXEPS7453G",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "4650925959",
+        "ifsc_code":  "KKBK0001774"
+    },
+    {
+        "vendor_code":  "SM68SA3Y",
+        "customername":  "Metro Power Tools",
+        "city":  "Rajkot",
+        "gstin":  "24BATPS3377J1ZY",
+        "pan":  "BATPS3377J",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM78DK4N",
+        "customername":  "Militron Safety Products Llp",
+        "city":  "Rajkot",
+        "gstin":  "24ACEFM2360B1ZT",
+        "pan":  "ACEFM2360B",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "45910200001532",
+        "ifsc_code":  "BARB0METODA"
+    },
+    {
+        "vendor_code":  "SM26RR5J",
+        "customername":  "Miraj Hospitality Llp",
+        "city":  "Rajkot",
+        "gstin":  "24ABJFM7837K1ZR",
+        "pan":  "ABJFM7837K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM60VL6L",
+        "customername":  "Mirana Stamping",
+        "city":  "Rajkot",
+        "gstin":  "24ABXFM9615K1ZH",
+        "pan":  "ABXFM9615K",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "99909925315800",
+        "ifsc_code":  "HDFC0001696"
+    },
+    {
+        "vendor_code":  "SM33NV9N",
+        "customername":  "Mirix Automation",
+        "city":  "Rajkot",
+        "gstin":  "24ABOFM1244R1ZR",
+        "pan":  "ABOFM1244R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM26LW1F",
+        "customername":  "MM ALLOYAGE",
+        "city":  "Rajkot",
+        "gstin":  "24ACBFM3925F1ZJ",
+        "pan":  "ACBFM3925F",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "1548300000",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM74MR0K",
+        "customername":  "MM Metalloys",
+        "city":  "Rajkot",
+        "gstin":  "24ACBFM3924E1ZM",
+        "pan":  "ACBFM3924E",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "8707000000",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM85TD6Q",
+        "customername":  "MM Steelix Hub",
+        "city":  "Rajkot",
+        "gstin":  "24ACBFM3926G1ZG",
+        "pan":  "ACBFM3926G",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "1282400000",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM53TP6K",
+        "customername":  "Mona Tools",
+        "city":  "Rajkot",
+        "gstin":  "24AAZFM3621L1ZT",
+        "pan":  "AAZFM3621L",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "201105500074",
+        "ifsc_code":  "ICIC0002011"
+    },
+    {
+        "vendor_code":  "SM51VE6K",
+        "customername":  "Mona Tools Solution",
+        "city":  "Rajkot",
+        "gstin":  "24CPGPM2549B1Z6",
+        "pan":  "CPGPM2549B",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "201105501240",
+        "ifsc_code":  "ICIC002011"
+    },
+    {
+        "vendor_code":  "SM43YH0B",
+        "customername":  "Navkar Steel",
+        "city":  "Rajkot",
+        "gstin":  "24ATFPM5789G1ZB",
+        "pan":  "ATFPM5789G",
+        "bank_name":  "ICIC BANK LTD",
+        "account_no":  "348305000219",
+        "ifsc_code":  "ICIC0003483"
+    },
+    {
+        "vendor_code":  "SM38PC5E",
+        "customername":  "New Era Transport Private Limited",
+        "city":  "Mumbai",
+        "gstin":  "27AAHCN9245Q1ZK",
+        "pan":  "AAHCN9245Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM85LG5V",
+        "customername":  "New Gadaadhari Industries",
+        "city":  null,
+        "gstin":  "N/A",
+        "pan":  "CYIPM8330D",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200073713219",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM83EI8H",
+        "customername":  "Nisha Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24AABFN6727C1ZM",
+        "pan":  "AABFN6727C",
+        "bank_name":  "BANK OF MAHARASHTRA",
+        "account_no":  "20126003363",
+        "ifsc_code":  "MAHB0000357"
+    },
+    {
+        "vendor_code":  "SM27IO4W",
+        "customername":  "NITCO LOGISTICS PRIVATE LIMITED",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM84IH0H",
+        "customername":  "Ns Laser Tech",
+        "city":  "Rajkot",
+        "gstin":  "24AAOFN7088B1Z3",
+        "pan":  "AAOFN7088B",
+        "bank_name":  "FEDERAL BANK",
+        "account_no":  "19080200002542",
+        "ifsc_code":  "FDRL0001908"
+    },
+    {
+        "vendor_code":  "SM18TD3X",
+        "customername":  "Numerographics",
+        "city":  "Delhi",
+        "gstin":  "07AEXPJ3370B1ZG",
+        "pan":  "AEXPJ3370B",
+        "bank_name":  "IDFC First Bank",
+        "account_no":  "10069408449",
+        "ifsc_code":  "IDFB0020194"
+    },
+    {
+        "vendor_code":  "SM85ZF1G",
+        "customername":  "Nutech Engineers And Polymers",
+        "city":  "Ahmedabad",
+        "gstin":  "24AFNPS9137C2Z7",
+        "pan":  "AFNPS9137C",
+        "bank_name":  "UCO BANK",
+        "account_no":  "33610210000472",
+        "ifsc_code":  "UCBA0003361"
+    },
+    {
+        "vendor_code":  "SM23HJ8P",
+        "customername":  "Oasis Automation",
+        "city":  "Rajkot",
+        "gstin":  "24AIGPR7543F1Z5",
+        "pan":  "AIGPR7543F",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9745773866",
+        "ifsc_code":  "KKBK0002800"
+    },
+    {
+        "vendor_code":  "SM96ZA0C",
+        "customername":  "Om Automation",
+        "city":  "Rajkot",
+        "gstin":  "24AAGFO3787L1ZR",
+        "pan":  "AAGFO3787L",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "261405500939",
+        "ifsc_code":  "ICIC0002614"
+    },
+    {
+        "vendor_code":  "SM94EL0S",
+        "customername":  "Om Electric Stores",
+        "city":  "Rajkot",
+        "gstin":  "24AAEFO2509C1ZU",
+        "pan":  "AAEFO2509C",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200011046881",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM04AO2E",
+        "customername":  "Om Galvanizers",
+        "city":  "Rajkot",
+        "gstin":  "24AACFO1731G1ZQ",
+        "pan":  "AACFO1731G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM31PK1D",
+        "customername":  "Om Laser",
+        "city":  "Rajkot",
+        "gstin":  "24AAEFO5727E1ZG",
+        "pan":  "AAEFO5727E",
+        "bank_name":  "KOTAK BANK",
+        "account_no":  "9898889618",
+        "ifsc_code":  "KKBK0002798"
+    },
+    {
+        "vendor_code":  "SM90KR4C",
+        "customername":  "Om Trading",
+        "city":  "Rajkot",
+        "gstin":  "24CVXPP7357P1Z9",
+        "pan":  "CVXPP7357P",
+        "bank_name":  "UNION BANK OF INDIA",
+        "account_no":  "293311313900139",
+        "ifsc_code":  "UBIN0829331"
+    },
+    {
+        "vendor_code":  "SM06IX5Y",
+        "customername":  "Om Wirecut Products",
+        "city":  "Rajkot",
+        "gstin":  "24AACFO2370B1ZV",
+        "pan":  "AACFO2370B",
+        "bank_name":  "Central Bank Of India",
+        "account_no":  "3133704798",
+        "ifsc_code":  "CBIN0281657"
+    },
+    {
+        "vendor_code":  "SM13UG0D",
+        "customername":  "Oscar Industries",
+        "city":  "Rajkot",
+        "gstin":  "24ARVPP6067C1ZF",
+        "pan":  "ARVPP6067C",
+        "bank_name":  "Central Bank of India",
+        "account_no":  "5349699834",
+        "ifsc_code":  "CBIN0280568"
+    },
+    {
+        "vendor_code":  "SM89BE6D",
+        "customername":  "P C  Industries",
+        "city":  "Rajkot",
+        "gstin":  "24AEMPK1512P1ZD",
+        "pan":  "AEMPK1512P",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "37075016432",
+        "ifsc_code":  "SBIN0031882"
+    },
+    {
+        "vendor_code":  "SM11GO2F",
+        "customername":  "Palak Hydraulic",
+        "city":  "Rajkot",
+        "gstin":  "24AAOFP9999F1ZD",
+        "pan":  "AAOFP9999F",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "331005000377",
+        "ifsc_code":  "ICIC0003310"
+    },
+    {
+        "vendor_code":  "SM03GX3C",
+        "customername":  "Panchratan Stainless Steel",
+        "city":  "Rajkot",
+        "gstin":  "24AASPM0796K1Z3",
+        "pan":  "AASPM0796K",
+        "bank_name":  "ICICI BANK LTD",
+        "account_no":  "072805502226",
+        "ifsc_code":  "ICIC0000728"
+    },
+    {
+        "vendor_code":  "SM75GE5E",
+        "customername":  "Pankaj Blackening",
+        "city":  null,
+        "gstin":  "N/A",
+        "pan":  "GGOPB2645N",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "44093542324",
+        "ifsc_code":  "SBIN0060314"
+    },
+    {
+        "vendor_code":  "SM67DF0U",
+        "customername":  "PANKAJ INDUSTRIES",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "AEIPB1911M",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "40289419478",
+        "ifsc_code":  "SBIN0060314"
+    },
+    {
+        "vendor_code":  "SM17VS2C",
+        "customername":  "Patel Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AONPP5033P1ZE",
+        "pan":  "AONPP5033P",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM65CQ3J",
+        "customername":  "Patel Fabrication",
+        "city":  "Rajkot",
+        "gstin":  "24AAVFP1393A1Z8",
+        "pan":  "AAVFP1393A",
+        "bank_name":  "FEDRAL BANK",
+        "account_no":  "19080200001429",
+        "ifsc_code":  "FDRL0001908"
+    },
+    {
+        "vendor_code":  "SM92QJ6K",
+        "customername":  "Patel Hardware",
+        "city":  "Rajkot",
+        "gstin":  "24ABQPV4398B1Z7",
+        "pan":  "ABQPV4398B",
+        "bank_name":  "AXIS BANK LTD",
+        "account_no":  "911020022875131",
+        "ifsc_code":  "UTIB0000809"
+    },
+    {
+        "vendor_code":  "SM49EI2O",
+        "customername":  "Patel Metal Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24AEUPD8234K1Z5",
+        "pan":  "AEUPD8234K",
+        "bank_name":  "ICICI BANK LTD.",
+        "account_no":  "239505500258",
+        "ifsc_code":  "ICIC0002395"
+    },
+    {
+        "vendor_code":  "SM00NZ7S",
+        "customername":  "Patel Tools Center",
+        "city":  "Rajkot",
+        "gstin":  "24AIVPS5482K1ZC",
+        "pan":  "AIVPS5482K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM68XR9U",
+        "customername":  "Pavan Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24ACGPP8586Q1ZK",
+        "pan":  "ACGPP8586Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM21DT5Y",
+        "customername":  "Pc Technologies",
+        "city":  "Rajkot",
+        "gstin":  "24AJKPA2986Q1ZO",
+        "pan":  "AJKPA2986Q",
+        "bank_name":  "INDUSIND BANK",
+        "account_no":  "201002360660",
+        "ifsc_code":  "INDB0000403"
+    },
+    {
+        "vendor_code":  "SM10WI2K",
+        "customername":  "Perfect Grinding Works",
+        "city":  null,
+        "gstin":  "N/A",
+        "pan":  "EBPPK3473P",
+        "bank_name":  "Rajkot District Co-Op Bank Limited",
+        "account_no":  "114015192772",
+        "ifsc_code":  "GSCB0RJT133"
+    },
+    {
+        "vendor_code":  "SM97NN6P",
+        "customername":  "PHILLIPS  IMACHINE TOOLS INDIA PVT.LTD.",
+        "city":  "Thane",
+        "gstin":  "27AADCC4794K1Z7",
+        "pan":  "AADCC4794K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM59QV9C",
+        "customername":  "Phoenix Automation",
+        "city":  "Rajkot",
+        "gstin":  "24CWBPP3616E1ZU",
+        "pan":  "CWBPP3616E",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM64WP1Z",
+        "customername":  "Pilot Industries",
+        "city":  "Rajkot",
+        "gstin":  "24AAQFP5581K1ZM",
+        "pan":  "AAQFP5581K",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "1647976871",
+        "ifsc_code":  "KKBK0002806"
+    },
+    {
+        "vendor_code":  "SM82JU7F",
+        "customername":  "Pioneer Electro Heat",
+        "city":  "Rajkot",
+        "gstin":  "24CZEPP8253M1ZT",
+        "pan":  "CZEPP8253M",
+        "bank_name":  "CANARA BANK",
+        "account_no":  "3110201002280",
+        "ifsc_code":  "CNRB0003888"
+    },
+    {
+        "vendor_code":  "SM81GT7B",
+        "customername":  "Plastek India",
+        "city":  "Faridabad",
+        "gstin":  "06ACCPD9386J1ZC",
+        "pan":  "ACCPD9386J",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "00950200000608",
+        "ifsc_code":  "BARB0CONNAU"
+    },
+    {
+        "vendor_code":  "SM21XJ8S",
+        "customername":  "Pooja Road Carrier",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM41JQ5L",
+        "customername":  "Power Polytech",
+        "city":  "Rajkot",
+        "gstin":  "24ABAFP9606J2Z3",
+        "pan":  "ABAFP9606J",
+        "bank_name":  "CANARA BANK",
+        "account_no":  "120000837276",
+        "ifsc_code":  "CNRB0003888"
+    },
+    {
+        "vendor_code":  "SM24IK3S",
+        "customername":  "Pradip Agencies",
+        "city":  "Rajkot",
+        "gstin":  "24AADFP5132D1ZR",
+        "pan":  "AADFP5132D",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "08312000004882",
+        "ifsc_code":  "KKBK0000831"
+    },
+    {
+        "vendor_code":  "SM99MF7G",
+        "customername":  "Pragti Industries",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "N/A",
+        "bank_name":  "THE CO-OPERATIVE BANK OF RAJKOT LTD.",
+        "account_no":  "0009110100003397",
+        "ifsc_code":  "YESB0RAJ009"
+    },
+    {
+        "vendor_code":  "SM22SP0W",
+        "customername":  "Pramukh Techno Mech",
+        "city":  "Rajkot",
+        "gstin":  "24INEPK8437C1ZZ",
+        "pan":  "INEPK8437C",
+        "bank_name":  "CANARA BANK",
+        "account_no":  "120000881590",
+        "ifsc_code":  "CNRB0002734"
+    },
+    {
+        "vendor_code":  "SM14EL8U",
+        "customername":  "Pranaam Electricals India Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AALCP5132C1ZR",
+        "pan":  "AALCP5132C",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9727882224",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM01NT4N",
+        "customername":  "Pratham Traders",
+        "city":  "Mumbai",
+        "gstin":  "27ATOPJ5751E1ZH",
+        "pan":  "ATOPJ5751E",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200066586890",
+        "ifsc_code":  "HDFC0000626"
+    },
+    {
+        "vendor_code":  "SM72LY1W",
+        "customername":  "Prayag Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24CDYPJ0514M1Z8",
+        "pan":  "CDYPJ0514M",
+        "bank_name":  "BANK OF INDIA",
+        "account_no":  "325920110000058",
+        "ifsc_code":  "BKID0003259"
+    },
+    {
+        "vendor_code":  "SM10BV8A",
+        "customername":  "Prayag Industries",
+        "city":  "Rajkot",
+        "gstin":  "24CPUPJ9180H1ZA",
+        "pan":  "CPUPJ9180H",
+        "bank_name":  "Bank of Baroda",
+        "account_no":  "45910200001620",
+        "ifsc_code":  "BARB0METODA"
+    },
+    {
+        "vendor_code":  "SM70RJ6X",
+        "customername":  "Preci Tech Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AQFPV0700M1ZU",
+        "pan":  "AQFPV0700M",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM14XJ1D",
+        "customername":  "Precision Auto Engineers",
+        "city":  "Rajkot",
+        "gstin":  "24CNOPS7426R1ZX",
+        "pan":  "CNOPS7426R",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "9111687841",
+        "ifsc_code":  "KKBK0002789"
+    },
+    {
+        "vendor_code":  "SM28XE0R",
+        "customername":  "Prince Heat Electric",
+        "city":  "Morbi",
+        "gstin":  "24AODPB0107J1ZP",
+        "pan":  "AODPB0107J",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM43XU2E",
+        "customername":  "Promise Automation",
+        "city":  "Rajkot",
+        "gstin":  "24ABBFP3427E1ZN",
+        "pan":  "ABBFP3427E",
+        "bank_name":  "KOTAK MAHINDRA BANK LTD.",
+        "account_no":  "4548176463",
+        "ifsc_code":  "KKBK0002789"
+    },
+    {
+        "vendor_code":  "SM18DU7Z",
+        "customername":  "Prosper Universal Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAICP4780B1ZK",
+        "pan":  "AAICP4780B",
+        "bank_name":  "INDUSIND BANK",
+        "account_no":  "259067050450",
+        "ifsc_code":  "INDB0000079"
+    },
+    {
+        "vendor_code":  "SM51EL7R",
+        "customername":  "Purohit Steel India Limited",
+        "city":  "Palghar",
+        "gstin":  "27AAHCP5036B1ZO",
+        "pan":  "AAHCP5036B",
+        "bank_name":  "HDFC Bank",
+        "account_no":  "50200071091322",
+        "ifsc_code":  "HDFC0009369"
+    },
+    {
+        "vendor_code":  "SM90SY1S",
+        "customername":  "Pyramid Finvest Services Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAECP6315N1Z8",
+        "pan":  "AAECP6315N",
+        "bank_name":  "ICICI Bank",
+        "account_no":  "624805015798",
+        "ifsc_code":  "ICIC0006248"
+    },
+    {
+        "vendor_code":  "SM38XT1B",
+        "customername":  "R B Cnc Tools",
+        "city":  "Rajkot",
+        "gstin":  "24BVQPR7886H1ZM",
+        "pan":  "BVQPR7886H",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "624805501921",
+        "ifsc_code":  "ICIC0006248"
+    },
+    {
+        "vendor_code":  "SM97RB7Y",
+        "customername":  "R K Trading Co",
+        "city":  "Vadodara",
+        "gstin":  "24CSRPK5901M1ZA",
+        "pan":  "CSRPK5901M",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "5846199628",
+        "ifsc_code":  "KKBK0002747"
+    },
+    {
+        "vendor_code":  "SM44KZ4I",
+        "customername":  "Radhe Grinding Works",
+        "city":  "Rajkot",
+        "gstin":  "24BGPPP2683E1Z5",
+        "pan":  "BGPPP2683E",
+        "bank_name":  "Vijay Commercial Co-Operative Bank Ltd",
+        "account_no":  "005002600000706",
+        "ifsc_code":  "KKBK0VCCB05"
+    },
+    {
+        "vendor_code":  "SM38WN2R",
+        "customername":  "Raj Cooling World Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAFCR5338A1ZR",
+        "pan":  "AAFCR5338A",
+        "bank_name":  "AXIS BANK",
+        "account_no":  "922030011691040",
+        "ifsc_code":  "UTIB0004346"
+    },
+    {
+        "vendor_code":  "SM44XS5Z",
+        "customername":  "Raj Steel",
+        "city":  "Rajkot",
+        "gstin":  "24ALWPK4183B1Z0",
+        "pan":  "ALWPK4183B",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "99998000052052",
+        "ifsc_code":  "HDFC0009443"
+    },
+    {
+        "vendor_code":  "SM70AB6L",
+        "customername":  "Ram Machine Tools",
+        "city":  "Rajkot",
+        "gstin":  "24ADXPV0143M1ZY",
+        "pan":  "ADXPV0143M",
+        "bank_name":  "CENTRAL BANK OF INDIA",
+        "account_no":  "5100842914",
+        "ifsc_code":  "CBIN0280569"
+    },
+    {
+        "vendor_code":  "SM89RG8J",
+        "customername":  "Ramchandrake Wire Cut",
+        "city":  "Rajkot",
+        "gstin":  "24CVBPS1129N1ZE",
+        "pan":  "CVBPS1129N",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "03620200000724",
+        "ifsc_code":  "BARB0JAGNAT"
+    },
+    {
+        "vendor_code":  "SM39GU2O",
+        "customername":  "Rb Tools",
+        "city":  "Rajkot",
+        "gstin":  "24ABKFR4666E1Z1",
+        "pan":  "ABKFR4666E",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM78PO5D",
+        "customername":  "Redix Pumps LLP",
+        "city":  "Ahmedabad",
+        "gstin":  "24ABBFR4819A1ZN",
+        "pan":  "ABBFR4819A",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM53ZB7U",
+        "customername":  "Renova Tech",
+        "city":  "Rajkot",
+        "gstin":  "24ABNFR3726L1ZS",
+        "pan":  "ABNFR3726L",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "99997567054054",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM99BY5Z",
+        "customername":  "Ritex Manufacturers",
+        "city":  "Rajkot",
+        "gstin":  "24AKDPN8013F1ZH",
+        "pan":  "AKDPN8013F",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM19VD7N",
+        "customername":  "Robin Precision Products Pvt. Ltd.",
+        "city":  "Rajkot",
+        "gstin":  "24AADCR9223Q1ZW",
+        "pan":  "AADCR9223Q",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "50200070210751",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM24XZ5Z",
+        "customername":  "Rolend Industries",
+        "city":  "Rajkot",
+        "gstin":  "24CGMPK1568B1ZK",
+        "pan":  "CGMPK1568B",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200011951741",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM14NP5H",
+        "customername":  "Roshni Steel Traders",
+        "city":  "Rajkot",
+        "gstin":  "24BWTPP7735H1ZV",
+        "pan":  "BWTPP7735H",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM71GN8H",
+        "customername":  "Royal Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AAYFR2978Q1ZX",
+        "pan":  "AAYFR2978Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM90TC5Z",
+        "customername":  "S P Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24IXPPK0411M1Z9",
+        "pan":  "IXPPK0411M",
+        "bank_name":  "HDFC Bank",
+        "account_no":  "50200060048963",
+        "ifsc_code":  "HDFC0003101"
+    },
+    {
+        "vendor_code":  "SM11IF6M",
+        "customername":  "Safexpress Private Ltd.",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM45LQ9N",
+        "customername":  "Sai Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24ABAPZ1334R1Z8",
+        "pan":  "ABAPZ1334R",
+        "bank_name":  "INDIAN BANK",
+        "account_no":  "7506250605",
+        "ifsc_code":  "IDIB000R542"
+    },
+    {
+        "vendor_code":  "SM54IT7L",
+        "customername":  "SAI KRUPA EXPRESS",
+        "city":  null,
+        "gstin":  "24BCVPG7407H1ZE",
+        "pan":  "BCVPG7407H",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM24CI9N",
+        "customername":  "Saikrupa Computers And Cctv Camera",
+        "city":  "Rajkot",
+        "gstin":  "24BBWPJ5924J1Z5",
+        "pan":  "BBWPJ5924J",
+        "bank_name":  "IDBI BANK LTD",
+        "account_no":  "1642102000006613",
+        "ifsc_code":  "IBKL0001642"
+    },
+    {
+        "vendor_code":  "SM66TV3K",
+        "customername":  "Sanatan Machine Tools",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "BLVPP4877K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM95LG7W",
+        "customername":  "Sardar Impex",
+        "city":  "Rajkot",
+        "gstin":  "24ADYFS0562L1ZG",
+        "pan":  "ADYFS0562L",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "18800500005247",
+        "ifsc_code":  "BARB0DBRACE"
+    },
+    {
+        "vendor_code":  "SM15ZC9W",
+        "customername":  "Sarthi Grinding Works",
+        "city":  "Rajkot",
+        "gstin":  "24BEJPC0374R1Z9",
+        "pan":  "BEJPC0374R",
+        "bank_name":  "INDIAN OVERSEAS BANK",
+        "account_no":  "014402000010620",
+        "ifsc_code":  "IOBA0000144"
+    },
+    {
+        "vendor_code":  "SM61IB0N",
+        "customername":  "Seair Info Solutions Private Limted",
+        "city":  "South West Delhi",
+        "gstin":  "07AANCS9682C1ZV",
+        "pan":  "AANCS9682C",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "414505000680",
+        "ifsc_code":  "ICIC0004145"
+    },
+    {
+        "vendor_code":  "SM60WC9R",
+        "customername":  "Sense Tech Solutions",
+        "city":  "Rajkot",
+        "gstin":  "24BFJPJ1958R1ZS",
+        "pan":  "BFJPJ1958R",
+        "bank_name":  "CENTRAL BANK OF INDIA",
+        "account_no":  "3658019558",
+        "ifsc_code":  "CBIN0280571"
+    },
+    {
+        "vendor_code":  "SM98DX4O",
+        "customername":  "Shakti Refilling Centre",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "N/A",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM26JP2U",
+        "customername":  "Shakti Tea Stall",
+        "city":  ".",
+        "gstin":  "N/A",
+        "pan":  "N/A",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM26BL2C",
+        "customername":  "SHITAL CARGO MOVERS",
+        "city":  "Rajkot",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM55YP6W",
+        "customername":  "Shiv Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24EHRPB7969B1Z3",
+        "pan":  "EHRPB7969B",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM51MY0Y",
+        "customername":  "Shiv Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AKGPV0984L1ZL",
+        "pan":  "AKGPV0984L",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "6450864407",
+        "ifsc_code":  "KKBK0002804"
+    },
+    {
+        "vendor_code":  "SM28MZ2S",
+        "customername":  "Shiv Enterprises Bhopal",
+        "city":  "Bhopal",
+        "gstin":  "23IIIPS4727N1ZJ",
+        "pan":  "IIIPS4727N",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200055307330",
+        "ifsc_code":  "HDFC0000400"
+    },
+    {
+        "vendor_code":  "SM73RP2H",
+        "customername":  "SHIV TECH ENGINEERING",
+        "city":  "Rajkot",
+        "gstin":  "24AEGFS3310B1ZP",
+        "pan":  "AEGFS3310B",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200053862571",
+        "ifsc_code":  "HDFC0001698"
+    },
+    {
+        "vendor_code":  "SM91NV4O",
+        "customername":  "Shivalay Sales And Service",
+        "city":  "Rajkot",
+        "gstin":  "24BRAPG3122P1ZZ",
+        "pan":  "BRAPG3122P",
+        "bank_name":  "Axis Bank Ltd.",
+        "account_no":  "921020034723823",
+        "ifsc_code":  "UTIB0000087"
+    },
+    {
+        "vendor_code":  "SM02CL3N",
+        "customername":  "Shree  Raj  Scrap",
+        "city":  "Rajkot",
+        "gstin":  "24ANKPS5497A1ZR",
+        "pan":  "ANKPS5497A",
+        "bank_name":  "CITIZEN CO OP BANK LTD RAJKOT",
+        "account_no":  "471004101000441",
+        "ifsc_code":  "IBKL01642C1"
+    },
+    {
+        "vendor_code":  "SM80YH6K",
+        "customername":  "Shree Aashirwad Roadways",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM46ZV2D",
+        "customername":  "Shree Ambika Express Couriers",
+        "city":  "Rajkot",
+        "gstin":  "24AODPP7313J1ZX",
+        "pan":  "AODPP7313J",
+        "bank_name":  "AXIS BANK LIMITED",
+        "account_no":  "914020008048488",
+        "ifsc_code":  "UTIB0000087"
+    },
+    {
+        "vendor_code":  "SM25LH5L",
+        "customername":  "Shree Chamunda Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24BRRPP3845D1ZK",
+        "pan":  "BRRPP3845D",
+        "bank_name":  "Central Bank Of India",
+        "account_no":  "3643609260",
+        "ifsc_code":  "CBIN0280568"
+    },
+    {
+        "vendor_code":  "SM91MM3U",
+        "customername":  "Shree Ganesh Engineering \u0026 Fabrication",
+        "city":  "Rajkot",
+        "gstin":  "24BBLPV1786K1ZY",
+        "pan":  "BBLPV1786K",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200043257853",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM38AQ8V",
+        "customername":  "Shree Kamnath Re Grainding",
+        "city":  "Rajkot",
+        "gstin":  "24AFFPT8637L1ZT",
+        "pan":  "AFFPT8637L",
+        "bank_name":  "The Co-Opera..ve Bank of Rajkot Ltd.",
+        "account_no":  "0009150200000045",
+        "ifsc_code":  "TCBR0000109"
+    },
+    {
+        "vendor_code":  "SM32QX4T",
+        "customername":  "Shree Maruti Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24AYYPC3329G1ZC",
+        "pan":  "AYYPC3329G",
+        "bank_name":  "YES BANK LTD",
+        "account_no":  "101263400000170",
+        "ifsc_code":  "YESB0001012"
+    },
+    {
+        "vendor_code":  "SM68BC5L",
+        "customername":  "Shree Nasik Goods Transportcompany Private Limited",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM32EC1G",
+        "customername":  "Shree Ram Alloy Steel Corporation",
+        "city":  "Rajkot",
+        "gstin":  "24AAQFS2297F1ZV",
+        "pan":  "AAQFS2297F",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "015305000473",
+        "ifsc_code":  "ICIC0000153"
+    },
+    {
+        "vendor_code":  "SM55YE5R",
+        "customername":  "Shree Ram Engineers",
+        "city":  "Rajkot",
+        "gstin":  "24AREPV6567A1ZP",
+        "pan":  "AREPV6567A",
+        "bank_name":  "Central Bank Of India",
+        "account_no":  "5708921910",
+        "ifsc_code":  "CBIN0281313"
+    },
+    {
+        "vendor_code":  "SM63MR4R",
+        "customername":  "Shree Sainath Cargo Services",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM06AZ1K",
+        "customername":  "Shree Shakti Oil Trading",
+        "city":  "Rajkot",
+        "gstin":  "24FFNPS1475E1Z6",
+        "pan":  "FFNPS1475E",
+        "bank_name":  "THE CO-OPP BANK",
+        "account_no":  "0023110100000517",
+        "ifsc_code":  "YESB0RAJ023"
+    },
+    {
+        "vendor_code":  "SM16PD0E",
+        "customername":  "SHREE SHYAM TRANS LOGISTICS",
+        "city":  "Rajkot",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM55GV1A",
+        "customername":  "Shreee Azad Transport Co. Pvt. Ltd.",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM12DG4N",
+        "customername":  "Shreeji Traders",
+        "city":  "Rajkot",
+        "gstin":  "24BBFPP1046Q1ZD",
+        "pan":  "BBFPP1046Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM95DA6E",
+        "customername":  "Shreenathji Zink",
+        "city":  "Metoda",
+        "gstin":  "24AEUPH7159B1ZE",
+        "pan":  "AEUPH7159B",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "20122000000933",
+        "ifsc_code":  "HDFC0002012"
+    },
+    {
+        "vendor_code":  "SM85QN5N",
+        "customername":  "ShriNath Cargo Private Limited",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM99ME8J",
+        "customername":  "Sky Compressor",
+        "city":  "Morbi",
+        "gstin":  "24AEOFS2289H1ZL",
+        "pan":  "AEOFS2289H",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200063726507",
+        "ifsc_code":  "HDFC0002499"
+    },
+    {
+        "vendor_code":  "SM85OP3C",
+        "customername":  "SKYONLINE TECHNOSYSTEM PRIVATE LIMITED",
+        "city":  "Rajkot",
+        "gstin":  "24AAYCS0399H1ZQ",
+        "pan":  "AAYCS0399H",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "50200047552295",
+        "ifsc_code":  "HDFC0000101"
+    },
+    {
+        "vendor_code":  "SM22MR6N",
+        "customername":  "SMC CORPORATION",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM83KN3Y",
+        "customername":  "Smit Grining",
+        "city":  ".",
+        "gstin":  "N/A",
+        "pan":  "N/A",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM33KU7W",
+        "customername":  "Soham Steel",
+        "city":  "Rajkot",
+        "gstin":  "24ABXPL8003A1ZU",
+        "pan":  "ABXPL8003A",
+        "bank_name":  "KOTAK MAHINDRA BANK LTD",
+        "account_no":  "7213836464",
+        "ifsc_code":  "KKBK0002792"
+    },
+    {
+        "vendor_code":  "SM47CF2Q",
+        "customername":  "Spm Hydraulics",
+        "city":  "Rajkot",
+        "gstin":  "24ADWPT4310R1ZQ",
+        "pan":  "ADWPT4310R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM36TC4E",
+        "customername":  "Standard Electronics",
+        "city":  "Jamnagar",
+        "gstin":  "24IPSPS0580A1ZP",
+        "pan":  "IPSPS0580A",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "32600200001958",
+        "ifsc_code":  "BARB0KALAVA"
+    },
+    {
+        "vendor_code":  "SM33HP7A",
+        "customername":  "Steelwell Alloy Center",
+        "city":  "Rajkot",
+        "gstin":  "24BINPS4350P1ZK",
+        "pan":  "BINPS4350P",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "0445210668",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM80HL0S",
+        "customername":  "Suman Trade Incorporation",
+        "city":  "Rajkot",
+        "gstin":  "24ABUPA6443L1ZD",
+        "pan":  "ABUPA6443L",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "50200068104426",
+        "ifsc_code":  "HDFC0009443"
+    },
+    {
+        "vendor_code":  "SM32TZ8X",
+        "customername":  "Sun Steel",
+        "city":  "Rajkot",
+        "gstin":  "24ANYPP0394F2ZJ",
+        "pan":  "ANYPP0394F",
+        "bank_name":  "THE CO-BANK OF RJT. LTD.",
+        "account_no":  "0009150200000021",
+        "ifsc_code":  "TCBR0000109"
+    },
+    {
+        "vendor_code":  "SM46UB1I",
+        "customername":  "Sunlight Industries",
+        "city":  "Rajkot",
+        "gstin":  "24AATFS3272P1ZE",
+        "pan":  "AATFS3272P",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "7009970099",
+        "ifsc_code":  "KKBK0002791"
+    },
+    {
+        "vendor_code":  "SM01XY3M",
+        "customername":  "Sunpack Industries",
+        "city":  "Panipat",
+        "gstin":  "06ADKFS0097C1Z5",
+        "pan":  "ADKFS0097C",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM11UN8M",
+        "customername":  "Super Engineering Company",
+        "city":  "Rajkot",
+        "gstin":  "24AAOFS9393Q1ZZ",
+        "pan":  "AAOFS9393Q",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "07930200001046",
+        "ifsc_code":  "BARB0MANRAJ"
+    },
+    {
+        "vendor_code":  "SM48MX7E",
+        "customername":  "Suraj Metal Cast",
+        "city":  "Rajkot",
+        "gstin":  "24AUQPK7599A1Z8",
+        "pan":  "AUQPK7599A",
+        "bank_name":  "YES BANK",
+        "account_no":  "009884600002631",
+        "ifsc_code":  "YESB0000098"
+    },
+    {
+        "vendor_code":  "SM71BN5P",
+        "customername":  "Suryaraj Security Force",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "AMMPV1767B",
+        "bank_name":  "STATE BANK OF INDIA",
+        "account_no":  "39158434655",
+        "ifsc_code":  "SBIN0060314"
+    },
+    {
+        "vendor_code":  "SM42AF5Q",
+        "customername":  "Suvidha Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24ACAFS4715N1ZZ",
+        "pan":  "ACAFS4715N",
+        "bank_name":  "AXIS BANK",
+        "account_no":  "919020036449218",
+        "ifsc_code":  "UTIB0000631"
+    },
+    {
+        "vendor_code":  "SM86AB4A",
+        "customername":  "Swastik Industrial Park",
+        "city":  "Ahmedabad",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM81QB7J",
+        "customername":  "Swastik Laser Cut",
+        "city":  "Rajkot",
+        "gstin":  "24ACQFS4758K1ZE",
+        "pan":  "ACQFS4758K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM20QA1F",
+        "customername":  "Systech Solutions",
+        "city":  "Rajkot",
+        "gstin":  "24ACQFS6836G1ZO",
+        "pan":  "ACQFS6836G",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "261405500122",
+        "ifsc_code":  "ICIC0002614"
+    },
+    {
+        "vendor_code":  "SM36ZI2I",
+        "customername":  "Tanna Automation",
+        "city":  "Rajkot",
+        "gstin":  "24ACBPT0859R1ZZ",
+        "pan":  "ACBPT0859R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM69XB8S",
+        "customername":  "TCI Express",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM25JS8I",
+        "customername":  "TCI FREIGHT",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM15RV2R",
+        "customername":  "Tci Freight (a Division Of Transport Corp. Of India Limited)",
+        "city":  "Ahmedabad",
+        "gstin":  "24AAACT7966R1ZH",
+        "pan":  "AAACT7966R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM03SV7S",
+        "customername":  "Tecafine Polymer Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAFCT7626P1ZR",
+        "pan":  "AAFCT7626P",
+        "bank_name":  "ICICI BANK",
+        "account_no":  "015305503237",
+        "ifsc_code":  "ICIC0000153"
+    },
+    {
+        "vendor_code":  "SM95LK0K",
+        "customername":  "Tejas V. Dave",
+        "city":  null,
+        "gstin":  "N/A",
+        "pan":  "AZCPD8618C",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM77EV7E",
+        "customername":  "The World Lock Manufacturing Company",
+        "city":  "Rajkot",
+        "gstin":  "24AWPPS6670R1ZC",
+        "pan":  "AWPPS6670R",
+        "bank_name":  "System.Xml.XmlElement",
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM32RD3D",
+        "customername":  "Time Automation Solution",
+        "city":  "Rajkot",
+        "gstin":  "24AASFT9550G1ZO",
+        "pan":  "AASFT9550G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM58XR1Q",
+        "customername":  "Tirupati Engineering Works",
+        "city":  "Rajkot",
+        "gstin":  "N/A",
+        "pan":  "AJHPV2071N",
+        "bank_name":  "SHREE DHARATI CO-OPERATIVE BANK LTD.",
+        "account_no":  "442004101001091",
+        "ifsc_code":  "IBKL01642SD"
+    },
+    {
+        "vendor_code":  "SM40YG8H",
+        "customername":  "Tisosi Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAKCT0749E1ZF",
+        "pan":  "AAKCT0749E",
+        "bank_name":  "ICICI BANK LTD",
+        "account_no":  "777705961555",
+        "ifsc_code":  "ICIC0005350"
+    },
+    {
+        "vendor_code":  "SM86WR4S",
+        "customername":  "Track On Couriers Pvt. Ltd.",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM59CG2Q",
+        "customername":  "Twarit Laser Cutting",
+        "city":  "Rajkot",
+        "gstin":  "24AAMFT9775H1ZH",
+        "pan":  "AAMFT9775H",
+        "bank_name":  "HDFC BANK",
+        "account_no":  "99998000018190",
+        "ifsc_code":  "HDFC0005636"
+    },
+    {
+        "vendor_code":  "SM17ZL3X",
+        "customername":  "U C Engineers",
+        "city":  "Surat",
+        "gstin":  "24AAHFU2374E1ZA",
+        "pan":  "AAHFU2374E",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM40SJ7P",
+        "customername":  "U V Stationers And Xerox",
+        "city":  "Rajkot",
+        "gstin":  "24ABDPF0139K1Z2",
+        "pan":  "ABDPF0139K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM15MS9N",
+        "customername":  "Ug Engineering",
+        "city":  "Rajkot",
+        "gstin":  "24OCPPS1279Q1ZA",
+        "pan":  "OCPPS1279Q",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM18TO2L",
+        "customername":  "Umang Box Works",
+        "city":  "Rajkot",
+        "gstin":  "24BNOPG2778P1Z9",
+        "pan":  "BNOPG2778P",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM51UK3B",
+        "customername":  "Umiya Hydralic System",
+        "city":  "Rajkot",
+        "gstin":  "24AACFU0011D1Z3",
+        "pan":  "AACFU0011D",
+        "bank_name":  "Kotak Mahindra Bank",
+        "account_no":  "3050012476",
+        "ifsc_code":  "KKBK0002789"
+    },
+    {
+        "vendor_code":  "SM89JZ0Z",
+        "customername":  "Unique Filters",
+        "city":  "Rajkot",
+        "gstin":  "24AADFU9291L1ZL",
+        "pan":  "AADFU9291L",
+        "bank_name":  "BANK OF INDIA",
+        "account_no":  "311030110000217",
+        "ifsc_code":  "BKID0003110"
+    },
+    {
+        "vendor_code":  "SM20KT6Z",
+        "customername":  "Unity Cad Cam",
+        "city":  "Rajkot",
+        "gstin":  "24AAGFU0343Q1ZX",
+        "pan":  "AAGFU0343Q",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "03610200000930",
+        "ifsc_code":  "BARB0TAGORE"
+    },
+    {
+        "vendor_code":  "SM14RI9W",
+        "customername":  "Universal Technologies",
+        "city":  "Rajkot",
+        "gstin":  "24AMBPK8856D1Z3",
+        "pan":  "AMBPK8856D",
+        "bank_name":  "HDFC BANK LTD",
+        "account_no":  "06612000000466",
+        "ifsc_code":  "HDFC0000661"
+    },
+    {
+        "vendor_code":  "SM08ZV7B",
+        "customername":  "Urja Consultant",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM80ZM1I",
+        "customername":  "Uttam Colour Bank",
+        "city":  "Rajkot",
+        "gstin":  "24AACFU5971C1ZA",
+        "pan":  "AACFU5971C",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "45910200000325",
+        "ifsc_code":  "BARB0METODA"
+    },
+    {
+        "vendor_code":  "SM93RT4C",
+        "customername":  "V Trans, V Xpress \u0026 V Logis",
+        "city":  "New Delhi",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM58CW2B",
+        "customername":  "V.v.crane Co.",
+        "city":  "Rajkot",
+        "gstin":  "24AWGPS2181L1Z7",
+        "pan":  "AWGPS2181L",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM80LX3R",
+        "customername":  "Vaishali Engineering Works",
+        "city":  "Rajkot",
+        "gstin":  "24AJZPM3915A1Z7",
+        "pan":  "AJZPM3915A",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM49XG2Y",
+        "customername":  "Vardhman Dies \u0026 Mould Tools",
+        "city":  "Thane",
+        "gstin":  "27COCPS8692L1ZZ",
+        "pan":  "COCPS8692L",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM94AE5S",
+        "customername":  "Vedashree Logistics",
+        "city":  "Pune",
+        "gstin":  "27KTGPS4925D1ZA",
+        "pan":  "KTGPS4925D",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM15WD1P",
+        "customername":  "Verma Travels",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM24MJ2A",
+        "customername":  "Vijay Castor Private Limited",
+        "city":  "Rajkot",
+        "gstin":  "24AAICV6121G1ZH",
+        "pan":  "AAICV6121G",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM36UB0J",
+        "customername":  "Vijaybhai Yomal",
+        "city":  ".",
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM18GC8D",
+        "customername":  "Vishwakarma Metals",
+        "city":  "Ahmedabad",
+        "gstin":  "24BCTPP7413G1ZB",
+        "pan":  "BCTPP7413G",
+        "bank_name":  "BANK OF BARODA",
+        "account_no":  "03280500000464",
+        "ifsc_code":  "BARB0GANAHM"
+    },
+    {
+        "vendor_code":  "SM80VU7B",
+        "customername":  "VRL LOGISTICS LIMITED",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM03TZ3P",
+        "customername":  "Wellsteel Enterprise",
+        "city":  "Rajkot",
+        "gstin":  "24IULPM4017C1ZS",
+        "pan":  "IULPM4017C",
+        "bank_name":  "Central Bank Of India",
+        "account_no":  "5583566826",
+        "ifsc_code":  "CBIN0282499"
+    },
+    {
+        "vendor_code":  "SM69GT9Q",
+        "customername":  "Yamazaki Mazak India Pvt Ltd",
+        "city":  "Pune",
+        "gstin":  "27AAACY3446R1ZN",
+        "pan":  "AAACY3446R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM66VF7U",
+        "customername":  "Yamazaki Mazak Machine Tools Private Limited",
+        "city":  "Pune",
+        "gstin":  "27AABCY4191L1ZU",
+        "pan":  "AABCY4191L",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM30NQ0B",
+        "customername":  "Yuva Hydraulic Industries",
+        "city":  "Rajkot",
+        "gstin":  "24GSUPM1696E1Z6",
+        "pan":  "GSUPM1696E",
+        "bank_name":  "KOTAK MAHINDRA BANK",
+        "account_no":  "7043937341",
+        "ifsc_code":  "KKBK0002793"
+    },
+    {
+        "vendor_code":  "SM16MO1Z",
+        "customername":  "YUVRAJ LOGISTICS",
+        "city":  null,
+        "gstin":  "24AKPPC5426R1ZO",
+        "pan":  "AKPPC5426R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM24DW1W",
+        "customername":  "Zecha Precision Tools Limited",
+        "city":  "Aurangabad",
+        "gstin":  "27AAACD1394B1Z2",
+        "pan":  "AAACD1394B",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM44FU2E",
+        "customername":  "Angel Mould",
+        "city":  "Rajkot",
+        "gstin":  "24FFCPS0047R1Z0",
+        "pan":  "FFCPS0047R",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM97XE3V",
+        "customername":  "AP Grining",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM26CZ7D",
+        "customername":  "AV Engineering",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM65DU5N",
+        "customername":  "Axar Leaser Technology",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM60IJ0J",
+        "customername":  "Balaji Shaping",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM48YJ8C",
+        "customername":  "Balaji Welding",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM38VC4H",
+        "customername":  "Balvi Welding",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM01FV0E",
+        "customername":  "Galaxy Tools \u0026 Hardwares",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM64ZS3Z",
+        "customername":  "Hagora Techno Treats",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM95KU8S",
+        "customername":  "Himmat Mechanical Works",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM73CN0A",
+        "customername":  "Jay Mataji Grinning",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM59CI8T",
+        "customername":  "J B Grinning",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM55RW6R",
+        "customername":  "Kalyani Sales Corporation",
+        "city":  "Kolhapur",
+        "gstin":  "27ADVPV4306J1ZV",
+        "pan":  "ADVPV4306J",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM10SL0K",
+        "customername":  "Kishor Industries",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM25KR2T",
+        "customername":  "Omex Water Cutting",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM73LE4I",
+        "customername":  "Orient Engitech",
+        "city":  "Rajkot",
+        "gstin":  "24AVDPL0767F1ZS",
+        "pan":  "AVDPL0767F",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM10BN5N",
+        "customername":  "RADHAKRUSHNA METAL",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM49AN2V",
+        "customername":  "RAJENDRA STEEL",
+        "city":  "Rajkot",
+        "gstin":  "24AACFR5955M1ZS",
+        "pan":  "AACFR5955M",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM43YE7H",
+        "customername":  "RAJ METALS",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM32IT0A",
+        "customername":  "Shakti Engineering Co",
+        "city":  "Rajkot",
+        "gstin":  "24AQSPP0941K1ZG",
+        "pan":  "AQSPP0941K",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM15PR1U",
+        "customername":  "shree ganesh spring work",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM06YC5F",
+        "customername":  "Shreeji wiser",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM44PU7M",
+        "customername":  "SHREE RAJ CUTTING",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM07WZ1C",
+        "customername":  "Shree Ram Techno",
+        "city":  "Rajkot",
+        "gstin":  "24HLSPM0381L1ZI",
+        "pan":  "HLSPM0381L",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM26EQ7C",
+        "customername":  "SHREE TECH",
+        "city":  "Rajkot",
+        "gstin":  "24ATQPK2165H1ZK",
+        "pan":  "ATQPK2165H",
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM45WH0P",
+        "customername":  "SHYAM METAL",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM26IO3H",
+        "customername":  "Smooth Precision Pvt. Ltd",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    },
+    {
+        "vendor_code":  "SM09ON8E",
+        "customername":  "Star Heat Treatment",
+        "city":  null,
+        "gstin":  null,
+        "pan":  null,
+        "bank_name":  null,
+        "account_no":  null,
+        "ifsc_code":  null
+    }
+]
