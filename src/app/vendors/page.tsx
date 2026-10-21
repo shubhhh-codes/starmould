@@ -195,9 +195,11 @@ function CustomerPageContent() {
         contact_person: "",
     });
 
-    // Validation messages (replicates legacy checkusername & checkinitials)
+    // Validation messages (replicates legacy checkusername & checkinitials & checkvendorcode)
     const [initialError, setInitialError] = useState<string | null>(null);
     const [nameError, setNameError] = useState<string | null>(null);
+    const [vendorCodeError, setVendorCodeError] = useState<string | null>(null);
+    const [modalFormError, setModalFormError] = useState<string | null>(null);
 
     // Delete modal state
     const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
@@ -302,6 +304,8 @@ function CustomerPageContent() {
         });
         setInitialError(null);
         setNameError(null);
+        setVendorCodeError(null);
+        setModalFormError(null);
         setIsModalOpen(true);
     };
 
@@ -336,6 +340,8 @@ function CustomerPageContent() {
         });
         setInitialError(null);
         setNameError(null);
+        setVendorCodeError(null);
+        setModalFormError(null);
         setIsModalOpen(true);
     };
 
@@ -382,14 +388,65 @@ function CustomerPageContent() {
         return true;
     };
 
+    // Real-time vendor code validation
+    const validateVendorCode = (val: string) => {
+        const clean = val.trim().toUpperCase();
+        if (!clean) {
+            setVendorCodeError(null);
+            return true;
+        }
+        const currentId = selectedCustomer?.id;
+        const exists = customers.some(
+            (c) =>
+                c.vendor_code &&
+                c.vendor_code.trim().toUpperCase() === clean &&
+                c.id !== currentId,
+        );
+        if (exists) {
+            setVendorCodeError("Vendor code already exists.");
+            return false;
+        }
+        setVendorCodeError(null);
+        return true;
+    };
+
+    const checkVendorCodeRemote = async (val: string) => {
+        const clean = val.trim().toUpperCase();
+        if (!clean) return true;
+        try {
+            const currentId = selectedCustomer?.id;
+            const excludeParam = currentId ? `&excludeId=${currentId}` : "";
+            const res = await fetch(`/api/vendors?checkVendorCode=${encodeURIComponent(clean)}${excludeParam}`);
+            const data = await res.json();
+            if (data.exists) {
+                setVendorCodeError("Vendor code already exists.");
+                return false;
+            }
+        } catch {
+            // fallback to local check
+        }
+        return true;
+    };
+
     // Handle form submission (Add / Update via live Supabase API)
     const handleSubmitForm = async (e: React.FormEvent) => {
         e.preventDefault();
+        setModalFormError(null);
         const isNameValid = validateCustomerName(formData.customername);
         const isInitialValid =
             modalMode === "edit" ? true : validateInitials(formData.initials);
+        const isCodeValidLocal = validateVendorCode(formData.vendor_code);
+        let isCodeValidRemote = true;
+        if (isCodeValidLocal && formData.vendor_code?.trim()) {
+            isCodeValidRemote = await checkVendorCodeRemote(formData.vendor_code);
+        }
 
-        if (!isNameValid || !isInitialValid) return;
+        if (!isNameValid || !isInitialValid || !isCodeValidLocal || !isCodeValidRemote) {
+            if (!isCodeValidLocal || !isCodeValidRemote) {
+                setModalFormError("Vendor code already exists.");
+            }
+            return;
+        }
 
         // RBAC client-side guard
         if (!isAdmin && formData.usertype === "Customer") {
@@ -430,6 +487,10 @@ function CustomerPageContent() {
         } catch (err: unknown) {
             const msg =
                 err instanceof Error ? err.message : "Error saving record";
+            if (msg.toLowerCase().includes("vendor code already exists")) {
+                setVendorCodeError("Vendor code already exists.");
+            }
+            setModalFormError(msg);
             showNotification("error", msg);
         } finally {
             setIsSubmitting(false);
@@ -1165,6 +1226,12 @@ function CustomerPageContent() {
                         onSubmit={handleSubmitForm}
                         className="space-y-4 text-xs"
                     >
+                        {modalFormError && (
+                            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                                <span className="font-medium">{modalFormError}</span>
+                            </div>
+                        )}
                         {/* Name */}
                         <div>
                             <label className="block font-medium text-slate-700 mb-1">
@@ -1362,15 +1429,37 @@ function CustomerPageContent() {
                                     <input
                                         type="text"
                                         value={formData.vendor_code}
-                                        onChange={(e) =>
+                                        onChange={(e) => {
+                                            const val = e.target.value.toUpperCase();
                                             setFormData((p) => ({
                                                 ...p,
-                                                vendor_code: e.target.value,
-                                            }))
-                                        }
+                                                vendor_code: val,
+                                            }));
+                                            if (vendorCodeError) validateVendorCode(val);
+                                        }}
+                                        onPaste={(e) => {
+                                            const pasted = e.clipboardData.getData("text").trim().toUpperCase();
+                                            validateVendorCode(pasted);
+                                            checkVendorCodeRemote(pasted);
+                                        }}
+                                        onBlur={(e) => {
+                                            if (validateVendorCode(e.target.value)) {
+                                                checkVendorCodeRemote(e.target.value);
+                                            }
+                                        }}
                                         placeholder="SM______"
-                                        className="w-full px-3 py-2 uppercase font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                        className={`w-full px-3 py-2 uppercase font-mono bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 ${
+                                            vendorCodeError
+                                                ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500 text-rose-700 bg-rose-50/50"
+                                                : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
+                                        }`}
                                     />
+                                    {vendorCodeError && (
+                                        <p className="flex items-center gap-1 text-[11px] text-rose-500 mt-1 font-medium">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{vendorCodeError}</span>
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="block font-medium text-slate-700 mb-1">
