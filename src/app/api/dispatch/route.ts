@@ -149,6 +149,16 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (dErr) {
+      if (
+        dErr.code === "23505" ||
+        dErr.message?.includes("unique constraint") ||
+        dErr.message?.includes("duplicate key")
+      ) {
+        return NextResponse.json(
+          { error: "A dispatch with this invoice number already exists." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ error: dErr.message }, { status: 500 });
     }
 

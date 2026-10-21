@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   Layers,
   ChevronRight,
+  ChevronDown,
   ChevronLeft,
   Loader2,
   X,
@@ -39,6 +40,7 @@ import {
 } from "@/lib/query/hooks";
 import { formatSubplateDimensions } from "@/lib/weight-calculator";
 import { NewMouldModal } from "@/components/mould/new-mould-modal";
+import { MoldSubplatesInline } from "@/components/mould/mold-subplates-inline";
 
 export function getWorkTypeBadgeStyle(worktype?: string | null): string {
   switch (worktype) {
@@ -104,6 +106,16 @@ function ScanningPageContent() {
 
   // Selected project for subplate drawer
   const [selectedProject, setSelectedProject] = useState<ScanProject | null>(null);
+
+  // Expanded inline accordion states for each Mold
+  const [expandedMolds, setExpandedMolds] = useState<Record<number, boolean>>({});
+
+  const toggleExpandMold = (moldId: number) => {
+    setExpandedMolds((prev) => ({
+      ...prev,
+      [moldId]: !prev[moldId],
+    }));
+  };
 
   // Add Project Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -189,7 +201,6 @@ function ScanningPageContent() {
     }
   };
 
-
   // Linked subplates for selected project
   const projectSubplates = useMemo<Subplate[]>(() => {
     if (!selectedProject) return [];
@@ -210,7 +221,7 @@ function ScanningPageContent() {
                 New Mould List
               </h1>
               <p className="text-sm text-slate-500">
-                Track and manage new mould projects, scanning pipeline, staff assignments, and production tracking
+                Track and manage new mould projects, scanning pipeline, inline subplates hierarchy, and completion status
               </p>
             </div>
           </div>
@@ -218,7 +229,7 @@ function ScanningPageContent() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm"
+              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               New Mould Project
@@ -360,8 +371,9 @@ function ScanningPageContent() {
             <table className="w-full min-w-[1260px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-3.5 whitespace-nowrap">Project ID</th>
-                  <th className="py-3.5 px-3.5 whitespace-nowrap">Customer</th>
+                  <th className="w-10 py-3.5 px-2 text-center"></th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Project ID</th>
+                  <th className="py-3.5 px-3 whitespace-nowrap">Customer</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">Work Type</th>
                   <th className="py-3.5 px-3.5">Description</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">Rec. Date</th>
@@ -369,121 +381,211 @@ function ScanningPageContent() {
                   <th className="py-3.5 px-3 whitespace-nowrap">Scanner</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">Designer</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">QC Officer</th>
-                  <th className="py-3.5 px-3 text-center whitespace-nowrap">Subplates / Actions</th>
+                  <th className="py-3.5 px-3 text-center whitespace-nowrap">Subplates / Progress</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <TableSkeletonRows rows={8} columns={10} />
+                  <TableSkeletonRows rows={8} columns={11} />
                 ) : paginatedScans.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={11}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       No scanning projects found.
                     </td>
                   </tr>
                 ) : (
-                  paginatedScans.map((row) => (
-                    <tr
-                      key={row.id}
-                      id={`row-${row.id}`}
-                      className={`hover:bg-slate-50/60 transition-all duration-300 group ${getRowHighlightClass(row.id)}`}
-                    >
-                      <td className="py-3 px-3.5 font-mono font-bold text-xs text-blue-600 whitespace-nowrap">
-                        {row.projectid || `#${row.id}`}
-                      </td>
-                      <td className="py-3 px-3.5 font-medium text-slate-900 whitespace-nowrap">
-                        {row.customername || `Client #${row.cname}`}
-                      </td>
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${getWorkTypeBadgeStyle(
-                            row.worktype
-                          )}`}
+                  paginatedScans.map((row) => {
+                    const isExpanded = Boolean(expandedMolds[row.id]);
+                    const completedPlates = row.completed_plates ?? 0;
+                    const totalPlates = row.total_plates ?? (row.subplates?.length ?? 0);
+                    const pct = row.completion_percentage ?? (totalPlates > 0 ? Math.round((completedPlates / totalPlates) * 100) : 0);
+                    const isReady = totalPlates > 0 && completedPlates === totalPlates;
+
+                    return (
+                      <React.Fragment key={row.id}>
+                        <tr
+                          id={`row-${row.id}`}
+                          className={`hover:bg-slate-50/60 transition-all duration-300 group ${
+                            isExpanded ? "bg-slate-50/80" : ""
+                          } ${getRowHighlightClass(row.id)}`}
                         >
-                          {row.worktype || "Pulp Mould"}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3.5 text-slate-600 max-w-xs truncate" title={row.description}>
-                        {row.description || "—"}
-                      </td>
-                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
-                        {row.rdate || "—"}
-                      </td>
-                      <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
-                        {row.cdate || "—"}
-                      </td>
+                          {/* Inline Accordion Expand Button */}
+                          <td className="py-3 px-2 text-center whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandMold(row.id)}
+                              className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                isExpanded
+                                  ? "text-blue-600 bg-blue-100/80"
+                                  : "text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+                              }`}
+                              title={isExpanded ? "Collapse subplates" : "Expand subplates inline"}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-blue-600" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4" />
+                              )}
+                            </button>
+                          </td>
 
-                      {/* Staff Assign: Scanner */}
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <StaffSelect
-                          value={row.scan_by}
-                          onChange={(val) =>
-                            handleStaffChange(row.id, "scan_by", val)
-                          }
-                          staff={activeStaff}
-                          color="blue"
-                          placeholder="Select"
-                        />
-                      </td>
+                          {/* Project ID */}
+                          <td className="py-3 px-3 font-mono font-bold text-xs whitespace-nowrap">
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandMold(row.id)}
+                              className="text-blue-600 hover:underline hover:text-blue-700 cursor-pointer"
+                              title="Click to toggle subplates"
+                            >
+                              {row.projectid || `#${row.id}`}
+                            </button>
+                          </td>
 
-                      {/* Staff Assign: Designer */}
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <StaffSelect
-                          value={row.modeldesign_by}
-                          onChange={(val) =>
-                            handleStaffChange(row.id, "modeldesign_by", val)
-                          }
-                          staff={activeStaff}
-                          color="blue"
-                          placeholder="Select"
-                        />
-                      </td>
+                          {/* Customer */}
+                          <td className="py-3 px-3 font-medium text-slate-900 whitespace-nowrap">
+                            {row.customername || `Client #${row.cname}`}
+                          </td>
 
-                      {/* Staff Assign: QC Officer */}
-                      <td className="py-3 px-3 whitespace-nowrap">
-                        <StaffSelect
-                          value={row.qc_by}
-                          onChange={(val) =>
-                            handleStaffChange(row.id, "qc_by", val)
-                          }
-                          staff={activeStaff}
-                          color="blue"
-                          placeholder="Select"
-                        />
-                      </td>
+                          {/* Work Type */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${getWorkTypeBadgeStyle(
+                                row.worktype
+                              )}`}
+                            >
+                              {row.worktype || "Pulp Mould"}
+                            </span>
+                          </td>
 
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedProject(row)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="View subplates"
-                          >
-                            <Layers className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                              try {
-                                await deleteProjectMutation.mutateAsync(row.id);
-                              } catch (e: any) {
-                                alert(e?.message || "Error deleting mould");
+                          {/* Description */}
+                          <td className="py-3 px-3.5 text-slate-600 max-w-xs truncate" title={row.description}>
+                            {row.description || "—"}
+                          </td>
+
+                          {/* Receive Date */}
+                          <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
+                            {row.rdate || "—"}
+                          </td>
+
+                          {/* Completion / Target Date */}
+                          <td className="py-3 px-3 text-slate-500 whitespace-nowrap text-xs">
+                            {row.cdate || "—"}
+                          </td>
+
+                          {/* Staff Assign: Scanner */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <StaffSelect
+                              value={row.scan_by}
+                              onChange={(val) =>
+                                handleStaffChange(row.id, "scan_by", val)
                               }
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Delete mould"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                              staff={activeStaff}
+                              color="blue"
+                              placeholder="Select"
+                            />
+                          </td>
+
+                          {/* Staff Assign: Designer */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <StaffSelect
+                              value={row.modeldesign_by}
+                              onChange={(val) =>
+                                handleStaffChange(row.id, "modeldesign_by", val)
+                              }
+                              staff={activeStaff}
+                              color="blue"
+                              placeholder="Select"
+                            />
+                          </td>
+
+                          {/* Staff Assign: QC Officer */}
+                          <td className="py-3 px-3 whitespace-nowrap">
+                            <StaffSelect
+                              value={row.qc_by}
+                              onChange={(val) =>
+                                handleStaffChange(row.id, "qc_by", val)
+                              }
+                              staff={activeStaff}
+                              color="blue"
+                              placeholder="Select"
+                            />
+                          </td>
+
+                          {/* Subplates Progress & Actions */}
+                          <td className="py-3 px-3.5">
+                            <div className="flex items-center justify-between gap-3">
+                              {/* Progress bar and plates count */}
+                              <div className="flex flex-col gap-1 min-w-[105px]">
+                                <div className="flex items-center justify-between text-[11px] font-medium text-slate-600">
+                                  <span>
+                                    {completedPlates}/{totalPlates} plates
+                                  </span>
+                                  <span className="font-bold text-slate-700">
+                                    {pct}%
+                                  </span>
+                                </div>
+                                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                                  <div
+                                    className={`h-full transition-all duration-300 ${
+                                      isReady ? "bg-emerald-500" : "bg-blue-600"
+                                    }`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpandMold(row.id)}
+                                  className={`p-1.5 rounded-lg transition cursor-pointer ${
+                                    isExpanded
+                                      ? "text-blue-600 bg-blue-100 font-bold"
+                                      : "text-slate-500 hover:text-blue-600 hover:bg-blue-50"
+                                  }`}
+                                  title={isExpanded ? "Collapse inline subplates" : "Expand inline subplates"}
+                                >
+                                  <Layers className="w-4 h-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                                    try {
+                                      await deleteProjectMutation.mutateAsync(row.id);
+                                    } catch (e: any) {
+                                      alert(e?.message || "Error deleting mould");
+                                    }
+                                  }}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                  title="Delete mould"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+
+                        {/* Inline Expandable Subplates Accordion */}
+                        {isExpanded && (
+                          <tr key={`subplates-${row.id}`} className="bg-slate-50/70 border-b border-slate-200">
+                            <td colSpan={11} className="p-0">
+                              <MoldSubplatesInline
+                                project={row}
+                                subplates={row.subplates || []}
+                                onOpenDrawer={() => setSelectedProject(row)}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -547,75 +649,119 @@ function ScanningPageContent() {
                 No scanning projects found.
               </div>
             ) : (
-              paginatedScans.map((row) => (
-                <div
-                  key={row.id}
-                  id={`m-row-${row.id}`}
-                  className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs transition-all duration-300 ${getRowHighlightClass(row.id)}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono font-bold text-blue-600">
-                        {row.projectid || `#${row.id}`}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${getWorkTypeBadgeStyle(
-                          row.worktype
-                        )}`}
+              paginatedScans.map((row) => {
+                const isExpanded = Boolean(expandedMolds[row.id]);
+                const completedPlates = row.completed_plates ?? 0;
+                const totalPlates = row.total_plates ?? (row.subplates?.length ?? 0);
+                const pct = row.completion_percentage ?? (totalPlates > 0 ? Math.round((completedPlates / totalPlates) * 100) : 0);
+                const isReady = totalPlates > 0 && completedPlates === totalPlates;
+
+                return (
+                  <div
+                    key={row.id}
+                    id={`m-row-${row.id}`}
+                    className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs transition-all duration-300 ${getRowHighlightClass(row.id)}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-blue-600">
+                          {row.projectid || `#${row.id}`}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider inline-flex items-center gap-1 ${getWorkTypeBadgeStyle(
+                            row.worktype
+                          )}`}
+                        >
+                          {row.worktype || "Pulp Mould"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                          try {
+                            await deleteProjectMutation.mutateAsync(row.id);
+                          } catch (e: any) {
+                            alert(e?.message || "Error deleting mould");
+                          }
+                        }}
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                        title="Delete mould"
                       >
-                        {row.worktype || "Pulp Mould"}
-                      </span>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                        try {
-                          await deleteProjectMutation.mutateAsync(row.id);
-                        } catch (e: any) {
-                          alert(e?.message || "Error deleting mould");
-                        }
-                      }}
-                      className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                      title="Delete mould"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
 
-                  <div>
-                    <span className="font-semibold text-slate-900 block">
-                      {row.customername || `Customer #${row.cname}`}
-                    </span>
-                    <p className="text-[11px] text-slate-600 line-clamp-1">
-                      {row.description || "—"}
-                    </p>
-                  </div>
-
-                  <div className="text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
                     <div>
-                      <span className="text-slate-400 block text-[10px]">Dates:</span>
-                      <span className="font-mono">
-                        {row.rdate || "—"} → {row.cdate || "—"}
+                      <span className="font-semibold text-slate-900 block">
+                        {row.customername || `Customer #${row.cname}`}
                       </span>
+                      <p className="text-[11px] text-slate-600 line-clamp-1">
+                        {row.description || "—"}
+                      </p>
                     </div>
-                  </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                    <span className="text-slate-500 text-[11px]">
-                      {row.total_plates ?? 0} subplates
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedProject(row)}
-                      className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Layers className="w-4 h-4" />
-                      View Details
-                    </button>
+                    <div className="text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Dates:</span>
+                        <span className="font-mono">
+                          {row.rdate || "—"} → {row.cdate || "—"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Mobile Progress Bar */}
+                    <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-600 font-medium">
+                          {completedPlates}/{totalPlates} plates completed
+                        </span>
+                        <span className={`font-bold ${isReady ? "text-emerald-700" : "text-slate-700"}`}>
+                          {pct}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-300 ${
+                            isReady ? "bg-emerald-500" : "bg-blue-600"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpandMold(row.id)}
+                        className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Layers className="w-4 h-4" />
+                        {isExpanded ? "Hide Subplates" : "Inline Subplates"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProject(row)}
+                        className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-100 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Eye className="w-4 h-4" />
+                        Full Details
+                      </button>
+                    </div>
+
+                    {/* Mobile Inline Subplates */}
+                    {isExpanded && (
+                      <div className="pt-2 border-t border-slate-200">
+                        <MoldSubplatesInline
+                          project={row}
+                          subplates={row.subplates || []}
+                          onOpenDrawer={() => setSelectedProject(row)}
+                        />
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -661,6 +807,11 @@ function ScanningPageContent() {
                           <span className="font-bold text-sm text-slate-800">
                             {sp.platename}
                           </span>
+                          {sp.plate_category && (
+                            <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                              {sp.plate_category}
+                            </span>
+                          )}
                           {sp.shape && (
                             <span className="text-[10px] font-semibold text-slate-500 bg-slate-200/70 px-1.5 py-0.5 rounded">
                               {sp.shape}

@@ -101,6 +101,7 @@ export interface ScanProject {
   updated_at: string;
   total_plates?: number;
   completed_plates?: number;
+  completion_percentage?: number;
   subplates?: Subplate[];
   subplate_count?: number;
 }
@@ -110,6 +111,9 @@ export interface Subplate {
   platename: string;
   projectid: string;
   subprojectid: string | null;
+  mold_id?: number | null;
+  mold_code?: string | null;
+  plate_category?: 'Core & Cavity Inserts' | 'Base & Clamping Plates' | 'Ejection System' | 'Slides & Lifters' | 'Guiding & Alignment' | 'General Component' | string | null;
   shape: string | null;
   width: number | null;
   height: number | null;

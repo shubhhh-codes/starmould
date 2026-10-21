@@ -235,6 +235,7 @@ export function NewMouldModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (createProjectMutation.isPending) return;
     if (!form.cname) {
       setErrorMessage("Please select a customer.");
       return;

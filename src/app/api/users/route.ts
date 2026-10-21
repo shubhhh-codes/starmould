@@ -171,6 +171,22 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        if (error.message?.includes("email")) {
+          return NextResponse.json({ error: "Email already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("username")) {
+          return NextResponse.json({ error: "Username already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("initials")) {
+          return NextResponse.json({ error: "Initials already exist." }, { status: 400 });
+        }
+        return NextResponse.json({ error: "A user with these details already exists." }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -285,6 +301,22 @@ export async function PUT(req: NextRequest) {
       .single();
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        if (error.message?.includes("email")) {
+          return NextResponse.json({ error: "Email already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("username")) {
+          return NextResponse.json({ error: "Username already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("initials")) {
+          return NextResponse.json({ error: "Initials already exist." }, { status: 400 });
+        }
+        return NextResponse.json({ error: "A user with these details already exists." }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -349,6 +381,22 @@ export async function DELETE(req: NextRequest) {
       .eq("id", id);
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        if (error.message?.includes("email")) {
+          return NextResponse.json({ error: "Email already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("username")) {
+          return NextResponse.json({ error: "Username already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("initials")) {
+          return NextResponse.json({ error: "Initials already exist." }, { status: 400 });
+        }
+        return NextResponse.json({ error: "A user with these details already exists." }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

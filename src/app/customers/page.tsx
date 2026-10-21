@@ -280,6 +280,7 @@ function CustomerPageContent() {
     // Handle form submission (Add / Update via live Supabase API)
     const handleSubmitForm = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
         const isNameValid = validateCustomerName(formData.customername);
         const isInitialValid =
             modalMode === "edit" ? true : validateInitials(formData.initials);

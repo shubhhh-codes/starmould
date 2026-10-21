@@ -391,7 +391,12 @@ function CustomerPageContent() {
     // Real-time vendor code validation
     const validateVendorCode = (val: string) => {
         const clean = val.trim().toUpperCase();
+        const isRequired = formData.usertype === "Vendor";
         if (!clean) {
+            if (isRequired) {
+                setVendorCodeError("Vendor code is required.");
+                return false;
+            }
             setVendorCodeError(null);
             return true;
         }
@@ -431,34 +436,40 @@ function CustomerPageContent() {
     // Handle form submission (Add / Update via live Supabase API)
     const handleSubmitForm = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
+
         setModalFormError(null);
-        const isNameValid = validateCustomerName(formData.customername);
-        const isInitialValid =
-            modalMode === "edit" ? true : validateInitials(formData.initials);
-        const isCodeValidLocal = validateVendorCode(formData.vendor_code);
-        let isCodeValidRemote = true;
-        if (isCodeValidLocal && formData.vendor_code?.trim()) {
-            isCodeValidRemote = await checkVendorCodeRemote(formData.vendor_code);
-        }
-
-        if (!isNameValid || !isInitialValid || !isCodeValidLocal || !isCodeValidRemote) {
-            if (!isCodeValidLocal || !isCodeValidRemote) {
-                setModalFormError("Vendor code already exists.");
-            }
-            return;
-        }
-
-        // RBAC client-side guard
-        if (!isAdmin && formData.usertype === "Customer") {
-            showNotification(
-                "error",
-                "Access Denied: Only Administrators are authorized to create Customer records.",
-            );
-            return;
-        }
+        setIsSubmitting(true);
 
         try {
-            setIsSubmitting(true);
+            const isNameValid = validateCustomerName(formData.customername);
+            const isInitialValid =
+                modalMode === "edit" ? true : validateInitials(formData.initials);
+            const isCodeValidLocal = validateVendorCode(formData.vendor_code);
+            let isCodeValidRemote = true;
+            if (isCodeValidLocal && formData.vendor_code?.trim()) {
+                isCodeValidRemote = await checkVendorCodeRemote(formData.vendor_code);
+            }
+
+            if (!isNameValid || !isInitialValid || !isCodeValidLocal || !isCodeValidRemote) {
+                if (!formData.vendor_code?.trim() && formData.usertype === "Vendor") {
+                    setModalFormError("Vendor code is required.");
+                } else if (!isCodeValidLocal || !isCodeValidRemote) {
+                    setModalFormError("Vendor code already exists.");
+                }
+                setIsSubmitting(false);
+                return;
+            }
+
+            // RBAC client-side guard
+            if (!isAdmin && formData.usertype === "Customer") {
+                showNotification(
+                    "error",
+                    "Access Denied: Only Administrators are authorized to create Customer records.",
+                );
+                setIsSubmitting(false);
+                return;
+            }
             if (modalMode === "add") {
                 const result =
                     await createVendorMutation.mutateAsync({
@@ -485,10 +496,21 @@ function CustomerPageContent() {
                 setIsModalOpen(false);
             }
         } catch (err: unknown) {
-            const msg =
+            let msg =
                 err instanceof Error ? err.message : "Error saving record";
-            if (msg.toLowerCase().includes("vendor code already exists")) {
+            if (
+                msg.toLowerCase().includes("vendor code already exists") ||
+                msg.includes("idx_vendors_vendor_code_unique") ||
+                msg.includes("vendor_code")
+            ) {
+                msg = "Vendor code already exists.";
                 setVendorCodeError("Vendor code already exists.");
+            } else if (msg.includes("idx_vendors_initials_unique") || msg.toLowerCase().includes("initial already exists")) {
+                msg = "Initial already exists!";
+                setInitialError("Initial already exists!");
+            } else if (msg.includes("vendor_name") || msg.toLowerCase().includes("vendor name already exists")) {
+                msg = "Vendor name already exists.";
+                setNameError("Vendor name already exists.");
             }
             setModalFormError(msg);
             showNotification("error", msg);
@@ -1413,7 +1435,7 @@ function CustomerPageContent() {
                             <div className="flex items-center gap-2">
                                 <Landmark className="w-4 h-4 text-indigo-600" />
                                 <span className="font-semibold text-slate-800 text-xs">
-                                    Tax, Banking & Location Details (Optional)
+                                    Tax, Banking & Location Details
                                 </span>
                             </div>
 
@@ -1421,13 +1443,14 @@ function CustomerPageContent() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
                                     <label className="block font-medium text-slate-700 mb-1">
-                                        Vendor Code
+                                        Vendor Code {formData.usertype === "Vendor" && <span className="text-rose-500">*</span>}
                                         <span className="text-[11px] text-slate-400 font-normal ml-1">
                                             (e.g. SM14YZ6D)
                                         </span>
                                     </label>
                                     <input
                                         type="text"
+                                        required={formData.usertype === "Vendor"}
                                         value={formData.vendor_code}
                                         onChange={(e) => {
                                             const val = e.target.value.toUpperCase();
@@ -1646,6 +1669,7 @@ function CustomerPageContent() {
                             <MotionButton
                                 type="submit"
                                 loading={isSubmitting}
+                                disabled={isSubmitting}
                                 variant="primary"
                                 size="sm"
                             >

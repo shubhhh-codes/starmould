@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       (async () => {
         let query = supabaseAdmin
           .from("scan")
-          .select("id, projectid, description, status, worktype, cname, amount, rdate");
+          .select("id, projectid, description, status, worktype, cname, rdate");
         
         if (isNum) {
           query = query.or(`id.eq.${num},projectid.ilike.${term},description.ilike.${term}`);

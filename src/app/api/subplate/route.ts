@@ -4,6 +4,27 @@ import { authenticateRequest } from "@/lib/auth";
 import { getCached, getCachedScansLookup, getCachedUsers, invalidateCache } from "@/lib/cache";
 import { calculateSubplateWeight } from "@/lib/weight-calculator";
 
+function inferPlateCategory(platename: string): string {
+  const p = platename.toLowerCase();
+  if (/(core|cavity|kvt|insert|injetor|injector|forming|punch|parting|plug|cutting|blade|trimming)/i.test(p)) {
+    return "Core & Cavity Inserts";
+  }
+  if (/(top|bottom|bottam|clamp|base|hotpress|press|spacer|bolster|support|mount|heater)/i.test(p)) {
+    return "Base & Clamping Plates";
+  }
+  if (/(eject|ejection|pusher|return|knockout)/i.test(p)) {
+    return "Ejection System";
+  }
+  if (/(slide|lifter|wedge|heel|cam)/i.test(p)) {
+    return "Slides & Lifters";
+  }
+  if (/(guide|pillar|bush|dowel|interlock|wear|locating|lock|shaft|saft|kayda)/i.test(p)) {
+    return "Guiding & Alignment";
+  }
+  return "General Component";
+}
+
+
 // GET /api/subplate - fetch subplates with project and staff lookups (Roles 0, 1, 2, 3)
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_subplate");
@@ -19,10 +40,11 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")?.trim();
     const material = searchParams.get("material");
     const location = searchParams.get("location");
+    const category = searchParams.get("category");
 
     let subplateQuery = supabaseAdmin
       .from("subplate")
-      .select("id, platename, projectid, subprojectid, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at", { count: "exact" })
+      .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at", { count: "exact" })
       .is("deleted_at", null)
       .order("id", { ascending: false });
 
@@ -31,6 +53,9 @@ export async function GET(req: NextRequest) {
     }
     if (location && location !== "ALL") {
       subplateQuery = subplateQuery.eq("location", location);
+    }
+    if (category && category !== "ALL") {
+      subplateQuery = subplateQuery.eq("plate_category", category);
     }
     if (search) {
       const safeSearch = search.replace(/[(),%]/g, "").trim();
@@ -42,7 +67,7 @@ export async function GET(req: NextRequest) {
     if (projectid && projectid !== "ALL") {
       const safeProjectId = projectid.replace(/[(),%]/g, "").trim();
       if (/^\d+$/.test(safeProjectId)) {
-        subplateQuery = subplateQuery.eq("projectid", safeProjectId);
+        subplateQuery = subplateQuery.or(`mold_id.eq.${safeProjectId},projectid.eq.${safeProjectId}`);
       } else {
         const { data: matchedScan } = await supabaseAdmin
           .from("scan")
@@ -50,7 +75,7 @@ export async function GET(req: NextRequest) {
           .eq("projectid", safeProjectId)
           .maybeSingle();
         if (matchedScan) {
-          subplateQuery = subplateQuery.or(`projectid.eq.${matchedScan.id},subprojectid.ilike.${safeProjectId}%`);
+          subplateQuery = subplateQuery.or(`mold_code.eq.${safeProjectId},mold_id.eq.${matchedScan.id},subprojectid.ilike.${safeProjectId}%`);
         } else {
           subplateQuery = subplateQuery.ilike("subprojectid", `${safeProjectId}%`);
         }
@@ -225,12 +250,11 @@ export async function POST(req: NextRequest) {
       .from("scan")
       .select("id, projectid")
       .eq("id", numProjectId)
-      .is("deleted_at", null)
       .maybeSingle();
 
     if (scanErr || !scanProject) {
       return NextResponse.json(
-        { error: `Associated Mould Project #${numProjectId} does not exist or has been deleted.` },
+        { error: `Associated Mould Project #${numProjectId} does not exist.` },
         { status: 400 }
       );
     }
@@ -305,12 +329,21 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
+    const determinedCategory = (
+      body.plate_category ||
+      body.category ||
+      inferPlateCategory(cleanPlateName)
+    ).trim();
+
     const { data, error } = await supabaseAdmin
       .from("subplate")
       .insert([
         {
           platename: cleanPlateName,
           projectid: numProjectId,
+          mold_id: numProjectId,
+          mold_code: scanProject.projectid || null,
+          plate_category: determinedCategory,
           subprojectid: cleanSubprojectId,
           shape: normShape,
           width: numWidth,
@@ -376,6 +409,15 @@ export async function PUT(req: NextRequest) {
 
     if (updatePayload.projectid !== undefined && updatePayload.projectid !== null) {
       updatePayload.projectid = String(updatePayload.projectid);
+      if (/^\d+$/.test(updatePayload.projectid)) {
+        updatePayload.mold_id = Number(updatePayload.projectid);
+        const { data: scanRow } = await supabaseAdmin
+          .from("scan")
+          .select("projectid")
+          .eq("id", updatePayload.mold_id)
+          .maybeSingle();
+        if (scanRow) updatePayload.mold_code = scanRow.projectid;
+      }
     }
 
     if (body.field && body.value !== undefined) {
@@ -394,6 +436,9 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: "Plate name cannot be empty." }, { status: 400 });
       }
       updatePayload.platename = cleanName;
+      if (updatePayload.plate_category === undefined && updatePayload.category === undefined) {
+        updatePayload.plate_category = inferPlateCategory(cleanName);
+      }
     }
 
     if (updatePayload.length !== undefined) {

@@ -215,6 +215,7 @@ export default function DispatchPage() {
 
   const handleSubmitDispatch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (createDispatchMutation.isPending) return;
     setFormError(null);
 
     if (!modalForm.customerid) {

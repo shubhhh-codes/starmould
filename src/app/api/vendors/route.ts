@@ -190,6 +190,9 @@ export async function POST(req: NextRequest) {
     if (!cleanInitials) {
       return NextResponse.json({ error: "Initials are required (max 5 letters)" }, { status: 400 });
     }
+    if (targetType === "Supplier" && !vendor_code?.trim()) {
+      return NextResponse.json({ error: "Vendor code is required" }, { status: 400 });
+    }
 
     // Check duplicate initials against active vendors
     const { data: existingInitials } = await supabaseAdmin
@@ -260,6 +263,25 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        if (
+          error.message?.includes("vendor_code") ||
+          error.message?.includes("idx_vendors_vendor_code_unique")
+        ) {
+          return NextResponse.json({ error: "Vendor code already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("initials")) {
+          return NextResponse.json({ error: "Initial already exists!" }, { status: 400 });
+        }
+        if (error.message?.includes("vendor_name")) {
+          return NextResponse.json({ error: "Vendor name already exists." }, { status: 400 });
+        }
+        return NextResponse.json({ error: "A vendor with this information already exists." }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -311,6 +333,10 @@ export async function PUT(req: NextRequest) {
     const cleanName = (vendor_name || customername)?.trim();
     if (!cleanName) {
       return NextResponse.json({ error: "Vendor name is required" }, { status: 400 });
+    }
+    const targetType = (vendor_type === "Transporter" || usertype === "Transport") ? "Transporter" : "Supplier";
+    if (targetType === "Supplier" && vendor_code !== undefined && !vendor_code?.trim()) {
+      return NextResponse.json({ error: "Vendor code is required" }, { status: 400 });
     }
 
     // Check duplicate name against other active vendors
@@ -376,6 +402,25 @@ export async function PUT(req: NextRequest) {
       .single();
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        if (
+          error.message?.includes("vendor_code") ||
+          error.message?.includes("idx_vendors_vendor_code_unique")
+        ) {
+          return NextResponse.json({ error: "Vendor code already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("initials")) {
+          return NextResponse.json({ error: "Initial already exists!" }, { status: 400 });
+        }
+        if (error.message?.includes("vendor_name")) {
+          return NextResponse.json({ error: "Vendor name already exists." }, { status: 400 });
+        }
+        return NextResponse.json({ error: "A vendor with this information already exists." }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -419,6 +464,28 @@ export async function DELETE(req: NextRequest) {
       .eq("id", id);
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        if (
+          error.message?.includes("idx_vendors_vendor_code_unique") ||
+          error.message?.includes("vendor_code")
+        ) {
+          return NextResponse.json({ error: "Vendor code already exists." }, { status: 400 });
+        }
+        if (error.message?.includes("initials")) {
+          return NextResponse.json({ error: "Initial already exists!" }, { status: 400 });
+        }
+        if (error.message?.includes("vendor_name")) {
+          return NextResponse.json({ error: "Vendor name already exists." }, { status: 400 });
+        }
+        return NextResponse.json(
+          { error: "A vendor with these details already exists." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

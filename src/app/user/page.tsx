@@ -293,6 +293,7 @@ export default function UserManagementPage() {
     // Submit form to live API
     const handleSubmitForm = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
         if (!validateInitials(formData.initials)) return;
         if (!validateUsername(formData.username)) return;
 

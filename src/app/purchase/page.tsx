@@ -413,6 +413,7 @@ function PurchasePageContent() {
     // Submit Purchase Order (Source: PurchaseController.php store() lines 403-561)
     const handleSubmitPO = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (createPurchaseMutation.isPending) return;
         if (!formData.vname) {
             setFormError("Please select a supplier/vendor.");
             return;

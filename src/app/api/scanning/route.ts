@@ -107,8 +107,9 @@ export async function GET(req: NextRequest) {
         scanIds.length > 0
           ? supabaseAdmin
               .from("subplate")
-              .select("id, platename, projectid, subprojectid, material, location, shape, width, height, length, weight, unit, sqty")
-              .in("projectid", scanIds)
+              .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, packing_at")
+              .or(`mold_id.in.(${scanIds.join(",")}),projectid.in.(${scanIds.join(",")})`)
+              .order("id", { ascending: true })
               .is("deleted_at", null)
           : Promise.resolve({ data: [] }),
         scanIds.length > 0
@@ -121,8 +122,11 @@ export async function GET(req: NextRequest) {
 
       const subplateMap: Record<number, any[]> = {};
       for (const sp of subplatesRes.data || []) {
-        if (!subplateMap[sp.projectid]) subplateMap[sp.projectid] = [];
-        subplateMap[sp.projectid].push(sp);
+        const key = sp.mold_id || (Number(sp.projectid) || null);
+        if (!key) continue;
+        if (!subplateMap[key]) subplateMap[key] = [];
+        subplateMap[key].push(sp);
+
       }
 
       const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
@@ -145,6 +149,9 @@ export async function GET(req: NextRequest) {
         const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
         const sublist = subplateMap[s.id] || [];
         const hours = worklogMap[s.id] || { scan_hr: 0, model_hr: 0 };
+        const completedCount = sublist.filter((sp: any) => sp.packing_workby && Number(sp.packing_workby) > 0).length;
+        const totalPlates = sublist.length;
+        const completionPct = totalPlates > 0 ? Math.round((completedCount / totalPlates) * 100) : 0;
 
         return {
           ...s,
@@ -154,7 +161,11 @@ export async function GET(req: NextRequest) {
           qc_by_name: qcUser?.initials || qcUser?.name || "—",
           modeldesign_by_name: modelUser?.initials || modelUser?.name || "—",
           subplates: sublist,
-          subplate_count: sublist.length,
+          subplate_count: totalPlates,
+          total_plates: totalPlates,
+          completed_plates: completedCount,
+          completion_percentage: completionPct,
+          is_ready_for_dispatch: totalPlates > 0 && completedCount === totalPlates,
           calc_scan_hr: hours.scan_hr || s.scan_hr || 0,
           calc_model_hr: hours.model_hr || s.model_hr || 0,
         };
@@ -263,6 +274,16 @@ export async function POST(req: NextRequest) {
     );
 
     if (rpcError) {
+      if (
+        rpcError.code === "23505" ||
+        rpcError.message?.includes("unique constraint") ||
+        rpcError.message?.includes("duplicate key")
+      ) {
+        return NextResponse.json(
+          { error: "A mould project with this Project ID already exists." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ error: rpcError.message }, { status: 500 });
     }
 
@@ -346,6 +367,10 @@ export async function PATCH(req: NextRequest) {
       }
     }
 
+    // Strip legacy dropped columns if passed
+    delete updatePayload.amount;
+    delete updatePayload.payment;
+
     const { data, error } = await supabaseAdmin
       .from("scan")
       .update(updatePayload)
@@ -354,6 +379,16 @@ export async function PATCH(req: NextRequest) {
       .single();
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        return NextResponse.json(
+          { error: "A mould project with this Project ID already exists." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

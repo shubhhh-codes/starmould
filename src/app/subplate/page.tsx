@@ -436,6 +436,7 @@ function SubplatePageContent() {
 	const [locationFilter, setLocationFilter] = useState("ALL");
 	const [projectFilter, setProjectFilter] = useState("ALL");
 	const [stageFilter, setStageFilter] = useState("ALL");
+	const [categoryFilter, setCategoryFilter] = useState("ALL");
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 	const [pageSize, setPageSize] = useState<number>(50);
 	const [currentPage, setCurrentPage] = useState<number>(1);
@@ -456,6 +457,7 @@ function SubplatePageContent() {
 		material: "MS-Bright",
 		sqty: "1",
 		location: "SM",
+		plate_category: "General Component",
 	});
 
 	const handleOpenAddModal = () => {
@@ -473,6 +475,7 @@ function SubplatePageContent() {
 			material: "MS-Bright",
 			sqty: "1",
 			location: "SM",
+		plate_category: "General Component",
 		});
 		setIsModalOpen(true);
 	};
@@ -492,6 +495,7 @@ function SubplatePageContent() {
 			material: sp.material || "MS-Bright",
 			sqty: sp.sqty !== null && sp.sqty !== undefined ? String(sp.sqty) : "1",
 			location: sp.location || "SM",
+			plate_category: sp.plate_category || "General Component",
 		});
 		setIsModalOpen(true);
 	};
@@ -659,9 +663,11 @@ function SubplatePageContent() {
  matchStage = Boolean((sp as any)[stageFilter]);
  }
 
- return matchQuery && matchMaterial && matchLocation && matchProject && matchStage;
+ const matchCategory = categoryFilter === "ALL" || sp.plate_category === categoryFilter;
+
+ return matchQuery && matchMaterial && matchLocation && matchProject && matchStage && matchCategory;
  });
- }, [subplates, searchQuery, materialFilter, locationFilter, projectFilter, stageFilter]);
+ }, [subplates, searchQuery, materialFilter, locationFilter, projectFilter, stageFilter, categoryFilter]);
 
  const totalPages = Math.ceil(filteredSubplates.length / pageSize) || 1;
  const paginatedSubplates = useMemo(() => {
@@ -909,6 +915,24 @@ function SubplatePageContent() {
 										{m}
 									</option>
 								))}
+							</select>
+						</div>
+
+						
+						{/* Category Selector */}
+						<div className="w-full lg:w-auto min-w-0">
+							<select
+								value={categoryFilter}
+								onChange={(e) => setCategoryFilter(e.target.value)}
+								className="w-full lg:w-auto max-w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium truncate"
+							>
+								<option value="ALL">All Categories</option>
+								<option value="Core & Cavity Inserts">Core & Cavity Inserts</option>
+								<option value="Base & Clamping Plates">Base & Clamping Plates</option>
+								<option value="Ejection System">Ejection System</option>
+								<option value="Slides & Lifters">Slides & Lifters</option>
+								<option value="Guiding & Alignment">Guiding & Alignment</option>
+								<option value="General Component">General Component</option>
 							</select>
 						</div>
 

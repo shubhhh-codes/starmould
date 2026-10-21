@@ -295,6 +295,7 @@ function ChallanPageContent() {
 
   const handleSubmitChallan = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setFormError(null);
 
     if (!modalForm.vendorid) {

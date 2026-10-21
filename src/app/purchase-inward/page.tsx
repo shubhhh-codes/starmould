@@ -226,6 +226,7 @@ export default function PurchaseInwardPage() {
     // Source: PurchaseInwardController.php store() lines 91-140
     const handleSubmitReceive = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (createInwardMutation.isPending) return;
         if (!selectedPendingPO) return;
 
         const receivingQty = Number(

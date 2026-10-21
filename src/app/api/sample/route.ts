@@ -148,6 +148,11 @@ export async function POST(req: NextRequest) {
     const nextNum = (count || 0) + 1;
     const generatedProjectId = `${prefix}-${String(nextNum).padStart(4, "0")}`;
 
+    const combinedSubnote = [
+      subnote?.trim(),
+      amount && Number(amount) > 0 ? `Billed Amount: ₹${amount}` : null
+    ].filter(Boolean).join(" | ");
+
     const { data, error } = await supabaseAdmin
       .from("scan")
       .insert([
@@ -161,10 +166,9 @@ export async function POST(req: NextRequest) {
           scan_by: scan_by ? Number(scan_by) : null,
           qc_by: qc_by ? Number(qc_by) : null,
           modeldesign_by: modeldesign_by ? Number(modeldesign_by) : null,
-          amount: Number(amount) || 0,
           status: "pending",
           note: note?.trim() || "",
-          subnote: subnote?.trim() || "",
+          subnote: combinedSubnote,
           created_at: now,
           updated_at: now,
         },
@@ -173,6 +177,16 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
+      if (
+        error.code === "23505" ||
+        error.message?.includes("unique constraint") ||
+        error.message?.includes("duplicate key")
+      ) {
+        return NextResponse.json(
+          { error: `A project with code "${generatedProjectId}" already exists.` },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -212,12 +226,13 @@ export async function PATCH(req: NextRequest) {
       updatePayload[field] =
         value === 0 || value === "0" || value === "" || value === null
           ? null
-          : ["scan_by", "qc_by", "modeldesign_by", "amount"].includes(field)
+          : ["scan_by", "qc_by", "modeldesign_by"].includes(field)
           ? Number(value)
           : value;
     } else if (updates && typeof updates === "object") {
       Object.assign(updatePayload, updates);
     }
+    delete updatePayload.amount;
 
     // Enforce that non-admin users can only assign tasks to themselves
     const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";

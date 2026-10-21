@@ -145,6 +145,7 @@ export default function SampleReworkPage() {
   // Handle Add Form Submit (Live API POST)
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!modalForm.cname || !modalForm.description) return;
 
     try {
