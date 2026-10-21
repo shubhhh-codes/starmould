@@ -520,6 +520,61 @@ function SubplatePageContent() {
 		return count;
 	};
 
+	// Helper to get clean active status & progress summary for a subplate
+	const getSubplateProgressInfo = (sp: Subplate, staff: User[]) => {
+		let completed = 0;
+		let lastAssignedIndex = -1;
+		for (let i = 0; i < STAGE_DEFINITIONS.length; i++) {
+			const val = (sp as any)[STAGE_DEFINITIONS[i].key];
+			if (val && val !== 0) {
+				completed++;
+				lastAssignedIndex = i;
+			}
+		}
+
+		if (completed === 0) {
+			return {
+				badgeLabel: "Not Started",
+				subtext: "Pending Design Order",
+				badgeStyle: "bg-slate-100 text-slate-700 border-slate-200",
+				dotColor: "bg-slate-400",
+				completed,
+				isCompleted: false,
+				activeStage: STAGE_DEFINITIONS[0],
+				assignee: null,
+			};
+		}
+
+		if (completed === 9) {
+			return {
+				badgeLabel: "Completed & Ready",
+				subtext: "All 9 stages done",
+				badgeStyle: "bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold",
+				dotColor: "bg-emerald-500",
+				completed,
+				isCompleted: true,
+				activeStage: STAGE_DEFINITIONS[8],
+				assignee: null,
+			};
+		}
+
+		const stage = STAGE_DEFINITIONS[lastAssignedIndex] || STAGE_DEFINITIONS[0];
+		const userId = (sp as any)[stage.key];
+		const staffMember = staff.find((u) => u.id === Number(userId));
+		const staffName = (sp as any)[stage.nameKey] || staffMember?.initials || staffMember?.name || null;
+
+		return {
+			badgeLabel: `Stage ${stage.step}: ${stage.label.replace(/^\d+\.\s*/, "")}`,
+			subtext: staffName ? `Assigned: ${staffName}` : "In Progress",
+			badgeStyle: "bg-cyan-50 text-cyan-800 border-cyan-200 font-semibold",
+			dotColor: "bg-cyan-500",
+			completed,
+			isCompleted: false,
+			activeStage: stage,
+			assignee: staffName,
+		};
+	};
+
 	// Dynamic dimension labels and shape constraints
 	const dimLabels = useMemo(
 		() => getDimensionLabels(modalForm.shape, modalForm.unit),
@@ -1001,10 +1056,10 @@ function SubplatePageContent() {
 							<thead>
 								<tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
 									<th className="py-3.5 px-2 w-8 text-center"></th>
-									<th className="py-3.5 px-3.5 min-w-[170px]">Subplate &amp; Project</th>
-									<th className="py-3.5 px-3.5 min-w-[150px]">Specs &amp; Material</th>
+									<th className="py-3.5 px-4 min-w-[230px]">Subplate &amp; Mould</th>
+									<th className="py-3.5 px-4 min-w-[210px]">Specs &amp; Material</th>
 									<th className="py-3.5 px-2 text-center w-24">Location</th>
-									<th className="py-3.5 px-4 min-w-[360px] w-full">9-Stage Production Pipeline</th>
+									<th className="py-3.5 px-4 min-w-[320px] w-full">Production Pipeline &amp; Status</th>
 									<th className="py-3.5 px-3 text-right w-20">Actions</th>
 								</tr>
 							</thead>
@@ -1038,7 +1093,7 @@ function SubplatePageContent() {
 															type="button"
 															onClick={() => toggleRow(row.id)}
 															className="p-1 rounded text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition cursor-pointer"
-															title={isExpanded ? "Hide stage details" : "Expand stage studio"}
+															title={isExpanded ? "Hide stage studio" : "Expand stage studio"}
 														>
 															{isExpanded ? (
 																<ChevronDown className="w-4 h-4 text-cyan-600" />
@@ -1049,21 +1104,22 @@ function SubplatePageContent() {
 													</td>
 
 													{/* Subplate & Mould Identification */}
-													<td className="py-3 px-3.5">
-														<div className="flex items-baseline gap-1.5 flex-wrap">
-															<span className="font-bold text-slate-900 text-sm">
+													<td className="py-3 px-4">
+														<div className="flex items-center gap-2">
+															<span className="font-bold text-slate-900 text-[15px] leading-tight">
 																{row.platename}
 															</span>
-															<span className="font-mono text-[11px] text-slate-400">
+															<span className="font-mono text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
 																#{row.id}
 															</span>
 														</div>
-														<div className="flex items-center gap-1.5 mt-0.5 text-xs">
-															<span className="font-mono text-[11px] text-indigo-700 font-semibold px-1.5 py-0.2 rounded bg-indigo-50 border border-indigo-100">
-																{(row as any).mould_project_code || row.projectid || "—"}
+														<div className="flex items-center gap-2 mt-1.5 flex-wrap">
+															<span className="inline-flex items-center gap-1 font-mono text-xs text-indigo-700 font-bold px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 whitespace-nowrap">
+																<Layers className="w-3 h-3 text-indigo-500 shrink-0" />
+																<span>{(row as any).mould_project_code || `Project #${row.projectid || "—"}`}</span>
 															</span>
 															{row.subprojectid && (
-																<span className="font-mono text-[10px] text-slate-500 truncate max-w-[120px]">
+																<span className="font-mono text-xs font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/80 whitespace-nowrap">
 																	{row.subprojectid}
 																</span>
 															)}
@@ -1071,19 +1127,19 @@ function SubplatePageContent() {
 													</td>
 
 													{/* Specs, Dimensions & Material */}
-													<td className="py-3 px-3.5">
-														<div className="font-mono text-xs font-semibold text-slate-800 whitespace-nowrap">
+													<td className="py-3 px-4">
+														<div className="font-mono text-[14px] font-bold text-slate-900 whitespace-nowrap tracking-tight">
 															{formatSubplateDimensions(row)}
 														</div>
-														<div className="flex items-center gap-1.5 mt-0.5 flex-wrap text-[11px]">
-															<span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/70">
+														<div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs">
+															<span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200/90 whitespace-nowrap">
 																{row.material || "MS-Bright"}
 															</span>
-															<span className="text-slate-500 font-medium">
+															<span className="text-slate-700 font-semibold whitespace-nowrap">
 																{row.sqty || 1} {Number(row.sqty) === 1 ? "pc" : "pcs"}
 															</span>
 															{row.shape && (
-																<span className="text-slate-400 text-[10px]">
+																<span className="text-slate-400 text-xs whitespace-nowrap font-medium">
 																	({row.shape})
 																</span>
 															)}
@@ -1091,90 +1147,87 @@ function SubplatePageContent() {
 													</td>
 
 													{/* Location Badge */}
-													<td className="py-3 px-2 text-center">
+													<td className="py-3 px-2 text-center whitespace-nowrap">
 														<span
-															className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+															className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
 																row.location === "SM" || !row.location
 																	? "bg-emerald-50 text-emerald-700 border border-emerald-200"
 																	: "bg-amber-50 text-amber-700 border border-amber-200"
 															}`}
 														>
-															<MapPin className="w-2.5 h-2.5" />
-															{row.location || "SM"}
+															<MapPin className="w-3 h-3" />
+															<span>{row.location || "SM"}</span>
 														</span>
 													</td>
 
-													{/* 9-Stage Production Tracking & Instant Assignment Chips */}
+													{/* Production Pipeline & Clean Status */}
 													<td className="py-3 px-4">
-														<div className="space-y-2">
-															{/* Stage progress meter + Quick Switch */}
-															<div className="flex items-center justify-between gap-2">
-																<div className="flex items-center gap-2">
-																	<span
-																		className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-																			completedCount === 9
-																				? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-																				: completedCount > 0
-																				? "bg-cyan-100 text-cyan-800 border border-cyan-200"
-																				: "bg-slate-100 text-slate-600 border border-slate-200"
-																		}`}
-																	>
-																		{completedCount === 9 ? (
-																			<CheckCheck className="w-3 h-3 text-emerald-600" />
-																		) : (
-																			<Clock className="w-3 h-3 text-cyan-600" />
-																		)}
-																		{completedCount}/9 Assigned
-																	</span>
-																	{/* Mini progress bar */}
-																	<div className="w-16 sm:w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
-																		<div
-																			className={`h-full transition-all duration-300 ${
-																				completedCount === 9 ? "bg-emerald-500" : "bg-cyan-500"
+														{(() => {
+															const progress = getSubplateProgressInfo(row, activeStaff);
+															return (
+																<div className="space-y-2">
+																	{/* Status Header: Badge + Step count + Open Studio button */}
+																	<div className="flex items-center justify-between gap-2.5">
+																		<div className="flex items-center gap-2 flex-wrap">
+																			<span
+																				className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${progress.badgeStyle}`}
+																			>
+																				<span className={`w-1.5 h-1.5 rounded-full ${progress.dotColor}`} />
+																				<span>{progress.badgeLabel}</span>
+																				{progress.assignee && (
+																					<span className="font-mono text-[10px] opacity-75 font-normal ml-0.5">
+																						({progress.assignee})
+																					</span>
+																				)}
+																			</span>
+																			<span className="text-[11px] font-semibold text-slate-500">
+																				{progress.completed}/9 Steps
+																			</span>
+																		</div>
+
+																		<button
+																			type="button"
+																			onClick={() => toggleRow(row.id)}
+																			className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+																				isExpanded
+																					? "bg-slate-200 text-slate-800 hover:bg-slate-300"
+																					: "text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200/80"
 																			}`}
-																			style={{ width: `${(completedCount / 9) * 100}%` }}
-																		/>
+																			title={isExpanded ? "Close stage studio" : "Open 9-stage management studio"}
+																		>
+																			<span>{isExpanded ? "Hide Studio" : "Open Studio"}</span>
+																			{isExpanded ? (
+																				<ChevronDown className="w-3.5 h-3.5" />
+																			) : (
+																				<ChevronRight className="w-3.5 h-3.5" />
+																			)}
+																		</button>
+																	</div>
+
+																	{/* Sleek 9-Segment Micro-Stepper */}
+																	<div className="flex items-center gap-1 w-full" title="Hover over a segment to see stage name">
+																		{STAGE_DEFINITIONS.map((stage, idx) => {
+																			const val = (row as any)[stage.key];
+																			const isDone = Boolean(val && val !== 0);
+																			const staffMember = activeStaff.find((u) => u.id === Number(val));
+																			const name = (row as any)[stage.nameKey] || staffMember?.initials || staffMember?.name || "";
+																			return (
+																				<div
+																					key={stage.key}
+																					title={`Stage ${idx + 1}: ${stage.label.replace(/^\d+\.\s*/, "")}${isDone ? ` (Done: ${name || "Assigned"})` : " (Pending)"}`}
+																					className={`h-2 flex-1 rounded-sm transition-all cursor-pointer ${
+																						isDone
+																							? "bg-cyan-500 hover:bg-cyan-600 shadow-2xs"
+																							: "bg-slate-200 hover:bg-slate-300"
+																					}`}
+																					onClick={() => toggleRow(row.id)}
+																				/>
+																			);
+																		})}
 																	</div>
 																</div>
-
-																<button
-																	type="button"
-																	onClick={() => toggleRow(row.id)}
-																	className="text-[11px] text-cyan-600 hover:text-cyan-800 font-semibold hover:underline flex items-center gap-0.5 cursor-pointer shrink-0"
-																>
-																	<span>{isExpanded ? "Hide Studio" : "Full Studio"}</span>
-																	{isExpanded ? (
-																		<ChevronDown className="w-3 h-3" />
-																	) : (
-																		<ChevronRight className="w-3 h-3" />
-																	)}
-																</button>
-															</div>
-
-															{/* 9 Compact Interactive Stage Chips spreading across full available width */}
-															<div className="grid grid-cols-9 gap-1 sm:gap-1.5 w-full">
-																{STAGE_DEFINITIONS.map((stage) => {
-																	const val = (row as any)[stage.key];
-																	const name = (row as any)[stage.nameKey];
-																	const timestamp = (row as any)[stage.atKey];
-
-																	return (
-																		<StageChipPicker
-																			key={stage.key}
-																			subplateId={row.id}
-																			stage={stage}
-																			userId={val}
-																			userName={name}
-																			timestamp={timestamp}
-																			staff={activeStaff}
-																			currentUser={currentUser}
-																			isAdmin={isAdmin}
-																			onAssign={handleStageStaffChange}
-																		/>
-																	);
-																})}
-															</div>
-														</div>
+															);
+														})()}
 													</td>
 
 													{/* Actions */}
@@ -1182,18 +1235,11 @@ function SubplatePageContent() {
 														<div className="flex items-center justify-end gap-1.5">
 															<button
 																type="button"
-																onClick={() => toggleRow(row.id)}
-																className="px-2.5 py-1 text-[11px] font-semibold text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 rounded-lg transition cursor-pointer"
-															>
-																{isExpanded ? "Close" : "Track"}
-															</button>
-															<button
-																type="button"
 																onClick={() => handleOpenEditModal(row)}
 																className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
 																title="Edit subplate"
 															>
-																<Pencil className="w-3.5 h-3.5" />
+																<Pencil className="w-4 h-4" />
 															</button>
 															<button
 																type="button"
@@ -1201,7 +1247,7 @@ function SubplatePageContent() {
 																className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
 																title="Delete subplate"
 															>
-																<Trash2 className="w-3.5 h-3.5" />
+																<Trash2 className="w-4 h-4" />
 															</button>
 														</div>
 													</td>

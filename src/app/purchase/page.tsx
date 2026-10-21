@@ -13,6 +13,7 @@ import {
     FileSpreadsheet,
     Printer,
     Trash2,
+    Edit2,
     Calendar,
     Building2,
     Layers,
@@ -36,9 +37,11 @@ import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
+import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-voucher";
 import {
     usePurchasesQuery,
     useCreatePurchaseMutation,
+    useUpdatePurchaseMutation,
     useDeletePurchaseMutation,
     useSubplatesByProjectQuery,
     useCustomerDropdownQuery,
@@ -57,6 +60,7 @@ function PurchasePageContent() {
     const { data: vendorLookup = [] } = useVendorDropdownQuery("Supplier");
     const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
     const createPurchaseMutation = useCreatePurchaseMutation();
+    const updatePurchaseMutation = useUpdatePurchaseMutation();
     const deletePurchaseMutation = useDeletePurchaseMutation();
 
     const purchases = (data?.purchases || []) as PurchaseOrder[];
@@ -87,6 +91,8 @@ function PurchasePageContent() {
 
     // Add / Edit Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
+    const [printingPO, setPrintingPO] = useState<PurchaseOrder | null>(null);
     const [selectedMould, setSelectedMould] = useState("");
     const [formData, setFormData] = useState<{
         odate: string;
@@ -94,6 +100,7 @@ function PurchasePageContent() {
         cname: number | "";
         projectid: string;
         items: {
+            id?: number;
             plateid: number | "";
             material: string;
             materialtype: string;
@@ -216,6 +223,11 @@ function PurchasePageContent() {
     const getVendorName = (id: number) => {
         const found = (vendorLookup || []).find((v) => v.id === id);
         return found ? found.vendor_name : `Vendor #${id}`;
+    };
+
+    const getSubplateName = (id: number) => {
+        const found = allSubplates.find((sp) => sp.id === id);
+        return found ? found.platename : `Plate #${id}`;
     };
 
     // Filtered PO records
@@ -356,6 +368,7 @@ function PurchasePageContent() {
 
     // Open modal for creating PO
     const handleOpenAddModal = (presetPlate?: Subplate) => {
+        setEditingPO(null);
         let defaultMould = "";
         let defaultCustomer: number | "" = "";
         if (presetPlate) {
@@ -410,10 +423,39 @@ function PurchasePageContent() {
         setIsModalOpen(true);
     };
 
+    // Open modal for editing existing PO (Source: PurchaseController.php store() edit mode)
+    const handleOpenEditModal = (po: PurchaseOrder) => {
+        setEditingPO(po);
+        setFormData({
+            odate: po.odate ? po.odate.slice(0, 10) : new Date().toISOString().slice(0, 10),
+            vname: po.vname,
+            cname: po.cname,
+            projectid: po.projectid,
+            items: po.items && po.items.length > 0
+                ? po.items.map((it: any) => ({
+                      id: it.id,
+                      plateid: it.plateid,
+                      material: it.material || "",
+                      materialtype: it.materialtype || "",
+                      qty: it.qty || 1,
+                  }))
+                : [
+                      {
+                          plateid: "",
+                          material: "",
+                          materialtype: "",
+                          qty: 1,
+                      },
+                  ],
+        });
+        setFormError(null);
+        setIsModalOpen(true);
+    };
+
     // Submit Purchase Order (Source: PurchaseController.php store() lines 403-561)
     const handleSubmitPO = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (createPurchaseMutation.isPending) return;
+        if (createPurchaseMutation.isPending || updatePurchaseMutation.isPending) return;
         if (!formData.vname) {
             setFormError("Please select a supplier/vendor.");
             return;
@@ -434,17 +476,29 @@ function PurchasePageContent() {
         }
 
         try {
-            await createPurchaseMutation.mutateAsync({
-                odate: formData.odate,
-                vname: Number(formData.vname),
-                cname: Number(formData.cname),
-                projectid: formData.projectid,
-                items: formData.items,
-            });
+            if (editingPO) {
+                await updatePurchaseMutation.mutateAsync({
+                    id: editingPO.id,
+                    odate: formData.odate,
+                    vname: Number(formData.vname),
+                    cname: Number(formData.cname),
+                    projectid: formData.projectid,
+                    items: formData.items,
+                });
+            } else {
+                await createPurchaseMutation.mutateAsync({
+                    odate: formData.odate,
+                    vname: Number(formData.vname),
+                    cname: Number(formData.cname),
+                    projectid: formData.projectid,
+                    items: formData.items,
+                });
+            }
             setIsModalOpen(false);
+            setEditingPO(null);
         } catch (err: unknown) {
             const message =
-                err instanceof Error ? err.message : "Error creating PO";
+                err instanceof Error ? err.message : "Error saving PO";
             setFormError(message);
         }
     };
@@ -809,15 +863,39 @@ function PurchasePageContent() {
                                                             <div className="flex items-center justify-end gap-1.5">
                                                                 <button
                                                                     onClick={() =>
+                                                                        setPrintingPO(
+                                                                            po,
+                                                                        )
+                                                                    }
+                                                                    className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex items-center gap-1"
+                                                                    title="View / Print PO Voucher"
+                                                                >
+                                                                    <Printer className="w-3 h-3" />
+                                                                    <span>Voucher</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() =>
+                                                                        handleOpenEditModal(
+                                                                            po,
+                                                                        )
+                                                                    }
+                                                                    className="px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition flex items-center gap-1"
+                                                                    title="Edit Purchase Order"
+                                                                >
+                                                                    <Edit2 className="w-3 h-3" />
+                                                                    <span>Edit</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() =>
                                                                         toggleRow(
                                                                             po.id,
                                                                         )
                                                                     }
-                                                                    className="px-2.5 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition"
+                                                                    className="px-2 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition"
                                                                 >
                                                                     {isExpanded
                                                                         ? "Hide"
-                                                                        : "View"}
+                                                                        : "Items"}
                                                                 </button>
                                                                 <button
                                                                     onClick={() =>
@@ -1021,22 +1099,42 @@ function PurchasePageContent() {
                                                         ? "subplate"
                                                         : "subplates"}
                                                 </span>
-                                                <div className="flex items-center gap-2">
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                    <button
+                                                        onClick={() =>
+                                                            setPrintingPO(po)
+                                                        }
+                                                        className="min-h-[36px] px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
+                                                        title="Print PO Voucher"
+                                                    >
+                                                        <Printer className="w-3.5 h-3.5" />
+                                                        <span>Voucher</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() =>
+                                                            handleOpenEditModal(po)
+                                                        }
+                                                        className="min-h-[36px] px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition flex items-center gap-1 cursor-pointer"
+                                                        title="Edit PO"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                        <span>Edit</span>
+                                                    </button>
                                                     <button
                                                         onClick={() =>
                                                             toggleRow(po.id)
                                                         }
-                                                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
+                                                        className="min-h-[36px] px-2.5 py-1 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
                                                     >
                                                         {isExpanded
-                                                            ? "Hide Items"
-                                                            : "View Items"}
+                                                            ? "Hide"
+                                                            : "Items"}
                                                     </button>
                                                     <button
                                                         onClick={() =>
                                                             setDeleteTarget(po)
                                                         }
-                                                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                                                        className="min-h-[36px] px-2.5 py-1 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
                                                     >
                                                         Delete
                                                     </button>
@@ -1319,9 +1417,20 @@ function PurchasePageContent() {
                 {/* ========================================================================= */}
                 <Modal
                     isOpen={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    title="Create Raw Material Purchase Order"
-                    description="Generate a new raw material purchase order with vendor details and line items"
+                    onClose={() => {
+                        setIsModalOpen(false);
+                        setEditingPO(null);
+                    }}
+                    title={
+                        editingPO
+                            ? `Edit Purchase Order (${editingPO.srno})`
+                            : "Create Raw Material Purchase Order"
+                    }
+                    description={
+                        editingPO
+                            ? "Modify purchase order details, supplier, and plate line items"
+                            : "Generate a new raw material purchase order with vendor details and line items"
+                    }
                     size="xl"
                 >
                     <form
@@ -1556,17 +1665,21 @@ function PurchasePageContent() {
                                                               ? "No plates found for this mould"
                                                               : "Select Subplate"}
                                                     </option>
-                                                    {platesForSelectedProject.map(
-                                                        (sp) => (
+                                                    {platesForSelectedProject.map((sp) => {
+                                                        const isSelectedInOtherRow = formData.items.some(
+                                                            (it, i) => i !== idx && Number(it.plateid) === sp.id
+                                                        );
+                                                        return (
                                                             <option
                                                                 key={sp.id}
                                                                 value={sp.id}
+                                                                disabled={isSelectedInOtherRow}
                                                             >
-                                                                {sp.platename}{" "}
-                                                                (qty: {sp.sqty})
+                                                                {sp.platename} (qty: {sp.sqty})
+                                                                {isSelectedInOtherRow ? " — (Already added)" : ""}
                                                             </option>
-                                                        ),
-                                                    )}
+                                                        );
+                                                    })}
                                                 </select>
                                             </div>
 
@@ -1669,21 +1782,57 @@ function PurchasePageContent() {
                         <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200 ">
                             <button
                                 type="button"
-                                onClick={() => setIsModalOpen(false)}
+                                onClick={() => {
+                                    setIsModalOpen(false);
+                                    setEditingPO(null);
+                                }}
                                 className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition btn-interactive"
                             >
                                 Cancel
                             </button>
                             <MotionButton
                                 type="submit"
-                                loading={createPurchaseMutation.isPending}
+                                loading={
+                                    createPurchaseMutation.isPending ||
+                                    updatePurchaseMutation.isPending
+                                }
                                 variant="primary"
                                 size="sm"
                             >
-                                Submit Purchase Order
+                                {editingPO
+                                    ? "Update Purchase Order"
+                                    : "Submit Purchase Order"}
                             </MotionButton>
                         </div>
                     </form>
+                </Modal>
+
+                {/* Printable PO Voucher Modal */}
+                <Modal
+                    isOpen={!!printingPO}
+                    onClose={() => setPrintingPO(null)}
+                    title={`Purchase Order: ${printingPO?.srno}`}
+                    description="Official purchase order document with tax summary & bank details"
+                    size="2xl"
+                >
+                    {printingPO && (
+                        <PurchaseOrderVoucher
+                            po={printingPO}
+                            vendor={
+                                (vendorLookup || []).find(
+                                    (v: any) => v.id === printingPO.vname,
+                                ) ||
+                                customers.find(
+                                    (c: any) => c.id === printingPO.vname,
+                                ) ||
+                                null
+                            }
+                            customerName={getCustomerName(printingPO.cname)}
+                            onPrint={() => window.print()}
+                            onClose={() => setPrintingPO(null)}
+                            isModal={true}
+                        />
+                    )}
                 </Modal>
 
                 {/* Delete Confirmation Modal */}

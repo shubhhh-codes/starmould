@@ -212,18 +212,16 @@ export function Sidebar({
 
   const isItemActive = React.useCallback(
     (itemHref: string) => {
-      if (itemHref === "/customers") {
-        return pathname.startsWith("/customers");
-      }
-      if (itemHref === "/vendors") {
-        return pathname.startsWith("/vendors");
-      }
       if (itemHref === "/") {
         return pathname === "/";
       }
-      return pathname === itemHref || (pathname.startsWith(itemHref) && !itemHref.includes("?"));
+      if (pathname === itemHref) {
+        return true;
+      }
+      const baseHref = itemHref.split("?")[0];
+      return pathname.startsWith(`${baseHref}/`);
     },
-    [pathname, searchParams]
+    [pathname]
   );
 
   // ESC stack integration for mobile drawer

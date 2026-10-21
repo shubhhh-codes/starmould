@@ -148,9 +148,9 @@ export async function POST(req: NextRequest) {
           purchaseid: nextPurchaseId,
           srno,
           odate: odate || new Date().toISOString().slice(0, 10),
-          vname,
-          cname,
-          projectid,
+          vname: Number(vname),
+          cname: Number(cname),
+          projectid: String(projectid),
           status: "1",
           created_by: auth.user.name || "Admin",
           created_at: new Date().toISOString(),
@@ -167,8 +167,8 @@ export async function POST(req: NextRequest) {
     const lineItemsToInsert = items.map((it: any) => ({
       pid: newPO.id,
       plateid: Number(it.plateid),
-      material: it.material,
-      materialtype: it.materialtype,
+      material: it.material || "",
+      materialtype: it.materialtype || "",
       qty: Number(it.qty) || 1,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -191,6 +191,102 @@ export async function POST(req: NextRequest) {
         items: createdItems,
       },
     }, { status: 201 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Internal error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// PUT /api/purchases - update existing PO and reconcile line items (Admin, Manager only)
+export async function PUT(req: NextRequest) {
+  const auth = await authenticateRequest(req, [0, 1], "nav_purchase");
+  if ("error" in auth) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  try {
+    const body = await req.json();
+    const { id, odate, vname, cname, projectid, items } = body;
+
+    if (!id || !vname || !cname || !projectid || !items || items.length === 0) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // 1. Update purchase header
+    const { data: updatedPO, error: poErr } = await supabaseAdmin
+      .from("purchase")
+      .update({
+        odate: odate || new Date().toISOString().slice(0, 10),
+        vname: Number(vname),
+        cname: Number(cname),
+        projectid: String(projectid),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", Number(id))
+      .select()
+      .single();
+
+    if (poErr) {
+      return NextResponse.json({ error: poErr.message }, { status: 500 });
+    }
+
+    // 2. Reconcile purchase line items
+    const { data: existingItems } = await supabaseAdmin
+      .from("purchase_items")
+      .select("id")
+      .eq("pid", Number(id));
+
+    const existingIds = new Set((existingItems || []).map((it) => it.id));
+    const submittedIds = new Set(items.map((it: any) => Number(it.id)).filter(Boolean));
+
+    // Delete items removed from the PO
+    const idsToDelete = [...existingIds].filter((exId) => !submittedIds.has(exId));
+    if (idsToDelete.length > 0) {
+      await supabaseAdmin.from("purchase_items").delete().in("id", idsToDelete);
+    }
+
+    // Update existing items or insert new items
+    for (const it of items) {
+      if (it.id && existingIds.has(Number(it.id))) {
+        await supabaseAdmin
+          .from("purchase_items")
+          .update({
+            plateid: Number(it.plateid),
+            material: it.material || "",
+            materialtype: it.materialtype || "",
+            qty: Number(it.qty) || 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", Number(it.id));
+      } else {
+        await supabaseAdmin
+          .from("purchase_items")
+          .insert({
+            pid: Number(id),
+            plateid: Number(it.plateid),
+            material: it.material || "",
+            materialtype: it.materialtype || "",
+            qty: Number(it.qty) || 1,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+      }
+    }
+
+    invalidateCache("api_counts_all");
+
+    // Fetch refreshed line items
+    const { data: finalItems } = await supabaseAdmin
+      .from("purchase_items")
+      .select("*")
+      .eq("pid", Number(id));
+
+    return NextResponse.json({
+      purchase: {
+        ...updatedPO,
+        items: finalItems || [],
+      },
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

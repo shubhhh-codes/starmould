@@ -3,6 +3,7 @@
 import React, { useEffect, useState, use } from "react";
 import { Printer, ArrowLeft, Factory, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-voucher";
 
 interface PageProps {
   params: Promise<{
@@ -57,6 +58,30 @@ export default function PrintDocumentPage({ params }: PageProps) {
           <Link href="/" className="inline-block px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold">
             Return to Dashboard
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (type === "purchase") {
+    return (
+      <div className="min-h-screen bg-slate-200 py-6 px-4 print:p-0 print:bg-white text-slate-900">
+        <div className="max-w-5xl mx-auto">
+          <PurchaseOrderVoucher
+            po={{
+              id: Number(id),
+              srno: doc.docNumber,
+              odate: doc.docDate,
+              vname: doc.party?.id,
+              cname: 0,
+              projectid: doc.projectCode,
+              items: doc.items,
+            }}
+            vendor={doc.party}
+            customerName={doc.customerName}
+            onPrint={handlePrint}
+            isModal={false}
+          />
         </div>
       </div>
     );

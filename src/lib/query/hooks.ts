@@ -807,6 +807,22 @@ export function useCreatePurchaseMutation() {
   });
 }
 
+export function useUpdatePurchaseMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: any) =>
+      fetchJson<any>("/api/purchases", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+    },
+  });
+}
+
 export function useDeletePurchaseMutation() {
   const queryClient = useQueryClient();
   return useMutation({

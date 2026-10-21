@@ -154,12 +154,26 @@ export async function GET(req: NextRequest) {
 
       if (pErr || !purchase) return NextResponse.json({ error: "Purchase Order not found" }, { status: 404 });
 
-      const [vendorRes, itemsRes] = await Promise.all([
+      const [vendorRes, custVendorRes, custRes, itemsRes] = await Promise.all([
         purchase.vname
           ? supabaseAdmin
               .from("vendors")
               .select("id, vendor_name, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
               .eq("id", purchase.vname)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        purchase.vname
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername, mobile, mobile1, address, email, city, gstin, pan")
+              .eq("id", purchase.vname)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        purchase.cname
+          ? supabaseAdmin
+              .from("customers")
+              .select("id, customername")
+              .eq("id", purchase.cname)
               .maybeSingle()
           : Promise.resolve({ data: null }),
         supabaseAdmin
@@ -168,21 +182,45 @@ export async function GET(req: NextRequest) {
           .eq("pid", purchase.id),
       ]);
 
-      const vendor = vendorRes.data ? { ...vendorRes.data, customername: vendorRes.data.vendor_name } : null;
+      const vendor = vendorRes.data
+        ? { ...vendorRes.data, customername: vendorRes.data.vendor_name }
+        : custVendorRes.data
+        ? { ...custVendorRes.data, vendor_name: custVendorRes.data.customername }
+        : null;
+
       const items = itemsRes.data || [];
+      const plateIds = items.map((it) => it.plateid).filter(Boolean);
+      let subplates: any[] = [];
+      if (plateIds.length > 0) {
+        const { data: sps } = await supabaseAdmin
+          .from("subplate")
+          .select("id, platename, subprojectid, material, width, height, length, unit")
+          .in("id", plateIds);
+        subplates = sps || [];
+      }
+      const plateMap = new Map(subplates.map((sp) => [sp.id, sp]));
 
       return NextResponse.json({
-        docType: "RAW MATERIAL PURCHASE ORDER",
+        docType: "PURCHASE ORDER",
         docNumber: purchase.srno,
         docDate: purchase.odate,
         party: vendor,
+        customerName: custRes.data?.customername || "",
         projectCode: purchase.projectid,
-        items: items.map((it, idx) => ({
-          srNo: idx + 1,
-          particulars: it.material || "Raw Material Plate",
-          materialType: it.materialtype || "",
-          qty: it.qty || 1,
-        })),
+        items: items.map((it, idx) => {
+          const sp = plateMap.get(it.plateid);
+          return {
+            srNo: idx + 1,
+            plateid: it.plateid,
+            platename: sp?.platename || `Subplate #${it.plateid}`,
+            particulars: `${sp?.platename || "Subplate"} (${it.material || ""})`,
+            material: it.material || (sp ? `${sp.width}x${sp.height}x${sp.length} ${sp.unit || "mm"}` : "—"),
+            materialtype: it.materialtype || sp?.material || "MS-Bright",
+            qty: it.qty || 1,
+            rate: it.rate || 0,
+            hsn: it.hsn || "72284000",
+          };
+        }),
       });
     }
 
