@@ -233,12 +233,12 @@ export async function POST(req: NextRequest) {
 
       // Return subplates location handling
       const { data: vendorData } = await supabaseAdmin
-        .from("customers")
-        .select("initials, customername")
+        .from("vendors")
+        .select("initials, vendor_name")
         .eq("id", Number(vendorid))
-        .single();
+        .maybeSingle();
 
-      const vendorInitials = vendorData?.initials || vendorData?.customername || "";
+      const vendorInitials = vendorData?.initials || vendorData?.vendor_name || "";
       const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
 
       if (plateIds.length > 0) {
