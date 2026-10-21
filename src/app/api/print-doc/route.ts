@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
       if (cErr || !challan) return NextResponse.json({ error: "Challan not found" }, { status: 404 });
 
-      const [vendorRes, custRes, itemsRes] = await Promise.all([
+      const [vendorRes, custRes, transRes, itemsRes] = await Promise.all([
         challan.vendorid
           ? supabaseAdmin
               .from("vendors")
@@ -52,6 +52,13 @@ export async function GET(req: NextRequest) {
               .eq("id", challan.customerid)
               .maybeSingle()
           : Promise.resolve({ data: null }),
+        challan.vendortid
+          ? supabaseAdmin
+              .from("vendors")
+              .select("id, vendor_name")
+              .eq("id", challan.vendortid)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
         supabaseAdmin
           .from("challan_items")
           .select("*")
@@ -60,6 +67,7 @@ export async function GET(req: NextRequest) {
 
       const vendor = vendorRes.data ? { ...vendorRes.data, customername: vendorRes.data.vendor_name } : null;
       const customer = custRes.data;
+      const transporter = transRes.data?.vendor_name || "";
       const items = itemsRes.data || [];
 
       const plateIds = items.map((it) => it.plateid).filter(Boolean);
@@ -80,6 +88,7 @@ export async function GET(req: NextRequest) {
         docDate: challan.chdate,
         party: vendor,
         customerName: customer?.customername || "",
+        transporter,
         projectCode: challan.projectid,
         items: items.map((it, idx) => ({
           srNo: idx + 1,
