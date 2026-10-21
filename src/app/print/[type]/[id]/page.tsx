@@ -109,7 +109,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
         <div className="grid grid-cols-2 gap-6 p-4 bg-slate-50 rounded-xl border border-slate-200 mb-6 text-xs print:bg-transparent print:border-slate-300">
           <div className="space-y-0.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Billed / Dispatched To</p>
-            <p className="font-bold text-slate-900 text-sm">{doc.party?.customername || "—"}</p>
+            <p className="font-bold text-slate-900 text-sm">{doc.party?.customername || doc.party?.vendor_name || "—"}</p>
             {doc.party?.vendor_code && (
               <p className="text-[11px] font-mono font-semibold text-slate-600">Vendor Code: {doc.party.vendor_code}</p>
             )}

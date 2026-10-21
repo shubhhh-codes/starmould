@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
           .eq("inchallanid", inward.id),
       ]);
 
-      const vendor = vendorRes.data;
+      const vendor = vendorRes.data ? { ...vendorRes.data, customername: vendorRes.data.vendor_name } : null;
       const items = itemsRes.data || [];
 
       return NextResponse.json({
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
           .eq("pid", purchase.id),
       ]);
 
-      const vendor = vendorRes.data;
+      const vendor = vendorRes.data ? { ...vendorRes.data, customername: vendorRes.data.vendor_name } : null;
       const items = itemsRes.data || [];
 
       return NextResponse.json({
