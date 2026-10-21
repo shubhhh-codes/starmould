@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
     const executeFetch = async () => {
       let query = supabaseAdmin
         .from("customers")
-        .select("id, customername, initials, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, created_at, updated_at", { count: "exact" })
+        .select("id, customername, initials, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, contact_person, status_of_beneficiary, created_at, updated_at", { count: "exact" })
         .is("deleted_at", null)
         .order("id", { ascending: false });
 
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
         query = query.eq("usertype", usertype);
       }
       if (search) {
-        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,vendor_code.ilike.%${search}%,city.ilike.%${search}%,gstin.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
+        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,vendor_code.ilike.%${search}%,city.ilike.%${search}%,gstin.ilike.%${search}%,contact_person.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
       }
 
       if (page && page > 0) {
@@ -150,6 +150,8 @@ export async function POST(req: NextRequest) {
       bank_name,
       account_no,
       ifsc_code,
+      contact_person,
+      status_of_beneficiary,
     } = body;
 
     const cleanName = customername?.trim();
@@ -216,6 +218,8 @@ export async function POST(req: NextRequest) {
           bank_name: bank_name?.trim() || null,
           account_no: account_no?.trim() || null,
           ifsc_code: ifsc_code?.trim()?.toUpperCase() || null,
+          contact_person: contact_person?.trim() || null,
+          status_of_beneficiary: status_of_beneficiary?.trim() || null,
           created_at: now,
           updated_at: now,
           created_by: auth.user.id,
@@ -264,6 +268,8 @@ export async function PUT(req: NextRequest) {
       bank_name,
       account_no,
       ifsc_code,
+      contact_person,
+      status_of_beneficiary,
     } = body;
 
     if (!id) {
@@ -323,6 +329,8 @@ export async function PUT(req: NextRequest) {
       bank_name: bank_name !== undefined ? (bank_name?.trim() || null) : undefined,
       account_no: account_no !== undefined ? (account_no?.trim() || null) : undefined,
       ifsc_code: ifsc_code !== undefined ? (ifsc_code?.trim()?.toUpperCase() || null) : undefined,
+      contact_person: contact_person !== undefined ? (contact_person?.trim() || null) : undefined,
+      status_of_beneficiary: status_of_beneficiary !== undefined ? (status_of_beneficiary?.trim() || null) : undefined,
       updated_at: now,
       updated_by: auth.user.id,
     };

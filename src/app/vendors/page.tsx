@@ -165,6 +165,7 @@ function CustomerPageContent() {
         bank_name: string;
         account_no: string;
         ifsc_code: string;
+        contact_person: string;
     }>({
         customername: "",
         initials: "",
@@ -180,6 +181,7 @@ function CustomerPageContent() {
         bank_name: "",
         account_no: "",
         ifsc_code: "",
+        contact_person: "",
     });
 
     // Validation messages (replicates legacy checkusername & checkinitials)
@@ -285,6 +287,7 @@ function CustomerPageContent() {
             bank_name: "",
             account_no: "",
             ifsc_code: "",
+            contact_person: "",
         });
         setInitialError(null);
         setNameError(null);
@@ -318,6 +321,7 @@ function CustomerPageContent() {
             bank_name: customer.bank_name || "",
             account_no: customer.account_no || "",
             ifsc_code: customer.ifsc_code || "",
+            contact_person: customer.contact_person || "",
         });
         setInitialError(null);
         setNameError(null);
@@ -454,6 +458,7 @@ function CustomerPageContent() {
             "Bank Name",
             "Account No",
             "IFSC Code",
+            "Contact Person",
             "Mobile 1",
             "Mobile 2",
             "Email",
@@ -471,6 +476,7 @@ function CustomerPageContent() {
             `"${(c.bank_name || "").replace(/"/g, '""')}"`,
             `"${c.account_no || ""}"`,
             `"${c.ifsc_code || ""}"`,
+            `"${(c.contact_person || "").replace(/"/g, '""')}"`,
             `"${c.mobile || ""}"`,
             `"${c.mobile1 || ""}"`,
             `"${c.email || ""}"`,
@@ -1219,6 +1225,25 @@ function CustomerPageContent() {
                                     <span>{initialError}</span>
                                 </p>
                             )}
+                        </div>
+
+                        {/* Contact Person */}
+                        <div>
+                            <label className="block font-medium text-slate-700 mb-1">
+                                Contact Person Name
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.contact_person}
+                                onChange={(e) =>
+                                    setFormData((p) => ({
+                                        ...p,
+                                        contact_person: e.target.value,
+                                    }))
+                                }
+                                placeholder="Primary executive, owner, or liaison name"
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                            />
                         </div>
 
                         {/* Mobile No. 1 & Mobile No. 2 */}
