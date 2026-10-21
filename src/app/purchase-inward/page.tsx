@@ -33,13 +33,14 @@ import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useIsRestoring } from "@tanstack/react-query";
-import { usePurchaseInwardQuery, useCreatePurchaseInwardMutation, useCustomerDropdownQuery } from "@/lib/query/hooks";
+import { usePurchaseInwardQuery, useCreatePurchaseInwardMutation, useCustomerDropdownQuery, useVendorDropdownQuery } from "@/lib/query/hooks";
 
 export default function PurchaseInwardPage() {
     const isRestoring = useIsRestoring();
     const { data: inwardData, isLoading: queryLoading, refetch } = usePurchaseInwardQuery();
     const createInwardMutation = useCreatePurchaseInwardMutation();
-    const { data: customerData = [] } = useCustomerDropdownQuery();
+    const { data: customerData = [] } = useCustomerDropdownQuery("Customer");
+    const { data: vendorData = [] } = useVendorDropdownQuery("Supplier");
 
     const purchases: PurchaseOrder[] = [];
     const poInwards = inwardData?.receipts || [];
@@ -82,6 +83,11 @@ export default function PurchaseInwardPage() {
         return found ? found.customername : `ID: ${id}`;
     };
 
+    const getVendorName = (id: number) => {
+        const found = vendorData.find((v) => v.id === id);
+        return found ? found.vendor_name : `Vendor #${id}`;
+    };
+
     const getSubplateName = (id: number) => {
         const found = subplates.find((sp) => sp.id === id);
         return found ? found.platename : `Plate #${id}`;
@@ -122,7 +128,7 @@ export default function PurchaseInwardPage() {
                         srno: po.srno,
                         pno: po.pno,
                         vname: po.vname,
-                        vendorname: getCustomerName(po.vname),
+                        vendorname: getVendorName(po.vname),
                         cname: po.cname,
                         customername: getCustomerName(po.cname),
                         projectid: po.projectid,
@@ -184,7 +190,7 @@ export default function PurchaseInwardPage() {
                 inw.insrno.toLowerCase().includes(q) ||
                 (inw.inpono && inw.inpono.toLowerCase().includes(q)) ||
                 inw.projectid.toLowerCase().includes(q) ||
-                getCustomerName(inw.vname).toLowerCase().includes(q),
+                getVendorName(inw.vname).toLowerCase().includes(q),
         );
     }, [poInwards, searchQuery]);
 
@@ -788,7 +794,7 @@ export default function PurchaseInwardPage() {
                                             const isExpanded = Boolean(
                                                 expandedInwardRows[inw.id],
                                             );
-                                            const vendorName = getCustomerName(
+                                            const vendorName = getVendorName(
                                                 inw.vname,
                                             );
                                             const clientName = getCustomerName(

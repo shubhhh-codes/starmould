@@ -101,34 +101,32 @@ async function run() {
   const excelVendors = JSON.parse(rawJson);
   console.log(`Loaded ${excelVendors.length} vendors from Excel JSON.`);
 
-  // 2. Fetch existing customers from DB
+  // 2. Fetch existing vendors from public.vendors table
   const dbRes = await client.query(
-    "SELECT id, customername, initials, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code FROM public.customers WHERE deleted_at IS NULL"
+    "SELECT id, vendor_name, initials, vendor_type, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code FROM public.vendors WHERE deleted_at IS NULL"
   );
-  const existingCustomers = dbRes.rows;
-  console.log(`Found ${existingCustomers.length} active total partners in DB.`);
+  const existingVendors = dbRes.rows;
+  console.log(`Found ${existingVendors.length} active vendors in public.vendors table.`);
 
   const existingInitialsSet = new Set(
-    existingCustomers.map(c => (c.initials || '').toUpperCase()).filter(Boolean)
+    existingVendors.map(v => (v.initials || '').toUpperCase()).filter(Boolean)
   );
 
   // Build lookup maps for existing vendors
   const exactNameMap = new Map();
   const normalizedNameMap = new Map();
 
-  for (const c of existingCustomers) {
-    if (c.usertype === 'Vendor') {
-      const lower = c.customername.trim().toLowerCase();
-      exactNameMap.set(lower, c);
+  for (const v of existingVendors) {
+    const lower = v.vendor_name.trim().toLowerCase();
+    exactNameMap.set(lower, v);
 
-      const norm = normalizeName(c.customername);
-      if (norm) {
-        normalizedNameMap.set(norm, c);
-      }
+    const norm = normalizeName(v.vendor_name);
+    if (norm) {
+      normalizedNameMap.set(norm, v);
     }
   }
 
-  console.log(`Found ${exactNameMap.size} existing Vendor records in DB.`);
+  console.log(`Indexed ${exactNameMap.size} existing Vendor records in DB.`);
 
   let updatedCount = 0;
   let insertedCount = 0;
@@ -136,14 +134,15 @@ async function run() {
   const sampleInserts = [];
 
   for (const ev of excelVendors) {
-    const rawName = ev.customername.trim();
+    const rawName = (ev.vendor_name || ev.customername).trim();
     const lowerName = rawName.toLowerCase();
     const normName = normalizeName(rawName);
+    const targetType = (ev.vendor_type === 'Transporter' || ev.usertype === 'Transport') ? 'Transporter' : 'Supplier';
 
     const matched = exactNameMap.get(lowerName) || normalizedNameMap.get(normName);
 
     if (matched) {
-      // UPDATE matched record
+      // UPDATE matched record in public.vendors
       const updateFields = [];
       const values = [];
       let idx = 1;
@@ -180,28 +179,29 @@ async function run() {
       if (updateFields.length > 0) {
         updateFields.push(`updated_at = NOW()`);
         values.push(matched.id);
-        const query = `UPDATE public.customers SET ${updateFields.join(', ')} WHERE id = $${idx}`;
+        const query = `UPDATE public.vendors SET ${updateFields.join(', ')} WHERE id = $${idx}`;
         await client.query(query, values);
         updatedCount++;
         if (sampleUpdates.length < 5) {
-          sampleUpdates.push({ id: matched.id, name: matched.customername, code: ev.vendor_code, gstin: ev.gstin });
+          sampleUpdates.push({ id: matched.id, name: matched.vendor_name, code: ev.vendor_code, gstin: ev.gstin });
         }
       }
     } else {
-      // INSERT new vendor
+      // INSERT new vendor into public.vendors
       const initials = generateInitials(rawName, existingInitialsSet);
       const query = `
-        INSERT INTO public.customers (
-          customername, initials, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code,
+        INSERT INTO public.vendors (
+          vendor_name, initials, vendor_type, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code,
           created_at, created_by, updated_at, updated_by
         ) VALUES (
-          $1, $2, 'Vendor', $3, $4, $5, $6, $7, $8, $9,
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
           NOW(), 0, NOW(), 0
-        ) RETURNING id, customername, initials, vendor_code;
+        ) RETURNING id, vendor_name, initials, vendor_type, vendor_code;
       `;
       const res = await client.query(query, [
         rawName,
         initials,
+        targetType,
         ev.vendor_code || null,
         ev.city || null,
         ev.gstin || null,
@@ -218,7 +218,7 @@ async function run() {
   }
 
   console.log('\n=================================================');
-  console.log('SYNC REPORT:');
+  console.log('SYNC REPORT (public.vendors):');
   console.log('=================================================');
   console.log(`Total Excel Vendors processed: ${excelVendors.length}`);
   console.log(`Existing DB Vendors matched & enriched with details: ${updatedCount}`);
@@ -230,18 +230,16 @@ async function run() {
   console.log('\nSample Newly Inserted Vendors:');
   console.table(sampleInserts);
 
-  // Final check of total vendors
+  // Final check of total vendors in public.vendors
   const finalRes = await client.query(
-    "SELECT count(*) as total, count(vendor_code) as with_code, count(gstin) as with_gst, count(bank_name) as with_bank FROM public.customers WHERE usertype = 'Vendor' AND deleted_at IS NULL"
+    "SELECT count(*) as total, count(vendor_code) as with_code, count(gstin) as with_gst, count(bank_name) as with_bank FROM public.vendors WHERE deleted_at IS NULL"
   );
-  console.log('\nFinal DB Vendor Statistics:');
+  console.log('\nFinal DB Vendor Statistics (public.vendors):');
   console.table(finalRes.rows);
 
   await client.end();
   console.log('\nSynchronization completed successfully.');
 }
 
-run().catch(err => {
-  console.error('Error during synchronization:', err);
-  process.exit(1);
-});
+// NOTE: Do not run automatically against DB per instruction
+export { run };

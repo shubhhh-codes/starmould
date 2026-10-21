@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors } from "@/lib/cache";
 
 /**
  * RFC 4180 compliant CSV cell formatter with CWE-1236 Formula Injection sanitization.
@@ -80,8 +80,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const customers = await getCachedCustomers();
+    const [customers, vendors] = await Promise.all([getCachedCustomers(), getCachedVendors()]);
     const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
+    const vendMap = new Map((vendors || []).map((v: any) => [v.id, v]));
 
     let csvContent = "";
     let filename = "export.csv";
@@ -98,12 +99,12 @@ export async function GET(req: NextRequest) {
       const headers = ["ID", "PO No", "Customer", "Vendor", "Project ID", "Order Date", "Status"];
       const rows = (pos || []).map((p) => {
         const cust = custMap.get(Number(p.cname));
-        const vend = custMap.get(Number(p.vname));
+        const vend = vendMap.get(Number(p.vname));
         return [
           formatCsvCell(p.id),
           formatCsvCell(p.srno || p.purchaseid || ""),
           formatCsvCell(cust?.customername || p.cname || ""),
-          formatCsvCell(vend?.customername || p.vname || ""),
+          formatCsvCell(vend?.vendor_name || p.vname || ""),
           formatCsvCell(p.projectid || ""),
           formatCsvCell(formatDate(p.odate)),
           formatCsvCell(p.status === "1" ? "Active" : "Inactive"),
@@ -201,13 +202,13 @@ export async function GET(req: NextRequest) {
 
       const headers = ["ID", "Challan No", "Vendor", "Transporter", "Date", "Status"];
       const rows = (challans || []).map((c) => {
-        const vend = custMap.get(Number(c.vendorid));
-        const trans = custMap.get(Number(c.vendortid));
+        const vend = vendMap.get(Number(c.vendorid));
+        const trans = vendMap.get(Number(c.vendortid));
         return [
           formatCsvCell(c.id),
           formatCsvCell(c.challanno || ""),
-          formatCsvCell(vend?.customername || c.vendorid || ""),
-          formatCsvCell(trans?.customername || c.vendortid || ""),
+          formatCsvCell(vend?.vendor_name || c.vendorid || ""),
+          formatCsvCell(trans?.vendor_name || c.vendortid || ""),
           formatCsvCell(formatDate(c.chdate)),
           formatCsvCell(c.status === "1" ? "Active" : "Inactive"),
         ];

@@ -79,6 +79,17 @@ export async function getCachedCustomers(): Promise<any[]> {
   });
 }
 
+
+export async function getCachedVendors(): Promise<any[]> {
+  return getCached("shared_vendors", 60, async () => {
+    const { data } = await supabaseAdmin
+      .from("vendors")
+      .select("id, vendor_name, initials, vendor_code, vendor_type, city, gstin, pan, bank_name, account_no, ifsc_code, mobile, email, deleted_at")
+      .is("deleted_at", null);
+    return data || [];
+  });
+}
+
 export async function getCachedUsers(): Promise<any[]> {
   return getCached("shared_users", 60, async () => {
     const { data } = await supabaseAdmin

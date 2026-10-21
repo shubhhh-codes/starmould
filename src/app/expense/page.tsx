@@ -29,7 +29,8 @@ import {
 } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
-import { useIsRestoring } from "@tanstack/react-query";
+import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query/keys";
 import {
     useExpensesQuery,
     useCreateExpenseMutation,
@@ -75,6 +76,47 @@ export default function ExpensePage() {
         ? (fetchQueryError as Error).message
         : null;
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const queryClient = useQueryClient();
+    // Modal State - Add Account
+    const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+    const [newAccountName, setNewAccountName] = useState("");
+    const [newAccountInitials, setNewAccountInitials] = useState("");
+    const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+    const [accountCreateError, setAccountCreateError] = useState<string | null>(null);
+
+    const handleCreateAccount = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAccountCreateError(null);
+        setIsCreatingAccount(true);
+        try {
+            const res = await fetch("/api/customers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    customername: newAccountName.trim(),
+                    initials: newAccountInitials.trim().toUpperCase().slice(0, 5),
+                    usertype: "Other",
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to create account");
+            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
+            if (data.customer?.id) {
+                setModalForm((p) => ({ ...p, customerid: String(data.customer.id) }));
+            }
+            setNewAccountName("");
+            setNewAccountInitials("");
+            setIsAddAccountOpen(false);
+        } catch (err: any) {
+            setAccountCreateError(err.message || "An error occurred");
+        } finally {
+            setIsCreatingAccount(false);
+        }
+    };
 
     // Modal State - Add
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -352,6 +394,13 @@ export default function ExpensePage() {
                         >
                             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                             Export CSV
+                        </button>
+                        <button
+                            onClick={() => setIsAddAccountOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm"
+                        >
+                            <Building2 className="w-4 h-4 text-blue-600" />
+                            + New Account
                         </button>
                         <button
                             onClick={() => setIsModalOpen(true)}
@@ -800,9 +849,19 @@ export default function ExpensePage() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
-                                    Account Name
-                                </label>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                        Account Name
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddAccountOpen(true)}
+                                        className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                        New Account
+                                    </button>
+                                </div>
                                 <select
                                     required
                                     value={modalForm.customerid}
@@ -1184,6 +1243,72 @@ export default function ExpensePage() {
                             >
                                 Update Entry
                             </MotionButton>
+                        </div>
+                    </form>
+                </Modal>
+                {/* ========================================================================= */}
+                {/* ADD LEDGER ACCOUNT MODAL */}
+                {/* ========================================================================= */}
+                <Modal
+                    isOpen={isAddAccountOpen}
+                    onClose={() => setIsAddAccountOpen(false)}
+                    title="Add New Ledger Account"
+                    description="Create an internal ledger account (usertype = Other) for expenses, utilities, or vendor settlements"
+                >
+                    <form onSubmit={handleCreateAccount} className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Account / Ledger Name *
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                placeholder="e.g. Office Stationery, Factory Maintenance"
+                                value={newAccountName}
+                                onChange={(e) => {
+                                    setNewAccountName(e.target.value);
+                                    if (!newAccountInitials) {
+                                        const autoInit = e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+                                        setNewAccountInitials(autoInit);
+                                    }
+                                }}
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Account Initials / Short Code * (Max 5 letters)
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                maxLength={5}
+                                placeholder="e.g. OFSTN"
+                                value={newAccountInitials}
+                                onChange={(e) => setNewAccountInitials(e.target.value.toUpperCase())}
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        {accountCreateError && (
+                            <p className="text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                                {accountCreateError}
+                            </p>
+                        )}
+                        <div className="flex justify-end gap-3 pt-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsAddAccountOpen(false)}
+                                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isCreatingAccount}
+                                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                            >
+                                {isCreatingAccount ? "Creating..." : "Create Account"}
+                            </button>
                         </div>
                     </form>
                 </Modal>

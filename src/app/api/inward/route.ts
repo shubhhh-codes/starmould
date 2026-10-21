@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
 
 // GET /api/inward - Fetch Job Work Inwards, items, pending return lists, and customer lookups (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
@@ -34,9 +34,10 @@ export async function GET(req: NextRequest) {
     const challanIds = Array.from(new Set((inwards || []).map((i) => i.challanid).filter(Boolean)));
     const inwardIds = (inwards || []).map((i) => i.id);
 
-    // 2. Fetch Customers, Challans, Items, and Pending concurrently
-    const [customers, challansRes, itemsRes, pendingChallansRes] = await Promise.all([
+    // 2. Fetch Customers, Vendors, Challans, Items, and Pending concurrently
+    const [customers, vendors, challansRes, itemsRes, pendingChallansRes] = await Promise.all([
       getCachedCustomers(),
+      getCachedVendors(),
       supabaseAdmin
         .from("challan")
         .select("id, challanno, chdate, vendorid, customerid, projectid")
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
+    const vendMap = new Map((vendors || []).map((v: any) => [v.id, v]));
     const challanMap = new Map((challansRes.data || []).map((c) => [c.id, c]));
     const rawItems = itemsRes.data || [];
 
@@ -79,8 +81,8 @@ export async function GET(req: NextRequest) {
 
     const enriched = (inwards || []).map((inw) => {
       const cust = custMap.get(inw.customerid);
-      const vendor = custMap.get(inw.vendorid);
-      const transporter = custMap.get(inw.vendortid);
+      const vendor = vendMap.get(inw.vendorid);
+      const transporter = vendMap.get(inw.vendortid);
       const ch = challanMap.get(inw.challanid);
       const inItems = itemsMap[inw.id] || [];
 
@@ -98,8 +100,8 @@ export async function GET(req: NextRequest) {
         ...inw,
         challanno: ch?.challanno || `CH #${inw.challanid}`,
         customername: cust?.customername || `Customer #${inw.customerid}`,
-        vendorname: vendor?.customername || `Vendor #${inw.vendorid}`,
-        transportername: transporter?.customername || `Transporter #${inw.vendortid}`,
+        vendorname: vendor?.vendor_name || `Vendor #${inw.vendorid}`,
+        transportername: transporter?.vendor_name || `Transporter #${inw.vendortid}`,
         items: enrichedItems,
         total_inward_qty: enrichedItems.reduce((sum, it) => sum + Number(it.inward_qty || 0), 0),
       };

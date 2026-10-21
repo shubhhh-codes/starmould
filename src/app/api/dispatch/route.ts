@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
 
 // GET /api/dispatch - fetch dispatches, customers, subplates, scans (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
@@ -15,13 +15,14 @@ export async function GET(req: NextRequest) {
     const limit = Number(searchParams.get("limit") || "100");
 
     // 1. Fetch dispatch headers and cached customers concurrently
-    const [dRes, customers] = await Promise.all([
+    const [dRes, customers, vendors] = await Promise.all([
       supabaseAdmin
         .from("dispatch")
         .select("*")
         .order("id", { ascending: false })
         .limit(limit),
       getCachedCustomers(),
+      getCachedVendors(),
     ]);
 
     if (dRes.error) {
@@ -44,6 +45,7 @@ export async function GET(req: NextRequest) {
       items = itemsRes.data || [];
     }
     const custMap = new Map((customers || []).map((c: any) => [c.id, c.customername]));
+    const vendMap = new Map((vendors || []).map((v: any) => [v.id, v.vendor_name]));
 
     // Query ONLY subplates referenced by the fetched items
     const itemPlateIds = Array.from(new Set(items.map((it) => it.plateid).filter(Boolean)));
@@ -69,7 +71,7 @@ export async function GET(req: NextRequest) {
       return {
         ...d,
         customername: custMap.get(d.customerid) || `Customer #${d.customerid}`,
-        transportername: custMap.get(d.vendortid) || `Transporter #${d.vendortid}`,
+        transportername: vendMap.get(d.vendortid) || `Transporter #${d.vendortid}`,
         items: dItems,
       };
     });

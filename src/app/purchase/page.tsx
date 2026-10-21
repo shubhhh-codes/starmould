@@ -41,6 +41,8 @@ import {
     useCreatePurchaseMutation,
     useDeletePurchaseMutation,
     useSubplatesByProjectQuery,
+    useCustomerDropdownQuery,
+    useVendorDropdownQuery,
 } from "@/lib/query/hooks";
 
 function PurchasePageContent() {
@@ -52,6 +54,8 @@ function PurchasePageContent() {
         limit: 200,
         includePlates: true,
     });
+    const { data: vendorLookup = [] } = useVendorDropdownQuery("Supplier");
+    const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
     const createPurchaseMutation = useCreatePurchaseMutation();
     const deletePurchaseMutation = useDeletePurchaseMutation();
 
@@ -110,13 +114,12 @@ function PurchasePageContent() {
 
     // Filtered vendor and customer lists matching legacy query
     // Source: PurchaseController.php index() lines 27-33: usertype='Vendor', usertype='Customer'
-    const vendors = useMemo(
-        () => customers.filter((c) => c.usertype === "Vendor"),
-        [customers],
-    );
+    const vendors = useMemo(() => {
+        return (vendorLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name }));
+    }, [vendorLookup]);
     const clients = useMemo(
-        () => customers.filter((c) => c.usertype === "Customer"),
-        [customers],
+        () => (customerLookup.length > 0 ? customerLookup : customers).filter((c: any) => c.usertype === "Customer" || !c.usertype),
+        [customerLookup, customers],
     );
 
     // Available moulds for the selected customer in Add modal
@@ -210,6 +213,11 @@ function PurchasePageContent() {
         return found ? found.customername : `ID: ${id}`;
     };
 
+    const getVendorName = (id: number) => {
+        const found = (vendorLookup || []).find((v) => v.id === id);
+        return found ? found.vendor_name : `Vendor #${id}`;
+    };
+
     // Filtered PO records
     const filteredPurchases = useMemo(() => {
         return purchases.filter((p) => {
@@ -217,7 +225,7 @@ function PurchasePageContent() {
                 return false; // Soft deleted
             if (!searchQuery.trim()) return true;
             const q = searchQuery.toLowerCase();
-            const vendorName = getCustomerName(p.vname).toLowerCase();
+            const vendorName = getVendorName(p.vname).toLowerCase();
             const clientName = getCustomerName(p.cname).toLowerCase();
             return (
                 p.srno.toLowerCase().includes(q) ||
@@ -466,7 +474,7 @@ function PurchasePageContent() {
         const rows = filteredPurchases.map((p) => [
             `"${p.srno}"`,
             `"${p.odate}"`,
-            `"${getCustomerName(p.vname).replace(/"/g, '""')}"`,
+            `"${getVendorName(p.vname).replace(/"/g, '""')}"`,
             `"${getCustomerName(p.cname).replace(/"/g, '""')}"`,
             `"${p.projectid}"`,
             `"${p.created_by}"`,
@@ -696,7 +704,7 @@ function PurchasePageContent() {
                                             const isExpanded = Boolean(
                                                 expandedRows[po.id],
                                             );
-                                            const vendorName = getCustomerName(
+                                            const vendorName = getVendorName(
                                                 po.vname,
                                             );
                                             const clientName = getCustomerName(
@@ -957,7 +965,7 @@ function PurchasePageContent() {
                                     const isExpanded = Boolean(
                                         expandedRows[po.id],
                                     );
-                                    const vendorName = getCustomerName(
+                                    const vendorName = getVendorName(
                                         po.vname,
                                     );
                                     const clientName = getCustomerName(

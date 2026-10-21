@@ -40,8 +40,8 @@ export async function GET(req: NextRequest) {
       const [vendorRes, custRes, itemsRes] = await Promise.all([
         challan.vendorid
           ? supabaseAdmin
-              .from("customers")
-              .select("id, customername, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
+              .from("vendors")
+              .select("id, vendor_name, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
               .eq("id", challan.vendorid)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
           .eq("challanid", challan.id),
       ]);
 
-      const vendor = vendorRes.data;
+      const vendor = vendorRes.data ? { ...vendorRes.data, customername: vendorRes.data.vendor_name } : null;
       const customer = custRes.data;
       const items = itemsRes.data || [];
 
@@ -106,8 +106,8 @@ export async function GET(req: NextRequest) {
       const [vendorRes, itemsRes] = await Promise.all([
         inward.vendorid
           ? supabaseAdmin
-              .from("customers")
-              .select("id, customername, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
+              .from("vendors")
+              .select("id, vendor_name, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
               .eq("id", inward.vendorid)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -148,8 +148,8 @@ export async function GET(req: NextRequest) {
       const [vendorRes, itemsRes] = await Promise.all([
         purchase.vname
           ? supabaseAdmin
-              .from("customers")
-              .select("id, customername, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
+              .from("vendors")
+              .select("id, vendor_name, mobile, mobile1, address, email, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code")
               .eq("id", purchase.vname)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -197,8 +197,8 @@ export async function GET(req: NextRequest) {
           : Promise.resolve({ data: null }),
         dispatch.vendortid
           ? supabaseAdmin
-              .from("customers")
-              .select("id, customername")
+              .from("vendors")
+              .select("id, vendor_name")
               .eq("id", dispatch.vendortid)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -217,7 +217,7 @@ export async function GET(req: NextRequest) {
         docNumber: dispatch.challanno,
         docDate: dispatch.chdate,
         party: customer,
-        transporter: transporter?.customername || "",
+        transporter: transporter?.vendor_name || "",
         invoiceNo: dispatch.invoiceno,
         vehicleNo: dispatch.vehicleno,
         deliveryType: dispatch.deliverytype,

@@ -43,6 +43,7 @@ import {
   useDeleteChallanMutation,
   useSubplatesByProjectQuery,
   useCustomerDropdownQuery,
+  useVendorDropdownQuery,
   useProjectsQuery,
 } from "@/lib/query/hooks";
 
@@ -52,7 +53,9 @@ function ChallanPageContent() {
 
   const isRestoring = useIsRestoring();
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useChallansQuery();
-  const { data: customerLookup = [] } = useCustomerDropdownQuery();
+  const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
+  const { data: supplierLookup = [] } = useVendorDropdownQuery("Supplier");
+  const { data: transporterLookup = [] } = useVendorDropdownQuery("Transporter");
   const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
   const createChallanMutation = useCreateChallanMutation();
   const deleteChallanMutation = useDeleteChallanMutation();
@@ -111,10 +114,10 @@ function ChallanPageContent() {
 
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Filtered dropdown lists strictly based on legacy usertype
-  const vendors = useMemo(() => customers.filter((c: Customer) => c.usertype === "Vendor"), [customers]);
-  const customersList = useMemo(() => customers.filter((c: Customer) => c.usertype === "Customer"), [customers]);
-  const transporters = useMemo(() => customers.filter((c: Customer) => c.usertype === "Transport"), [customers]);
+  // Explicitly separate vendors, transporters, and customers by table
+  const vendors = useMemo(() => (supplierLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })), [supplierLookup]);
+  const transporters = useMemo(() => (transporterLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })), [transporterLookup]);
+  const customersList = useMemo(() => (customerLookup || []).filter((c: any) => c.usertype === "Customer" || !c.usertype), [customerLookup]);
 
   // Mould projects for selected customer (Source: challan/index.blade.php getproject())
   const availableProjects = useMemo(() => {

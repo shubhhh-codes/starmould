@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedScansLookup, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, getCachedScansLookup, invalidateCache } from "@/lib/cache";
 
 // GET /api/purchases - fetch POs with items and pending subplates (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -29,9 +29,10 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Batch fetch recent purchases and subplates concurrently, using cached customers & scans
-    const [posRes, customers, scans, subplatesRes] = await Promise.all([
+    const [posRes, customers, vendors, scans, subplatesRes] = await Promise.all([
       poQuery,
       getCachedCustomers(),
+      getCachedVendors(),
       getCachedScansLookup(),
       includePlates
         ? supabaseAdmin
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
     const plates = subplatesRes.data || [];
 
     const custMap = new Map(customers.map((c) => [c.id, c.customername]));
+    const vendMap = new Map((vendors || []).map((v) => [v.id, v.vendor_name]));
     const plateMap = new Map(plates.map((p) => [p.id, p.platename]));
 
     const pids = pos.map((p) => p.id);
@@ -79,7 +81,7 @@ export async function GET(req: NextRequest) {
 
       return {
         ...po,
-        vendorname: custMap.get(po.vname) || `Vendor #${po.vname}`,
+        vendorname: vendMap.get(po.vname) || `Vendor #${po.vname}`,
         customername: custMap.get(po.cname) || `Customer #${po.cname}`,
         items: poItems,
       };
@@ -101,6 +103,7 @@ export async function GET(req: NextRequest) {
         hasPreviousPage: currentPage > 1,
       },
       customers: customers,
+      vendors: vendors,
       subplates: plates,
       scans: scans,
     });

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors } from "@/lib/cache";
 
 // GET /api/purchase-inward - fetch open pending items directly from view_po_pending_inward_qty (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Concurrently query pending inward qty view, recent po_inward receipts, and cached customers
-    const [viewRes, receiptsRes, customers] = await Promise.all([
+    const [viewRes, receiptsRes, customers, vendors] = await Promise.all([
       supabaseAdmin
         .from("view_po_pending_inward_qty")
         .select("*")
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
         .order("id", { ascending: false })
         .limit(50),
       getCachedCustomers(),
+      getCachedVendors(),
     ]);
 
     if (viewRes.error) {
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
     }
 
     const custMap = new Map((customers || []).map((c) => [c.id, c.customername]));
+    const vendMap = new Map((vendors || []).map((v) => [v.id, v.vendor_name]));
     const inPlateMap = new Map(inSubplates.map((sp) => [sp.id, sp.platename]));
 
     const enrichedReceipts = receipts.map((r) => {
@@ -67,7 +69,7 @@ export async function GET(req: NextRequest) {
 
       return {
         ...r,
-        vendorname: custMap.get(r.vname) || `Vendor #${r.vname}`,
+        vendorname: vendMap.get(r.vname) || `Vendor #${r.vname}`,
         customername: custMap.get(r.cname) || `Customer #${r.cname}`,
         items,
       };

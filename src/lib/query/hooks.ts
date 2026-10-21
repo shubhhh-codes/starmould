@@ -8,6 +8,7 @@ import type {
   ScanProject,
   Subplate,
   Customer,
+  Vendor,
   User,
   PurchaseOrder,
   Challan,
@@ -454,13 +455,14 @@ export function useCustomersQuery(params: { usertype?: string; search?: string; 
   });
 }
 
-// Global Shared Dropdown hook for Customers/Vendors (Tier A caching)
-export function useCustomerDropdownQuery(usertype?: string) {
+// Global Customer Dropdown hook (Strictly customers only)
+export function useCustomerDropdownQuery(usertype: string = "Customer") {
   return useQuery({
     queryKey: queryKeys.customers.dropdown(usertype),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
-      if (usertype && usertype !== "ALL") searchParams.set("usertype", usertype);
+      searchParams.set("limit", "2000");
+      searchParams.set("usertype", usertype);
       const data = await fetchJson<any>(`/api/customers?${searchParams.toString()}`);
       return (data.customers || data.data || []) as Customer[];
     },
@@ -509,6 +511,97 @@ export function useDeleteCustomerMutation() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+    },
+  });
+}
+
+
+/* =========================================================================
+   3b. VENDOR & TRANSPORTER QUERIES & MUTATIONS
+   ========================================================================= */
+
+export function useVendorsQuery(params: { vendor_type?: string; search?: string; page?: number; pageSize?: number } = {}) {
+  return useQuery({
+    queryKey: queryKeys.vendors.list(params),
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      if (params.vendor_type && params.vendor_type !== "All" && params.vendor_type !== "ALL") {
+        searchParams.set("vendor_type", params.vendor_type);
+      }
+      if (params.search) searchParams.set("search", params.search);
+      if (params.page) searchParams.set("page", String(params.page));
+      if (params.pageSize) searchParams.set("limit", String(params.pageSize));
+
+      const qs = searchParams.toString();
+      const data = await fetchJson<any>(`/api/vendors${qs ? `?${qs}` : ""}`);
+      return {
+        vendors: (data.vendors || data.data || []) as Vendor[],
+        pagination: data.pagination,
+      };
+    },
+    staleTime: CACHE_TIERS.MODERATE.staleTime,
+    gcTime: CACHE_TIERS.MODERATE.gcTime,
+  });
+}
+
+export function useVendorDropdownQuery(vendor_type?: string) {
+  return useQuery({
+    queryKey: queryKeys.vendors.dropdown(vendor_type),
+    queryFn: async () => {
+      const searchParams = new URLSearchParams();
+      searchParams.set("limit", "2000");
+      if (vendor_type && vendor_type !== "ALL" && vendor_type !== "All") {
+        searchParams.set("vendor_type", vendor_type);
+      }
+      const data = await fetchJson<any>(`/api/vendors?${searchParams.toString()}`);
+      return (data.vendors || data.data || []) as Vendor[];
+    },
+    staleTime: CACHE_TIERS.STABLE.staleTime,
+    gcTime: CACHE_TIERS.STABLE.gcTime,
+  });
+}
+
+export function useCreateVendorMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: any) =>
+      fetchJson<any>("/api/vendors", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.vendors.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+    },
+  });
+}
+
+export function useUpdateVendorMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: any) =>
+      fetchJson<any>("/api/vendors", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.vendors.all() });
+    },
+  });
+}
+
+export function useDeleteVendorMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      fetchJson<any>(`/api/vendors?id=${id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.vendors.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
   });

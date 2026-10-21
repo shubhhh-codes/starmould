@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
 
 // GET /api/challan - Fetch outward challans, child items, pending return status from view_pending_inward_qty, and lookups
 export async function GET(req: NextRequest) {
@@ -33,9 +33,10 @@ export async function GET(req: NextRequest) {
 
     const challanIds = (challans || []).map((c) => c.id);
 
-    // 2. Fetch Customers, Challan Items, Pending Qtys, and KPI in PARALLEL
-    const [customers, itemsRes, pendingRowsRes, kpiRes] = await Promise.all([
+    // 2. Fetch Customers, Vendors, Challan Items, Pending Qtys, and KPI in PARALLEL
+    const [customers, vendors, itemsRes, pendingRowsRes, kpiRes] = await Promise.all([
       getCachedCustomers(),
+      getCachedVendors(),
       challanIds.length > 0
         ? supabaseAdmin
             .from("challan_items")
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
+    const vendMap = new Map((vendors || []).map((v: any) => [v.id, v]));
     const rawItems = itemsRes.data || [];
 
     // Query ONLY specific subplates referenced by the fetched challan items
@@ -85,8 +87,8 @@ export async function GET(req: NextRequest) {
 
     const enriched = (challans || []).map((c) => {
       const cust = custMap.get(c.customerid);
-      const vendor = custMap.get(c.vendorid);
-      const transporter = custMap.get(c.vendortid);
+      const vendor = vendMap.get(c.vendorid);
+      const transporter = vendMap.get(c.vendortid);
       const cItems = itemsMap[c.id] || [];
       const pendingInfo = pendingMap[c.id] || { inward_qty: 0, pending_qty: 0 };
 
@@ -103,8 +105,8 @@ export async function GET(req: NextRequest) {
       return {
         ...c,
         customername: cust?.customername || `Customer #${c.customerid}`,
-        vendorname: vendor?.customername || `Vendor #${c.vendorid}`,
-        transportername: transporter?.customername || `Transporter #${c.vendortid}`,
+        vendorname: vendor?.vendor_name || `Vendor #${c.vendorid}`,
+        transportername: transporter?.vendor_name || `Transporter #${c.vendortid}`,
         items: enrichedItems,
         total_qty: enrichedItems.reduce((sum, it) => sum + Number(it.qty || 0), 0),
         inward_qty: pendingInfo.inward_qty,

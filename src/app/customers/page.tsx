@@ -921,18 +921,10 @@ function CustomerPageContent() {
                     onClose={() => setIsModalOpen(false)}
                     title={
                         modalMode === "add"
-                            ? formData.usertype === "Customer"
-                                ? "Add New Customer (Admin Only)"
-                                : "Add New Vendor / Logistics Partner"
-                            : formData.usertype === "Customer"
-                              ? "Edit Customer Profile (Admin Only)"
-                              : "Edit Partner Profile"
+                            ? "Add New Customer (Admin Only)"
+                            : "Edit Customer Profile (Admin Only)"
                     }
-                    description={
-                        formData.usertype === "Customer"
-                            ? "Configure customer organization profile, billing contact, and master initials"
-                            : "Register suppliers, transport logistics providers, or external workshop services"
-                    }
+                    description="Configure customer organization profile, billing contact, and master initials"
                     size="lg"
                 >
                     <form
@@ -1108,49 +1100,10 @@ function CustomerPageContent() {
                                     </span>
                                 ) : null}
                             </div>
-                            {isCustomerMode ? (
-                                <div className="flex items-center gap-2.5 p-3 rounded-lg border bg-blue-50/70 border-blue-200 text-blue-900 text-xs font-semibold">
-                                    <Building2 className="w-4 h-4 text-blue-600" />
-                                    <span>Client Customer (Mould Owner / Billing Entity)</span>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-3 gap-2">
-                                    {(["Vendor", "Transport", "Other"] as UsertypeOption[]).map((type) => {
-                                        const isChecked = formData.usertype === type;
-                                        const isEditDisabled = modalMode === "edit";
-                                        return (
-                                            <label
-                                                key={type}
-                                                className={`flex items-center gap-2 p-2.5 rounded-lg border transition text-xs ${
-                                                    isEditDisabled
-                                                        ? isChecked
-                                                            ? "bg-slate-100 border-slate-300 text-slate-700 font-semibold cursor-not-allowed"
-                                                            : "opacity-40 cursor-not-allowed bg-slate-50 border-slate-200 text-slate-400"
-                                                        : isChecked
-                                                        ? "bg-blue-50 border-blue-500 text-blue-800 font-semibold cursor-pointer"
-                                                        : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
-                                                }`}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="usertype"
-                                                    value={type}
-                                                    disabled={isEditDisabled}
-                                                    checked={isChecked}
-                                                    onChange={() =>
-                                                        setFormData((p) => ({
-                                                            ...p,
-                                                            usertype: type,
-                                                        }))
-                                                    }
-                                                    className="text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-                                                />
-                                                <span>{type}</span>
-                                            </label>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                            <div className="flex items-center gap-2.5 p-3 rounded-lg border bg-blue-50/70 border-blue-200 text-blue-900 text-xs font-semibold">
+                                <Building2 className="w-4 h-4 text-blue-600" />
+                                <span>Client Customer (Mould Owner / Billing Entity)</span>
+                            </div>
                         </div>
 
                         {/* Modal Footer */}

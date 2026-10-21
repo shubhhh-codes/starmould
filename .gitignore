@@ -25,7 +25,13 @@ next-env.d.ts
 # Database dumps and archives
 *.sql
 !supabase/migrations/*.sql
+!src/data/migrations/*.sql
+!scripts/rollback_to_single_table.sql
 *.zip
+
+# Temporary scripts & data backups containing sensitive credentials/snapshots
+scripts/backups/
+scripts/_tmp_phase_helpers/
 
 # Deployment
 .vercel
@@ -47,5 +53,6 @@ yarn-error.log*
 # AI Agent Workspaces
 .agents/
 
-# Reference legacy project
+# Reference legacy project (both spellings)
+refrence/
 reference/

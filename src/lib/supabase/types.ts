@@ -25,6 +25,30 @@ export interface UserProfile {
 
 export type User = UserProfile;
 
+
+export interface Vendor {
+  id: number;
+  vendor_name: string;
+  initials?: string | null;
+  vendor_code?: string | null;
+  vendor_type: 'Supplier' | 'Transporter';
+  city?: string | null;
+  gstin?: string | null;
+  pan?: string | null;
+  bank_name?: string | null;
+  account_no?: string | null;
+  ifsc_code?: string | null;
+  status_of_beneficiary?: string | null;
+  contact_person?: string | null;
+  mobile?: string | null;
+  mobile1?: string | null;
+  email?: string | null;
+  address?: string | null;
+  deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Customer {
   id: number;
   customername: string;

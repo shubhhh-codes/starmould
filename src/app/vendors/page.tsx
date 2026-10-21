@@ -28,17 +28,17 @@ import {
     CreditCard,
     FileText,
 } from "lucide-react";
-import type { Customer } from "@/lib/supabase/types";
+import type { Customer, Vendor } from "@/lib/supabase/types";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
 import {
-    useCustomersQuery,
-    useCreateCustomerMutation,
-    useUpdateCustomerMutation,
-    useDeleteCustomerMutation,
+    useVendorsQuery,
+    useCreateVendorMutation,
+    useUpdateVendorMutation,
+    useDeleteVendorMutation,
 } from "@/lib/query/hooks";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -111,19 +111,32 @@ function CustomerPageContent() {
         }
     }, [searchParams, urlSearch]);
 
-    // TanStack Query hooks: fetch all records so category counts are accurate across all tabs
-    const customersQuery = useCustomersQuery({
+    // TanStack Query hooks: fetch all vendor records from public.vendors
+    const vendorsQuery = useVendorsQuery({
         pageSize: 2000,
     });
 
-    const createCustomerMutation = useCreateCustomerMutation();
-    const updateCustomerMutation = useUpdateCustomerMutation();
-    const deleteCustomerMutation = useDeleteCustomerMutation();
+    const createVendorMutation = useCreateVendorMutation();
+    const updateVendorMutation = useUpdateVendorMutation();
+    const deleteVendorMutation = useDeleteVendorMutation();
 
     const isRestoring = useIsRestoring();
-    const customers = customersQuery.data?.customers || [];
-    const hasLoadedData = customers.length > 0 || (!!customersQuery.data && !customersQuery.isLoading);
-    const isLoading = isRestoring || (!hasLoadedData && customersQuery.isLoading);
+    const rawVendors = vendorsQuery.data?.vendors || [];
+    type VendorRow = Vendor & { customername: string; usertype: UsertypeOption };
+    const customers = useMemo<VendorRow[]>(() => {
+        return (rawVendors as Vendor[]).map((v: Vendor) => ({
+            ...v,
+            customername: v.vendor_name,
+            mobile: v.mobile || null,
+            mobile1: v.mobile1 || null,
+            email: v.email || null,
+            address: v.address || null,
+            initials: v.initials || "",
+            usertype: (v.vendor_type === "Transporter" ? "Transport" : "Vendor") as UsertypeOption,
+        }));
+    }, [rawVendors]);
+    const hasLoadedData = customers.length > 0 || (!!vendorsQuery.data && !vendorsQuery.isLoading);
+    const isLoading = isRestoring || (!hasLoadedData && vendorsQuery.isLoading);
 
     const showNotification = useCallback(
         (type: "success" | "error", message: string) => {
@@ -138,15 +151,13 @@ function CustomerPageContent() {
     );
 
     const fetchCustomers = () => {
-        customersQuery.refetch();
+        vendorsQuery.refetch();
     };
 
     // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalMode, setModalMode] = useState<"add" | "edit">("add");
-    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-        null,
-    );
+    const [selectedCustomer, setSelectedCustomer] = useState<any | null>(null);
 
     // Form states
     const [formData, setFormData] = useState<{
@@ -189,7 +200,7 @@ function CustomerPageContent() {
     const [nameError, setNameError] = useState<string | null>(null);
 
     // Delete modal state
-    const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
     // Filter and search
@@ -295,7 +306,7 @@ function CustomerPageContent() {
     };
 
     // Handle open Edit modal
-    const handleOpenEdit = (customer: Customer) => {
+    const handleOpenEdit = (customer: any) => {
         if (!isAdmin && customer.usertype === "Customer") {
             showNotification(
                 "error",
@@ -393,7 +404,11 @@ function CustomerPageContent() {
             setIsSubmitting(true);
             if (modalMode === "add") {
                 const result =
-                    await createCustomerMutation.mutateAsync(formData);
+                    await createVendorMutation.mutateAsync({
+                    ...formData,
+                    vendor_name: formData.customername,
+                    vendor_type: formData.usertype === "Transport" ? "Transporter" : "Supplier",
+                });
                 showNotification(
                     "success",
                     `${formData.usertype} "${result.customer?.customername || formData.customername}" added successfully.`,
@@ -401,7 +416,11 @@ function CustomerPageContent() {
                 setIsModalOpen(false);
             } else if (modalMode === "edit" && selectedCustomer) {
                 const result =
-                    await updateCustomerMutation.mutateAsync(formData);
+                    await updateVendorMutation.mutateAsync({
+                    ...formData,
+                    vendor_name: formData.customername,
+                    vendor_type: formData.usertype === "Transport" ? "Transporter" : "Supplier",
+                });
                 showNotification(
                     "success",
                     `${formData.usertype} "${result.customer?.customername || formData.customername}" updated successfully.`,
@@ -430,7 +449,7 @@ function CustomerPageContent() {
         }
         try {
             setIsDeleting(true);
-            await deleteCustomerMutation.mutateAsync(deleteTarget.id);
+            await deleteVendorMutation.mutateAsync(deleteTarget.id);
             showNotification(
                 "success",
                 `${deleteTarget.usertype || "Record"} "${deleteTarget.customername}" deleted successfully.`,

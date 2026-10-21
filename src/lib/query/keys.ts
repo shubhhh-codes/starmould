@@ -34,6 +34,12 @@ export const queryKeys = {
     list: (params?: Record<string, any>) => ["customers", "list", params ?? {}] as const,
     dropdown: (usertype?: string) => ["customers", "dropdown", usertype || "ALL"] as const,
   },
+  vendors: {
+    all: () => ["vendors"] as const,
+    lists: () => ["vendors", "list"] as const,
+    list: (params?: Record<string, any>) => ["vendors", "list", params ?? {}] as const,
+    dropdown: (vendor_type?: string) => ["vendors", "dropdown", vendor_type || "ALL"] as const,
+  },
   users: {
     all: () => ["users"] as const,
     lists: () => ["users", "list"] as const,

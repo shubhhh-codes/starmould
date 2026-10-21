@@ -39,6 +39,7 @@ import {
   useCreateDispatchMutation,
   useDeleteDispatchMutation,
   useCustomerDropdownQuery,
+  useVendorDropdownQuery,
   useProjectsQuery,
   useSubplatesByProjectQuery,
 } from "@/lib/query/hooks";
@@ -46,7 +47,8 @@ import {
 export default function DispatchPage() {
   const isRestoring = useIsRestoring();
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
-  const { data: customerLookup = [] } = useCustomerDropdownQuery();
+  const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
+  const { data: transporterLookup = [] } = useVendorDropdownQuery("Transporter");
   const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
   const [modalForm, setModalForm] = useState<{
     chdate: string;
@@ -105,7 +107,7 @@ export default function DispatchPage() {
 
   // Filtered dropdown lists strictly based on legacy usertype
   const customersList = useMemo(() => customers.filter((c) => c.usertype === "Customer"), [customers]);
-  const transporters = useMemo(() => customers.filter((c) => c.usertype === "Transport"), [customers]);
+  const transporters = useMemo(() => (transporterLookup || []).map((t: any) => ({ id: t.id, customername: t.vendor_name, initials: t.initials })), [transporterLookup]);
 
   // Mould projects for selected customer
   const availableProjects = useMemo(() => {

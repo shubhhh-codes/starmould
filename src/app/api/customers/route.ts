@@ -167,7 +167,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Usertype is required" }, { status: 400 });
     }
 
-    // RBAC: Only Admin (role_id === 0) can create 'Customer'. Other roles (Manager, etc.) can only create 'Vendor', 'Transport', 'Other'.
+    if (usertype === "Vendor" || usertype === "Transport") {
+      return NextResponse.json(
+        { error: "Invalid account type: Vendor and Transporter registrations must use /api/vendors." },
+        { status: 400 }
+      );
+    }
+
+    // RBAC: Only Admin (role_id === 0) can create 'Customer'. Other roles (Manager, etc.) can only create 'Other'.
     if (usertype === "Customer" && auth.user.role_id !== 0) {
       return NextResponse.json(
         { error: "Access Denied: Only Administrators are authorized to create Customer records. Other roles may only register Vendors, Transporters, or Other entities." },

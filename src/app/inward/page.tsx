@@ -38,6 +38,7 @@ import {
     useCreateInwardMutation,
     useDeleteInwardMutation,
     useCustomerDropdownQuery,
+    useVendorDropdownQuery,
 } from "@/lib/query/hooks";
 import { useIsRestoring } from "@tanstack/react-query";
 
@@ -49,7 +50,9 @@ export default function InwardPage() {
         error: fetchQueryError,
         refetch,
     } = useInwardQuery();
-    const { data: customerLookup = [] } = useCustomerDropdownQuery();
+    const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
+    const { data: supplierLookup = [] } = useVendorDropdownQuery("Supplier");
+    const { data: transporterLookup = [] } = useVendorDropdownQuery("Transporter");
     const createInwardMutation = useCreateInwardMutation();
     const deleteInwardMutation = useDeleteInwardMutation();
 
@@ -100,18 +103,18 @@ export default function InwardPage() {
 
     const [formError, setFormError] = useState<string | null>(null);
 
-    // Filtered dropdown lists strictly based on legacy usertype
+    // Explicitly separate vendors, transporters, and customers by table
     const vendors = useMemo(
-        () => customers.filter((c: Customer) => c.usertype === "Vendor"),
-        [customers],
+        () => (supplierLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })),
+        [supplierLookup],
     );
     const customersList = useMemo(
-        () => customers.filter((c: Customer) => c.usertype === "Customer"),
-        [customers],
+        () => (customerLookup || []).filter((c: any) => c.usertype === "Customer" || !c.usertype),
+        [customerLookup],
     );
     const transporters = useMemo(
-        () => customers.filter((c: Customer) => c.usertype === "Transport"),
-        [customers],
+        () => (transporterLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })),
+        [transporterLookup],
     );
 
     // Outward challans for selected vendor with pending inward items
