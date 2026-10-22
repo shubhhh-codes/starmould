@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Layers,
   Scan,
-  Printer,
   ShoppingCart,
   PackagePlus,
   ArrowUpRight,
@@ -15,13 +14,11 @@ import {
   ArrowDownLeft,
   Briefcase,
   Receipt,
-  Scale,
   ShieldCheck,
   BarChart3,
   FileDown,
   ChevronRight,
   Factory,
-  RotateCcw,
   LogOut,
   User as UserIcon,
   X,
@@ -76,13 +73,6 @@ export const navigationItems: NavItem[] = [
     permKey: "nav_scanning",
   },
   {
-    title: "Printing (Dispatch)",
-    href: "/printing",
-    icon: Printer,
-    allowedRoles: [0, 1, 2],
-    permKey: "nav_printing",
-  },
-  {
     title: "Purchase Order",
     href: "/purchase",
     icon: ShoppingCart,
@@ -125,25 +115,11 @@ export const navigationItems: NavItem[] = [
     permKey: "nav_work",
   },
   {
-    title: "Sample / Rework",
-    href: "/sample",
-    icon: RotateCcw,
-    allowedRoles: [0, 1, 2, 3],
-    permKey: "nav_sample",
-  },
-  {
     title: "Expense & Finance",
     href: "/expense",
     icon: Receipt,
     allowedRoles: [0, 1],
     permKey: "nav_expense",
-  },
-  {
-    title: "Gram Master",
-    href: "/gram",
-    icon: Scale,
-    allowedRoles: [0, 1],
-    permKey: "nav_gram",
   },
   {
     title: "User Management",
@@ -340,7 +316,7 @@ export function Sidebar({
         </div>
 
         {/* Navigation Links Scrollable Area */}
-        <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1 sidebar-nav-scroll">
           <div className="px-2 pb-2 flex items-center justify-between">
             {(!collapsed || mobileOpen) && (
               <>

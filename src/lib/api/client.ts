@@ -8,8 +8,6 @@ import type {
   Dispatch,
   Inward,
   Expense,
-  PrintProject,
-  GramCalc,
 } from "@/lib/supabase/types";
 
 export interface PaginationParams {
@@ -215,30 +213,6 @@ class ApiClient {
           .map(([k, v]) => [k, String(v)])
       )}` : "";
       return this.request<PaginatedResult<Inward>>(`/inward${query}`);
-    },
-  };
-
-  // --- Gram Calculator ---
-  public gram = {
-    list: (params?: Record<string, string | number | boolean | undefined>) => {
-      const query = params ? `?${new URLSearchParams(
-        Object.entries(params)
-          .filter(([_, v]) => v !== undefined)
-          .map(([k, v]) => [k, String(v)])
-      )}` : "";
-      return this.request<PaginatedResult<GramCalc>>(`/gram${query}`);
-    },
-  };
-
-  // --- Printing ---
-  public printing = {
-    list: (params?: Record<string, string | number | boolean | undefined>) => {
-      const query = params ? `?${new URLSearchParams(
-        Object.entries(params)
-          .filter(([_, v]) => v !== undefined)
-          .map(([k, v]) => [k, String(v)])
-      )}` : "";
-      return this.request<PaginatedResult<PrintProject>>(`/printing${query}`);
     },
   };
 }

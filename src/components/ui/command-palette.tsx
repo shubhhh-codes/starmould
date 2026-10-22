@@ -17,8 +17,6 @@ import {
   Command,
   ArrowRight,
   Loader2,
-  Printer,
-  Sparkles,
   ExternalLink,
   Shield,
   Compass,
@@ -61,14 +59,6 @@ const DEFAULT_NAV_COMMANDS: CommandItem[] = [
     category: "Navigation",
     icon: Scan,
     href: "/scanning",
-  },
-  {
-    id: "nav-printing",
-    title: "3D Printing Studio",
-    subtitle: "Gram pricing calculation & print queue",
-    category: "Navigation",
-    icon: Printer,
-    href: "/printing",
   },
   {
     id: "nav-purchase",
@@ -117,14 +107,6 @@ const DEFAULT_NAV_COMMANDS: CommandItem[] = [
     category: "Navigation",
     icon: Truck,
     href: "/vendors",
-  },
-  {
-    id: "nav-sample",
-    title: "Sample & Rework Orders",
-    subtitle: "Manage sample prototypes and rework cycles",
-    category: "Navigation",
-    icon: Sparkles,
-    href: "/sample",
   },
   {
     id: "nav-expense",
@@ -216,8 +198,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
             ? ShoppingCart
             : r.category === "Challans"
             ? ArrowUpRight
-            : r.category === "3D Printing"
-            ? Printer
             : Search,
       }));
       setLiveResults(results);

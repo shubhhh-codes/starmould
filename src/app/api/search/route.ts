@@ -38,7 +38,6 @@ export async function GET(req: NextRequest) {
       custRes,
       purchaseRes,
       challanRes,
-      printRes,
     ] = await Promise.allSettled([
       // 1. Search Scan / Mould Projects (Orders)
       (async () => {
@@ -104,20 +103,6 @@ export async function GET(req: NextRequest) {
         }
         return query.limit(6);
       })(),
-
-      // 6. Search 3D Printing
-      (async () => {
-        let query = supabaseAdmin
-          .from("print")
-          .select("id, projectid, cname, description, status, tdate");
-
-        if (isNum) {
-          query = query.or(`id.eq.${num},projectid.ilike.${term},description.ilike.${term}`);
-        } else {
-          query = query.or(`projectid.ilike.${term},description.ilike.${term}`);
-        }
-        return query.limit(6);
-      })(),
     ]);
 
     const scans = scanRes.status === "fulfilled" ? scanRes.value.data || [] : [];
@@ -125,7 +110,6 @@ export async function GET(req: NextRequest) {
     const customers = custRes.status === "fulfilled" ? custRes.value.data || [] : [];
     const purchases = purchaseRes.status === "fulfilled" ? purchaseRes.value.data || [] : [];
     const challans = challanRes.status === "fulfilled" ? challanRes.value.data || [] : [];
-    const prints = printRes.status === "fulfilled" ? printRes.value.data || [] : [];
 
     // Fetch customer names for found scans
     const customerMap = new Map<number, string>();
@@ -212,18 +196,6 @@ export async function GET(req: NextRequest) {
         category: "Challans",
         href: `/challan?search=${encodeURIComponent(ch.challanno || ch.projectid || String(ch.id))}&highlight=${ch.id}`,
         meta: "Challan",
-      });
-    });
-
-    // Map 3D Printing
-    prints.forEach((pr) => {
-      results.push({
-        id: `pr-${pr.id}`,
-        title: pr.projectid || `3D Print Job #${pr.id}`,
-        subtitle: `${pr.description || "3D Printing"} · Date: ${pr.tdate || "—"} · Status: ${pr.status || "Pending"}`,
-        category: "3D Printing",
-        href: `/printing?search=${encodeURIComponent(pr.projectid || String(pr.id))}&highlight=${pr.id}`,
-        meta: "Print",
       });
     });
 

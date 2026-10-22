@@ -83,20 +83,6 @@ export const queryKeys = {
     lists: () => ["expenses", "list"] as const,
     list: (params?: Record<string, any>) => ["expenses", "list", params ?? {}] as const,
   },
-  samples: {
-    all: () => ["samples"] as const,
-    lists: () => ["samples", "list"] as const,
-    list: (params?: Record<string, any>) => ["samples", "list", params ?? {}] as const,
-  },
-  printing: {
-    all: () => ["printing"] as const,
-    lists: () => ["printing", "list"] as const,
-    list: (params?: Record<string, any>) => ["printing", "list", params ?? {}] as const,
-  },
-  grams: {
-    all: () => ["grams"] as const,
-    list: (params?: Record<string, any>) => ["grams", "list", params ?? {}] as const,
-  },
   reports: {
     all: () => ["reports"] as const,
     summary: (params?: Record<string, any>) => ["reports", "summary", params ?? {}] as const,

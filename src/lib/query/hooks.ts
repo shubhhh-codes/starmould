@@ -15,8 +15,6 @@ import type {
   Dispatch,
   Inward,
   Expense,
-  PrintProject,
-  GramCalc,
   PurchaseInwardReceipt,
   ViewPoPendingInwardQty,
 } from "@/lib/supabase/types";
@@ -1105,147 +1103,7 @@ export function useDeleteExpenseMutation() {
 }
 
 /* =========================================================================
-   12. SAMPLE & REWORK QUERIES & MUTATIONS
-   ========================================================================= */
-
-export function useSampleQuery() {
-  return useQuery({
-    queryKey: queryKeys.samples.list(),
-    queryFn: async () => {
-      const data = await fetchJson<any>("/api/sample");
-      return {
-        projects: (data.projects || []) as ScanProject[],
-        customers: (data.customers || []) as Customer[],
-        users: (data.users || []) as User[],
-      };
-    },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-    gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-  });
-}
-
-export function useCreateSampleMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: any) =>
-      fetchJson<any>("/api/sample", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-    },
-  });
-}
-
-export function useUpdateSampleMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: any) =>
-      fetchJson<any>("/api/sample", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-    },
-  });
-}
-
-export function useDeleteSampleMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) =>
-      fetchJson<any>(`/api/sample?id=${id}`, {
-        method: "DELETE",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.samples.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-    },
-  });
-}
-
-/* =========================================================================
-   13. 3D PRINTING QUERIES & MUTATIONS
-   ========================================================================= */
-
-export function usePrintingQuery() {
-  return useQuery({
-    queryKey: queryKeys.printing.list(),
-    queryFn: async () => {
-      const data = await fetchJson<any>("/api/printing");
-      return {
-        prints: (data.prints || []) as PrintProject[],
-        customers: (data.customers || []) as Customer[],
-        users: (data.users || []) as User[],
-        gramTiers: (data.gramTiers || []) as GramCalc[],
-        kpis: data.kpis || {
-          totalPrints: 0,
-          pendingPrints: 0,
-          dispatchedPrints: 0,
-          totalRevenue: 0,
-        },
-      };
-    },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-    gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-  });
-}
-
-export function useCreatePrintingMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: any) =>
-      fetchJson<any>("/api/printing", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-    },
-  });
-}
-
-export function useUpdatePrintingMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: any) =>
-      fetchJson<any>("/api/printing", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
-    },
-  });
-}
-
-export function useDeletePrintingMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) =>
-      fetchJson<any>(`/api/printing?id=${id}`, {
-        method: "DELETE",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-    },
-  });
-}
-
-/* =========================================================================
-   14. PURCHASE INWARD QUERIES & MUTATIONS
+   12. PURCHASE INWARD QUERIES & MUTATIONS
    ========================================================================= */
 
 export function usePurchaseInwardQuery() {
@@ -1300,69 +1158,7 @@ export function useDeletePurchaseInwardMutation() {
 }
 
 /* =========================================================================
-   15. GRAM TIERS QUERIES & MUTATIONS
-   ========================================================================= */
-
-export function useGramTiersQuery() {
-  return useQuery({
-    queryKey: queryKeys.grams.list(),
-    queryFn: async () => {
-      const data = await fetchJson<any>("/api/gram");
-      return (data.tiers || []) as GramCalc[];
-    },
-    staleTime: CACHE_TIERS.STABLE.staleTime,
-    gcTime: CACHE_TIERS.STABLE.gcTime,
-  });
-}
-
-export function useCreateGramMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { graterthan: number; lessthan: number; fix: number; multiply: number }) =>
-      fetchJson<any>("/api/gram", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.grams.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
-    },
-  });
-}
-
-export function useUpdateGramMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { id: number; graterthan: number; lessthan: number; fix: number; multiply: number }) =>
-      fetchJson<any>("/api/gram", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.grams.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
-    },
-  });
-}
-
-export function useDeleteGramMutation() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) =>
-      fetchJson<any>(`/api/gram?id=${id}`, {
-        method: "DELETE",
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.grams.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.printing.all() });
-    },
-  });
-}
-
-/* =========================================================================
-   16. REPORT METRICS QUERIES
+   13. REPORT METRICS QUERIES
    ========================================================================= */
 
 export interface ReportMetricsData {

@@ -208,44 +208,6 @@ export function useSmartPrefetch() {
     });
   }, [queryClient]);
 
-  const prefetchSample = useCallback(() => {
-    const key = queryKeys.samples.list();
-    if (queryClient.getQueryData(key)) return;
-
-    queryClient.prefetchQuery({
-      queryKey: key,
-      queryFn: async () => {
-        const data = await fetchJson<any>("/api/sample");
-        return {
-          projects: data.projects || [],
-          customers: data.customers || [],
-          users: data.users || [],
-        };
-      },
-      staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-    });
-  }, [queryClient]);
-
-  const prefetchPrinting = useCallback(() => {
-    const key = queryKeys.printing.list();
-    if (queryClient.getQueryData(key)) return;
-
-    queryClient.prefetchQuery({
-      queryKey: key,
-      queryFn: async () => {
-        const data = await fetchJson<any>("/api/printing");
-        return {
-          prints: data.prints || [],
-          customers: data.customers || [],
-          users: data.users || [],
-          gramTiers: data.gramTiers || [],
-          kpis: data.kpis || {},
-        };
-      },
-      staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-    });
-  }, [queryClient]);
-
   const prefetchUsers = useCallback(() => {
     const key = queryKeys.users.list({});
     if (queryClient.getQueryData(key)) return;
@@ -299,12 +261,6 @@ export function useSmartPrefetch() {
         case "/expense":
           prefetchExpenses();
           break;
-        case "/sample":
-          prefetchSample();
-          break;
-        case "/printing":
-          prefetchPrinting();
-          break;
         case "/user":
         case "/settings":
           prefetchUsers();
@@ -323,8 +279,6 @@ export function useSmartPrefetch() {
       prefetchDispatch,
       prefetchInward,
       prefetchExpenses,
-      prefetchSample,
-      prefetchPrinting,
       prefetchUsers,
     ]
   );
@@ -339,8 +293,6 @@ export function useSmartPrefetch() {
     prefetchDispatch,
     prefetchInward,
     prefetchExpenses,
-    prefetchSample,
-    prefetchPrinting,
     prefetchUsers,
     prefetchRoute,
   };
