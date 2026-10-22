@@ -157,6 +157,12 @@ export async function authenticateRequest(
     2: "Supervisor",
     3: "Designer",
     4: "Worker",
+    5: "Purchase Incharge",
+    6: "BMC Department",
+    7: "Quality Checking (QC)",
+    8: "Assembly",
+    9: "Dispatch",
+    10: "Programmer",
   };
 
   // Use fresh DB user record if available; otherwise fall back to cryptographically verified session token

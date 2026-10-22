@@ -5,7 +5,7 @@ import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cac
 
 // GET /api/dispatch - fetch dispatches, customers, subplates, scans (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2], "nav_dispatch");
+  const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_dispatch");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/dispatch - create dispatch challan and line items (Roles 0, 1, 2)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2], "nav_dispatch");
+  const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_dispatch");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/dispatch?id=123 - soft delete dispatch (Roles 0, 1, 2)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2], "nav_dispatch");
+  const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_dispatch");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

@@ -31,7 +31,7 @@ export interface NavItem {
   href: string;
   icon: React.ElementType;
   badge?: string;
-  allowedRoles: number[]; // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker
+  allowedRoles: number[]; // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker, 5: Purchase Incharge, 6: BMC, 7: QC, 8: Assembly, 9: Dispatch, 10: Programmer
   permKey?: string;
 }
 
@@ -40,7 +40,7 @@ export const navigationItems: NavItem[] = [
     title: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
-    allowedRoles: [0, 1, 2, 3, 4],
+    allowedRoles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     permKey: "nav_dashboard",
   },
   {
@@ -55,63 +55,63 @@ export const navigationItems: NavItem[] = [
     title: "Vendor / Transport",
     href: "/vendors",
     icon: Truck,
-    allowedRoles: [0, 1], // Admin and Manager
+    allowedRoles: [0, 1, 5, 9], // Admin, Manager, Purchase Incharge, Dispatch
     permKey: "nav_vendor_transport",
   },
   {
     title: "Subplate Master",
     href: "/subplate",
     icon: Layers,
-    allowedRoles: [0, 1, 2, 3],
+    allowedRoles: [0, 1, 2, 3, 6, 7, 8, 9, 10],
     permKey: "nav_subplate",
   },
   {
     title: "Add new mould",
     href: "/scanning",
     icon: Scan,
-    allowedRoles: [0, 1, 2, 3, 4],
+    allowedRoles: [0, 1, 2, 3, 4, 6, 7, 8, 9, 10],
     permKey: "nav_scanning",
   },
   {
     title: "Purchase Order",
     href: "/purchase",
     icon: ShoppingCart,
-    allowedRoles: [0, 1],
+    allowedRoles: [0, 1, 5],
     permKey: "nav_purchase",
   },
   {
     title: "Purchase Inward",
     href: "/purchase-inward",
     icon: PackagePlus,
-    allowedRoles: [0, 1],
+    allowedRoles: [0, 1, 5],
     permKey: "nav_purchase_inward",
   },
   {
     title: "Outward Jobwork",
     href: "/challan",
     icon: ArrowUpRight,
-    allowedRoles: [0, 1, 2],
+    allowedRoles: [0, 1, 2, 9],
     permKey: "nav_challan",
   },
   {
     title: "Dispatch (Final)",
     href: "/dispatch",
     icon: Truck,
-    allowedRoles: [0, 1, 2],
+    allowedRoles: [0, 1, 2, 9],
     permKey: "nav_dispatch",
   },
   {
     title: "Inward Jobwork",
     href: "/inward",
     icon: ArrowDownLeft,
-    allowedRoles: [0, 1, 2],
+    allowedRoles: [0, 1, 2, 5, 7, 9],
     permKey: "nav_inward",
   },
   {
     title: "Work / Worklog",
     href: "/work",
     icon: Briefcase,
-    allowedRoles: [0, 1, 2, 3, 4],
+    allowedRoles: [0, 1, 2, 3, 4, 6, 7, 8, 10],
     permKey: "nav_work",
   },
   {
@@ -140,14 +140,14 @@ export const navigationItems: NavItem[] = [
     title: "Reports & Downtime",
     href: "/report",
     icon: BarChart3,
-    allowedRoles: [0, 1, 2],
+    allowedRoles: [0, 1, 2, 5, 7, 9],
     permKey: "nav_reports",
   },
   {
     title: "Export Streams",
     href: "/export",
     icon: FileDown,
-    allowedRoles: [0, 1],
+    allowedRoles: [0, 1, 5, 9],
     permKey: "nav_export",
   },
 ];

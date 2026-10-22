@@ -214,7 +214,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/scanning - Create new Scanning project (matches ScanningController.php store)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_scanning");
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "action_create_scanning_project");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -310,7 +310,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/scanning - Update status, staff assignment, payment toggle, or metadata
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3], "nav_scanning");
+  const auth = await authenticateRequest(req, [0, 1, 2, 3], "action_create_scanning_project");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

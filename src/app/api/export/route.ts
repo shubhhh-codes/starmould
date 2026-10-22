@@ -38,7 +38,7 @@ function formatDate(d: any): string {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "nav_export");
+  const auth = await authenticateRequest(req, [0, 1, 5, 9], "nav_export");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

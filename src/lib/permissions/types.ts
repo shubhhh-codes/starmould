@@ -86,6 +86,78 @@ export const ERP_ROLES: RoleInfo[] = [
       badge: "bg-slate-900/80 text-slate-300 border-slate-700/80",
     },
   },
+  {
+    id: 5,
+    name: "purchase_incharge",
+    display_name: "Purchase Incharge",
+    description: "Raw material procurement, supplier orders, purchase inwards, and inventory receiving.",
+    color: {
+      bg: "bg-blue-500/10",
+      text: "text-blue-400",
+      border: "border-blue-500/30",
+      badge: "bg-blue-950/80 text-blue-300 border-blue-800/80",
+    },
+  },
+  {
+    id: 6,
+    name: "bmc",
+    display_name: "BMC Department",
+    description: "Machining floor, BMC/VMC work order execution, tool offsets, and program loading.",
+    color: {
+      bg: "bg-violet-500/10",
+      text: "text-violet-400",
+      border: "border-violet-500/30",
+      badge: "bg-violet-950/80 text-violet-300 border-violet-800/80",
+    },
+  },
+  {
+    id: 7,
+    name: "qc",
+    display_name: "Quality Checking (QC)",
+    description: "Inward inspection, in-process VMC dimension checks, and final dispatch QC sign-offs.",
+    color: {
+      bg: "bg-teal-500/10",
+      text: "text-teal-400",
+      border: "border-teal-500/30",
+      badge: "bg-teal-950/80 text-teal-300 border-teal-800/80",
+    },
+  },
+  {
+    id: 8,
+    name: "assembly",
+    display_name: "Assembly",
+    description: "Fitting, drilling and tapping, guide pillar installation, and mould die assembly.",
+    color: {
+      bg: "bg-purple-500/10",
+      text: "text-purple-400",
+      border: "border-purple-500/30",
+      badge: "bg-purple-950/80 text-purple-300 border-purple-800/80",
+    },
+  },
+  {
+    id: 9,
+    name: "dispatch",
+    display_name: "Dispatch",
+    description: "Delivery challans, transport vehicle coordination, client packaging, and gate passes.",
+    color: {
+      bg: "bg-emerald-500/10",
+      text: "text-emerald-400",
+      border: "border-emerald-500/30",
+      badge: "bg-emerald-950/80 text-emerald-300 border-emerald-800/80",
+    },
+  },
+  {
+    id: 10,
+    name: "programmer",
+    display_name: "Programmer",
+    description: "CAD/CAM NC programming, machining path generation, and cutting tool parameters.",
+    color: {
+      bg: "bg-sky-500/10",
+      text: "text-sky-400",
+      border: "border-sky-500/30",
+      badge: "bg-sky-950/80 text-sky-300 border-sky-800/80",
+    },
+  },
 ];
 
 import { navigationItems } from "@/components/layout/sidebar";

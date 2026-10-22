@@ -15,6 +15,18 @@ function getRoleIdFromUsertype(usertype: string): number {
       return 2;
     case "Designer":
       return 3;
+    case "Programmer":
+      return 10;
+    case "Purchase Incharge":
+      return 5;
+    case "BMC Department":
+      return 6;
+    case "Quality Checking (QC)":
+      return 7;
+    case "Assembly":
+      return 8;
+    case "Dispatch":
+      return 9;
     default:
       return 4; // Worker / User
   }

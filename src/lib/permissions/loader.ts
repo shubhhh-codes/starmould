@@ -43,7 +43,7 @@ export async function loadEffectivePermissions(): Promise<RolePermissionsMatrix>
       // Admin always full immutable access
       merged[0] = { ...DEFAULT_ROLE_PERMISSIONS[0] };
       // Non-admin roles never have nav_settings
-      for (const rId of [1, 2, 3, 4]) {
+      for (const rId of Object.keys(merged).map(Number).filter((id) => id !== 0)) {
         if (merged[rId]) merged[rId].nav_settings = false;
       }
       cachedPermissions = merged;
@@ -81,7 +81,7 @@ export async function loadEffectiveMenuOrders(): Promise<RoleMenuOrders> {
       }
       merged[0] = [...DEFAULT_ROLE_MENU_ORDERS[0]];
       // Non-admin roles never have nav_settings in menu orders
-      for (const rId of [1, 2, 3, 4]) {
+      for (const rId of Object.keys(merged).map(Number).filter((id) => id !== 0)) {
         if (Array.isArray(merged[rId])) {
           merged[rId] = merged[rId].filter((k) => k !== "nav_settings");
         }

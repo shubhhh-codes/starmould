@@ -5,7 +5,7 @@ import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cac
 
 // GET /api/challan - Fetch outward challans, child items, pending return status from view_pending_inward_qty, and lookups
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2], "nav_challan");
+  const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_challan");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/challan - Create new outward challan with child items (matches ChallanController.php:store)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2], "nav_challan");
+  const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_challan");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/challan - Invalidate/cancel outward challan (matches status = '0')
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2], "nav_challan");
+  const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_challan");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
