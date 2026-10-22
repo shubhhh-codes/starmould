@@ -40,6 +40,13 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  Database,
+  HardDrive,
+  Download,
+  Clock,
+  Terminal,
+  FileCode,
+  Copy,
 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
@@ -103,7 +110,77 @@ export default function SettingsPage() {
     : (usersQuery.data as any)?.users || [];
 
   const [selectedRoleId, setSelectedRoleId] = useState<number>(1); // Default to Manager
-  const [activeTab, setActiveTab] = useState<"menu_builder" | "actions" | "financials">("menu_builder");
+  const [activeTab, setActiveTab] = useState<"menu_builder" | "actions" | "financials" | "backup">("menu_builder");
+  const [isDownloadingSql, setIsDownloadingSql] = useState(false);
+  const [isDownloadingJson, setIsDownloadingJson] = useState(false);
+  const [backupStatus, setBackupStatus] = useState<any>(null);
+  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+
+  const fetchBackupStatus = useCallback(async () => {
+    try {
+      setIsLoadingStatus(true);
+      const res = await fetch("/api/backup?action=status");
+      if (res.ok) {
+        const data = await res.json();
+        setBackupStatus(data);
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setIsLoadingStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "backup") {
+      fetchBackupStatus();
+    }
+  }, [activeTab, fetchBackupStatus]);
+
+  const handleDownloadBackup = async (format: "sql" | "json") => {
+    if (format === "sql") setIsDownloadingSql(true);
+    else setIsDownloadingJson(true);
+
+    try {
+      const response = await fetch(`/api/backup?format=${format}`);
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to generate backup");
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const istDateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+      let filename = `starmould_backup_${istDateStr}_IST.${format}`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setNotification({
+        type: "success",
+        message: `Backup ${filename} downloaded successfully!`,
+      });
+      fetchBackupStatus();
+    } catch (err: any) {
+      setNotification({
+        type: "error",
+        message: err.message || "Backup download failed",
+      });
+    } finally {
+      if (format === "sql") setIsDownloadingSql(false);
+      else setIsDownloadingJson(false);
+    }
+  };
   
   // Local state for permissions and active menu order
   const [localPermissions, setLocalPermissions] = useState<Record<string, boolean>>({});
@@ -592,6 +669,22 @@ export default function SettingsPage() {
               <Receipt className="w-3.5 h-3.5" />
               <span>Financial & Data Rules</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("backup")}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-lg transition cursor-pointer ${
+                activeTab === "backup"
+                  ? "bg-slate-900 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+              }`}
+            >
+              <Database className="w-3.5 h-3.5 text-blue-400" />
+              <span>Database & Auto-Backup</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-mono">
+                Every 4h
+              </span>
+            </button>
           </div>
 
           <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -1016,6 +1109,288 @@ export default function SettingsPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 4: DATABASE & AUTO-BACKUP MANAGEMENT */}
+        {/* ========================================================================= */}
+        {activeTab === "backup" && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Header Card */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-white relative overflow-hidden shadow-xl">
+              <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 shrink-0">
+                    <Database className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-white tracking-wide">
+                        Supabase Database & Auto-Backup
+                      </h3>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        Active & Free
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                      Automated 4-hour disaster recovery backups via GitHub Actions cloud workflows, plus instant in-app Supabase-compatible SQL and JSON downloads.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchBackupStatus}
+                  disabled={isLoadingStatus}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition flex items-center gap-1.5 cursor-pointer shrink-0 border border-slate-700"
+                >
+                  <Clock className={`w-3.5 h-3.5 ${isLoadingStatus ? "animate-spin" : ""}`} />
+                  <span>Refresh Status</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Instant 1-Click Backup Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Option A: SQL Dump (Editable & Importable directly in Supabase) */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200">
+                        <FileCode className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-900">
+                        Supabase SQL Editor Dump (.sql)
+                      </h4>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
+                      Recommended
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Complete SQL dump of all active tables with idempotent <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded font-mono text-[11px]">ON CONFLICT DO UPDATE</code> upsert logic.
+                  </p>
+
+                  <ul className="mt-3 space-y-1.5 text-[11px] text-slate-500">
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Ready to paste directly into Supabase SQL Editor and click Run.</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Easily editable in VS Code or Notepad before restoring.</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Auto-resets sequence IDs after import to prevent ID collisions.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-400 font-mono">Format: Standard PostgreSQL .sql</span>
+                  <MotionButton
+                    type="button"
+                    onClick={() => handleDownloadBackup("sql")}
+                    loading={isDownloadingSql}
+                    variant="primary"
+                    size="sm"
+                    className="shadow-sm cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Download SQL Backup
+                  </MotionButton>
+                </div>
+              </div>
+
+              {/* Option B: JSON Snapshot */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
+                        <Database className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-900">
+                        Structured JSON Snapshot (.json)
+                      </h4>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-slate-100 text-slate-600 border border-slate-200">
+                      Raw Data
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    All ERP table records serialized into structured JSON objects with row counts and metadata.
+                  </p>
+
+                  <ul className="mt-3 space-y-1.5 text-[11px] text-slate-500">
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Instant conversion to Excel, CSV, or custom analytics scripts.</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Human-readable key-value pairs for quick inspection and verification.</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>Universal portability across cloud databases and local stores.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-slate-400 font-mono">Format: Structured .json</span>
+                  <MotionButton
+                    type="button"
+                    onClick={() => handleDownloadBackup("json")}
+                    loading={isDownloadingJson}
+                    variant="outline"
+                    size="sm"
+                    className="cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                    Download JSON Snapshot
+                  </MotionButton>
+                </div>
+              </div>
+            </div>
+
+            {/* Cloud Automation & History Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* GitHub Actions Cloud Auto-Backup */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-4 h-4 text-purple-600" />
+                      <h4 className="text-xs font-bold text-slate-900">
+                        GitHub Actions Cloud Auto-Backup
+                      </h4>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-purple-100 text-purple-700 font-bold">
+                      100% Free / Cloud
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs text-slate-600">
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Automated Frequency:</span>
+                      <span className="text-slate-900 font-medium">Every 4 Hours IST (8 AM, 12 PM, 4 PM, 8 PM, 12 AM, 4 AM)</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Local PC Dependency:</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> None (Runs even if PC is OFF)
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Local Files Needed:</span>
+                      <span className="text-slate-700 font-medium">Zero (No .bat or .ps1 required)</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-500">Workflow Path:</span>
+                      <code className="text-slate-700 font-mono text-[10px]">.github/workflows/db-backup.yml</code>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 p-3 bg-purple-50/60 border border-purple-200/70 rounded-xl text-purple-900 text-xs">
+                  <p className="text-[11px] leading-relaxed">
+                    Runs autonomously on GitHub servers and creates a downloadable zip with both <strong>.sql</strong> and <strong>.json</strong> for every run.
+                  </p>
+                </div>
+              </div>
+
+              {/* Download History & Access */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4 text-blue-600" />
+                      <h4 className="text-xs font-bold text-slate-900">
+                        Where Backups Are Stored & Download History
+                      </h4>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-blue-100 text-blue-700 font-bold">
+                      90 Days History
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 text-xs text-slate-600">
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">GitHub Location:</span>
+                      <span className="font-semibold text-slate-900">Repository → "Actions" Tab</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Download History:</span>
+                      <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Preserved for every single run
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">How to Download:</span>
+                      <span className="text-slate-700">Click any run → Download Artifacts (.zip)</span>
+                    </div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-slate-500">Instant Download:</span>
+                      <span className="text-blue-600 font-medium">Use buttons above or Export page</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 p-3 bg-blue-50/60 border border-blue-200/70 rounded-xl text-blue-900 text-xs">
+                  <p className="text-[11px] leading-relaxed">
+                    You can visit the <strong>Actions</strong> tab on GitHub anytime to see historical runs and download past database versions whenever needed.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Step-by-Step Restoration Guide */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <h4 className="text-xs font-bold text-slate-900 mb-3 flex items-center gap-2">
+                <FileCode className="w-4 h-4 text-blue-600" />
+                <span>How to Restore or Edit Data Directly in Supabase</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center mb-2">
+                    1
+                  </span>
+                  <h5 className="font-semibold text-slate-900 text-xs mb-1">Open or Edit File</h5>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Open the downloaded <code className="text-blue-600">.sql</code> file in VS Code or Notepad. You can inspect or modify any table rows or values.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center mb-2">
+                    2
+                  </span>
+                  <h5 className="font-semibold text-slate-900 text-xs mb-1">Paste into SQL Editor</h5>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Open your Supabase Dashboard, go to <strong>SQL Editor</strong> on the left sidebar, and click <strong>New Query</strong>. Paste the SQL contents.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center mb-2">
+                    3
+                  </span>
+                  <h5 className="font-semibold text-slate-900 text-xs mb-1">Click Run</h5>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Hit <strong>Run</strong>. The idempotent <code className="text-blue-600">ON CONFLICT DO UPDATE</code> logic restores all records safely without primary key or foreign key errors!
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

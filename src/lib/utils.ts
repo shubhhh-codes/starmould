@@ -10,12 +10,36 @@ export function formatDate(dateStr: string | null | undefined): string {
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+    return new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(d);
   } catch {
     return dateStr;
+  }
+}
+
+export function formatDateTimeIST(dateStr: string | Date | null | undefined): string {
+  if (!dateStr) return "-";
+  try {
+    const d = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
+    if (isNaN(d.getTime())) return String(dateStr);
+    return (
+      new Intl.DateTimeFormat("en-IN", {
+        timeZone: "Asia/Kolkata",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }).format(d) + " IST"
+    );
+  } catch {
+    return String(dateStr);
   }
 }
 

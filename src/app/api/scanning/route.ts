@@ -48,8 +48,8 @@ export async function GET(req: NextRequest) {
       scanQuery = scanQuery.limit(limit);
     }
 
-    const isDefaultQuery = !search && (!status || status === "ALL") && (!worktype || worktype === "ALL") && (!customer || customer === "ALL") && (!page || page === 1);
-    const cacheKey = isDefaultQuery ? `scanning_default_${limit}` : null;
+    const isDefaultQuery = !search && (!status || status === "ALL") && (!worktype || worktype === "ALL") && (!customer || customer === "ALL");
+    const cacheKey = isDefaultQuery ? `scanning_default_${limit}_p${page || 1}` : null;
 
     const executeFetch = async () => {
       // Step 1: Batch fetch scans, cached customers, cached users, and cached KPIs

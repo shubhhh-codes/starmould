@@ -133,10 +133,19 @@ export function ClientErrorListener() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    // Track page lifecycle to prevent false alarms on intentional aborts / page unloads
+    let isPageUnloading = false;
+    const handleBeforeUnload = () => {
+      isPageUnloading = true;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handleBeforeUnload);
+
     // 1. Listen for uncaught JavaScript errors
     const handleError = (event: ErrorEvent) => {
       // Ignore cross-origin script error noise with no message
       if (!event.message && !event.error) return;
+      if (isPageUnloading) return;
 
       sendErrorReport({
         type: "uncaught_error",
@@ -149,6 +158,15 @@ export function ClientErrorListener() {
     // 2. Listen for unhandled Promise rejections
     const handleRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
+      // Ignore abort errors and rejections happening during window unloading
+      if (
+        isPageUnloading ||
+        (reason instanceof DOMException && reason.name === "AbortError") ||
+        (reason instanceof Error && (reason.name === "AbortError" || reason.message.toLowerCase().includes("abort")))
+      ) {
+        return;
+      }
+
       const message =
         reason instanceof Error
           ? reason.message
@@ -218,17 +236,28 @@ export function ClientErrorListener() {
 
         return response;
       } catch (networkError: unknown) {
-        // Network failure (server down, DNS failure, aborted)
-        const errMsg = networkError instanceof Error ? networkError.message : String(networkError);
-        if (url.startsWith("/api") || url.includes("/api/")) {
-          sendErrorReport({
-            type: "api_failure",
-            message: `Network/Fetch exception for ${method} ${url}: ${errMsg}`,
-            apiUrl: url,
-            method,
-            status: 0,
-            stack: networkError instanceof Error ? networkError.stack : undefined,
-          });
+        // Check if this was an intentional abort or a network cancellation during navigation / page unload
+        const isAbort =
+          (networkError instanceof DOMException && networkError.name === "AbortError") ||
+          (networkError instanceof Error && (networkError.name === "AbortError" || networkError.message.toLowerCase().includes("abort"))) ||
+          Boolean(config?.signal?.aborted) ||
+          Boolean((resource as Request)?.signal?.aborted);
+
+        // In Chromium / WebKit, navigating or refreshing while a fetch is in-flight throws "TypeError: Failed to fetch"
+        const isPageLeaving = isPageUnloading || (typeof document !== "undefined" && document.visibilityState === "hidden");
+
+        if (!isAbort && !isPageLeaving) {
+          const errMsg = networkError instanceof Error ? networkError.message : String(networkError);
+          if (url.startsWith("/api") || url.includes("/api/")) {
+            sendErrorReport({
+              type: "api_failure",
+              message: `Network/Fetch exception for ${method} ${url}: ${errMsg}`,
+              apiUrl: url,
+              method,
+              status: 0,
+              stack: networkError instanceof Error ? networkError.stack : undefined,
+            });
+          }
         }
         throw networkError;
       }
@@ -281,6 +310,8 @@ export function ClientErrorListener() {
     };
 
     return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handleBeforeUnload);
       window.removeEventListener("error", handleError);
       window.removeEventListener("unhandledrejection", handleRejection);
       window.fetch = originalFetch;

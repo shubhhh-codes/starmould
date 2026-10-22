@@ -91,16 +91,18 @@ export const STAGE_DEFINITIONS = [
 	{ key: "packing_workby", atKey: "packing_at", nameKey: "packing_workby_name", short: "PAK", label: "9. Packing", step: 9, color: "rose" },
 ] as const;
 
-// Helper to format ISO timestamp to human-readable date/time
+// Helper to format ISO timestamp to human-readable date/time in IST
 const formatTimestamp = (ts: string | null | undefined): string => {
 	if (!ts) return "";
 	try {
 		const d = new Date(ts);
-		return d.toLocaleString("en-GB", {
+		return d.toLocaleString("en-IN", {
+			timeZone: "Asia/Kolkata",
 			day: "2-digit",
 			month: "short",
 			hour: "2-digit",
 			minute: "2-digit",
+			hour12: true,
 		});
 	} catch {
 		return String(ts);

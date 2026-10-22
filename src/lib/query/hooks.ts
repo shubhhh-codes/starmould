@@ -69,21 +69,25 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
   const queryClient = useQueryClient();
   const page = params.page || 1;
   const pageSize = params.pageSize || 50;
+  const status = params.status;
+  const search = params.search;
+  const customer = params.customer;
+  const worktype = params.worktype;
 
   const query = useQuery({
     queryKey: queryKeys.projects.list(params),
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const searchParams = new URLSearchParams();
       if (params.page) searchParams.set("page", String(params.page));
       if (params.pageSize) searchParams.set("limit", String(params.pageSize));
-      if (params.status && params.status !== "ALL") searchParams.set("status", params.status);
-      if (params.search) searchParams.set("search", params.search);
-      if (params.customer && params.customer !== "ALL") searchParams.set("customer", params.customer);
-      if (params.worktype && params.worktype !== "ALL") searchParams.set("worktype", params.worktype);
+      if (status && status !== "ALL") searchParams.set("status", status);
+      if (search) searchParams.set("search", search);
+      if (customer && customer !== "ALL") searchParams.set("customer", customer);
+      if (worktype && worktype !== "ALL") searchParams.set("worktype", worktype);
 
       const qs = searchParams.toString();
       const url = `/api/scanning${qs ? `?${qs}` : ""}`;
-      const data = await fetchJson<any>(url);
+      const data = await fetchJson<any>(url, { signal });
 
       return {
         scans: (data.scans || data.data || []) as ScanProject[],
@@ -104,20 +108,35 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
   });
 
-  // Intelligent Prefetching: prefetch next page if it exists
+  // Intelligent Prefetching: Only prefetch next page if explicitly paginating with moderate page size (< 100).
+  // For bulk fetches (e.g. pageSize: 500 used on dashboard or for full lookups), do not prefetch page 2
+  // since the user is browsing the client dataset and a 500-item prefetch transfers 1.7MB+ unnecessarily.
   const hasNextPage = query.data?.pagination?.hasNextPage;
+  const shouldPrefetchNext = Boolean(hasNextPage && pageSize < 100);
+
   useEffect(() => {
-    if (hasNextPage) {
-      const nextPageParams = { ...params, page: page + 1 };
+    if (shouldPrefetchNext) {
+      const nextPageParams: ProjectsQueryParams = {
+        page: page + 1,
+        pageSize,
+        ...(status ? { status } : {}),
+        ...(search ? { search } : {}),
+        ...(customer ? { customer } : {}),
+        ...(worktype ? { worktype } : {}),
+      };
+
       queryClient.prefetchQuery({
         queryKey: queryKeys.projects.list(nextPageParams),
-        queryFn: async () => {
+        queryFn: async ({ signal }) => {
           const searchParams = new URLSearchParams();
           searchParams.set("page", String(page + 1));
           searchParams.set("limit", String(pageSize));
-          if (params.status && params.status !== "ALL") searchParams.set("status", params.status);
-          if (params.search) searchParams.set("search", params.search);
-          const data = await fetchJson<any>(`/api/scanning?${searchParams.toString()}`);
+          if (status && status !== "ALL") searchParams.set("status", status);
+          if (search) searchParams.set("search", search);
+          if (customer && customer !== "ALL") searchParams.set("customer", customer);
+          if (worktype && worktype !== "ALL") searchParams.set("worktype", worktype);
+
+          const data = await fetchJson<any>(`/api/scanning?${searchParams.toString()}`, { signal });
           return {
             scans: (data.scans || data.data || []) as ScanProject[],
             customers: (data.customers || []) as Customer[],
@@ -129,7 +148,7 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
         staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
       });
     }
-  }, [hasNextPage, params, page, pageSize, queryClient]);
+  }, [shouldPrefetchNext, page, pageSize, status, search, customer, worktype, queryClient]);
 
   return query;
 }

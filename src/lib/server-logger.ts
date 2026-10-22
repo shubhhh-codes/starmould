@@ -57,8 +57,18 @@ export interface ClientErrorReport {
 }
 
 function formatTimestamp(): string {
-  const now = new Date();
-  return now.toISOString().replace("T", " ").replace("Z", " UTC");
+  return (
+    new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    }).format(new Date()) + " IST"
+  );
 }
 
 function truncateString(str: string, maxLen = 1000): string {

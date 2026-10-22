@@ -61,10 +61,16 @@ function formatDate(dateStr?: string): string {
   if (!dateStr) return "—";
   try {
     const d = new Date(dateStr);
-    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = months[d.getMonth()];
-    const year = d.getFullYear();
+    if (isNaN(d.getTime())) return dateStr;
+    const parts = new Intl.DateTimeFormat("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    }).formatToParts(d);
+    const day = parts.find((p) => p.type === "day")?.value || "";
+    const month = parts.find((p) => p.type === "month")?.value || "";
+    const year = parts.find((p) => p.type === "year")?.value || "";
     return `${day}-${month}-${year}`;
   } catch {
     return dateStr;

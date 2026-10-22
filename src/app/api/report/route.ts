@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
 
         if (!monthsMap[monthKey]) {
           const d = new Date(`${monthKey}-01`);
-          const monthLabel = d.toLocaleString("default", { month: "short", year: "numeric" });
+          const monthLabel = d.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", month: "short", year: "numeric" });
           monthsMap[monthKey] = {
             month: monthLabel,
             vmc: 0,
