@@ -31,7 +31,7 @@ export interface NavItem {
   href: string;
   icon: React.ElementType;
   badge?: string;
-  allowedRoles: number[]; // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker, 5: Purchase Incharge, 6: BMC, 7: QC, 8: Assembly, 9: Dispatch, 10: Programmer
+  allowedRoles: number[]; // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker, 5: Purchase Incharge, 6: VMC, 7: QC, 9: Dispatch, 10: Programmer
   permKey?: string;
 }
 
@@ -40,7 +40,7 @@ export const navigationItems: NavItem[] = [
     title: "Dashboard",
     href: "/",
     icon: LayoutDashboard,
-    allowedRoles: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+    allowedRoles: [0, 1, 2, 3, 4, 5, 6, 7, 9, 10],
     permKey: "nav_dashboard",
   },
   {
@@ -62,14 +62,14 @@ export const navigationItems: NavItem[] = [
     title: "Subplate Master",
     href: "/subplate",
     icon: Layers,
-    allowedRoles: [0, 1, 2, 3, 6, 7, 8, 9, 10],
+    allowedRoles: [0, 1, 2, 3, 6, 7, 9, 10],
     permKey: "nav_subplate",
   },
   {
     title: "Add new mould",
     href: "/scanning",
     icon: Scan,
-    allowedRoles: [0, 1, 2, 3, 4, 6, 7, 8, 9, 10],
+    allowedRoles: [0, 1, 2, 3, 4, 6, 7, 9, 10],
     permKey: "nav_scanning",
   },
   {
@@ -111,7 +111,7 @@ export const navigationItems: NavItem[] = [
     title: "Work / Worklog",
     href: "/work",
     icon: Briefcase,
-    allowedRoles: [0, 1, 2, 3, 4, 6, 7, 8, 10],
+    allowedRoles: [0, 1, 2, 3, 4, 6, 7, 10],
     permKey: "nav_work",
   },
   {

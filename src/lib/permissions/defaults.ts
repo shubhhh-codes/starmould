@@ -8,9 +8,8 @@ import { RolePermissionsMatrix } from "./types";
  * 3: Designer (scanning, subplates, worklogs)
  * 4: Worker (worklogs, personal tasks, mould view)
  * 5: Purchase Incharge (purchase orders, inward materials, vendors)
- * 6: BMC Department (machining, subplates, worklogs)
+ * 6: VMC Department (machining, subplates, worklogs)
  * 7: Quality Checking (QC) (QC sign-offs, inward verification, worklogs)
- * 8: Assembly (fitting, assembly operations, subplates, worklogs)
  * 9: Dispatch (challans, shipments, gate passes)
  * 10: Programmer (CAD/CAM NC programming, subplates, worklogs)
  */
@@ -197,7 +196,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     financial_soft_delete: false,
   },
 
-  // 6: BMC DEPARTMENT
+  // 6: VMC DEPARTMENT
   6: {
     nav_dashboard: true,
     nav_customer_creator: false,
@@ -250,37 +249,6 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_vendor: false,
     action_create_scanning_project: false,
     action_approve_qc: true,
-    action_create_purchase: false,
-    action_create_challan_dispatch: false,
-    action_manage_expenses: false,
-    action_manage_users: false,
-    financial_view_amounts: false,
-    financial_export_csv: false,
-    financial_soft_delete: false,
-  },
-
-  // 8: ASSEMBLY
-  8: {
-    nav_dashboard: true,
-    nav_customer_creator: false,
-    nav_vendor_transport: false,
-    nav_subplate: true,
-    nav_scanning: true,
-    nav_purchase: false,
-    nav_purchase_inward: false,
-    nav_challan: false,
-    nav_dispatch: false,
-    nav_inward: false,
-    nav_work: true,
-    nav_expense: false,
-    nav_user_mgmt: false,
-    nav_settings: false,
-    nav_reports: false,
-    nav_export: false,
-    action_create_customer: false,
-    action_create_vendor: false,
-    action_create_scanning_project: false,
-    action_approve_qc: false,
     action_create_purchase: false,
     action_create_challan_dispatch: false,
     action_manage_expenses: false,
@@ -427,12 +395,6 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
     "nav_inward",
     "nav_work",
     "nav_reports",
-  ],
-  8: [
-    "nav_dashboard",
-    "nav_subplate",
-    "nav_scanning",
-    "nav_work",
   ],
   9: [
     "nav_dashboard",

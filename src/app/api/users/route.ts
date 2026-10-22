@@ -20,11 +20,12 @@ function getRoleIdFromUsertype(usertype: string): number {
     case "Purchase Incharge":
       return 5;
     case "BMC Department":
+    case "VMC Department":
       return 6;
     case "Quality Checking (QC)":
       return 7;
-    case "Assembly":
-      return 8;
+
+
     case "Dispatch":
       return 9;
     default:

@@ -59,9 +59,9 @@ export const ROLES_TABLE: Record<number, RoleDefinition> = {
   },
   6: {
     id: 6,
-    name: 'bmc',
-    display_name: 'BMC Department',
-    description: 'Machining floor, BMC/VMC work order execution, tool offsets, and program loading',
+    name: 'vmc',
+    display_name: 'VMC Department',
+    description: 'Machining floor, VMC work order execution, tool offsets, and program loading',
     badge_color: 'bg-violet-50 text-violet-700 border-violet-200',
   },
   7: {
@@ -70,13 +70,6 @@ export const ROLES_TABLE: Record<number, RoleDefinition> = {
     display_name: 'Quality Checking (QC)',
     description: 'Inward inspection, in-process VMC dimension checks, and final dispatch QC sign-offs',
     badge_color: 'bg-teal-50 text-teal-700 border-teal-200',
-  },
-  8: {
-    id: 8,
-    name: 'assembly',
-    display_name: 'Assembly',
-    description: 'Fitting, drilling & tapping, guide pillar installation, and mould die assembly',
-    badge_color: 'bg-purple-50 text-purple-700 border-purple-200',
   },
   9: {
     id: 9,
@@ -103,9 +96,8 @@ export const USER_TYPES = [
   'Designer',
   'Programmer',
   'Purchase Incharge',
-  'BMC Department',
+  'VMC Department',
   'Quality Checking (QC)',
-  'Assembly',
   'Dispatch',
   'User',
 ] as const;
@@ -133,11 +125,10 @@ export function getRoleForUserType(usertype: string): RoleDefinition {
     case 'Purchase Incharge':
       return ROLES_TABLE[5];
     case 'BMC Department':
+    case 'VMC Department':
       return ROLES_TABLE[6];
     case 'Quality Checking (QC)':
       return ROLES_TABLE[7];
-    case 'Assembly':
-      return ROLES_TABLE[8];
     case 'Dispatch':
       return ROLES_TABLE[9];
     default:
@@ -165,8 +156,8 @@ export function getAutoUserSubtype(usertype: string): UserSubtype | null {
     'Programmer',
     'Purchase Incharge',
     'BMC Department',
+    'VMC Department',
     'Quality Checking (QC)',
-    'Assembly',
     'Dispatch',
   ].includes(usertype)) {
     return 'Skilled MP';

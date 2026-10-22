@@ -100,8 +100,8 @@ export const ERP_ROLES: RoleInfo[] = [
   },
   {
     id: 6,
-    name: "bmc",
-    display_name: "BMC Department",
+    name: "vmc",
+    display_name: "VMC Department",
     description: "Machining floor, BMC/VMC work order execution, tool offsets, and program loading.",
     color: {
       bg: "bg-violet-500/10",
@@ -120,18 +120,6 @@ export const ERP_ROLES: RoleInfo[] = [
       text: "text-teal-400",
       border: "border-teal-500/30",
       badge: "bg-teal-950/80 text-teal-300 border-teal-800/80",
-    },
-  },
-  {
-    id: 8,
-    name: "assembly",
-    display_name: "Assembly",
-    description: "Fitting, drilling and tapping, guide pillar installation, and mould die assembly.",
-    color: {
-      bg: "bg-purple-500/10",
-      text: "text-purple-400",
-      border: "border-purple-500/30",
-      badge: "bg-purple-950/80 text-purple-300 border-purple-800/80",
     },
   },
   {

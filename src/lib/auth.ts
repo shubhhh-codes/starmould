@@ -158,9 +158,9 @@ export async function authenticateRequest(
     3: "Designer",
     4: "Worker",
     5: "Purchase Incharge",
-    6: "BMC Department",
+    6: "VMC Department",
     7: "Quality Checking (QC)",
-    8: "Assembly",
+
     9: "Dispatch",
     10: "Programmer",
   };
