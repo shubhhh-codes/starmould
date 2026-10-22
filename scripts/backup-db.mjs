@@ -177,7 +177,7 @@ async function runBackup() {
 
     sqlChunks.push(`-- ==============================================================================`);
     sqlChunks.push(`-- STARMOUld ERP - DATABASE BACKUP DUMP FOR SUPABASE`);
-    sqlChunks.push(`-- Generated At : ${ist.prettyIST} (Timezone: Indian Standard Time, UTC+05:30)`);
+    sqlChunks.push(`-- Generated At : ${ist.prettyIST} (Timezone: Indian Standard Time, IST)`);
     sqlChunks.push(`-- Tables Count : ${tableNames.length}`);
     sqlChunks.push(`-- Target Host  : Supabase PostgreSQL (Public Schema)`);
     sqlChunks.push(`-- How to Restore: Open Supabase Dashboard -> SQL Editor, paste this file & Run.`);
@@ -293,7 +293,7 @@ async function runBackup() {
           metadata: {
             timestamp_ist: ist.isoIST,
             pretty_ist: ist.prettyIST,
-            timezone: 'Indian Standard Time (IST, UTC+05:30)',
+            timezone: 'Indian Standard Time (IST)',
             version: '1.0',
             tablesCount: tableNames.length,
             totalRows,

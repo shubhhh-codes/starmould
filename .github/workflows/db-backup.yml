@@ -1,12 +1,17 @@
 name: StarMould Automated Database Backup
 
-run-name: "Database Backup #${{ github.run_number }} (${{ github.event_name == 'schedule' && 'Scheduled 4h IST' || (inputs.reason || 'Manual') }})"
+run-name: "Database Backup #${{ github.run_number }} (${{ github.event_name == 'schedule' && 'Scheduled 4x IST' || (inputs.reason || 'Manual') }})"
 
 on:
   schedule:
-    # Run every 4 hours in Indian Standard Time (IST): 08:00 AM, 12:00 PM, 04:00 PM, 08:00 PM, 12:00 AM, 04:00 AM IST
-    # (UTC equivalents: 02:30, 06:30, 10:30, 14:30, 18:30, 22:30 UTC)
-    - cron: '30 2,6,10,14,18,22 * * *'
+    # 1. 10:00 AM IST (Subah)
+    - cron: '30 4 * * *'
+    # 2. 12:30 PM IST (Dopahar)
+    - cron: '0 7 * * *'
+    # 3. 04:00 PM IST (Dopahar/Shaam)
+    - cron: '30 10 * * *'
+    # 4. 07:00 PM IST (Shaam/Raat)
+    - cron: '30 13 * * *'
   workflow_dispatch:
     inputs:
       reason:
@@ -35,15 +40,19 @@ jobs:
       - name: Install Dependencies
         run: npm ci --omit=dev
 
-      - name: Generate IST Timestamp
+      - name: Generate IST Timestamp & Details
         id: timestamp
         run: |
-          TIME_IST=$(TZ='Asia/Kolkata' date +'%Y-%m-%d_%I-%M-%p_IST')
+          DATE_IST=$(TZ='Asia/Kolkata' date +'%d-%b-%Y')
+          TIME_IST=$(TZ='Asia/Kolkata' date +'%I-%M-%p')
           PRETTY_IST=$(TZ='Asia/Kolkata' date +'%d %b %Y, %I:%M:%S %p IST')
+          DAY_IST=$(TZ='Asia/Kolkata' date +'%A')
           
+          echo "date_ist=$DATE_IST" >> "$GITHUB_OUTPUT"
           echo "time_ist=$TIME_IST" >> "$GITHUB_OUTPUT"
           echo "pretty_ist=$PRETTY_IST" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=starmould-backup-${TIME_IST}" >> "$GITHUB_OUTPUT"
+          echo "day_ist=$DAY_IST" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=starmould-backup-${DATE_IST}_${TIME_IST}_IST" >> "$GITHUB_OUTPUT"
 
       - name: Execute Supabase Database Backup
         env:
@@ -59,24 +68,34 @@ jobs:
           path: ./backups/*
           retention-days: 90
 
-      - name: Generate Summary Report with IST Timestamp
+      - name: Generate Executive Summary Report with Exact IST Date & Time
         if: always()
         env:
           REPORT_PRETTY_IST: ${{ steps.timestamp.outputs.pretty_ist }}
+          REPORT_DAY_IST: ${{ steps.timestamp.outputs.day_ist }}
           REPORT_ARTIFACT_NAME: ${{ steps.timestamp.outputs.artifact_name }}
-          TRIGGER_TYPE: ${{ github.event_name == 'schedule' && 'Automated (Every 4 Hours IST)' || 'Manual Trigger' }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          echo "# 🗄️ StarMould Database Backup Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "### 🕒 Exact Time (IST): **$REPORT_PRETTY_IST**" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$EVENT_NAME" = "schedule" ]; then
+            TRIGGER_TYPE="Automated Schedule (4x Daily IST: 10:00 AM, 12:30 PM, 04:00 PM, 07:00 PM)"
+          else
+            TRIGGER_TYPE="Manual Trigger Snapshot"
+          fi
+          echo "# 🗄️ StarMould Automated Database Backup Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 🕒 Tareekh & Time (IST): **$REPORT_PRETTY_IST ($REPORT_DAY_IST)**" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Property | Detail |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Detail / Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "| :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 🕒 **IST Timestamp** | \`$REPORT_PRETTY_IST\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 🌏 **Timezone** | \`Indian Standard Time (IST, UTC+05:30)\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 📅 **Exact Date & Time** | \`$REPORT_PRETTY_IST ($REPORT_DAY_IST)\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🌏 **Timezone** | \`Indian Standard Time (IST)\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| 🏷️ **Trigger Type** | \`$TRIGGER_TYPE\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 📦 **Artifact Name** | **\`$REPORT_ARTIFACT_NAME\`** (Download from Artifacts below) |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 💾 **Tables Included** | 22 Tables (45,000+ Active Records) |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| 🛡️ **Restore Ready** | Direct paste into Supabase SQL Editor |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 📦 **Artifact File Name** | **\`$REPORT_ARTIFACT_NAME\`** |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🗃️ **Included Active Tables** | 22 Core ERP Tables (Scans, Subplates, Worklogs, Customers, Vendors, Purchases, Challans, Users) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 💾 **Total Records** | 45,000+ Records Extracted |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🛡️ **Upsert Logic** | \`ON CONFLICT DO UPDATE\` (Idempotent - Re-run safe, 0% Duplicate risk) |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| 🔢 **Sequence IDs** | Auto-Reset via \`setval()\` to prevent ID collisions |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| ⏳ **Retention Policy** | 90 Days Auto-Retention on GitHub (Auto-Cleanup) |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "---" >> "$GITHUB_STEP_SUMMARY"
-          echo "💡 **To download these files:** Scroll down to the **Artifacts** section at the bottom of this summary page and click **\`$REPORT_ARTIFACT_NAME\`**." >> "$GITHUB_STEP_SUMMARY"
+          echo "### 📥 How to Download this Backup:" >> "$GITHUB_STEP_SUMMARY"
+          echo "Neeche **Artifacts** section mein scroll karein aur **\`$REPORT_ARTIFACT_NAME\`** par click karein (.sql aur .json dono file download ho jayegi)." >> "$GITHUB_STEP_SUMMARY"

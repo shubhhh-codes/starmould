@@ -629,8 +629,8 @@ export default function SettingsPage() {
         <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-xs">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             
-            {/* Left: Role Trigger Combobox */}
-            <div className="relative" ref={comboboxRef}>
+            {/* Left: Role Trigger Combobox (Full width on mobile, auto on desktop) */}
+            <div className="relative w-full md:w-auto" ref={comboboxRef}>
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center gap-1.5">
                 <span>Target Role</span>
                 <span className="text-slate-300">•</span>
@@ -645,7 +645,7 @@ export default function SettingsPage() {
                   setIsRoleComboboxOpen((prev) => !prev);
                   setRoleSearchFilter("");
                 }}
-                className={`group flex items-center justify-between gap-3 px-3 py-2 rounded-xl border transition-all duration-150 cursor-pointer shadow-2xs min-w-[240px] sm:min-w-[280px] ${
+                className={`group flex items-center justify-between gap-3 px-3.5 py-2 rounded-xl border transition-all duration-150 cursor-pointer shadow-2xs w-full md:w-72 lg:w-80 ${
                   isRoleComboboxOpen
                     ? "bg-blue-50/60 border-blue-500 text-slate-900 ring-2 ring-blue-500/20"
                     : "bg-slate-50 hover:bg-slate-100/80 border-slate-200 hover:border-slate-300 text-slate-800"
@@ -672,9 +672,9 @@ export default function SettingsPage() {
                 </div>
               </button>
 
-              {/* DROPDOWN MENU - Sleek Shadcn-style dropdown anchored right under the button */}
+              {/* DROPDOWN MENU */}
               {isRoleComboboxOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-80 sm:w-96 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 animate-in fade-in-50 zoom-in-95 duration-150">
+                <div className="absolute left-0 right-0 md:right-auto top-full mt-1.5 w-full md:w-96 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 animate-in fade-in-50 zoom-in-95 duration-150">
                   {/* Search inside dropdown */}
                   <div className="relative mb-2">
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -776,13 +776,13 @@ export default function SettingsPage() {
               </span>
             </div>
 
-            {/* Right: Quick Action Presets */}
+            {/* Right: Quick Action Presets (Grid of 3 equal buttons on mobile, inline flex on desktop) */}
             {!isRoleAdmin && (
-              <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+              <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 w-full md:w-auto">
                 <button
                   type="button"
                   onClick={handleGrantAll}
-                  className="px-2.5 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition cursor-pointer"
+                  className="flex-1 sm:flex-none flex items-center justify-center px-3 py-2 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition cursor-pointer"
                   title="Enable all menus for this role"
                 >
                   Enable All
@@ -790,7 +790,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleRevokeAll}
-                  className="px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition cursor-pointer"
+                  className="flex-1 sm:flex-none flex items-center justify-center px-3 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition cursor-pointer"
                   title="Disable all menus except Dashboard"
                 >
                   Disable All
@@ -798,7 +798,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleResetToDefaults}
-                  className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition cursor-pointer flex items-center gap-1"
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
                   title="Reset to default preset"
                 >
                   <RotateCcw className="w-3 h-3 text-slate-500" />
@@ -813,20 +813,23 @@ export default function SettingsPage() {
         {/* VIEW TABS BAR & INLINE MENU SEARCH */}
         {/* ========================================================================= */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-2">
-          {/* Main Category Tabs */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 overflow-x-auto">
+          {/* Main Category Tabs: Responsive 4-Column on Mobile & Flex on Desktop */}
+          <div className="grid grid-cols-4 sm:flex sm:items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setActiveTab("menu_builder")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer shrink-0 ${
+              className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer ${
                 activeTab === "menu_builder"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
               }`}
             >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Menu Hierarchy</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-400 font-mono">
+              <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                <span className="sm:hidden">Menus</span>
+                <span className="hidden sm:inline">Menu Hierarchy</span>
+              </span>
+              <span className="text-[10px] px-1 sm:px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-mono font-bold shrink-0">
                 {activeNavItems.length}
               </span>
             </button>
@@ -834,41 +837,44 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => setActiveTab("actions")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer shrink-0 ${
+              className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer ${
                 activeTab === "actions"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
               }`}
             >
-              <Sliders className="w-3.5 h-3.5" />
-              <span>Actions</span>
+              <Sliders className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Actions</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("financials")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer shrink-0 ${
+              className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer ${
                 activeTab === "financials"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
               }`}
             >
-              <Receipt className="w-3.5 h-3.5" />
-              <span>Financial Rules</span>
+              <Receipt className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                <span className="sm:hidden">Finance</span>
+                <span className="hidden sm:inline">Financial Rules</span>
+              </span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab("backup")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer shrink-0 ${
+              className={`flex items-center justify-center sm:justify-start gap-1 sm:gap-1.5 px-1.5 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition-all duration-150 cursor-pointer ${
                 activeTab === "backup"
-                  ? "bg-slate-900 text-white shadow-sm"
-                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
+                  ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/50"
               }`}
             >
-              <Database className="w-3.5 h-3.5 text-blue-500" />
-              <span>Backup</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 font-mono">
+              <Database className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <span className="truncate">Backup</span>
+              <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-700 font-mono font-medium shrink-0">
                 Auto
               </span>
             </button>
