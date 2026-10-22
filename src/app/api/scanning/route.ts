@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const result = cacheKey ? await getCached(cacheKey, 20, executeFetch) : await executeFetch();
+    const result = await executeFetch();
 
     const response = NextResponse.json({
       scans: result.scans,
@@ -288,6 +288,7 @@ export async function POST(req: NextRequest) {
     }
 
     invalidateCache("scanning_default_");
+    invalidateCache("subplate_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
@@ -393,6 +394,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     invalidateCache("scanning_default_");
+    invalidateCache("subplate_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
@@ -487,6 +489,7 @@ export async function DELETE(req: NextRequest) {
 
     // 5. Invalidate server-side caches
     invalidateCache("scanning_default_");
+    invalidateCache("subplate_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
 	Layers,
@@ -32,6 +33,7 @@ import {
 	Minus,
 	Check,
 	Pencil,
+	AlertCircle,
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
@@ -136,6 +138,14 @@ function StageChipPicker({
 }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const [isUpdating, setIsUpdating] = useState(false);
+	const [isMounted, setIsMounted] = useState(false);
+	const [popoverCoords, setPopoverCoords] = useState<{
+		top: number;
+		left: number;
+		placeAbove: boolean;
+	} | null>(null);
+
+	const triggerRef = useRef<HTMLDivElement>(null);
 	const popoverRef = useRef<HTMLDivElement>(null);
 	const isAssigned = Boolean(userId && userId !== 0);
 	const assignedUser = staff.find((u) => u.id === Number(userId));
@@ -143,8 +153,18 @@ function StageChipPicker({
 	const isAssignedToOther = isAssigned && !isAssignedToMe;
 
 	useEffect(() => {
+		setIsMounted(true);
+	}, []);
+
+	useEffect(() => {
 		function handleClickOutside(event: MouseEvent) {
-			if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+			const target = event.target as Node;
+			if (
+				triggerRef.current &&
+				!triggerRef.current.contains(target) &&
+				popoverRef.current &&
+				!popoverRef.current.contains(target)
+			) {
 				setIsOpen(false);
 			}
 		}
@@ -155,6 +175,39 @@ function StageChipPicker({
 			document.removeEventListener("mousedown", handleClickOutside);
 		};
 	}, [isOpen]);
+
+	useEffect(() => {
+		if (!isOpen || !triggerRef.current) return;
+
+		const updatePosition = () => {
+			if (!triggerRef.current) return;
+			const rect = triggerRef.current.getBoundingClientRect();
+			const popoverHeight = 260;
+			const spaceBelow = window.innerHeight - rect.bottom;
+			const placeAbove = spaceBelow < popoverHeight && rect.top > popoverHeight;
+
+			const top = placeAbove ? rect.top - 4 : rect.bottom + 4;
+			const popoverWidth = 240;
+			let left = rect.left;
+			if (stage.step >= 7) {
+				left = rect.right - popoverWidth;
+			} else if (stage.step >= 4) {
+				left = rect.left + rect.width / 2 - popoverWidth / 2;
+			}
+			left = Math.max(8, Math.min(left, window.innerWidth - popoverWidth - 12));
+
+			setPopoverCoords({ top, left, placeAbove });
+		};
+
+		updatePosition();
+		window.addEventListener("scroll", updatePosition, true);
+		window.addEventListener("resize", updatePosition);
+
+		return () => {
+			window.removeEventListener("scroll", updatePosition, true);
+			window.removeEventListener("resize", updatePosition);
+		};
+	}, [isOpen, stage.step]);
 
 	const colorClasses: Record<string, { assigned: string; activeBadge: string }> = {
 		blue: {
@@ -228,7 +281,7 @@ function StageChipPicker({
 			: `${stage.label}: Unassigned — Click to assign`;
 
 	return (
-		<div ref={popoverRef} className="relative w-full min-w-0">
+		<div ref={triggerRef} className="relative w-full min-w-0">
 			<button
 				type="button"
 				onClick={() => setIsOpen((prev) => !prev)}
@@ -248,9 +301,20 @@ function StageChipPicker({
 				)}
 			</button>
 
-			{/* Floating Quick Assignment Popover */}
-			{isOpen && (
-				<div className={`absolute z-50 mt-1 w-56 sm:w-60 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 whitespace-normal ${popoverAlign}`}>
+			{/* Floating Quick Assignment Popover rendered via Portal */}
+			{isOpen && isMounted && popoverCoords && typeof document !== "undefined" && createPortal(
+				<div
+					ref={popoverRef}
+					style={{
+						position: "fixed",
+						top: popoverCoords.placeAbove ? "auto" : `${popoverCoords.top}px`,
+						bottom: popoverCoords.placeAbove ? `${Math.max(8, window.innerHeight - popoverCoords.top)}px` : "auto",
+						left: `${popoverCoords.left}px`,
+						width: "15rem",
+						zIndex: 99999,
+					}}
+					className="bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 whitespace-normal select-none"
+				>
 					{/* Header */}
 					<div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between">
 						<div className="min-w-0 pr-1">
@@ -380,7 +444,8 @@ function StageChipPicker({
 							})}
 						</div>
 					)}
-				</div>
+				</div>,
+				document.body
 			)}
 		</div>
 	);
@@ -402,7 +467,7 @@ function StageChipPicker({
 import { useSearchParams } from "next/navigation";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
-import { useSubplatesQuery, useCreateSubplateMutation, useUpdateSubplateMutation, useDeleteSubplateMutation } from "@/lib/query/hooks";
+import { useSubplatesQuery, useProjectsQuery, useCreateSubplateMutation, useUpdateSubplateMutation, useDeleteSubplateMutation } from "@/lib/query/hooks";
 
 function SubplatePageContent() {
 	const { currentUser } = useAuth();
@@ -412,12 +477,16 @@ function SubplatePageContent() {
 
 	const isRestoring = useIsRestoring();
 	const { data, isLoading: queryLoading, error: fetchQueryError } = useSubplatesQuery();
+	const projectsQuery = useProjectsQuery({ pageSize: 500 });
 	const createSubplateMutation = useCreateSubplateMutation();
 	const updateSubplateMutation = useUpdateSubplateMutation();
 	const deleteSubplateMutation = useDeleteSubplateMutation();
 
 	const subplates = data?.subplates || [];
-	const scans = data?.scans || [];
+	const scans = (projectsQuery.data?.scans && projectsQuery.data.scans.length > 0)
+		? projectsQuery.data.scans
+		: (data?.scans || []);
+	const isProjectsLoading = projectsQuery.isLoading && scans.length === 0;
 	const users = data?.users || [];
 	const kpis = data?.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 };
 	const hasLoadedData = subplates.length > 0 || (!!data && !queryLoading);
@@ -464,9 +533,10 @@ function SubplatePageContent() {
 
 	const handleOpenAddModal = () => {
 		setEditingSubplate(null);
+		const defaultProjectId = projectFilter && projectFilter !== "ALL" ? projectFilter : "";
 		setModalForm({
 			platename: "",
-			projectid: scans[0]?.id ? String(scans[0].id) : "",
+			projectid: defaultProjectId,
 			subprojectid: "",
 			shape: "Plate",
 			width: "",
@@ -480,6 +550,8 @@ function SubplatePageContent() {
 		plate_category: "General Component",
 		});
 		setIsModalOpen(true);
+		// Actively guarantee fresh project list when modal is invoked
+		projectsQuery.refetch();
 	};
 
 	const handleOpenEditModal = (sp: Subplate) => {
@@ -500,6 +572,8 @@ function SubplatePageContent() {
 			plate_category: sp.plate_category || "General Component",
 		});
 		setIsModalOpen(true);
+		// Actively guarantee fresh project list when modal is invoked
+		projectsQuery.refetch();
 	};
 
 	// Toggle row expansion for detailed 9-stage stepper
@@ -588,7 +662,7 @@ function SubplatePageContent() {
 	);
 
 	const isModalFormValid = useMemo(() => {
-		if (!modalForm.platename?.trim() || !modalForm.projectid) return false;
+		if (!modalForm.platename?.trim() || !modalForm.projectid || isNaN(Number(modalForm.projectid)) || Number(modalForm.projectid) <= 0) return false;
 		const l = parseFloat(modalForm.length || "0");
 		const w = parseFloat(modalForm.width || "0");
 		const h = parseFloat(modalForm.height || "0");
@@ -758,12 +832,12 @@ function SubplatePageContent() {
  const uniqueProjects = new Set(subplates.map((sp) => sp.projectid)).size;
 
  // Handle Create / Update Subplate
- const handleSubmitModal = async (e: React.FormEvent) => {
- e.preventDefault();
- if (!modalForm.platename?.trim() || !modalForm.projectid) {
- alert("Please enter a plate name and select a project.");
- return;
- }
+	const handleSubmitModal = async (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!modalForm.platename?.trim() || !modalForm.projectid || isNaN(Number(modalForm.projectid)) || Number(modalForm.projectid) <= 0) {
+			alert("Please enter a plate name and select a valid target mould project.");
+			return;
+		}
 
  if (!isModalFormValid) {
  alert("Please enter valid, positive dimensions.");
@@ -1676,14 +1750,22 @@ function SubplatePageContent() {
 									projects={scans}
 									value={modalForm.projectid}
 									required
+									isLoading={isProjectsLoading}
 									placeholder="Search or select mould / project..."
-									onChange={(val) => {
+									onOpen={() => projectsQuery.refetch()}
+									onChange={(val, project) => {
 										setModalForm((prev) => ({
 											...prev,
-											projectid: val,
+											projectid: project?.id ? String(project.id) : val,
 										}));
 									}}
 								/>
+								{!modalForm.projectid && (
+									<p className="text-[11px] text-amber-600 font-medium flex items-center gap-1 mt-1.5">
+										<AlertCircle className="w-3 h-3 shrink-0" />
+										Target mould selection is required to enable saving.
+									</p>
+								)}
 							</div>
 						</div>
 

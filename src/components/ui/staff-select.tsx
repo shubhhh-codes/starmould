@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check, X, Lock, Plus, AlertCircle } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 
@@ -37,7 +38,19 @@ export function StaffSelect({
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [popoverCoords, setPopoverCoords] = useState<{
+    top: number;
+    left: number;
+    placeAbove: boolean;
+  } | null>(null);
+
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const currentVal = value ? Number(value) : 0;
   const isAssigned = Boolean(currentVal && currentVal !== 0);
@@ -110,7 +123,13 @@ export function StaffSelect({
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setIsOpen(false);
       }
     }
@@ -119,6 +138,34 @@ export function StaffSelect({
     }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Dynamically calculate fixed position to avoid table overflow clipping
+  useEffect(() => {
+    if (!isOpen || !dropdownRef.current) return;
+
+    const updatePosition = () => {
+      if (!dropdownRef.current) return;
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const popoverHeight = 280;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const placeAbove = spaceBelow < popoverHeight && rect.top > popoverHeight;
+
+      const top = placeAbove ? rect.top - 4 : rect.bottom + 4;
+      const popoverWidth = 256; // 16rem = 256px
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - popoverWidth - 12));
+
+      setPopoverCoords({ top, left, placeAbove });
+    };
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
     };
   }, [isOpen]);
 
@@ -177,9 +224,20 @@ export function StaffSelect({
         )}
       </button>
 
-      {/* Popover / Dropdown Menu */}
-      {isOpen && (
-        <div className="absolute z-50 mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 focus:outline-none left-0 whitespace-normal">
+      {/* Popover / Dropdown Menu rendered via Portal to prevent table overflow clipping */}
+      {isOpen && isMounted && popoverCoords && typeof document !== "undefined" && createPortal(
+        <div
+          ref={popoverRef}
+          style={{
+            position: "fixed",
+            top: popoverCoords.placeAbove ? "auto" : `${popoverCoords.top}px`,
+            bottom: popoverCoords.placeAbove ? `${Math.max(8, window.innerHeight - popoverCoords.top)}px` : "auto",
+            left: `${popoverCoords.left}px`,
+            width: "16rem",
+            zIndex: 99999,
+          }}
+          className="bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 focus:outline-none whitespace-normal select-none"
+        >
           
           {/* Header */}
           <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -356,7 +414,8 @@ export function StaffSelect({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

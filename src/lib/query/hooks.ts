@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
 import { CACHE_TIERS } from "./client";
+import { broadcastQueryInvalidation } from "./realtime";
 import type {
   ScanProject,
   Subplate,
@@ -164,7 +165,11 @@ export function useCreateProjectMutation() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -237,7 +242,11 @@ export function useUpdateProjectMutation() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -273,7 +282,11 @@ export function useDeleteProjectMutation() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -362,6 +375,9 @@ export function useCreateSubplateMutation() {
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -405,6 +421,9 @@ export function useUpdateSubplateMutation() {
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -442,6 +461,9 @@ export function useDeleteSubplateMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }

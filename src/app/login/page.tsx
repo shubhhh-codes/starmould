@@ -176,7 +176,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-[11px] text-slate-500">
-          Star Mould Manufacturing ERP • Supabase + Next.js Live Stack
+          Star Mould Manufacturing ERP
         </p>
       </div>
     </div>

@@ -107,9 +107,14 @@ export async function GET(req: NextRequest) {
       // Batch subplates query with cached scans, users, and KPI counts
       const [subplatesRes, scans, users, kpis] = await Promise.all([
         subplateQuery,
-        getCachedScansLookup(),
+        supabaseAdmin
+          .from("scan")
+          .select("id, projectid, description, worktype, cname, status")
+          .order("id", { ascending: false })
+          .limit(1000)
+          .then((res) => res.data || []),
         getCachedUsers(),
-        getCached("subplate_kpi_counts", 30, async () => {
+        (async () => {
           const [totalActiveRes, inHouseRes, vendorRes] = await Promise.all([
             supabaseAdmin
               .from("subplate")
@@ -132,7 +137,7 @@ export async function GET(req: NextRequest) {
             inHouseCount: inHouseRes.count || 0,
             vendorCount: vendorRes.count || 0,
           };
-        }),
+        })(),
       ]);
 
       if (subplatesRes.error) {
@@ -177,7 +182,7 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const result = cacheKey ? await getCached(cacheKey, 20, executeFetch) : await executeFetch();
+    const result = await executeFetch();
 
     const response = NextResponse.json({
       subplates: result.subplates,

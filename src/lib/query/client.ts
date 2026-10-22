@@ -1,4 +1,4 @@
-import { QueryClient, keepPreviousData } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 
 /**
  * Cache Freshness Tier Configurations (in milliseconds)
@@ -15,16 +15,17 @@ export const CACHE_TIERS = {
     gcTime: 24 * 60 * 60 * 1000,
   },
   // Tier C: Operational pipeline (Live projects, subplates, worklogs, challans, dispatch)
+  // ZERO staleTime ensures immediate sync with live database on every mount or navigation
   OPERATIONAL: {
-    staleTime: 60 * 1000,      // 60 seconds
-    gcTime: 24 * 60 * 60 * 1000,
-    refetchInterval: 45 * 1000, // 45s active-tab background polling fallback
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
+    refetchInterval: 30 * 1000, // 30s active-tab background polling fallback
     refetchIntervalInBackground: false,
   },
   // Tier D: Sensitive & Dashboard Rollups (KPI counts, user session)
   DASHBOARD: {
-    staleTime: 45 * 1000,      // 45 seconds
-    gcTime: 24 * 60 * 60 * 1000,
+    staleTime: 0,
+    gcTime: 5 * 60 * 1000,
   },
 } as const;
 
@@ -35,14 +36,13 @@ export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
-        gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+        staleTime: 0,
+        gcTime: 5 * 60 * 1000,
         refetchInterval: CACHE_TIERS.OPERATIONAL.refetchInterval,
         refetchIntervalInBackground: CACHE_TIERS.OPERATIONAL.refetchIntervalInBackground,
-        refetchOnWindowFocus: false,
-        refetchOnMount: true,
+        refetchOnWindowFocus: true,
+        refetchOnMount: "always",
         refetchOnReconnect: true,
-        placeholderData: keepPreviousData,
         retry: 1,
       },
       mutations: {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createQueryClient } from "@/lib/query/client";
@@ -33,13 +33,27 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 24 * 60 * 60 * 1000,
-        buster: "v3.1.0",
+        buster: "v5.0.0_live_realtime",
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
-            return (
-              query.state.status === "success" &&
-              query.queryKey[0] !== "search"
-            );
+            const key0 = String(query.queryKey[0]);
+            // Strictly exclude any operational or fast-changing manufacturing state
+            if ([
+              "projects",
+              "subplates",
+              "dashboard",
+              "worklogs",
+              "challans",
+              "dispatch",
+              "inward",
+              "purchases",
+              "expenses",
+              "search",
+              "counts"
+            ].includes(key0)) {
+              return false;
+            }
+            return query.state.status === "success";
           },
         },
       }}

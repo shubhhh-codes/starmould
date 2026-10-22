@@ -79,7 +79,6 @@ export async function getCachedCustomers(): Promise<any[]> {
   });
 }
 
-
 export async function getCachedVendors(): Promise<any[]> {
   return getCached("shared_vendors", 60, async () => {
     const { data } = await supabaseAdmin
@@ -100,13 +99,14 @@ export async function getCachedUsers(): Promise<any[]> {
   });
 }
 
+/**
+ * Direct Live Lookup for Mould Projects (No stale server-side caching)
+ */
 export async function getCachedScansLookup(): Promise<any[]> {
-  return getCached("shared_scans_lookup", 30, async () => {
-    const { data } = await supabaseAdmin
-      .from("scan")
-      .select("id, projectid, description, worktype, cname, status")
-      .order("id", { ascending: false })
-      .limit(1000);
-    return data || [];
-  });
+  const { data } = await supabaseAdmin
+    .from("scan")
+    .select("id, projectid, description, worktype, cname, status")
+    .order("id", { ascending: false })
+    .limit(1000);
+  return data || [];
 }

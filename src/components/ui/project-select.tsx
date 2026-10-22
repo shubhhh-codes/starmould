@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Search, ChevronDown, Check, X, Layers, Building2 } from "lucide-react";
+import { Search, ChevronDown, Check, X, Layers, Building2, Loader2 } from "lucide-react";
 import type { ScanProject } from "@/lib/supabase/types";
 
 export interface ProjectSelectProps {
@@ -12,6 +12,8 @@ export interface ProjectSelectProps {
   disabled?: boolean;
   required?: boolean;
   className?: string;
+  isLoading?: boolean;
+  onOpen?: () => void;
 }
 
 export function ProjectSelect({
@@ -22,6 +24,8 @@ export function ProjectSelect({
   disabled = false,
   required = false,
   className = "",
+  isLoading = false,
+  onOpen,
 }: ProjectSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -57,7 +61,11 @@ export function ProjectSelect({
   // Find currently selected project
   const selectedProject = useMemo(() => {
     if (!value) return null;
-    return projects.find((p) => (p.projectid && p.projectid === value) || String(p.id) === value) || null;
+    return (
+      projects.find(
+        (p) => String(p.id) === value || (p.projectid && p.projectid === value)
+      ) || null
+    );
   }, [projects, value]);
 
   // Filter projects by query (project code, description, customer name, work type)
@@ -82,7 +90,7 @@ export function ProjectSelect({
   }, [projects, query]);
 
   const handleSelect = (project: ScanProject) => {
-    const val = project.projectid || String(project.id);
+    const val = project.id ? String(project.id) : (project.projectid || "");
     onChange(val, project);
     setIsOpen(false);
   };
@@ -108,7 +116,15 @@ export function ProjectSelect({
       <button
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={() => {
+          if (!disabled) {
+            const next = !isOpen;
+            setIsOpen(next);
+            if (next && onOpen) {
+              onOpen();
+            }
+          }
+        }}
         className={`w-full min-h-[40px] px-3 py-1.5 rounded-xl border transition-all text-left flex items-center justify-between gap-2 shadow-xs cursor-pointer ${
           isOpen
             ? "border-blue-500 ring-2 ring-blue-500/20 bg-white"
@@ -130,6 +146,11 @@ export function ProjectSelect({
                 </span>
               )}
             </div>
+          ) : isLoading ? (
+            <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5 select-none">
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+              Loading mould projects...
+            </span>
           ) : (
             <span className="text-xs text-slate-400 font-medium select-none">
               {placeholder}
@@ -186,9 +207,14 @@ export function ProjectSelect({
 
           {/* Project List */}
           <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 p-1">
-            {filteredProjects.length === 0 ? (
+            {isLoading && projects.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                <span>Loading mould projects...</span>
+              </div>
+            ) : filteredProjects.length === 0 ? (
               <div className="p-6 text-center text-xs text-slate-400">
-                No matching projects found for &quot;{query}&quot;
+                {query ? `No matching projects found for "${query}"` : "No active mould projects available"}
               </div>
             ) : (
               filteredProjects.map((p) => {

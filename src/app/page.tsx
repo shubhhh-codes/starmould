@@ -223,6 +223,13 @@ export default function DashboardPage() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         customers={projectsQuery.data?.customers}
+        onSuccess={async () => {
+          await Promise.all([
+            projectsQuery.refetch(),
+            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() }),
+          ]);
+        }}
       />
     </AppLayout>
   );
