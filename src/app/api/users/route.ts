@@ -85,7 +85,8 @@ export async function GET(req: NextRequest) {
       .from("users")
       .select("id, name, username, initials, email, usertype, usersubtype, role_id, status, created_at, updated_at")
       .is("deleted_at", null)
-      .order("id", { ascending: true });
+      .order("id", { ascending: true })
+      .limit(10000);
 
     if (uErr) {
       return NextResponse.json({ error: uErr.message }, { status: 500 });

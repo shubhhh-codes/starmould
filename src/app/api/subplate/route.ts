@@ -588,6 +588,16 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid subplate id" }, { status: 400 });
     }
 
+    // Cascade delete any worklogs associated with this subplate
+    const { error: wErr } = await supabaseAdmin
+      .from("worklog")
+      .delete()
+      .eq("subplateid", subplateId);
+
+    if (wErr) {
+      return NextResponse.json({ error: wErr.message }, { status: 500 });
+    }
+
     // Permanently hard delete the subplate directly from the database table
     const { error } = await supabaseAdmin
       .from("subplate")

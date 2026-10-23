@@ -29,7 +29,8 @@ export async function GET(req: NextRequest) {
     const { data: accounts } = await supabaseAdmin
       .from("customers")
       .select("id, customername, usertype, initials")
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .limit(10000);
 
     const custMap = new Map((accounts || []).map((c) => [c.id, c.customername]));
 
@@ -53,7 +54,8 @@ export async function GET(req: NextRequest) {
     } else {
       const { data: allExpenses } = await supabaseAdmin
         .from("expense")
-        .select("payment_type, amount");
+        .select("payment_type, amount")
+        .limit(100000);
 
       for (const exp of allExpenses || []) {
         const amt = Number(exp.amount) || 0;
