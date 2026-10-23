@@ -1,6 +1,7 @@
 import { Client } from "pg";
 import fs from "fs";
 import path from "path";
+import os from "os";
 
 export interface BackupResult {
   success: boolean;
@@ -325,19 +326,26 @@ export async function generateDatabaseBackup(options: BackupOptions = {}): Promi
         } catch {
           // Non-critical retention failure
         }
-      } catch (err: unknown) {
-        // Fallback to local ./backups directory if target directory (e.g. C:\) is restricted
-        const localBackupDir = path.join(process.cwd(), "backups");
-        if (!fs.existsSync(localBackupDir)) {
-          fs.mkdirSync(localBackupDir, { recursive: true });
-        }
-        if (includeSql) {
-          filePathSql = path.join(localBackupDir, filenameSql);
-          fs.writeFileSync(filePathSql, sqlContent, "utf-8");
-        }
-        if (includeJson) {
-          filePathJson = path.join(localBackupDir, filenameJson);
-          fs.writeFileSync(filePathJson, jsonContent, "utf-8");
+      } catch {
+        // Fallback to writable directory on serverless (e.g. Vercel /tmp) or local ./backups
+        try {
+          const fallbackDir = process.env.VERCEL
+            ? path.join(os.tmpdir(), "backups")
+            : path.join(process.cwd(), "backups");
+
+          if (!fs.existsSync(fallbackDir)) {
+            fs.mkdirSync(fallbackDir, { recursive: true });
+          }
+          if (includeSql) {
+            filePathSql = path.join(fallbackDir, filenameSql);
+            fs.writeFileSync(filePathSql, sqlContent, "utf-8");
+          }
+          if (includeJson) {
+            filePathJson = path.join(fallbackDir, filenameJson);
+            fs.writeFileSync(filePathJson, jsonContent, "utf-8");
+          }
+        } catch {
+          // In read-only serverless environments, file content is still generated and preserved in memory
         }
       }
     }
