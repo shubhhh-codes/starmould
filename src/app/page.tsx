@@ -15,6 +15,7 @@ import { useProgressiveProjectsStream, useDashboardCountsQuery } from "@/lib/que
 import { queryKeys } from "@/lib/query/keys";
 import { NewMouldModal } from "@/components/mould/new-mould-modal";
 import { clearLocalProjectsStore } from "@/lib/cache/projects-local-store";
+import { appStore } from "@/lib/state/store";
 
 /**
  * Buttery smooth animated counter using requestAnimationFrame with cubic deceleration
@@ -146,6 +147,20 @@ export default function DashboardPage() {
 
   const projects = projectsStream.scans;
 
+  // On browser hard-refresh / reload, immediately sync with live database
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const navEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
+        const isReload = navEntries.length > 0 && navEntries[0].type === "reload";
+        if (isReload) {
+          projectsStream.refetch();
+          countsQuery.refetch();
+        }
+      } catch {}
+    }
+  }, []);
+
   // Ultra-fast loading guard:
   // If data exists in local storage (warm start), loading is false in 0ms!
   const isLoading = isRestoring || (projectsStream.isLoading && projects.length === 0);
@@ -176,6 +191,46 @@ export default function DashboardPage() {
       } else {
         setIsManualRefreshing(false);
       }
+    }
+  };
+
+  // Optimistic Instant Removal (0ms UI lag) + Cascade Deletion
+  const handleDeleteProject = async (id: number | string): Promise<boolean> => {
+    const original = projectsStream.scans.find((p) => String(p.id) === String(id) || Number(p.id) === Number(id));
+
+    // 1. Capture the CURRENT lastSyncTime BEFORE removal so we can use it for
+    //    post-delete delta sync. removeProjectLocally now preserves lastSyncTime
+    //    in IndexedDB so the delta sync correctly detects this deletion via activeIds.
+    const syncTimeBefore = projectsStream.lastSyncTime;
+
+    // 2. Instantly remove row from local state and IndexedDB (optimistic, 0ms UI lag)
+    await projectsStream.removeProjectLocally(id);
+
+    try {
+      const res = await fetch(`/api/scanning?id=${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to delete mould project");
+      }
+      // 3. After successful server delete, run a lightweight delta sync using the
+      //    pre-delete syncTime. This confirms the deletion via activeIds and updates
+      //    lastSyncTime to the current server time — preventing ghost re-appearances.
+      if (syncTimeBefore) {
+        projectsStream.syncDelta(syncTimeBefore);
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      return true;
+    } catch (err: any) {
+      // 4. Rollback if delete fails
+      if (original) {
+        await projectsStream.restoreProjectLocally(original);
+      }
+      appStore.addToast({
+        type: "error",
+        message: err.message || "Failed to delete mould project",
+      });
+      return false;
     }
   };
 
@@ -361,6 +416,7 @@ export default function DashboardPage() {
           isLoading={isLoading}
           isRefreshing={isRefreshing}
           onRefresh={handleRefresh}
+          onDeleteProject={handleDeleteProject}
         />
       </div>
 

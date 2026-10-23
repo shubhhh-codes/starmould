@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
     let poQuery = supabaseAdmin
       .from("purchase")
-      .select("id, srno, purchaseid, pno, vname, cname, odate, projectid, idate, imaterial, status, created_at, created_by, updated_at", { count: "exact" })
+      .select("id, srno, purchaseid, pno, vname, cname, customer_name, odate, projectid, idate, imaterial, status, created_at, created_by, updated_at", { count: "exact" })
       .order("id", { ascending: false });
 
     if (page && page > 0) {
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
       return {
         ...po,
         vendorname: vendMap.get(po.vname) || `Vendor #${po.vname}`,
-        customername: custMap.get(po.cname) || `Customer #${po.cname}`,
+        customername: po.customer_name || custMap.get(po.cname) || `Customer #${po.cname}`, customer_name: po.customer_name || custMap.get(po.cname) || null,
         items: poItems,
       };
     });
@@ -150,6 +150,7 @@ export async function POST(req: NextRequest) {
           odate: odate || new Date().toISOString().slice(0, 10),
           vname: Number(vname),
           cname: Number(cname),
+          customer_name: (await supabaseAdmin.from("customers").select("customername").eq("id", Number(cname)).maybeSingle()).data?.customername || null,
           projectid: String(projectid),
           status: "1",
           created_by: auth.user.name || "Admin",

@@ -33,10 +33,17 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 24 * 60 * 60 * 1000,
-        buster: "v6.0.0_progressive_stream",
+        buster: "v7.0.0_purge_stale_projects",
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
+            const key0 = String(query.queryKey[0] || "");
             const key1 = String(query.queryKey[1] || "");
+            // Do NOT persist live operational projects list to TanStack persister!
+            // Projects are progressively streamed & delta-synced by STARMOULD_PROJECTS_STORE_V4.
+            // Persisting projects.list here creates a dual-cache conflict that revives deleted records.
+            if (key0 === "projects") {
+              return false;
+            }
             // Only exclude transient modal preview IDs
             if (key1 === "preview-id") {
               return false;

@@ -24,10 +24,11 @@ export async function GET(req: NextRequest) {
 
       // 1. Find all scan projects created or updated since `since`
       // 2. Also find scan projects whose subplates were updated since `since`
-      const [updatedScansRes, updatedSubplatesRes] = await Promise.all([
+      // 3. Query all active scan IDs to enable 100% accurate deletion & truncate synchronization!
+      const [updatedScansRes, updatedSubplatesRes, allScansCountRes] = await Promise.all([
         supabaseAdmin
           .from("scan")
-          .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
+          .select("id, projectid, description, worktype, customer_id, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
           .or(`updated_at.gt.${since},created_at.gt.${since}`)
           .order("id", { ascending: false }),
         supabaseAdmin
@@ -36,7 +37,28 @@ export async function GET(req: NextRequest) {
           .or(`updated_at.gt.${since},created_at.gt.${since}`)
           .is("deleted_at", null)
           .limit(500),
+        supabaseAdmin
+          .from("scan")
+          .select("id", { count: "exact" })
+          .limit(10000),
       ]);
+
+      const totalCount = allScansCountRes.count ?? 0;
+      const allActiveIds = (allScansCountRes.data || []).map((r: any) => r.id);
+
+      // If database is completely empty (e.g. TRUNCATE), signal immediate purge
+      if (totalCount === 0) {
+        return NextResponse.json({
+          status: "ok",
+          isDelta: true,
+          isTruncated: true,
+          totalCount: 0,
+          activeIds: [],
+          deltaCount: 0,
+          scans: [],
+          serverTime,
+        });
+      }
 
       const scanIdSet = new Set<number>();
       for (const s of updatedScansRes.data || []) {
@@ -47,11 +69,14 @@ export async function GET(req: NextRequest) {
         if (id) scanIdSet.add(id);
       }
 
-      // If nothing has changed, return empty delta immediately (15ms, ~120 bytes)
+      // If nothing has changed, return empty delta with active IDs for deletion sync
       if (scanIdSet.size === 0) {
         return NextResponse.json({
           status: "ok",
           isDelta: true,
+          isTruncated: false,
+          totalCount,
+          activeIds: allActiveIds,
           deltaCount: 0,
           scans: [],
           serverTime,
@@ -65,7 +90,7 @@ export async function GET(req: NextRequest) {
       if (missingIds.length > 0) {
         const { data: missingScans } = await supabaseAdmin
           .from("scan")
-          .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
+          .select("id, projectid, description, worktype, customer_id, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
           .in("id", missingIds);
         if (missingScans) {
           deltaScans = [...deltaScans, ...missingScans];
@@ -123,7 +148,7 @@ export async function GET(req: NextRequest) {
       }
 
       const enrichedDelta = deltaScans.map((s: any) => {
-        const cust = custMap.get(s.cname) || custMap.get(Number(s.cname));
+        const cust = custMap.get(s.customer_id) || custMap.get(s.cname) || custMap.get(Number(s.cname));
         const scanUser = userMap.get(Number(s.scan_by)) || userMap.get(s.scan_by);
         const qcUser = userMap.get(Number(s.qc_by)) || userMap.get(s.qc_by);
         const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
@@ -135,7 +160,7 @@ export async function GET(req: NextRequest) {
 
         return {
           ...s,
-          customername: cust?.customername || (isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
+          customername: cust?.customername || (!s.cname ? "Unknown Customer" : isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
           customer_initials: cust?.initials || "",
           scan_by_name: scanUser?.initials || scanUser?.name || "—",
           qc_by_name: qcUser?.initials || qcUser?.name || "—",
@@ -154,6 +179,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         status: "ok",
         isDelta: true,
+        isTruncated: false,
+        totalCount,
+        activeIds: allActiveIds,
         deltaCount: enrichedDelta.length,
         scans: enrichedDelta,
         serverTime,
@@ -169,7 +197,7 @@ export async function GET(req: NextRequest) {
 
     let scanQuery = supabaseAdmin
       .from("scan")
-      .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at", { count: "exact" })
+      .select("id, projectid, description, worktype, customer_id, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at", { count: "exact" })
       .order("id", { ascending: false });
 
     if (status && status !== "ALL") {
@@ -178,11 +206,16 @@ export async function GET(req: NextRequest) {
     if (worktype && worktype !== "ALL") {
       scanQuery = scanQuery.eq("worktype", worktype);
     }
-    if (customer && customer !== "ALL") {
-      scanQuery = scanQuery.eq("cname", String(customer));
+    if (customer && customer !== "ALL" && customer.trim()) {
+      const numericId = parseInt(customer, 10);
+      if (!isNaN(numericId) && numericId > 0 && String(numericId) === customer.trim()) {
+        scanQuery = scanQuery.or(`customer_id.eq.${numericId},cname.eq.${numericId}`);
+      } else {
+        scanQuery = scanQuery.eq("cname", customer.trim().slice(0, 200));
+      }
     }
     if (search) {
-      const safeSearch = search.replace(/[(),.%]/g, "");
+      const safeSearch = search.replace(/[^a-zA-Z0-9\-_ ]/g, "").trim().slice(0, 100);
       if (safeSearch) {
         scanQuery = scanQuery.or(`projectid.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
       }
@@ -295,7 +328,7 @@ export async function GET(req: NextRequest) {
       }
 
       const enriched = scans.map((s: any) => {
-        const cust = custMap.get(s.cname) || custMap.get(Number(s.cname));
+        const cust = custMap.get(s.customer_id) || custMap.get(s.cname) || custMap.get(Number(s.cname));
         const scanUser = userMap.get(Number(s.scan_by)) || userMap.get(s.scan_by);
         const qcUser = userMap.get(Number(s.qc_by)) || userMap.get(s.qc_by);
         const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
@@ -307,7 +340,7 @@ export async function GET(req: NextRequest) {
 
         return {
           ...s,
-          customername: cust?.customername || (isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
+          customername: cust?.customername || (!s.cname ? "Unknown Customer" : isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
           customer_initials: cust?.initials || "",
           scan_by_name: scanUser?.initials || scanUser?.name || "—",
           qc_by_name: qcUser?.initials || qcUser?.name || "—",
@@ -491,8 +524,10 @@ export async function PATCH(req: NextRequest) {
     };
 
     if (field && value !== undefined) {
-      if (["status", "subnote", "note", "description"].includes(field)) {
+      if (["status", "subnote", "note", "description", "cname"].includes(field)) {
         updatePayload[field] = value === "" || value === null ? null : String(value);
+      } else if (field === "customer_id") {
+        updatePayload[field] = value ? Number(value) : null;
       } else {
         updatePayload[field] =
           value === 0 || value === "0" || value === "" || value === null
@@ -588,48 +623,43 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
     }
 
-    // 2. Check if child subplates exist for this project
-    const { count: subplateCount, error: subplateErr } = await supabaseAdmin
+    // 2. Cascade Delete: Find all child subplates linked to this mould project
+    const subplateOrFilters = [`mold_id.eq.${id}`, `projectid.eq.${id}`];
+    if (project.projectid) {
+      subplateOrFilters.push(`projectid.eq.${project.projectid}`);
+      subplateOrFilters.push(`mold_code.eq.${project.projectid}`);
+    }
+
+    const { data: childSubplates } = await supabaseAdmin
       .from("subplate")
-      .select("id", { count: "exact", head: true })
-      .eq("projectid", id)
-      .is("deleted_at", null);
+      .select("id")
+      .or(subplateOrFilters.join(","));
 
-    if (subplateErr) {
-      return NextResponse.json({ error: subplateErr.message }, { status: 500 });
+    const subplateIds = (childSubplates || []).map((sp) => sp.id);
+
+    // 3. Cascade Delete: Remove associated operator worklogs
+    const worklogOrFilters = [`scan_print_id.eq.${id}`];
+    if (project.projectid) {
+      worklogOrFilters.push(`projectid.eq.${project.projectid}`);
+    }
+    if (subplateIds.length > 0) {
+      worklogOrFilters.push(`subplateid.in.(${subplateIds.join(",")})`);
     }
 
-    if (subplateCount && subplateCount > 0) {
-      return NextResponse.json(
-        {
-          error:
-            "Cannot delete project: Child subplates/mould components are registered to this project code. Complete or archive instead.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // 3. Check if logged worklog hours exist
-    const { count: worklogCount, error: worklogErr } = await supabaseAdmin
+    await supabaseAdmin
       .from("worklog")
-      .select("id", { count: "exact", head: true })
-      .eq("scan_print_id", id);
+      .delete()
+      .or(worklogOrFilters.join(","));
 
-    if (worklogErr) {
-      return NextResponse.json({ error: worklogErr.message }, { status: 500 });
+    // 4. Cascade Delete: Remove child subplates
+    if (subplateIds.length > 0) {
+      await supabaseAdmin
+        .from("subplate")
+        .delete()
+        .or(subplateOrFilters.join(","));
     }
 
-    if (worklogCount && worklogCount > 0) {
-      return NextResponse.json(
-        {
-          error:
-            "Cannot delete project: Operator worklogs exist for this project. Complete or archive instead.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // 4. Hard delete project row to release high-water mark sequence if it was the latest
+    // 5. Delete mould project row from scan table
     const { error: deleteErr } = await supabaseAdmin
       .from("scan")
       .delete()
@@ -639,16 +669,19 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: deleteErr.message }, { status: 500 });
     }
 
-    // 5. Invalidate server-side caches
+    // 6. Invalidate server-side caches
     invalidateCache("scanning_default_");
     invalidateCache("subplate_default_");
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
+    invalidateCache("subplate_kpi_counts");
 
     return NextResponse.json({
       success: true,
-      message: `Project ${project.projectid || id} deleted successfully`,
+      message: `Project ${project.projectid || id} and ${subplateIds.length} subplates deleted successfully`,
+      deletedSubplatesCount: subplateIds.length,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

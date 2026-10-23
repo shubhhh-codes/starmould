@@ -74,7 +74,8 @@ export async function getCachedCustomers(): Promise<any[]> {
     const { data } = await supabaseAdmin
       .from("customers")
       .select("id, customername, initials, usertype, deleted_at")
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .limit(5000);
     return data || [];
   });
 }
@@ -84,7 +85,8 @@ export async function getCachedVendors(): Promise<any[]> {
     const { data } = await supabaseAdmin
       .from("vendors")
       .select("id, vendor_name, initials, vendor_code, vendor_type, city, gstin, pan, bank_name, account_no, ifsc_code, mobile, email, deleted_at")
-      .is("deleted_at", null);
+      .is("deleted_at", null)
+      .limit(5000);
     return data || [];
   });
 }

@@ -70,6 +70,7 @@ export interface ProjectsQueryParams {
   search?: string;
   customer?: string;
   worktype?: string;
+  enabled?: boolean;
 }
 
 export function useProjectsQuery(params: ProjectsQueryParams = {}) {
@@ -111,6 +112,7 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
         },
       };
     },
+    enabled: params.enabled !== false,
     staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
   });
@@ -119,7 +121,7 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
   // For bulk fetches (e.g. pageSize: 500 used on dashboard or for full lookups), do not prefetch page 2
   // since the user is browsing the client dataset and a 500-item prefetch transfers 1.7MB+ unnecessarily.
   const hasNextPage = query.data?.pagination?.hasNextPage;
-  const shouldPrefetchNext = Boolean(hasNextPage && pageSize < 100);
+  const shouldPrefetchNext = Boolean(hasNextPage && pageSize < 100 && params.enabled !== false);
 
   useEffect(() => {
     if (shouldPrefetchNext) {
@@ -203,6 +205,15 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     kpis: Record<string, any>;
   }>({ customers: [], users: [], kpis: {} });
 
+  const streamedScansRef = React.useRef<ScanProject[]>(streamedScans);
+  streamedScansRef.current = streamedScans;
+  const totalCountRef = React.useRef(totalCount);
+  totalCountRef.current = totalCount;
+  const extraMetadataRef = React.useRef(extraMetadata);
+  extraMetadataRef.current = extraMetadata;
+  const lastSyncTimeRef = React.useRef<string | null>(lastSyncTime);
+  lastSyncTimeRef.current = lastSyncTime;
+
   const streamAbortControllerRef = React.useRef<AbortController | null>(null);
   const isFreshStreamingRef = React.useRef(false);
 
@@ -233,7 +244,10 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
   const syncDelta = React.useCallback(
     async (sinceTime?: string | null) => {
       const effectiveSince = sinceTime || lastSyncTime;
-      if (!effectiveSince) return null;
+      if (!effectiveSince) {
+        chunk1Query.refetch();
+        return null;
+      }
 
       try {
         setIsSyncingDelta(true);
@@ -244,21 +258,44 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           const deltaScans: ScanProject[] = res.scans || [];
           const newServerTime = res.serverTime || new Date().toISOString();
 
-          if (deltaScans.length > 0) {
-            setStreamedScans((prev) => {
-              const { merged } = mergeDeltaScans(prev, deltaScans);
-              saveLocalProjectsStore({
-                scans: merged,
-                lastSyncTime: newServerTime,
-                customers: extraMetadata.customers,
-                users: extraMetadata.users,
-                kpis: extraMetadata.kpis,
-                totalCount: merged.length,
-                isInitialComplete: true,
-              });
-              return merged;
-            });
+          // 1. Database is completely truncated or empty: immediate clean wipe!
+          if (res.isTruncated || res.totalCount === 0) {
+            setStreamedScans([]);
+            streamedScansRef.current = [];
+            setTotalCount(0);
+            totalCountRef.current = 0;
+            await clearLocalProjectsStore();
+            setLastSyncTime(newServerTime);
+            queryClient.removeQueries({ queryKey: queryKeys.projects.all() });
+            return { deltaCount: 0, deltaScans: [] };
           }
+
+          // 2. Active IDs returned from database: synchronize deletions and additions
+          const activeIds: number[] | undefined = res.activeIds;
+          const activeSet = Array.isArray(activeIds) ? new Set(activeIds.map(Number)) : null;
+
+          setStreamedScans((prev) => {
+            // Prune any records deleted from the database
+            const remaining = activeSet ? prev.filter((item) => activeSet.has(Number(item.id))) : prev;
+            // Merge newly added or updated delta scans
+            const { merged } = mergeDeltaScans(remaining, deltaScans);
+            const newTotal = res.totalCount !== undefined ? res.totalCount : merged.length;
+            setTotalCount(newTotal);
+            totalCountRef.current = newTotal;
+            streamedScansRef.current = merged;
+
+            saveLocalProjectsStore({
+              scans: merged,
+              lastSyncTime: newServerTime,
+              customers: extraMetadata.customers,
+              users: extraMetadata.users,
+              kpis: extraMetadata.kpis,
+              totalCount: newTotal,
+              isInitialComplete: true,
+            });
+            return merged;
+          });
+
           setLastSyncTime(newServerTime);
           return { deltaCount: deltaScans.length, deltaScans };
         }
@@ -284,7 +321,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
   }, [hasHydratedLocal, enabled]);
 
   // If cache was empty (cold start on a fresh browser), fetch Chunk 1
-  const shouldFetchChunk1 = hasHydratedLocal && streamedScans.length === 0;
+  const shouldFetchChunk1 = enabled && hasHydratedLocal && streamedScans.length === 0;
   const chunk1Query = useProjectsQuery({
     page: 1,
     pageSize: initialChunkSize,
@@ -292,14 +329,17 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     search,
     customer,
     worktype,
+    enabled: shouldFetchChunk1,
   });
 
   React.useEffect(() => {
-    if (shouldFetchChunk1 && chunk1Query.data?.scans && chunk1Query.data.scans.length > 0) {
-      const scans = chunk1Query.data.scans;
-      const total = chunk1Query.data.pagination?.total || scans.length;
+    if (shouldFetchChunk1 && chunk1Query.data) {
+      const scans = (chunk1Query.data.scans || []) as ScanProject[];
+      const total = chunk1Query.data.pagination?.total ?? scans.length;
       setStreamedScans(scans);
+      streamedScansRef.current = scans;
       setTotalCount(total);
+      totalCountRef.current = total;
       const meta = {
         customers: chunk1Query.data.customers || [],
         users: chunk1Query.data.users || [],
@@ -325,7 +365,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
   // Progressive background runner (ONLY runs if cache is not yet fully populated, e.g. on very first run)
   React.useEffect(() => {
     if (!enabled || !hasHydratedLocal || isFreshStreamingRef.current) return;
-    if (totalCount <= initialChunkSize || streamedScans.length >= totalCount || totalCount === 0) {
+    if (totalCount <= initialChunkSize || streamedScansRef.current.length >= totalCount || totalCount === 0) {
       setIsStreaming(false);
       return;
     }
@@ -341,7 +381,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
 
     const streamNextChunks = async () => {
       try {
-        let currentAllScans = [...streamedScans];
+        let currentAllScans = [...streamedScansRef.current];
         let loaded = currentAllScans.length;
         while (loaded < totalCount && isMounted && !abortController.signal.aborted) {
           // Cooperative delay so main thread and UI remain completely responsive (60fps)
@@ -380,14 +420,15 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           currentAllScans = Array.from(map.values());
           loaded = currentAllScans.length;
 
+          streamedScansRef.current = currentAllScans;
           setStreamedScans(currentAllScans);
 
           saveLocalProjectsStore({
             scans: currentAllScans,
             lastSyncTime: new Date().toISOString(),
-            customers: extraMetadata.customers,
-            users: extraMetadata.users,
-            kpis: extraMetadata.kpis,
+            customers: extraMetadataRef.current.customers,
+            users: extraMetadataRef.current.users,
+            kpis: extraMetadataRef.current.kpis,
             totalCount,
             isInitialComplete: loaded >= totalCount,
           });
@@ -414,19 +455,121 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     hasHydratedLocal,
     totalCount,
     initialChunkSize,
-    streamedScans.length,
-    extraMetadata,
   ]);
 
   // 4. Manual Refetch / User Refresh Button:
   // Strictly performs a DELTA SYNC! Does NOT wipe cache, does NOT re-query old records!
-  const refetch = async () => {
-    if (lastSyncTime && streamedScans.length > 0) {
-      return syncDelta(lastSyncTime);
-    } else {
-      return chunk1Query.refetch();
+  const refetch = React.useCallback(async () => {
+    if (lastSyncTime && streamedScansRef.current.length > 0) {
+      const deltaResult = await syncDelta(lastSyncTime);
+      if (deltaResult) return deltaResult;
     }
-  };
+
+    try {
+      const res = await chunk1Query.refetch();
+      if (res.data) {
+        const scans = (res.data.scans || []) as ScanProject[];
+        const total = res.data.pagination?.total ?? scans.length;
+        setStreamedScans(scans);
+        streamedScansRef.current = scans;
+        setTotalCount(total);
+        totalCountRef.current = total;
+        const now = new Date().toISOString();
+        setLastSyncTime(now);
+
+        saveLocalProjectsStore({
+          scans,
+          lastSyncTime: now,
+          customers: res.data.customers || extraMetadataRef.current.customers,
+          users: res.data.users || extraMetadataRef.current.users,
+          kpis: res.data.kpis || extraMetadataRef.current.kpis,
+          totalCount: total,
+          isInitialComplete: scans.length >= total,
+        });
+        return res.data;
+      }
+    } catch (err) {
+      console.warn("[ProgressiveStream] Refetch error:", err);
+    }
+    return null;
+  }, [lastSyncTime, syncDelta, chunk1Query]);
+
+  // Optimistic Instant Removal of a mould project (0ms UI lag)
+  const removeProjectLocally = React.useCallback(
+    async (id: number | string) => {
+      const strId = String(id);
+      const numId = Number(id);
+
+      setStreamedScans((prev) => {
+        const updated = prev.filter((p) => String(p.id) !== strId && Number(p.id) !== numId);
+        streamedScansRef.current = updated;
+        const newTotal = Math.max(0, (totalCountRef.current || prev.length) - 1);
+        setTotalCount(newTotal);
+        totalCountRef.current = newTotal;
+
+        // IMPORTANT: Do NOT advance lastSyncTime here.
+        // Advancing it before the API delete completes causes the next delta sync
+        // (since=newTime) to miss the deletion — because the server's activeIds
+        // list is queried after the new time and the deleted ID will simply not be
+        // included, but the local pruning already happened. We preserve the existing
+        // lastSyncTime so that if any subsequent refetch/delta-sync runs, it correctly
+        // sees the deletion via activeIds comparison.
+        saveLocalProjectsStore({
+          scans: updated,
+          lastSyncTime: lastSyncTimeRef.current ?? new Date().toISOString(), // keep existing sync time if available
+          customers: extraMetadataRef.current.customers,
+          users: extraMetadataRef.current.users,
+          kpis: extraMetadataRef.current.kpis,
+          totalCount: newTotal,
+          isInitialComplete: true,
+        });
+        return updated;
+      });
+
+      // Also prune from TanStack Query caches immediately
+      queryClient.setQueriesData<any>({ queryKey: queryKeys.projects.all() }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old.scans)) {
+          const filtered = old.scans.filter((s: any) => String(s.id) !== strId && Number(s.id) !== numId);
+          return {
+            ...old,
+            scans: filtered,
+            pagination: old.pagination
+              ? { ...old.pagination, total: Math.max(0, old.pagination.total - 1) }
+              : old.pagination,
+          };
+        }
+        return old;
+      });
+    },
+    [queryClient]
+  );
+
+  // Optimistic rollback in case API deletion fails
+  const restoreProjectLocally = React.useCallback(
+    async (project: ScanProject) => {
+      setStreamedScans((prev) => {
+        if (prev.some((p) => String(p.id) === String(project.id) || Number(p.id) === Number(project.id))) return prev;
+        const updated = [project, ...prev];
+        streamedScansRef.current = updated;
+        const newTotal = (totalCountRef.current || prev.length) + 1;
+        setTotalCount(newTotal);
+        totalCountRef.current = newTotal;
+
+        saveLocalProjectsStore({
+          scans: updated,
+          lastSyncTime: new Date().toISOString(),
+          customers: extraMetadataRef.current.customers,
+          users: extraMetadataRef.current.users,
+          kpis: extraMetadataRef.current.kpis,
+          totalCount: newTotal,
+          isInitialComplete: true,
+        });
+        return updated;
+      });
+    },
+    []
+  );
 
   // 5. Test Live Chunks Stream:
   // Explicitly wipes local cache and executes the live ramp-up chunk sequence on screen!
@@ -543,6 +686,8 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     refetch,
     syncDelta,
     startFreshStream,
+    removeProjectLocally,
+    restoreProjectLocally,
     lastSyncTime,
   };
 }

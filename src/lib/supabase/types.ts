@@ -79,6 +79,7 @@ export interface ScanProject {
   cdate: string;
   dispatchdate: string;
   cname: string;
+  customer_id?: number | null;
   customername?: string;
   description: string;
   note: string | null;
@@ -220,6 +221,7 @@ export interface PurchaseInwardReceipt {
   created_at?: string;
   vendorname?: string;
   customername?: string;
+  customer_name?: string | null;
   items?: PurchaseInwardItem[];
 }
 

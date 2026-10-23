@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -51,9 +51,10 @@ import {
 import { formatDate } from "@/lib/utils";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
-import { Modal, Drawer } from "@/components/ui/dialog";
+import { Modal, Drawer, ConfirmDialog } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
+import { appStore } from "@/lib/state/store";
 import {
   calculateSubplateWeight,
   isHeightDisabled,
@@ -309,6 +310,7 @@ interface MouldProjectsTableProps {
   isLoading?: boolean;
   isRefreshing?: boolean;
   onRefresh?: () => void;
+  onDeleteProject?: (id: number | string) => Promise<boolean>;
 }
 
 const columnHelper = createColumnHelper<ScanProject>();
@@ -318,9 +320,15 @@ export function MouldProjectsTable({
   isLoading = false,
   isRefreshing = false,
   onRefresh,
+  onDeleteProject,
 }: MouldProjectsTableProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const isRestoring = useIsRestoring();
-  const showSkeleton = isLoading || isRestoring;
+  const showSkeleton = !mounted || isLoading || isRestoring;
   const data = initialData;
   const [sorting, setSorting] = useState<SortingState>([
     { id: "rdate", desc: true },
@@ -329,6 +337,27 @@ export function MouldProjectsTable({
   const [selectedCustomer, setSelectedCustomer] = useState<string>("ALL");
   const [selectedWorktype, setSelectedWorktype] = useState<string>("ALL");
   const [rowSelection, setRowSelection] = useState({});
+
+  // Custom Website Confirmation Dialog State
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    description: React.ReactNode;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    variant?: "danger" | "warning" | "primary";
+    isLoading?: boolean;
+    onConfirm: () => Promise<void> | void;
+  }>({
+    isOpen: false,
+    title: "",
+    description: "",
+    confirmLabel: "Confirm",
+    cancelLabel: "Cancel",
+    variant: "danger",
+    isLoading: false,
+    onConfirm: () => {},
+  });
 
   // View Subplates Modal State
   const [viewProject, setViewProject] = useState<ScanProject | null>(null);
@@ -413,30 +442,106 @@ export function MouldProjectsTable({
         queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
         queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
         onRefresh?.();
+        appStore.addToast({
+          type: "success",
+          message: `Project status updated to ${nextStatus}`,
+        });
       } else {
-        const err = await res.json();
-        alert(err.error || "Failed to update project status");
+        const err = await res.json().catch(() => ({}));
+        appStore.addToast({
+          type: "error",
+          message: err.error || "Failed to update project status",
+        });
       }
     } catch {
-      alert("Error updating project status");
+      appStore.addToast({
+        type: "error",
+        message: "Error updating project status",
+      });
     }
   };
 
-  const handleDeleteSingleProject = async (project: ScanProject) => {
-    if (!confirm(`Delete mould project "${project.projectid || `#${project.id}`}"?`)) return;
-    try {
-      const res = await fetch(`/api/scanning?id=${project.id}`, { method: "DELETE" });
-      if (res.ok) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-        onRefresh?.();
-      } else {
-        const err = await res.json();
-        alert(err.error || "Failed to delete project");
-      }
-    } catch {
-      alert("Error deleting project");
-    }
+  const handleDeleteSingleProject = (project: ScanProject) => {
+    const code = project.projectid || `#${project.id}`;
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Mould Project",
+      description: (
+        <div className="space-y-2 text-xs">
+          <p className="text-slate-700">
+            Are you sure you want to permanently delete mould project{" "}
+            <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
+              {code}
+            </span>
+            ?
+          </p>
+          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-relaxed">
+            <span className="font-semibold">⚠️ Cascade Deletion:</span> This will also permanently delete all linked child subplates and operator worklogs. This action cannot be undone.
+          </div>
+        </div>
+      ),
+      confirmLabel: "Delete Mould",
+      cancelLabel: "Cancel",
+      variant: "danger",
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+        try {
+          if (onDeleteProject) {
+            // Primary path: delegates to page.tsx which handles optimistic removal
+            // from IndexedDB + React state BEFORE the API call (0ms UI lag)
+            await onDeleteProject(project.id);
+          } else {
+            // Fallback path (table used standalone without onDeleteProject prop):
+            // Optimistically remove from TanStack Query cache first so UI updates immediately
+            queryClient.setQueriesData<any>({ queryKey: queryKeys.projects.all() }, (old: any) => {
+              if (!old || !Array.isArray(old.scans)) return old;
+              return {
+                ...old,
+                scans: old.scans.filter((s: any) => String(s.id) !== String(project.id) && Number(s.id) !== Number(project.id)),
+                pagination: old.pagination
+                  ? { ...old.pagination, total: Math.max(0, old.pagination.total - 1) }
+                  : old.pagination,
+              };
+            });
+
+            const res = await fetch(`/api/scanning?id=${project.id}`, { method: "DELETE" });
+            if (res.ok) {
+              queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+              queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+              onRefresh?.();
+            } else {
+              // Rollback: restore the removed row immediately before invalidating
+              queryClient.setQueriesData<any>({ queryKey: queryKeys.projects.all() }, (old: any) => {
+                if (!old || !Array.isArray(old.scans)) return old;
+                if (old.scans.some((s: any) => String(s.id) === String(project.id) || Number(s.id) === Number(project.id))) return old;
+                return {
+                  ...old,
+                  scans: [project, ...old.scans],
+                  pagination: old.pagination
+                    ? { ...old.pagination, total: old.pagination.total + 1 }
+                    : old.pagination,
+                };
+              });
+              queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.error || "Failed to delete project");
+            }
+          }
+          appStore.addToast({
+            type: "success",
+            message: `Mould project ${code} deleted successfully`,
+          });
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+        } catch (err: any) {
+          setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+          appStore.addToast({
+            type: "error",
+            message: err.message || "Failed to delete project",
+          });
+        }
+      },
+    });
   };
 
   // Handlers for View & Add Plate Modals
@@ -593,12 +698,18 @@ export function MouldProjectsTable({
   const handleSubmitPlate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addPlateProject || !plateForm.platename?.trim()) {
-      alert("Please enter a valid plate name.");
+      appStore.addToast({
+        type: "warning",
+        message: "Please enter a valid plate name.",
+      });
       return;
     }
 
     if (!isPlateFormValid) {
-      alert("Please enter valid, positive dimensions.");
+      appStore.addToast({
+        type: "warning",
+        message: "Please enter valid, positive dimensions.",
+      });
       return;
     }
 
@@ -665,43 +776,80 @@ export function MouldProjectsTable({
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
 
+      appStore.addToast({
+        type: "success",
+        message: isEditing ? "Subplate updated successfully" : "Subplate added successfully",
+      });
+
       setEditingSubplate(null);
       setAddPlateProject(null);
       onRefresh?.();
     } catch (err: any) {
-      alert("Error saving subplate: " + err.message);
+      appStore.addToast({
+        type: "error",
+        message: "Error saving subplate: " + err.message,
+      });
     } finally {
       setIsSubmittingPlate(false);
     }
   };
 
-  const handleDeleteSubplate = async (subplateId: number, projectId?: number) => {
-    if (!confirm("Are you sure you want to permanently delete this subplate from the database? This action cannot be undone.")) return;
-    try {
-      const res = await fetch(`/api/subplate?id=${subplateId}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        setViewSubplates((prev) => prev.filter((p) => p.id !== subplateId));
-        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-        onRefresh?.();
-      } else {
-        const err = await res.json();
-        alert(err.error || "Failed to delete subplate");
-      }
-    } catch (err) {
-      alert("Error deleting subplate");
-    }
+  const handleDeleteSubplate = (subplateId: number, projectId?: number) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: "Delete Subplate Component",
+      description: (
+        <div className="space-y-2 text-xs">
+          <p className="text-slate-700">
+            Are you sure you want to permanently delete this subplate from the database?
+          </p>
+          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-relaxed">
+            <span className="font-semibold">⚠️ Caution:</span> This component will be permanently removed and cannot be recovered.
+          </div>
+        </div>
+      ),
+      confirmLabel: "Delete Subplate",
+      cancelLabel: "Cancel",
+      variant: "danger",
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+        try {
+          const res = await fetch(`/api/subplate?id=${subplateId}`, {
+            method: "DELETE",
+          });
+          if (res.ok) {
+            setViewSubplates((prev) => prev.filter((p) => p.id !== subplateId));
+            queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+            onRefresh?.();
+            appStore.addToast({
+              type: "success",
+              message: "Subplate deleted successfully",
+            });
+            setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+          } else {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || "Failed to delete subplate");
+          }
+        } catch (err: any) {
+          setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+          appStore.addToast({
+            type: "error",
+            message: err.message || "Failed to delete subplate",
+          });
+        }
+      },
+    });
   };
 
   // Extract unique filters
   const uniqueCustomers = useMemo(() => {
     const set = new Set<string>();
     data.forEach((d) => {
-      if (d.customername) set.add(d.customername);
-      else if (d.cname) set.add(d.cname);
+      if (d.cname) set.add(d.cname);
+      else if (d.customername) set.add(d.customername);
     });
     return Array.from(set).sort();
   }, [data]);
@@ -719,8 +867,9 @@ export function MouldProjectsTable({
     return data.filter((item) => {
       if (
         selectedCustomer !== "ALL" &&
+        item.cname !== selectedCustomer &&
         item.customername !== selectedCustomer &&
-        item.cname !== selectedCustomer
+        String(item.customer_id) !== selectedCustomer
       ) {
         return false;
       }
@@ -808,7 +957,7 @@ export function MouldProjectsTable({
         ),
       }),
       // Customer Name
-      columnHelper.accessor((row) => row.customername || row.cname, {
+      columnHelper.accessor((row) => row.cname || row.customername, {
         id: "customer",
         header: "Customer",
         cell: (info) => (
@@ -887,23 +1036,7 @@ export function MouldProjectsTable({
               <Plus className="h-3.5 w-3.5" />
             </button>
             <button
-              onClick={async () => {
-                const item = row.original;
-                if (!confirm(`Delete mould project "${item.projectid || `#${item.id}`}"?`)) return;
-                try {
-                  const res = await fetch(`/api/scanning?id=${item.id}`, { method: "DELETE" });
-                  if (res.ok) {
-                    queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-                    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-                    onRefresh?.();
-                  } else {
-                    const err = await res.json();
-                    alert(err.error || "Failed to delete project");
-                  }
-                } catch (err) {
-                  alert("Error deleting project");
-                }
-              }}
+              onClick={() => handleDeleteSingleProject(row.original)}
               title="Delete Mould"
               className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
             >
@@ -940,6 +1073,109 @@ export function MouldProjectsTable({
   });
 
   const selectedCount = Object.keys(rowSelection).length;
+
+  const handleBatchMarkDone = () => {
+    const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+    if (selectedRows.length === 0) return;
+
+    setConfirmDialog({
+      isOpen: true,
+      title: `Mark ${selectedRows.length} Moulds as Completed`,
+      description: (
+        <p className="text-xs text-slate-700">
+          Are you sure you want to mark{" "}
+          <strong className="text-slate-900 font-semibold">{selectedRows.length}</strong> selected moulds as Completed?
+        </p>
+      ),
+      confirmLabel: "Mark Completed",
+      cancelLabel: "Cancel",
+      variant: "primary",
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+        try {
+          await Promise.all(
+            selectedRows.map((r) =>
+              fetch("/api/scanning", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: r.id, field: "status", value: "completed" }),
+              })
+            )
+          );
+          queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+          onRefresh?.();
+          setRowSelection({});
+          appStore.addToast({
+            type: "success",
+            message: `${selectedRows.length} moulds marked as Completed`,
+          });
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+        } catch (err: any) {
+          setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+          appStore.addToast({
+            type: "error",
+            message: err.message || "Failed to update status",
+          });
+        }
+      },
+    });
+  };
+
+  const handleBatchDelete = () => {
+    const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+    if (selectedRows.length === 0) return;
+
+    setConfirmDialog({
+      isOpen: true,
+      title: `Delete ${selectedRows.length} Selected Moulds`,
+      description: (
+        <div className="space-y-2 text-xs">
+          <p className="text-slate-700">
+            Are you sure you want to permanently delete{" "}
+            <strong className="text-slate-900 font-semibold">{selectedRows.length}</strong> selected mould projects?
+          </p>
+          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-relaxed">
+            <span className="font-semibold">⚠️ Cascade Deletion:</span> All associated child subplates and worklogs will also be permanently deleted. This action cannot be undone.
+          </div>
+        </div>
+      ),
+      confirmLabel: `Delete ${selectedRows.length} Moulds`,
+      cancelLabel: "Cancel",
+      variant: "danger",
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+        try {
+          for (const r of selectedRows) {
+            if (onDeleteProject) {
+              await onDeleteProject(r.id);
+            } else {
+              await fetch(`/api/scanning?id=${r.id}`, { method: "DELETE" });
+            }
+          }
+          if (!onDeleteProject) {
+            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+            onRefresh?.();
+          }
+          setRowSelection({});
+          appStore.addToast({
+            type: "success",
+            message: `${selectedRows.length} moulds deleted successfully`,
+          });
+          setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+        } catch (err: any) {
+          setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+          appStore.addToast({
+            type: "error",
+            message: err.message || "Failed to delete moulds",
+          });
+        }
+      },
+    });
+  };
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
@@ -1014,56 +1250,14 @@ export function MouldProjectsTable({
               <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 font-medium">
                 <span>{selectedCount} sel</span>
                 <button
-                  onClick={async () => {
-                    const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
-                    if (selectedRows.length === 0) return;
-                    if (!confirm(`Mark ${selectedRows.length} selected moulds as Completed?`)) return;
-
-                    try {
-                      await Promise.all(
-                        selectedRows.map((r) =>
-                          fetch("/api/scanning", {
-                            method: "PATCH",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ id: r.id, field: "status", value: "completed" }),
-                          })
-                        )
-                      );
-                      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-                      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-                      onRefresh?.();
-                      setRowSelection({});
-                    } catch (err) {
-                      alert("Failed to update status");
-                    }
-                  }}
+                  onClick={handleBatchMarkDone}
                   className="hover:underline text-[11px] font-semibold text-blue-800 cursor-pointer"
                 >
                   Done
                 </button>
                 <span>•</span>
                 <button
-                  onClick={async () => {
-                    const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
-                    if (selectedRows.length === 0) return;
-                    if (!confirm(`Delete ${selectedRows.length} selected moulds? This will mark them completed/soft-deleted.`)) return;
-
-                    try {
-                      await Promise.all(
-                        selectedRows.map((r) =>
-                          fetch(`/api/scanning?id=${r.id}`, {
-                            method: "DELETE",
-                          })
-                        )
-                      );
-                      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-                      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-                      onRefresh?.();
-                      setRowSelection({});
-                    } catch (err) {
-                      alert("Failed to delete moulds");
-                    }
-                  }}
+                  onClick={handleBatchDelete}
                   className="text-rose-600 hover:text-rose-700 text-[11px] cursor-pointer flex items-center gap-1"
                   title="Delete selected moulds"
                 >
@@ -1269,22 +1463,7 @@ export function MouldProjectsTable({
                       <Plus className="h-3 w-3" />
                     </button>
                     <button
-                      onClick={async () => {
-                        if (!confirm(`Delete mould project "${m.projectid || `#${m.id}`}"?`)) return;
-                        try {
-                          const res = await fetch(`/api/scanning?id=${m.id}`, { method: "DELETE" });
-                          if (res.ok) {
-                            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-                            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-                            onRefresh?.();
-                          } else {
-                            const err = await res.json();
-                            alert(err.error || "Failed to delete project");
-                          }
-                        } catch (err) {
-                          alert("Error deleting project");
-                        }
-                      }}
+                      onClick={() => handleDeleteSingleProject(m)}
                       title="Delete Mould"
                       className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-rose-600 cursor-pointer"
                     >
@@ -2081,6 +2260,19 @@ export function MouldProjectsTable({
               ]
             : []
         }
+      />
+
+      {/* Website Custom Delete & Action Confirmation Modal */}
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmDialog.onConfirm}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel={confirmDialog.confirmLabel}
+        cancelLabel={confirmDialog.cancelLabel}
+        variant={confirmDialog.variant}
+        isLoading={confirmDialog.isLoading}
       />
     </div>
   );

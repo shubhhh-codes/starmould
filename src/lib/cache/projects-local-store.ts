@@ -3,7 +3,20 @@
 import { get, set, del } from "idb-keyval";
 import type { ScanProject, Customer, User } from "@/lib/supabase/types";
 
-export const LOCAL_PROJECTS_KEY = "STARMOULD_PROJECTS_STORE_V2";
+export const LOCAL_PROJECTS_KEY = "STARMOULD_PROJECTS_STORE_V4";
+
+// Purge any legacy stores on initial script evaluation
+if (typeof window !== "undefined") {
+  try {
+    del("STARMOULD_PROJECTS_STORE_V1").catch(() => {});
+    del("STARMOULD_PROJECTS_STORE_V2").catch(() => {});
+    del("STARMOULD_PROJECTS_STORE_V3").catch(() => {});
+    del("STARMOULD_CACHE_V6_default").catch(() => {});
+    del("STARMOULD_CACHE_V6_anon").catch(() => {});
+  } catch {
+    // Non-blocking cleanup
+  }
+}
 
 export interface StoredProjectsState {
   scans: ScanProject[];
@@ -22,6 +35,8 @@ export async function clearLocalProjectsStore(): Promise<void> {
   if (typeof window === "undefined") return;
   try {
     await del(LOCAL_PROJECTS_KEY);
+    await del("STARMOULD_PROJECTS_STORE_V3");
+    await del("STARMOULD_PROJECTS_STORE_V2");
     await del("STARMOULD_PROJECTS_STORE_V1");
   } catch (err) {
     console.warn("[LocalStore] Failed to clear projects store:", err);
@@ -40,7 +55,7 @@ export async function loadLocalProjectsStore(): Promise<StoredProjectsState | nu
   if (typeof window === "undefined") return null;
   try {
     const data = await get<StoredProjectsState>(LOCAL_PROJECTS_KEY);
-    if (data && Array.isArray(data.scans) && data.scans.length > 0) {
+    if (data && Array.isArray(data.scans)) {
       return data;
     }
     return null;
