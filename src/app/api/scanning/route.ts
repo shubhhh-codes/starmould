@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
@@ -20,8 +22,6 @@ export async function GET(req: NextRequest) {
     // Old records are strictly rendered from client cache without DB re-queries!
     // =========================================================================
     if (since) {
-      const serverTime = new Date().toISOString();
-
       // 1. Find all scan projects created or updated since `since`
       // 2. Also find scan projects whose subplates were updated since `since`
       // 3. Query all active scan IDs to enable 100% accurate deletion & truncate synchronization!
@@ -30,21 +30,51 @@ export async function GET(req: NextRequest) {
           .from("scan")
           .select("id, projectid, description, worktype, customer_id, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
           .or(`updated_at.gt.${since},created_at.gt.${since}`)
-          .order("id", { ascending: false }),
+          .order("id", { ascending: false })
+          .limit(10000),
         supabaseAdmin
           .from("subplate")
           .select("mold_id, projectid")
           .or(`updated_at.gt.${since},created_at.gt.${since}`)
           .is("deleted_at", null)
-          .limit(500),
+          .limit(10000),
         supabaseAdmin
           .from("scan")
           .select("id", { count: "exact" })
-          .limit(10000),
+          .order("id", { ascending: false })
+          .range(0, 999),
       ]);
 
+      // Bug #4 Fix: Evaluated AFTER query execution to prevent crack-in-time race conditions
+      const serverTime = new Date().toISOString();
+
       const totalCount = allScansCountRes.count ?? 0;
-      const allActiveIds = (allScansCountRes.data || []).map((r: any) => r.id);
+      const activeIdSet = new Set<number>((allScansCountRes.data || []).map((r: any) => r.id));
+
+      // PostgREST server clamps single queries to max-rows (1,000).
+      // If totalCount > 1000, fetch remaining ID batches concurrently with stable ordering so activeIds is never truncated!
+      if (totalCount > activeIdSet.size) {
+        const numBatches = Math.ceil(totalCount / 1000);
+        const batchPromises = [];
+        for (let b = 1; b < numBatches; b++) {
+          batchPromises.push(
+            supabaseAdmin
+              .from("scan")
+              .select("id")
+              .order("id", { ascending: false })
+              .range(b * 1000, (b + 1) * 1000 - 1)
+          );
+        }
+        const batchResults = await Promise.all(batchPromises);
+        for (const bRes of batchResults) {
+          if (bRes.data) {
+            for (const r of bRes.data) {
+              activeIdSet.add(r.id);
+            }
+          }
+        }
+      }
+      const allActiveIds: number[] = Array.from(activeIdSet);
 
       // If database is completely empty (e.g. TRUNCATE), signal immediate purge
       if (totalCount === 0) {
@@ -71,7 +101,7 @@ export async function GET(req: NextRequest) {
 
       // If nothing has changed, return empty delta with active IDs for deletion sync
       if (scanIdSet.size === 0) {
-        return NextResponse.json({
+        const deltaRes = NextResponse.json({
           status: "ok",
           isDelta: true,
           isTruncated: false,
@@ -81,6 +111,8 @@ export async function GET(req: NextRequest) {
           scans: [],
           serverTime,
         });
+        deltaRes.headers.set("Cache-Control", "private, no-store, must-revalidate");
+        return deltaRes;
       }
 
       // Fetch details only for the modified scans
@@ -176,7 +208,7 @@ export async function GET(req: NextRequest) {
         };
       });
 
-      return NextResponse.json({
+      const deltaRes = NextResponse.json({
         status: "ok",
         isDelta: true,
         isTruncated: false,
@@ -186,6 +218,8 @@ export async function GET(req: NextRequest) {
         scans: enrichedDelta,
         serverTime,
       });
+      deltaRes.headers.set("Cache-Control", "private, no-store, must-revalidate");
+      return deltaRes;
     }
 
     const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
@@ -199,6 +233,14 @@ export async function GET(req: NextRequest) {
       .from("scan")
       .select("id, projectid, description, worktype, customer_id, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at", { count: "exact" })
       .order("id", { ascending: false });
+
+    const idsParam = searchParams.get("ids");
+    if (idsParam) {
+      const ids = idsParam.split(",").map(Number).filter((id) => !isNaN(id) && id > 0);
+      if (ids.length > 0) {
+        scanQuery = scanQuery.in("id", ids);
+      }
+    }
 
     if (status && status !== "ALL") {
       scanQuery = scanQuery.eq("status", status);

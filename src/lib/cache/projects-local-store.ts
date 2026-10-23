@@ -3,7 +3,7 @@
 import { get, set, del } from "idb-keyval";
 import type { ScanProject, Customer, User } from "@/lib/supabase/types";
 
-export const LOCAL_PROJECTS_KEY = "STARMOULD_PROJECTS_STORE_V4";
+export const LOCAL_PROJECTS_KEY = "STARMOULD_PROJECTS_STORE_V6";
 
 // Purge any legacy stores on initial script evaluation
 if (typeof window !== "undefined") {
@@ -11,6 +11,8 @@ if (typeof window !== "undefined") {
     del("STARMOULD_PROJECTS_STORE_V1").catch(() => {});
     del("STARMOULD_PROJECTS_STORE_V2").catch(() => {});
     del("STARMOULD_PROJECTS_STORE_V3").catch(() => {});
+    del("STARMOULD_PROJECTS_STORE_V4").catch(() => {});
+    del("STARMOULD_PROJECTS_STORE_V5").catch(() => {});
     del("STARMOULD_CACHE_V6_default").catch(() => {});
     del("STARMOULD_CACHE_V6_anon").catch(() => {});
   } catch {
@@ -35,6 +37,8 @@ export async function clearLocalProjectsStore(): Promise<void> {
   if (typeof window === "undefined") return;
   try {
     await del(LOCAL_PROJECTS_KEY);
+    await del("STARMOULD_PROJECTS_STORE_V5");
+    await del("STARMOULD_PROJECTS_STORE_V4");
     await del("STARMOULD_PROJECTS_STORE_V3");
     await del("STARMOULD_PROJECTS_STORE_V2");
     await del("STARMOULD_PROJECTS_STORE_V1");
@@ -66,15 +70,39 @@ export async function loadLocalProjectsStore(): Promise<StoredProjectsState | nu
 }
 
 /**
- * Persist the current projects state into IndexedDB asynchronously.
+ * Serialized write mutex and debounce queue for IndexedDB.
+ * Guarantees that parallel asynchronous writes never race or overwrite newer snapshots with stale ones.
  */
-export async function saveLocalProjectsStore(state: StoredProjectsState): Promise<void> {
-  if (typeof window === "undefined") return;
-  try {
-    await set(LOCAL_PROJECTS_KEY, state);
-  } catch (err) {
-    console.warn("[LocalStore] Failed to save projects cache:", err);
-  }
+let writeQueuePromise: Promise<void> = Promise.resolve();
+let pendingStateToSave: StoredProjectsState | null = null;
+let writeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function saveLocalProjectsStore(state: StoredProjectsState): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+
+  pendingStateToSave = state;
+
+  return new Promise((resolve) => {
+    if (writeDebounceTimer) {
+      clearTimeout(writeDebounceTimer);
+    }
+
+    writeDebounceTimer = setTimeout(() => {
+      writeDebounceTimer = null;
+      writeQueuePromise = writeQueuePromise
+        .then(async () => {
+          if (!pendingStateToSave) return;
+          const snapshot = pendingStateToSave;
+          pendingStateToSave = null;
+          await set(LOCAL_PROJECTS_KEY, snapshot);
+        })
+        .then(() => resolve())
+        .catch((err) => {
+          console.warn("[LocalStore] Failed to save projects cache:", err);
+          resolve();
+        });
+    }, 40);
+  });
 }
 
 /**

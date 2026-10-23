@@ -206,9 +206,9 @@ export function formatSubplateDimensions(sp: {
   const rawW = sp.width;
   const rawH = sp.height;
 
-  const hasL = rawL !== null && rawL !== undefined && rawL !== "" && !isNaN(Number(rawL)) && Number(rawL) > 0;
-  const hasW = rawW !== null && rawW !== undefined && rawW !== "" && !isNaN(Number(rawW)) && Number(rawW) > 0;
-  const hasH = rawH !== null && rawH !== undefined && rawH !== "" && !isNaN(Number(rawH)) && Number(rawH) > 0;
+  const hasL = rawL !== null && rawL !== undefined && rawL !== "" && !Number.isNaN(Number(rawL)) && Number(rawL) > 0;
+  const hasW = rawW !== null && rawW !== undefined && rawW !== "" && !Number.isNaN(Number(rawW)) && Number(rawW) > 0;
+  const hasH = rawH !== null && rawH !== undefined && rawH !== "" && !Number.isNaN(Number(rawH)) && Number(rawH) > 0;
 
   if (!hasL && !hasW && !hasH) {
     return "—";

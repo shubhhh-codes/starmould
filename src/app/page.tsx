@@ -142,19 +142,19 @@ export default function DashboardPage() {
   // 1. Instantly renders all cached moulds in 0ms from local storage (IndexedDB).
   // 2. On refresh / sync, strictly queries `/api/scanning?since=lastSyncTime` for delta updates only.
   // 3. Old records are NEVER re-fetched or re-queried from the database.
-  const projectsStream = useProgressiveProjectsStream({ initialChunkSize: 50 });
+  const projectsStream = useProgressiveProjectsStream({ initialChunkSize: 100 });
   const countsQuery = useDashboardCountsQuery();
 
   const projects = projectsStream.scans;
 
-  // On browser hard-refresh / reload, immediately sync with live database
+  // On browser hard-refresh / reload, immediately sync live KPI counts.
+  // Note: projectsStream hydration + deltaSync is handled automatically on mount in hooks.ts.
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
         const navEntries = performance.getEntriesByType("navigation") as PerformanceNavigationTiming[];
         const isReload = navEntries.length > 0 && navEntries[0].type === "reload";
         if (isReload) {
-          projectsStream.refetch();
           countsQuery.refetch();
         }
       } catch {}

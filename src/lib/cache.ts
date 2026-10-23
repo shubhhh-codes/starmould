@@ -109,6 +109,6 @@ export async function getCachedScansLookup(): Promise<any[]> {
     .from("scan")
     .select("id, projectid, description, worktype, cname, status")
     .order("id", { ascending: false })
-    .limit(1000);
+    .limit(10000);
   return data || [];
 }

@@ -34,9 +34,36 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+    const projectid = searchParams.get("projectid");
+
+    // 1. ULTRA-FAST ON-DEMAND PATH: When querying for a specific project's subplates (accordion / modal)
+    // Runs a lean index scan without heavy COUNT(*) table scans or unnecessary metadata overhead (<50ms).
+    if (projectid && projectid !== "ALL") {
+      const safeProjectId = projectid.replace(/[(),%]/g, "").trim();
+      let leanQuery = supabaseAdmin
+        .from("subplate")
+        .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
+        .is("deleted_at", null)
+        .order("id", { ascending: true });
+
+      if (/^\d+$/.test(safeProjectId)) {
+        leanQuery = leanQuery.or(`mold_id.eq.${safeProjectId},projectid.eq.${safeProjectId}`);
+      } else {
+        leanQuery = leanQuery.or(`mold_code.eq.${safeProjectId},subprojectid.ilike.${safeProjectId}%`);
+      }
+
+      const { data: plates, error: pError } = await leanQuery;
+      if (pError) {
+        return NextResponse.json({ error: pError.message }, { status: 500 });
+      }
+
+      const leanRes = NextResponse.json({ subplates: plates || [] });
+      leanRes.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+      return leanRes;
+    }
+
     const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
     const limit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "1000");
-    const projectid = searchParams.get("projectid");
     const search = searchParams.get("search")?.trim();
     const material = searchParams.get("material");
     const location = searchParams.get("location");
@@ -64,40 +91,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (projectid && projectid !== "ALL") {
-      const safeProjectId = projectid.replace(/[(),%]/g, "").trim();
-      if (/^\d+$/.test(safeProjectId)) {
-        subplateQuery = subplateQuery.or(`mold_id.eq.${safeProjectId},projectid.eq.${safeProjectId}`);
-      } else {
-        const { data: matchedScan } = await supabaseAdmin
-          .from("scan")
-          .select("id")
-          .eq("projectid", safeProjectId)
-          .maybeSingle();
-        if (matchedScan) {
-          subplateQuery = subplateQuery.or(`mold_code.eq.${safeProjectId},mold_id.eq.${matchedScan.id},subprojectid.ilike.${safeProjectId}%`);
-        } else {
-          subplateQuery = subplateQuery.ilike("subprojectid", `${safeProjectId}%`);
-        }
-      }
-    }
-
     if (page && page > 0) {
       const start = (page - 1) * limit;
       subplateQuery = subplateQuery.range(start, start + limit - 1);
     } else {
       subplateQuery = subplateQuery.limit(limit);
-    }
-
-    // Lean mode: when querying by specific projectid (dropdowns/accordions), return immediately without heavy lookups or KPI counts
-    if (projectid && projectid !== "ALL") {
-      const { data: plates, error: pError } = await subplateQuery;
-      if (pError) {
-        return NextResponse.json({ error: pError.message }, { status: 500 });
-      }
-      const leanRes = NextResponse.json({ subplates: plates || [] });
-      leanRes.headers.set("Cache-Control", "private, no-store, must-revalidate");
-      return leanRes;
     }
 
     const isDefaultQuery = !search && (!material || material === "ALL") && (!location || location === "ALL") && (!projectid || projectid === "ALL") && (!page || page === 1);
@@ -587,6 +585,12 @@ export async function DELETE(req: NextRequest) {
     if (!id || isNaN(subplateId) || subplateId <= 0) {
       return NextResponse.json({ error: "Missing or invalid subplate id" }, { status: 400 });
     }
+
+    // Bug #5 Fix: Cascade delete any child worklogs before deleting the subplate to prevent orphan records
+    await supabaseAdmin
+      .from("worklog")
+      .delete()
+      .or(`subplateid.eq.${subplateId},subplateid.eq.${String(subplateId)}`);
 
     // Permanently hard delete the subplate directly from the database table
     const { error } = await supabaseAdmin

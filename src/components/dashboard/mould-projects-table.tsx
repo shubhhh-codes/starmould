@@ -113,17 +113,20 @@ function ProjectSubplatesRow({
   onEditPlate: (sp: Subplate, p: ScanProject) => void;
   onDeletePlate: (id: number, projectId?: number) => void;
 }) {
-  const idQuery = useSubplatesByProjectQuery(project.id);
-  const codeQuery = useSubplatesByProjectQuery(project.projectid || undefined);
+  // 1. Instant 0ms Resolution: check if project already has subplates in memory
+  const preloadedPlates = useMemo(() => {
+    return Array.isArray(project.subplates) && project.subplates.length > 0 ? project.subplates : null;
+  }, [project.subplates]);
 
-  const plates = (idQuery.data && idQuery.data.length > 0)
-    ? idQuery.data
-    : (codeQuery.data && codeQuery.data.length > 0)
-    ? codeQuery.data
-    : (idQuery.data || []);
+  // 2. On-Demand Single Lean Query: ONLY triggers if plates are not already preloaded
+  const targetId = project.id || project.projectid || undefined;
+  const platesQuery = useSubplatesByProjectQuery(targetId, {
+    enabled: !preloadedPlates,
+  });
 
-  const isLoading = idQuery.isLoading || (idQuery.data?.length === 0 && codeQuery.isLoading);
-  const isError = idQuery.isError && codeQuery.isError;
+  const plates = preloadedPlates || platesQuery.data || [];
+  const isLoading = !preloadedPlates && platesQuery.isLoading;
+  const isError = !preloadedPlates && platesQuery.isError;
 
   return (
     <tr className="bg-slate-50/70 border-y border-blue-100/80 animate-in fade-in duration-150">
@@ -184,8 +187,7 @@ function ProjectSubplatesRow({
               <button
                 type="button"
                 onClick={() => {
-                  idQuery.refetch();
-                  codeQuery.refetch();
+                  platesQuery.refetch();
                 }}
                 className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
               >
@@ -546,22 +548,18 @@ export function MouldProjectsTable({
 
   // Handlers for View & Add Plate Modals
   const fetchSubplatesForProject = async (project: ScanProject) => {
+    // Instant 0ms: check if already in memory
+    if (Array.isArray(project.subplates) && project.subplates.length > 0) {
+      setViewSubplates(project.subplates);
+      return;
+    }
+
     setIsLoadingSubplates(true);
     try {
-      // First try querying with numeric ID
-      const res = await fetch(`/api/subplate?projectid=${project.id}`);
+      const target = project.id || project.projectid;
+      const res = await fetch(`/api/subplate?projectid=${encodeURIComponent(String(target))}`);
       const json = await res.json();
-      let plates = json.subplates || [];
-
-      // If no subplates found and projectid string exists, try projectid
-      if (plates.length === 0 && project.projectid) {
-        const altRes = await fetch(`/api/subplate?projectid=${encodeURIComponent(project.projectid)}`);
-        const altJson = await altRes.json();
-        if (altJson.subplates && altJson.subplates.length > 0) {
-          plates = altJson.subplates;
-        }
-      }
-      setViewSubplates(plates);
+      setViewSubplates(json.subplates || []);
     } catch (err) {
       console.error("Failed to load subplates:", err);
       setViewSubplates([]);

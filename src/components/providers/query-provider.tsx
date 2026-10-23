@@ -33,7 +33,7 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 24 * 60 * 60 * 1000,
-        buster: "v7.0.0_purge_stale_projects",
+        buster: "v9.0.0_fresh_1460_moulds",
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
             const key0 = String(query.queryKey[0] || "");

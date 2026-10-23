@@ -60,6 +60,23 @@ const PAGE_INFO: Record<string, { title: string; category?: string; icon: React.
   "/settings": { title: "System & Permissions Settings", category: "Settings", icon: Settings },
 };
 
+
+function getUserAvatarInitials(user?: UserSession | null): string {
+  if (!user) return 'SM';
+  const name = user.name?.trim();
+  if (name) {
+    const parts = name.split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  }
+  if (user.initials && user.initials.trim()) {
+    return user.initials.trim().slice(0, 2).toUpperCase();
+  }
+  return 'SM';
+}
+
 export function Topbar({
   onToggleSidebar,
   onToggleMobileMenu,
@@ -264,10 +281,10 @@ export function Topbar({
                 </span>
               </div>
               <div
-                className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-500/20 shrink-0"
+                className="h-8 w-8 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-500 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-blue-500/20 shrink-0 overflow-hidden select-none"
                 suppressHydrationWarning
               >
-                {activeUser?.initials || activeUser?.name?.slice(0, 2).toUpperCase() || "SM"}
+                {getUserAvatarInitials(activeUser)}
               </div>
               <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:block" />
             </button>

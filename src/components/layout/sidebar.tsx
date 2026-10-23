@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -288,19 +290,31 @@ export function Sidebar({
         }`}
       >
         {/* Brand Logo Header */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-slate-800/80 bg-slate-950/50">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20 flex-shrink-0">
-              <Factory className="h-5 w-5" />
-            </div>
-            {(!collapsed || mobileOpen) && (
-              <div className="flex flex-col overflow-hidden">
-                <span className="font-bold text-white tracking-wide text-sm leading-tight truncate">
-                  STAR MOULD
-                </span>
-                <span className="text-[10px] text-blue-400 font-medium tracking-wider uppercase">
-                  ERP Manufacturing
-                </span>
+        <div className="relative h-16 flex items-center justify-center px-3 border-b border-slate-800/80 bg-slate-950/50 select-none">
+          <div className="flex items-center justify-center overflow-hidden py-1 pointer-events-none w-full">
+            {collapsed && !mobileOpen ? (
+              <div className="h-10 w-10 flex items-center justify-center flex-shrink-0">
+                <Image
+                  src="/images/star-mould-logo.webp?v=1"
+                  alt="Star Mould"
+                  width={36}
+                  height={36}
+                  unoptimized
+                  className="h-8 w-8 object-contain"
+                  priority
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center overflow-hidden w-full px-2">
+                <Image
+                  src="/images/star-mould-logo.webp?v=1"
+                  alt="Star Mould"
+                  width={190}
+                  height={50}
+                  unoptimized
+                  className="h-10 w-auto max-w-[190px] object-contain"
+                  priority
+                />
               </div>
             )}
           </div>
@@ -308,7 +322,7 @@ export function Sidebar({
           {/* Close button for mobile drawer */}
           <button
             onClick={onMobileClose}
-            className="btn-interactive p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden transition cursor-pointer"
+            className="btn-interactive absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden transition cursor-pointer"
             aria-label="Close menu"
           >
             <X className="h-5 w-5" />

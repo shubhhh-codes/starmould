@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -78,8 +80,16 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center p-3 bg-blue-600/20 border border-blue-500/30 rounded-2xl text-blue-400 shadow-lg shadow-blue-500/10 mb-2">
-            <Factory className="h-8 w-8" />
+          <div className="inline-flex items-center justify-center mb-3">
+            <Image
+              src="/images/star-mould-logo.webp?v=1"
+              alt="Star Mould"
+              width={220}
+              height={55}
+              unoptimized
+              className="h-12 w-auto object-contain "
+              priority
+            />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">STAR MOULD ERP</h1>
           <p className="text-xs text-slate-400">

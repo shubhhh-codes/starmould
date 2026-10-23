@@ -73,12 +73,14 @@ async function verifySessionTokenEdge(token: string): Promise<{ id: number; role
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow static files, api routes, and favicon
+  // Allow static files, images, api routes, and favicon
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
     pathname.startsWith("/static") ||
-    pathname === "/favicon.ico"
+    pathname.startsWith("/images") ||
+    pathname === "/favicon.ico" ||
+    pathname.match(/\.(webp|png|jpg|jpeg|gif|svg|ico)$/i)
   ) {
     return NextResponse.next();
   }
@@ -120,6 +122,6 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    "/((?!api|_next/static|_next/image|images|favicon.ico|.*\\.(?:webp|png|jpg|jpeg|gif|svg|ico)$).*)",
   ],
 };
