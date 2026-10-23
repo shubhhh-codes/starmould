@@ -3,29 +3,31 @@ name: StarMould Automated Database Backup
 run-name: >-
   Database Backup #${{ github.run_number }}
   ${{ github.event_name == 'schedule' && (
-    github.event.schedule == '30 4 * * *' && '(10:00 AM IST)' ||
-    github.event.schedule == '0 7 * * *' && '(12:30 PM IST)' ||
-    github.event.schedule == '30 10 * * *' && '(04:00 PM IST)' ||
-    github.event.schedule == '30 13 * * *' && '(07:00 PM IST)' ||
+    (github.event.schedule == '35 4 * * *' || github.event.schedule == '30 4 * * *') && '(10:05 AM IST)' ||
+    (github.event.schedule == '05 7 * * *' || github.event.schedule == '0 7 * * *') && '(12:35 PM IST)' ||
+    (github.event.schedule == '35 10 * * *' || github.event.schedule == '30 10 * * *') && '(04:05 PM IST)' ||
+    (github.event.schedule == '35 13 * * *' || github.event.schedule == '30 13 * * *') && '(07:05 PM IST)' ||
     '(Scheduled IST)'
-  ) || format('({0})', inputs.reason || 'Manual') }}
+  ) || format('({0})', github.event_name == 'repository_dispatch' && 'Automated Webhook' || (inputs.reason || 'Manual')) }}
 
 on:
   schedule:
-    # 1. 10:00 AM IST (Subah)
-    - cron: '30 4 * * *'
-    # 2. 12:30 PM IST (Dopahar)
-    - cron: '0 7 * * *'
-    # 3. 04:00 PM IST (Dopahar/Shaam)
-    - cron: '30 10 * * *'
-    # 4. 07:00 PM IST (Shaam/Raat)
-    - cron: '30 13 * * *'
+    # 1. 10:05 AM IST (Subah) - Offset to avoid :00/:30 GitHub queue delay
+    - cron: '35 4 * * *'
+    # 2. 12:35 PM IST (Dopahar) - Offset to avoid :00/:30 GitHub queue delay
+    - cron: '05 7 * * *'
+    # 3. 04:05 PM IST (Dopahar/Shaam) - Offset to avoid :00/:30 GitHub queue delay
+    - cron: '35 10 * * *'
+    # 4. 07:05 PM IST (Shaam/Raat) - Offset to avoid :00/:30 GitHub queue delay
+    - cron: '35 13 * * *'
   workflow_dispatch:
     inputs:
       reason:
         description: 'Reason for backup (e.g., Pre-deployment, Manual snapshot)'
         required: false
         default: 'Manual Snapshot'
+  repository_dispatch:
+    types: [db-backup, automated-backup]
 
 jobs:
   init:
@@ -100,7 +102,9 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ "$EVENT_NAME" = "schedule" ]; then
-            TRIGGER_TYPE="Automated Schedule (4x Daily IST: 10:00 AM, 12:30 PM, 04:00 PM, 07:00 PM)"
+            TRIGGER_TYPE="Automated Schedule (4x Daily IST: 10:05 AM, 12:35 PM, 04:05 PM, 07:05 PM)"
+          elif [ "$EVENT_NAME" = "repository_dispatch" ]; then
+            TRIGGER_TYPE="External Webhook / Cron-Job.org Trigger"
           else
             TRIGGER_TYPE="Manual Trigger Snapshot"
           fi
