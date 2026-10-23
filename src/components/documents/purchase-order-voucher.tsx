@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Printer, X, Building2, Phone, Mail, ShieldCheck, FileText } from "lucide-react";
+import { Printer, X, ExternalLink } from "lucide-react";
 
 export interface POItem {
   id?: number;
@@ -33,30 +33,6 @@ export interface PurchaseOrderVoucherProps {
   isModal?: boolean;
 }
 
-// Convert amount to Indian currency words
-function numberToIndianWords(num: number): string {
-  if (!num || num === 0) return "Zero rupees only";
-  const a = [
-    "", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
-    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen",
-    "seventeen", "eighteen", "nineteen"
-  ];
-  const b = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
-
-  function inWords(n: number): string {
-    if (n < 20) return a[n];
-    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + a[n % 10] : "");
-    if (n < 1000) return a[Math.floor(n / 100)] + " hundred" + (n % 100 !== 0 ? " and " + inWords(n % 100) : "");
-    if (n < 100000) return inWords(Math.floor(n / 1000)) + " thousand" + (n % 1000 !== 0 ? " " + inWords(n % 1000) : "");
-    if (n < 10000000) return inWords(Math.floor(n / 100000)) + " lakh" + (n % 100000 !== 0 ? " " + inWords(n % 100000) : "");
-    return inWords(Math.floor(n / 10000000)) + " crore" + (n % 10000000 !== 0 ? " " + inWords(n % 10000000) : "");
-  }
-
-  const rounded = Math.round(num);
-  const words = inWords(rounded);
-  return (words.charAt(0).toUpperCase() + words.slice(1) + " rupees only").trim();
-}
-
 function formatDate(dateStr?: string): string {
   if (!dateStr) return "—";
   try {
@@ -65,76 +41,51 @@ function formatDate(dateStr?: string): string {
     const parts = new Intl.DateTimeFormat("en-IN", {
       timeZone: "Asia/Kolkata",
       day: "2-digit",
-      month: "short",
+      month: "2-digit",
       year: "numeric",
     }).formatToParts(d);
     const day = parts.find((p) => p.type === "day")?.value || "";
     const month = parts.find((p) => p.type === "month")?.value || "";
     const year = parts.find((p) => p.type === "year")?.value || "";
-    return `${day}-${month}-${year}`;
+    return `${day}/${month}/${year}`;
   } catch {
     return dateStr;
   }
 }
 
+// ─── Company constants (Starmould = Buyer) ────────────────────────────────────
+const COMPANY = {
+  name: "STARMOULD TECHNOLOGY PRIVATE LIMITED",
+  address1: "G-705, Nr Swaminarayan Restaurant, Road-5,",
+  address2: "Metoda G.I.D.C. Gate no-2, Rajkot, Gujarat - 360021",
+  gstin: "24ABLCS1427Q1ZV",
+  pan: "ABLCS1427Q",
+  mobile: "8238451671",
+  email: "info.starmould@yahoo.com",
+} as const;
+
+// ─── Primary teal color ────────────────────────────────────────────────────────
+const PRIMARY = "#11627f";
+const PRIMARY_LIGHT = "#e6f3f7";
+const PRIMARY_BORDER = "#b8d9e6";
+
 export function PurchaseOrderVoucher({
   po,
   vendor,
-  customerName = "",
   onPrint,
   onClose,
   isModal = true,
 }: PurchaseOrderVoucherProps) {
   const items = po.items || [];
-  
-  // Calculate item pricing & taxes
-  const processedItems = items.map((it, idx) => {
-    const qty = Number(it.qty) || 1;
-    // Default estimated rate if none provided (or 0)
-    const rate = Number(it.rate) || 0;
-    const discount = Number(it.discount) || 0;
-    const amount = rate > 0 ? (rate * qty) - discount : 0;
-    const gstPercent = 18; // Standard GST for fabricated steel / tools
-    const tax = amount > 0 ? (amount * gstPercent) / 100 : 0;
-    const total = amount + tax;
 
-    return {
-      srNo: idx + 1,
-      name: it.platename || `Subplate #${it.plateid}`,
-      dimensions: it.material || "—",
-      materialType: it.materialtype || "MS-Bright",
-      hsnCode: it.hsn || "72284000",
-      qty,
-      rate,
-      discount,
-      amount,
-      gstPercent,
-      tax,
-      total,
-    };
-  });
-
-  const totalQty = processedItems.reduce((acc, curr) => acc + curr.qty, 0);
-  const totalAmount = processedItems.reduce((acc, curr) => acc + curr.amount, 0);
-  const totalTax = processedItems.reduce((acc, curr) => acc + curr.tax, 0);
-  const grandTotal = totalAmount + totalTax;
-
-  const vendorName = vendor?.vendor_name || vendor?.customername || "Authorized Supplier";
-  const vendorAddress = vendor?.address || (vendor?.city ? `${vendor.city}, Gujarat, India` : "Industrial Area, Rajkot, Gujarat");
-  const vendorGst = vendor?.gstin || "24AFPFS7402A1Z7";
-  const vendorPan = vendor?.pan || "AFPFS7402A";
-  const vendorMobile = vendor?.mobile || vendor?.mobile1 || "8000035580";
-
-  // Delivery / Expiry date (10 days after odate)
-  const deliveryDate = (() => {
-    try {
-      const d = new Date(po.odate || new Date());
-      d.setDate(d.getDate() + 10);
-      return formatDate(d.toISOString());
-    } catch {
-      return "10-Nov-2026";
-    }
-  })();
+  // Resolve vendor fields
+  const vendorName    = vendor?.vendor_name || vendor?.customername || "—";
+  const vendorAddress = vendor?.address || (vendor?.city ? `${vendor.city}, Gujarat, India` : "—");
+  const vendorGst     = vendor?.gstin  || "—";
+  const vendorPan     = vendor?.pan    || "—";
+  const vendorMobile  = vendor?.mobile || vendor?.mobile1 || "—";
+  const vendorEmail   = vendor?.email  || "—";
+  const vendorCode    = vendor?.vendor_code || "—";
 
   const handlePrint = () => {
     if (onPrint) onPrint();
@@ -143,450 +94,385 @@ export function PurchaseOrderVoucher({
 
   return (
     <div className="w-full bg-white text-slate-800 font-sans print:p-0">
+      {/* ── Print styles ───────────────────────────────────────────────────── */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {
             size: A4 portrait;
-            margin: 8mm;
+            margin: 0;
+          }
+          /* Hide browser header (URL/date/title) and footer */
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          /* Hide EVERYTHING on the website page by default when printing */
+          body * {
+            visibility: hidden !important;
+          }
+          /* Only make the Purchase Order printable sheet and its children visible */
+          #po-printable-area, #po-printable-area * {
+            visibility: visible !important;
+          }
+          /* Position the printable sheet cleanly at the very top of the printed page */
+          #po-printable-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 10mm 12mm !important;
+            border: none !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
           }
           body {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             background: white !important;
           }
-          .print\\:hidden {
-            display: none !important;
-          }
+          .print\\:hidden { display: none !important; }
         }
       `}} />
-      {/* Top Action Bar (hidden during print) */}
-      <div className="flex items-center justify-between p-3 mb-4 bg-slate-100 border border-slate-200 rounded-xl print:hidden">
-        <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-[#82b426]" />
-          <span className="text-xs font-semibold text-slate-700">
-            Purchase Order: <span className="font-mono text-slate-900">{po.srno}</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#82b426] hover:bg-[#729e21] text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>Print PO</span>
-          </button>
-          {isModal && onClose && (
+
+      {/* ── Top action bar (hidden when printing or when already on dedicated print page) ──────────────────────────── */}
+      {isModal && (
+        <div className="flex items-center justify-between p-3 mb-4 bg-slate-100 border border-slate-200 rounded-xl print:hidden">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-700">
+              Purchase Order:&nbsp;
+              <span className="font-mono text-slate-900">{po.srno}</span>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Print */}
             <button
               type="button"
-              onClick={onClose}
-              className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-white text-xs font-bold rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
+              style={{ backgroundColor: PRIMARY }}
             >
-              <X className="w-4 h-4" />
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print PO</span>
             </button>
-          )}
+            {/* Close (modal only) */}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Main Printable Sheet (matching APS / Sunvine Invoice format) */}
-      <div className="p-6 sm:p-8 bg-white border border-slate-200 rounded-lg print:border-none print:p-0 space-y-6 text-[12px] leading-relaxed">
-        {/* =========================================================================
-            1. TOP HEADER (Logo, Metadata & Olive-Green Badge)
-            ========================================================================= */}
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b border-slate-200">
-          {/* Logo / Company Brand */}
-          <div className="flex items-center gap-3">
-            <div className="w-14 h-14 bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl flex items-center justify-center text-white font-black text-2xl shadow-sm tracking-tighter border-2 border-[#82b426]">
-              SM
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-1.5">
-                STARMOULD
-              </h1>
-              <p className="text-[10px] font-semibold tracking-wider uppercase text-slate-500">
-                Technology Pvt. Ltd.
-              </p>
-              <p className="text-[9px] text-[#82b426] font-bold">
-                Mould Tooling & Precision Engineering
-              </p>
-            </div>
-          </div>
+      {/* ══════════════════════════════════════════════════════════════════════
+          PRINTABLE SHEET
+          ══════════════════════════════════════════════════════════════════ */}
+      <div
+        id="po-printable-area"
+        className="p-6 sm:p-8 bg-white border border-slate-200 rounded-lg print:border-none print:p-0 text-[12px] leading-relaxed space-y-4"
+      >
 
-          {/* Center Metadata Key-Values */}
-          <div className="text-[11px] text-slate-700 font-medium space-y-0.5">
-            <div className="flex items-center justify-between sm:justify-start gap-4">
-              <span className="text-slate-500 w-36">Purchase Order # :</span>
-              <span className="font-bold text-slate-900 font-mono">{po.srno}</span>
-            </div>
-            <div className="flex items-center justify-between sm:justify-start gap-4">
-              <span className="text-slate-500 w-36">Purchase Order Date :</span>
-              <span className="font-semibold text-slate-900">{formatDate(po.odate)}</span>
-            </div>
-            <div className="flex items-center justify-between sm:justify-start gap-4">
-              <span className="text-slate-500 w-36">Expected Delivery :</span>
-              <span className="font-semibold text-slate-900">{deliveryDate}</span>
-            </div>
-            <div className="flex items-center justify-between sm:justify-start gap-4">
-              <span className="text-slate-500 w-36">PO Ref No :</span>
-              <span className="font-bold font-mono text-[#82b426]">{po.projectid || "PRJ-SM"}</span>
-            </div>
-          </div>
-
-          {/* Right Green Badge Banner */}
-          <div className="sm:text-right w-full sm:w-auto">
-            <div className="bg-[#82b426] text-white px-6 py-2.5 rounded font-black text-sm tracking-wider uppercase inline-block shadow-xs">
+        {/* ──────────────────────────────────────────────────────────────────
+            1. HEADER — Logo (left) + "PURCHASE ORDER" title (right)
+            ────────────────────────────────────────────────────────────────── */}
+        <div className="flex items-start justify-between">
+          {/* Logo */}
+          <img
+            src="/images/stpl-logo.jpeg"
+            alt="Starmould Technology Pvt. Ltd."
+            className="h-16 w-auto object-contain"
+          />
+          {/* Title */}
+          <div className="text-right">
+            <h1
+              className="text-3xl font-black tracking-wide leading-none"
+              style={{ color: PRIMARY }}
+            >
               PURCHASE ORDER
+            </h1>
+            {/* Teal underline rule */}
+            <div
+              className="mt-1.5 h-[3px] w-full rounded-full"
+              style={{ backgroundColor: PRIMARY }}
+            />
+          </div>
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────────────
+            2. INFO BAR — PO Number | PO Date | Vendor Code
+            ────────────────────────────────────────────────────────────────── */}
+        <div
+          className="grid grid-cols-3 gap-px rounded-lg border overflow-hidden"
+          style={{ borderColor: PRIMARY_BORDER, backgroundColor: PRIMARY_BORDER }}
+        >
+          {[
+            { label: "PO Number",   value: po.srno },
+            { label: "PO Date",     value: formatDate(po.odate) },
+            { label: "Vendor Code", value: vendorCode },
+          ].map(({ label, value }) => (
+            <div
+              key={label}
+              className="px-4 py-2.5"
+              style={{ backgroundColor: PRIMARY_LIGHT }}
+            >
+              <div
+                className="text-[9px] font-bold uppercase tracking-widest mb-0.5"
+                style={{ color: PRIMARY }}
+              >
+                {label}
+              </div>
+              <div className="font-mono font-bold text-slate-900 text-[12px]">
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────────────
+            3. PARTY SECTION — Vendor / Supplier  +  Buyer (Bill To)
+            ────────────────────────────────────────────────────────────────── */}
+        <div
+          className="rounded-lg overflow-hidden border"
+          style={{ borderColor: PRIMARY_BORDER }}
+        >
+          {/* Header bar */}
+          <div className="grid grid-cols-2">
+            {["Vendor / Supplier", "Buyer (Bill To)"].map((label) => (
+              <div
+                key={label}
+                className="px-4 py-2 text-white font-bold text-[11px] tracking-wider uppercase"
+                style={{ backgroundColor: PRIMARY }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+          {/* Content */}
+          <div className="grid grid-cols-2 divide-x" style={{ borderColor: PRIMARY_BORDER }}>
+            {/* LEFT — Vendor */}
+            <div className="p-4 space-y-0.5 text-[11px]">
+              <div className="font-bold text-slate-900 text-[12px]">{vendorName}</div>
+              <div className="text-slate-600">{vendorAddress}</div>
+              <div className="text-slate-700 pt-0.5">
+                <span className="font-semibold">GSTIN:</span>{" "}
+                <span className="font-mono">{vendorGst}</span>
+                &nbsp;|&nbsp;
+                <span className="font-semibold">PAN:</span>{" "}
+                <span className="font-mono">{vendorPan}</span>
+              </div>
+              <div className="text-slate-700">
+                <span className="font-semibold">Contact:</span> {vendorMobile}
+              </div>
+              <div className="text-slate-700">
+                <span className="font-semibold">Email:</span> {vendorEmail}
+              </div>
+            </div>
+            {/* RIGHT — Starmould as Buyer */}
+            <div className="p-4 space-y-0.5 text-[11px]">
+              <div className="font-bold text-slate-900 text-[12px]">{COMPANY.name}</div>
+              <div className="text-slate-600">{COMPANY.address1}</div>
+              <div className="text-slate-600">{COMPANY.address2}</div>
+              <div className="text-slate-700 pt-0.5">
+                <span className="font-semibold">GSTIN:</span>{" "}
+                <span className="font-mono">{COMPANY.gstin}</span>
+                &nbsp;|&nbsp;
+                <span className="font-semibold">PAN:</span>{" "}
+                <span className="font-mono">{COMPANY.pan}</span>
+              </div>
+              <div className="text-slate-700">
+                <span className="font-semibold">Mobile:</span> {COMPANY.mobile}
+              </div>
+              <div className="text-slate-700">
+                <span className="font-semibold">Email:</span> {COMPANY.email}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* =========================================================================
-            2. THREE-COLUMN CARDS (Company Details, Bill To, Ship To)
-            ========================================================================= */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Card 1: Company Details */}
-          <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-lg space-y-1 text-[11px]">
-            <div className="border-b border-[#82b426] pb-1 mb-2 font-bold text-slate-900 flex items-center justify-between">
-              <span>Company Details</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-[#82b426]" />
-            </div>
-            <div className="font-bold text-slate-900 text-xs">
-              STARMOULD TECHNOLOGY PVT. LTD.
-            </div>
-            <div className="text-slate-600">
-              Plot G-705, Road-5, GIDC Lodhika, Metoda,
-            </div>
-            <div className="text-slate-600">
-              Rajkot, Gujarat, 360021 India
-            </div>
-            <div className="pt-1">
-              <span className="font-semibold text-slate-700">GSTIN: </span>
-              <span className="font-mono font-bold text-slate-900">24ABLCS1427Q1ZV</span>
-            </div>
-            <div>
-              <span className="font-semibold text-slate-700">PAN NO: </span>
-              <span className="font-mono text-slate-900">AALCS1427Q</span>
-            </div>
-            <div>
-              <span className="font-semibold text-slate-700">Mobile: </span>
-              <span className="text-slate-900">+91 82384 51671</span>
-            </div>
+        {/* ──────────────────────────────────────────────────────────────────
+            4. PARTICULARS TABLE
+            ────────────────────────────────────────────────────────────────── */}
+        <div>
+          {/* Section label */}
+          <div
+            className="px-4 py-2 text-[11px] font-bold tracking-wider uppercase mb-1"
+            style={{ color: PRIMARY }}
+          >
+            Particulars
           </div>
 
-          {/* Card 2: Bill To / Supplier */}
-          <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-lg space-y-1 text-[11px]">
-            <div className="border-b border-[#82b426] pb-1 mb-2 font-bold text-slate-900 flex items-center justify-between">
-              <span>Bill To (Supplier)</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-[#82b426]" />
-            </div>
-            <div className="font-bold text-slate-900 text-xs uppercase">
-              {vendorName}
-            </div>
-            <div className="text-slate-600">
-              {vendorAddress}
-            </div>
-            <div className="pt-1">
-              <span className="font-semibold text-slate-700">GSTIN: </span>
-              <span className="font-mono font-bold text-slate-900">{vendorGst}</span>
-            </div>
-            <div>
-              <span className="font-semibold text-slate-700">PAN NO: </span>
-              <span className="font-mono text-slate-900">{vendorPan}</span>
-            </div>
-            <div>
-              <span className="font-semibold text-slate-700">Mobile: </span>
-              <span className="text-slate-900">{vendorMobile}</span>
-            </div>
-          </div>
-
-          {/* Card 3: Ship To (Works Location) */}
-          <div className="p-3.5 bg-slate-50/60 border border-slate-200 rounded-lg space-y-1 text-[11px]">
-            <div className="border-b border-[#82b426] pb-1 mb-2 font-bold text-slate-900 flex items-center justify-between">
-              <span>Ship To (Plant Works)</span>
-              <span className="h-1.5 w-1.5 rounded-full bg-[#82b426]" />
-            </div>
-            <div className="font-bold text-slate-900 text-xs">
-              STARMOULD WORKS / METODA PLANT
-            </div>
-            <div className="text-slate-600">
-              Plot G-705, Road-5, GIDC Lodhika, Metoda,
-            </div>
-            <div className="text-slate-600">
-              Rajkot, Gujarat, 360021 India
-            </div>
-            <div className="pt-1">
-              <span className="font-semibold text-slate-700">GSTIN: </span>
-              <span className="font-mono font-bold text-slate-900">24ABLCS1427Q1ZV</span>
-            </div>
-            <div>
-              <span className="font-semibold text-slate-700">Destination: </span>
-              <span className="text-slate-900">Raw Material Store</span>
-            </div>
-            <div>
-              <span className="font-semibold text-slate-700">Contact: </span>
-              <span className="text-slate-900">+91 82384 51671</span>
-            </div>
-          </div>
-        </div>
-
-        {/* =========================================================================
-            3. LINE ITEMS TABLE (Dark Navy Header, Clean Bordered Rows)
-            ========================================================================= */}
-        <div className="overflow-x-auto border border-slate-300 rounded-sm">
-          <table className="w-full text-left border-collapse text-[11px]">
-            <thead>
-              <tr className="bg-[#203a5c] text-white font-bold uppercase text-[10px] tracking-wide">
-                <th className="py-2.5 px-3 text-center w-8">#</th>
-                <th className="py-2.5 px-3">Items / Subplate</th>
-                <th className="py-2.5 px-3">HSN Code</th>
-                <th className="py-2.5 px-3 text-center">Qty</th>
-                <th className="py-2.5 px-3 text-right">Rate</th>
-                <th className="py-2.5 px-3 text-right">Discount</th>
-                <th className="py-2.5 px-3 text-right">Amount</th>
-                <th className="py-2.5 px-3 text-center">GST</th>
-                <th className="py-2.5 px-3 text-right">TAX</th>
-                <th className="py-2.5 px-3 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {processedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-4 text-center text-slate-400">
-                    No plate items found in this purchase order.
-                  </td>
-                </tr>
-              ) : (
-                processedItems.map((it) => (
-                  <tr key={it.srNo} className="hover:bg-slate-50/50">
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-500">
-                      {it.srNo}
-                    </td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-bold text-slate-900">{it.name}</div>
-                      <div className="text-[10px] text-slate-500 font-mono">
-                        {it.dimensions} &bull; <span className="font-semibold text-slate-700">{it.materialType}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-600">
-                      {it.hsnCode}
-                    </td>
-                    <td className="py-2.5 px-3 text-center font-bold font-mono text-slate-900">
-                      {it.qty} Nos
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                      {it.rate > 0 ? it.rate.toLocaleString("en-IN") : "—"}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-500">
-                      ₹ 0
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                      {it.amount > 0 ? `₹ ${it.amount.toLocaleString("en-IN")}` : "—"}
-                    </td>
-                    <td className="py-2.5 px-3 text-center font-mono text-slate-600">
-                      {it.gstPercent}%
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                      {it.tax > 0 ? `₹ ${it.tax.toLocaleString("en-IN")}` : "—"}
-                    </td>
-                    <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
-                      {it.total > 0 ? `₹ ${it.total.toLocaleString("en-IN")}` : "—"}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-            {/* Table Summary Subtotal */}
-            <tfoot>
-              <tr className="bg-slate-100 border-t-2 border-slate-300 font-bold text-slate-900">
-                <td colSpan={3} className="py-2 px-3 text-right uppercase text-[10px] tracking-wider text-slate-600">
-                  Total
-                </td>
-                <td className="py-2 px-3 text-center font-mono text-xs">
-                  {totalQty}
-                </td>
-                <td className="py-2 px-3" />
-                <td className="py-2 px-3 text-right font-mono text-[11px] text-slate-500">
-                  ₹ 0
-                </td>
-                <td className="py-2 px-3 text-right font-mono text-[11px]">
-                  {totalAmount > 0 ? `₹ ${totalAmount.toLocaleString("en-IN")}` : "—"}
-                </td>
-                <td className="py-2 px-3" />
-                <td className="py-2 px-3 text-right font-mono text-[11px]">
-                  {totalTax > 0 ? `₹ ${totalTax.toLocaleString("en-IN")}` : "—"}
-                </td>
-                <td className="py-2 px-3 text-right font-mono text-[11px]">
-                  {grandTotal > 0 ? `₹ ${grandTotal.toLocaleString("en-IN")}` : "—"}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* =========================================================================
-            4. TOTALS & GRAND TOTAL SUMMARY (Right-Aligned Block)
-            ========================================================================= */}
-        <div className="flex flex-col items-end space-y-1.5 pt-2">
-          <div className="w-full sm:w-80 space-y-1 text-[11px] text-slate-700">
-            <div className="flex justify-between py-0.5 border-b border-slate-100">
-              <span className="text-slate-500">TCS</span>
-              <span className="font-mono">₹ 0</span>
-            </div>
-            <div className="flex justify-between py-0.5 border-b border-slate-100">
-              <span className="text-slate-500">Round Off</span>
-              <span className="font-mono">₹ 0</span>
-            </div>
-            {/* Grand Total Navy Banner */}
-            <div className="flex justify-between items-center bg-[#203a5c] text-white p-2.5 rounded font-bold text-sm shadow-xs">
-              <span>Grand Total</span>
-              <span className="font-mono text-base">
-                {grandTotal > 0 ? `₹ ${grandTotal.toLocaleString("en-IN")}` : `Total Qty: ${totalQty} Nos`}
-              </span>
-            </div>
-            {/* In Words */}
-            <div className="text-right text-[10px] text-slate-500 italic pt-0.5">
-              {grandTotal > 0 ? `(${numberToIndianWords(grandTotal)})` : `(${totalQty} plates ordered for mould ${po.projectid})`}
-            </div>
-          </div>
-        </div>
-
-        {/* =========================================================================
-            5. TAX SUMMARY TABLE
-            ========================================================================= */}
-        <div className="space-y-2 pt-2">
-          <div className="font-bold text-slate-800 text-[11px]">
-            &mdash; Tax Summary
-          </div>
-          <div className="overflow-x-auto border border-slate-300 rounded-sm">
+          <div
+            className="rounded-sm overflow-hidden border"
+            style={{ borderColor: PRIMARY_BORDER }}
+          >
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
-                <tr className="bg-[#203a5c] text-white font-bold uppercase text-[10px] tracking-wide">
-                  <th className="py-2 px-3 text-center w-8">#</th>
-                  <th className="py-2 px-3">HSN/SAC</th>
-                  <th className="py-2 px-3 text-right">Amount</th>
-                  <th className="py-2 px-3 text-center">IGST(%)</th>
-                  <th className="py-2 px-3 text-right">IGST</th>
-                  <th className="py-2 px-3 text-right">Total Tax</th>
+                <tr
+                  className="text-white font-bold uppercase text-[10px] tracking-wide"
+                  style={{ backgroundColor: PRIMARY }}
+                >
+                  <th className="py-2.5 px-3 text-center w-8">#</th>
+                  <th className="py-2.5 px-3">Purchase Material</th>
+                  <th className="py-2.5 px-3 text-center">Qty</th>
+                  <th className="py-2.5 px-3 text-center">Material Type</th>
+                  <th className="py-2.5 px-3 text-center">Mould</th>
+                  <th className="py-2.5 px-3 text-right">Rate (₹)</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
-                {processedItems.length === 0 ? (
+              <tbody>
+                {items.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-2 text-center text-slate-400">
-                      No tax records.
+                    <td colSpan={6} className="py-6 text-center text-slate-400 italic">
+                      No items found in this purchase order.
                     </td>
                   </tr>
                 ) : (
-                  processedItems.map((it) => (
-                    <tr key={it.srNo}>
-                      <td className="py-1.5 px-3 text-center font-mono text-slate-500">{it.srNo}</td>
-                      <td className="py-1.5 px-3 font-mono">{it.hsnCode}</td>
-                      <td className="py-1.5 px-3 text-right font-mono">
-                        {it.amount > 0 ? `₹ ${it.amount.toLocaleString("en-IN")}` : "—"}
-                      </td>
-                      <td className="py-1.5 px-3 text-center font-mono">{it.gstPercent}%</td>
-                      <td className="py-1.5 px-3 text-right font-mono">
-                        {it.tax > 0 ? `₹ ${it.tax.toLocaleString("en-IN")}` : "—"}
-                      </td>
-                      <td className="py-1.5 px-3 text-right font-mono">
-                        {it.tax > 0 ? `₹ ${it.tax.toLocaleString("en-IN")}` : "—"}
-                      </td>
-                    </tr>
-                  ))
+                  items.map((it: any, idx: number) => {
+                    const qty  = Number(it.qty) || 1;
+                    const rate = Number(it.rate) || 0;
+                    const name = it.platename || `Subplate #${it.plateid}`;
+                    const dims = it.material || "—";
+                    const matType = it.materialtype || "—";
+
+                    return (
+                      <tr
+                        key={idx}
+                        className="border-t"
+                        style={{
+                          borderColor: PRIMARY_BORDER,
+                          backgroundColor: idx % 2 === 0 ? "#ffffff" : PRIMARY_LIGHT,
+                        }}
+                      >
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-500">
+                          {idx + 1}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <div className="font-semibold text-slate-900">{name}</div>
+                          {dims && dims !== "—" && (
+                            <div className="text-[10px] text-slate-500 font-mono">{dims}</div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-900">
+                          {qty}
+                        </td>
+                        <td className="py-2.5 px-3 text-center text-slate-700">
+                          {matType}
+                        </td>
+                        <td className="py-2.5 px-3 text-center font-mono text-slate-700">
+                          {po.projectid || "—"}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-900">
+                          {rate > 0 ? `₹ ${rate.toLocaleString("en-IN")}` : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
-              <tfoot>
-                <tr className="bg-slate-100 border-t border-slate-300 font-bold text-slate-900">
-                  <td colSpan={2} className="py-2 px-3 text-right uppercase text-[10px]">Total</td>
-                  <td className="py-2 px-3 text-right font-mono">
-                    {totalAmount > 0 ? `₹ ${totalAmount.toLocaleString("en-IN")}` : "—"}
-                  </td>
-                  <td className="py-2 px-3" />
-                  <td className="py-2 px-3 text-right font-mono">
-                    {totalTax > 0 ? `₹ ${totalTax.toLocaleString("en-IN")}` : "—"}
-                  </td>
-                  <td className="py-2 px-3 text-right font-mono">
-                    {totalTax > 0 ? `₹ ${totalTax.toLocaleString("en-IN")}` : "—"}
-                  </td>
-                </tr>
-              </tfoot>
             </table>
           </div>
+
+          {/* Footnote */}
+          <p className="mt-1.5 text-[10px] text-slate-500 italic">
+            Rates are given for reference only, in Indian Rupees (₹).
+          </p>
         </div>
 
-        {/* =========================================================================
-            6. BANK DETAILS
-            ========================================================================= */}
-        <div className="space-y-1.5 pt-2">
-          <div className="font-bold text-slate-800 text-[11px]">
-            &mdash; Bank Details
+        {/* ──────────────────────────────────────────────────────────────────
+            5. TERMS & CONDITIONS
+            ────────────────────────────────────────────────────────────────── */}
+        <div
+          className="rounded-lg overflow-hidden border"
+          style={{ borderColor: PRIMARY_BORDER }}
+        >
+          {/* Header */}
+          <div
+            className="px-4 py-2 text-white font-bold text-[11px] tracking-wider uppercase"
+            style={{ backgroundColor: PRIMARY }}
+          >
+            Terms &amp; Conditions
           </div>
-          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded text-[11px] font-medium text-slate-700 flex flex-wrap items-center gap-x-6 gap-y-1">
+          {/* Clauses */}
+          <div className="p-4 space-y-1.5 text-[11px] text-slate-700 leading-relaxed">
+            <p>
+              <span className="font-bold text-slate-900">1. </span>
+              <span className="font-bold text-slate-900">
+                The above-mentioned prices are exclusive of GST.
+              </span>
+            </p>
+            <p>
+              <span className="font-bold text-slate-900">2. Delivery: </span>
+              Material will be delivered as per the delivery schedule agreed with the buyer.
+            </p>
+            <p>
+              <span className="font-bold text-slate-900">3. Quality: </span>
+              Material must match the specifications, type, mould and quantity stated in this
+              purchase order. Defective or non-conforming material may be rejected.
+            </p>
+            <p>
+              <span className="font-bold text-slate-900">4. Payment: </span>
+              Payment will be made as per the agreed payment terms after receipt and acceptance
+              of the material.
+            </p>
+            <p>
+              <span className="font-bold text-slate-900">5. Documents: </span>
+              Please quote the PO number on all invoices, challans and correspondence.
+            </p>
+          </div>
+        </div>
+
+        {/* ──────────────────────────────────────────────────────────────────
+            6. FOOTER — Vendor Acceptance (left) + Authorized Signatory (right)
+            ────────────────────────────────────────────────────────────────── */}
+        <div
+          className="rounded-lg overflow-hidden border"
+          style={{ borderColor: PRIMARY_BORDER }}
+        >
+          <div className="grid grid-cols-2 divide-x" style={{ borderColor: PRIMARY_BORDER }}>
+            {/* LEFT — Vendor Acceptance */}
             <div>
-              <span className="font-bold text-slate-900">Name:</span> Australian Premium Solar India Limited / Starmould Technology Pvt Ltd
+              <div
+                className="px-4 py-2 text-white font-bold text-[10px] uppercase tracking-wider"
+                style={{ backgroundColor: PRIMARY }}
+              >
+                Vendor Acceptance
+              </div>
+              {/* Stamp space */}
+              <div className="h-16" />
+              <div
+                className="px-4 pb-3 text-[10px] text-slate-700 border-t flex gap-8"
+                style={{ borderColor: PRIMARY_BORDER }}
+              >
+                <span>Name: ___________________</span>
+                <span>Date: ___________________</span>
+              </div>
             </div>
+
+            {/* RIGHT — Company Signatory */}
             <div>
-              <span className="font-bold text-slate-900">Bank:</span> HDFC Bank
-            </div>
-            <div>
-              <span className="font-bold text-slate-900">IFSC:</span> <span className="font-mono">HDFC0000960</span>
-            </div>
-            <div>
-              <span className="font-bold text-slate-900">A/C:</span> <span className="font-mono font-bold">50200001226815</span>
+              <div
+                className="px-4 py-2 text-white font-bold text-[10px] uppercase tracking-wider text-right"
+                style={{ backgroundColor: PRIMARY }}
+              >
+                For {COMPANY.name}
+              </div>
+              {/* Signature space */}
+              <div className="h-16" />
+              <div
+                className="px-4 pb-3 text-[10px] text-slate-700 border-t text-right"
+                style={{ borderColor: PRIMARY_BORDER }}
+              >
+                Authorized Signatory
+              </div>
             </div>
           </div>
         </div>
 
-        {/* =========================================================================
-            7. TERMS & CONDITIONS
-            ========================================================================= */}
-        <div className="space-y-1.5 pt-2">
-          <div className="font-bold text-slate-800 text-[11px]">
-            &mdash; Terms &amp; Conditions
-          </div>
-          <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-700 leading-relaxed pl-1">
-            <li>
-              <span className="font-bold text-slate-900">Payments : </span>
-              20% Advance On PO And 80% Before Dispatch / Upon Material Inward Inspection.
-            </li>
-            <li>
-              <span className="font-bold text-slate-900">Delivery : </span>
-              3 To 4 Weeks from PO release date.
-            </li>
-            <li>
-              <span className="font-bold text-slate-900">Warranty : </span>
-              Warranty Will Not Be Applicable In Case Of Mishandling, Any Modification / Alteration, Physical Damage Due To Any Natural Or Un-natural Circumstances. Insurance Can Be Arranged On Request Bound By Customer.
-            </li>
-            <li>
-              <span className="font-bold text-slate-900">Freight : </span>
-              Freight Extra as actuals.
-            </li>
-            <li>
-              <span className="font-bold text-slate-900">Transport : </span>
-              The material should be picked up / delivered within 20 days from the date of quotation.
-            </li>
-          </ol>
-        </div>
-
-        {/* =========================================================================
-            8. SIGNATURE BLOCK (Page Footer)
-            ========================================================================= */}
-        <div className="pt-10 flex justify-between items-end border-t border-slate-300">
-          <div className="text-[10px] text-slate-500 space-y-1">
-            <p className="font-semibold text-slate-700">STARMOULD TECHNOLOGY PVT. LTD.</p>
-            <p>Nr. Metoda GIDC, Road-5, Rajkot - 360021, Gujarat</p>
-            <p>GSTIN: 24ABLCS1427Q1ZV</p>
-          </div>
-          <div className="text-right space-y-12">
-            <div className="text-xs font-bold text-slate-900">
-              For, AUSTRALIAN PREMIUM SOLAR (INDIA) LTD / STARMOULD
-            </div>
-            <div className="flex items-center justify-end gap-12 text-[10px] font-semibold text-slate-600">
-              <span className="border-t border-slate-400 pt-1 px-8">Authorized Signatory</span>
-              <span className="border-t border-slate-400 pt-1 px-4">Date</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

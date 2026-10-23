@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, use } from "react";
-import { Printer, ArrowLeft, Factory, CheckCircle2 } from "lucide-react";
+import { Printer, Download, ArrowLeft, Factory, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-voucher";
 
@@ -18,12 +18,13 @@ export default function PrintDocumentPage({ params }: PageProps) {
 
   const [doc, setDoc] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/print-doc?type=${type}&id=${id}`)
+    fetch(`/api/print-doc?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`)
       .then((res) => {
-        if (!res.ok) throw new Error("Document not found");
+        if (!res.ok) throw new Error("Document not found or unauthorized");
         return res.json();
       })
       .then((data) => {
@@ -37,14 +38,52 @@ export default function PrintDocumentPage({ params }: PageProps) {
   }, [type, id]);
 
   const handlePrint = () => {
+    const originalTitle = document.title;
+    if (doc?.docNumber) {
+      document.title = doc.docNumber;
+    }
     window.print();
+    setTimeout(() => {
+      document.title = originalTitle;
+    }, 1000);
+  };
+
+  const handleDownloadPdf = async () => {
+    const el = document.getElementById("po-printable-area");
+    if (!el) {
+      handlePrint();
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      // @ts-ignore
+      const html2pdf = (await import("html2pdf.js")).default;
+      const fileName = `${doc?.docNumber || "Purchase_Order"}.pdf`;
+
+      const opt = {
+        margin: [10, 10, 10, 10] as [number, number, number, number],
+        filename: fileName,
+        image: { type: "jpeg" as const, quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        jsPDF: { unit: "mm" as const, format: "a4", orientation: "portrait" as const },
+      };
+
+      await html2pdf().set(opt).from(el).save();
+    } catch (err) {
+      console.error("PDF download error:", err);
+      handlePrint();
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <div className="p-6 bg-white rounded-2xl shadow-sm text-center">
-          <p className="text-sm font-semibold text-slate-700">Loading document for printing...</p>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="p-8 bg-white rounded-2xl shadow-sm border border-slate-200 text-center space-y-3">
+          <div className="w-8 h-8 border-3 border-[#11627f] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-semibold text-slate-700">Loading document...</p>
         </div>
       </div>
     );
@@ -52,11 +91,20 @@ export default function PrintDocumentPage({ params }: PageProps) {
 
   if (error || !doc) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <div className="p-6 bg-white rounded-2xl shadow-sm text-center space-y-3">
-          <p className="text-sm font-semibold text-rose-600">{error || "Failed to load document"}</p>
-          <Link href="/" className="inline-block px-4 py-2 bg-slate-900 text-white rounded-lg text-xs font-semibold">
-            Return to Dashboard
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+        <div className="p-8 bg-white rounded-2xl shadow-sm border border-slate-200 text-center space-y-4 max-w-md">
+          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto text-xl font-bold">
+            !
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Document Unavailable</h2>
+            <p className="text-xs text-slate-500 mt-1">{error || "Failed to load document"}</p>
+          </div>
+          <Link
+            href="/purchase"
+            className="inline-block px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition"
+          >
+            Return to Purchase
           </Link>
         </div>
       </div>
@@ -65,11 +113,43 @@ export default function PrintDocumentPage({ params }: PageProps) {
 
   if (type === "purchase") {
     return (
-      <div className="min-h-screen bg-slate-200 py-6 px-4 print:p-0 print:bg-white text-slate-900">
-        <div className="max-w-5xl mx-auto">
+      <div className="min-h-screen bg-slate-100/70 py-6 px-4 print:p-0 print:bg-white text-slate-900">
+        {/* Top Floating Control Bar */}
+        <div className="max-w-[850px] mx-auto mb-4 flex items-center justify-between print:hidden">
+          <Link
+            href="/purchase"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-xs"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back</span>
+          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-sm cursor-pointer disabled:opacity-50"
+              title="Download PDF directly with PO Number"
+            >
+              <Download className="w-4 h-4" />
+              <span>{isDownloading ? "Downloading..." : "Download PDF"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#11627f] hover:bg-[#0d4f68] text-white text-xs font-bold transition shadow-sm cursor-pointer"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print PO</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Document Sheet */}
+        <div className="max-w-[850px] mx-auto shadow-lg rounded-xl overflow-hidden print:shadow-none print:rounded-none">
           <PurchaseOrderVoucher
             po={{
-              id: Number(id),
+              id: Number(doc.id || 0),
               srno: doc.docNumber,
               odate: doc.docDate,
               vname: doc.party?.id,

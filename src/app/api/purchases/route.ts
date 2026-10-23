@@ -130,7 +130,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Determine next PO number
+    // ── PO Number: SMPO{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
+    const nowIST = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+    const dd = String(nowIST.getDate()).padStart(2, "0");
+    const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(nowIST.getFullYear());
+    const todayPrefix = `SMPO${dd}${mm}${yyyy}`; // e.g. "SMPO23102026"
+
+    // Count POs already created today by matching the srno prefix (avoids IST/UTC conversion)
+    const { count: todayCount } = await supabaseAdmin
+      .from("purchase")
+      .select("id", { count: "exact", head: true })
+      .like("srno", `${todayPrefix}%`);
+
+    const seq = String((todayCount ?? 0) + 1).padStart(3, "0");
+    const srno = `${todayPrefix}${seq}`; // e.g. "SMPO23102026005"
+
+    // purchaseid still increments globally (internal DB key, not displayed)
     const { data: maxRows } = await supabaseAdmin
       .from("purchase")
       .select("purchaseid")
@@ -138,7 +156,6 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     const nextPurchaseId = (maxRows?.[0]?.purchaseid ?? 1010) + 1;
-    const srno = `PO-${nextPurchaseId}`;
 
     // 1. Insert header
     const { data: newPO, error: poErr } = await supabaseAdmin

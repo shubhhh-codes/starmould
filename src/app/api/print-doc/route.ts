@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { verifySecurePrintToken } from "@/lib/print-token";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
@@ -10,8 +11,26 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type"); // "challan" | "inward" | "purchase" | "dispatch" | "work"
-    const id = searchParams.get("id");
+    let type = searchParams.get("type"); // "challan" | "inward" | "purchase" | "dispatch" | "work"
+    let id = searchParams.get("id");
+    const token = searchParams.get("token");
+
+    // If a secure token is passed, decode and verify it
+    if (token) {
+      const decoded = verifySecurePrintToken(token);
+      if (!decoded) {
+        return NextResponse.json({ error: "Invalid or tampered print token" }, { status: 400 });
+      }
+      type = decoded.type;
+      id = decoded.id;
+    } else if (id && id.includes(".")) {
+      // If the token was passed as the id parameter
+      const decoded = verifySecurePrintToken(id);
+      if (decoded) {
+        type = decoded.type;
+        id = decoded.id;
+      }
+    }
 
     if (!type || !id) {
       return NextResponse.json({ error: "Document type and ID are required" }, { status: 400 });

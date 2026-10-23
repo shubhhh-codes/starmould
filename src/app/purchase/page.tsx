@@ -24,6 +24,7 @@ import {
     PackagePlus,
     ArrowUpRight,
     Filter,
+    ExternalLink,
 } from "lucide-react";
 import type {
     PurchaseOrder,
@@ -37,7 +38,6 @@ import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
-import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-voucher";
 import {
     usePurchasesQuery,
     useCreatePurchaseMutation,
@@ -92,8 +92,27 @@ function PurchasePageContent() {
     // Add / Edit Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPO, setEditingPO] = useState<PurchaseOrder | null>(null);
-    const [printingPO, setPrintingPO] = useState<PurchaseOrder | null>(null);
     const [selectedMould, setSelectedMould] = useState("");
+
+    // Open Voucher directly in new tab with secure print token
+    const handleOpenVoucherTab = async (po: PurchaseOrder) => {
+        try {
+            const res = await fetch("/api/print-token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: "purchase", id: po.id }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                window.open(data.url, "_blank", "noopener,noreferrer");
+            } else {
+                // Fallback
+                window.open(`/print/purchase/${po.id}`, "_blank", "noopener,noreferrer");
+            }
+        } catch {
+            window.open(`/print/purchase/${po.id}`, "_blank", "noopener,noreferrer");
+        }
+    };
     const [formData, setFormData] = useState<{
         odate: string;
         vname: number | "";
@@ -130,16 +149,22 @@ function PurchasePageContent() {
     );
 
     // Available moulds for the selected customer in Add modal
-    // Source: CustomerController.php:136 (getprojectswork):
-    // ScanningModel::where("cname", $request->cid)->where('status','<>','completed')->where('status','<>','registered')->get();
+    // Supports both scan.cname storing customer ID (number/string) or exact customername string
     const availableMoulds = useMemo(() => {
         if (!formData.cname) return [];
-        return scans.filter(
-            (s) =>
-                String(s.cname) === String(formData.cname) &&
-                s.status !== "completed",
-        );
-    }, [scans, formData.cname]);
+        const selectedCustomer = clients.find((c: any) => c.id === Number(formData.cname));
+        const selectedCustName = selectedCustomer?.customername?.toLowerCase().trim();
+
+        return scans.filter((s) => {
+            if (s.status === "completed") return false;
+            const scanCnameStr = String(s.cname || "").trim();
+            // Match by ID
+            if (scanCnameStr === String(formData.cname)) return true;
+            // Match by customer name string
+            if (selectedCustName && scanCnameStr.toLowerCase() === selectedCustName) return true;
+            return false;
+        });
+    }, [scans, formData.cname, clients]);
 
     // Selected scan for subplate resolution
     const selectedScan = useMemo(() => {
@@ -863,12 +888,12 @@ function PurchasePageContent() {
                                                             <div className="flex items-center justify-end gap-1.5">
                                                                 <button
                                                                     onClick={() =>
-                                                                        setPrintingPO(
+                                                                        handleOpenVoucherTab(
                                                                             po,
                                                                         )
                                                                     }
-                                                                    className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex items-center gap-1"
-                                                                    title="View / Print PO Voucher"
+                                                                    className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
+                                                                    title="Open PO Voucher in new tab"
                                                                 >
                                                                     <Printer className="w-3 h-3" />
                                                                     <span>Voucher</span>
@@ -1102,10 +1127,10 @@ function PurchasePageContent() {
                                                 <div className="flex flex-wrap items-center gap-1.5">
                                                     <button
                                                         onClick={() =>
-                                                            setPrintingPO(po)
+                                                            handleOpenVoucherTab(po)
                                                         }
                                                         className="min-h-[36px] px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
-                                                        title="Print PO Voucher"
+                                                        title="Open PO Voucher in new tab"
                                                     >
                                                         <Printer className="w-3.5 h-3.5" />
                                                         <span>Voucher</span>
@@ -1805,34 +1830,6 @@ function PurchasePageContent() {
                             </MotionButton>
                         </div>
                     </form>
-                </Modal>
-
-                {/* Printable PO Voucher Modal */}
-                <Modal
-                    isOpen={!!printingPO}
-                    onClose={() => setPrintingPO(null)}
-                    title={`Purchase Order: ${printingPO?.srno}`}
-                    description="Official purchase order document with tax summary & bank details"
-                    size="2xl"
-                >
-                    {printingPO && (
-                        <PurchaseOrderVoucher
-                            po={printingPO}
-                            vendor={
-                                (vendorLookup || []).find(
-                                    (v: any) => v.id === printingPO.vname,
-                                ) ||
-                                customers.find(
-                                    (c: any) => c.id === printingPO.vname,
-                                ) ||
-                                null
-                            }
-                            customerName={getCustomerName(printingPO.cname)}
-                            onPrint={() => window.print()}
-                            onClose={() => setPrintingPO(null)}
-                            isModal={true}
-                        />
-                    )}
                 </Modal>
 
                 {/* Delete Confirmation Modal */}
