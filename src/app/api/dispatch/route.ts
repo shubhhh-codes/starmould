@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
       const itemsRes = await supabaseAdmin
         .from("dispatch_items")
         .select("*")
-        .in("dispatchid", dIds);
+        .in("dispatchid", dIds)
+        .limit(10000);
       if (itemsRes.error) {
         return NextResponse.json({ error: itemsRes.error.message }, { status: 500 });
       }

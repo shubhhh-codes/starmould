@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ results: [] });
     }
 
-    const term = `%${q}%`;
+    const safeQ = q.replace(/[,.():%'"\;]/g, "");
+    const term = `%${safeQ}%`;
     const num = Number(q);
     const isNum = !isNaN(num) && num > 0;
 
