@@ -61,10 +61,21 @@ export async function GET(req: NextRequest) {
     return resCounts;
   });
 
+  const pipeline = await getCached("api_pipeline_stage_counts", 15, async () => {
+    try {
+      const { data, error } = await supabaseAdmin.rpc("get_pipeline_stage_counts");
+      if (!error && data) return data;
+    } catch (err) {
+      console.warn("RPC get_pipeline_stage_counts fallback:", err);
+    }
+    return null;
+  });
+
   const response = NextResponse.json({
     status: "ok",
     timestamp: new Date().toISOString(),
     counts,
+    pipeline,
   });
   response.headers.set("Cache-Control", "private, no-store, must-revalidate");
   return response;

@@ -12,6 +12,154 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+    const since = searchParams.get("since");
+
+    // =========================================================================
+    // DELTA / INCREMENTAL SYNC HANDLER
+    // If `since` is supplied, only fetch records updated/created after `since`.
+    // Old records are strictly rendered from client cache without DB re-queries!
+    // =========================================================================
+    if (since) {
+      const serverTime = new Date().toISOString();
+
+      // 1. Find all scan projects created or updated since `since`
+      // 2. Also find scan projects whose subplates were updated since `since`
+      const [updatedScansRes, updatedSubplatesRes] = await Promise.all([
+        supabaseAdmin
+          .from("scan")
+          .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
+          .or(`updated_at.gt.${since},created_at.gt.${since}`)
+          .order("id", { ascending: false }),
+        supabaseAdmin
+          .from("subplate")
+          .select("mold_id, projectid")
+          .or(`updated_at.gt.${since},created_at.gt.${since}`)
+          .is("deleted_at", null)
+          .limit(500),
+      ]);
+
+      const scanIdSet = new Set<number>();
+      for (const s of updatedScansRes.data || []) {
+        scanIdSet.add(s.id);
+      }
+      for (const sp of updatedSubplatesRes.data || []) {
+        const id = sp.mold_id || (Number(sp.projectid) || null);
+        if (id) scanIdSet.add(id);
+      }
+
+      // If nothing has changed, return empty delta immediately (15ms, ~120 bytes)
+      if (scanIdSet.size === 0) {
+        return NextResponse.json({
+          status: "ok",
+          isDelta: true,
+          deltaCount: 0,
+          scans: [],
+          serverTime,
+        });
+      }
+
+      // Fetch details only for the modified scans
+      const deltaIds = Array.from(scanIdSet);
+      let deltaScans = updatedScansRes.data || [];
+      const missingIds = deltaIds.filter((id) => !deltaScans.some((s) => s.id === id));
+      if (missingIds.length > 0) {
+        const { data: missingScans } = await supabaseAdmin
+          .from("scan")
+          .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
+          .in("id", missingIds);
+        if (missingScans) {
+          deltaScans = [...deltaScans, ...missingScans];
+        }
+      }
+
+      // Enrich only the delta scans
+      const [customers, users, subplatesRes, worklogsRes] = await Promise.all([
+        getCachedCustomers(),
+        getCachedUsers(),
+        supabaseAdmin
+          .from("subplate")
+          .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, packing_at")
+          .or(`mold_id.in.(${deltaIds.join(",")}),projectid.in.(${deltaIds.join(",")})`)
+          .order("id", { ascending: true })
+          .is("deleted_at", null),
+        supabaseAdmin
+          .from("worklog")
+          .select("scan_print_id, design_hr, program_hr, machine_hr, driltap_hr, qc_hr, work_hr")
+          .in("scan_print_id", deltaIds),
+      ]);
+
+      const custMap = new Map();
+      for (const c of customers || []) {
+        custMap.set(c.id, c);
+        custMap.set(String(c.id), c);
+        custMap.set(Number(c.id), c);
+      }
+      const userMap = new Map();
+      for (const u of users || []) {
+        userMap.set(u.id, u);
+        userMap.set(Number(u.id), u);
+        userMap.set(String(u.id), u);
+      }
+
+      const subplateMap: Record<number, any[]> = {};
+      for (const sp of subplatesRes.data || []) {
+        const key = sp.mold_id || (Number(sp.projectid) || null);
+        if (!key) continue;
+        if (!subplateMap[key]) subplateMap[key] = [];
+        subplateMap[key].push(sp);
+      }
+
+      const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
+      for (const w of worklogsRes.data || []) {
+        if (!w.scan_print_id) continue;
+        if (!worklogMap[w.scan_print_id]) {
+          worklogMap[w.scan_print_id] = { scan_hr: 0, model_hr: 0 };
+        }
+        worklogMap[w.scan_print_id].scan_hr += Number(w.machine_hr || 0) + Number(w.driltap_hr || 0);
+        worklogMap[w.scan_print_id].model_hr +=
+          Number(w.design_hr || 0) +
+          Number(w.program_hr || 0) +
+          Number(w.qc_hr || 0);
+      }
+
+      const enrichedDelta = deltaScans.map((s: any) => {
+        const cust = custMap.get(s.cname) || custMap.get(Number(s.cname));
+        const scanUser = userMap.get(Number(s.scan_by)) || userMap.get(s.scan_by);
+        const qcUser = userMap.get(Number(s.qc_by)) || userMap.get(s.qc_by);
+        const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
+        const sublist = subplateMap[s.id] || [];
+        const hours = worklogMap[s.id] || { scan_hr: 0, model_hr: 0 };
+        const completedCount = sublist.filter((sp: any) => sp.packing_workby && Number(sp.packing_workby) > 0).length;
+        const totalPlates = sublist.length;
+        const completionPct = totalPlates > 0 ? Math.round((completedCount / totalPlates) * 100) : 0;
+
+        return {
+          ...s,
+          customername: cust?.customername || (isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
+          customer_initials: cust?.initials || "",
+          scan_by_name: scanUser?.initials || scanUser?.name || "—",
+          qc_by_name: qcUser?.initials || qcUser?.name || "—",
+          modeldesign_by_name: modelUser?.initials || modelUser?.name || "—",
+          subplates: sublist,
+          subplate_count: totalPlates,
+          total_plates: totalPlates,
+          completed_plates: completedCount,
+          completion_percentage: completionPct,
+          is_ready_for_dispatch: totalPlates > 0 && completedCount === totalPlates,
+          calc_scan_hr: hours.scan_hr || s.scan_hr || 0,
+          calc_model_hr: hours.model_hr || s.model_hr || 0,
+        };
+      });
+
+      return NextResponse.json({
+        status: "ok",
+        isDelta: true,
+        deltaCount: enrichedDelta.length,
+        scans: enrichedDelta,
+        serverTime,
+      });
+    }
+
     const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
     const limit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "100");
     const status = searchParams.get("status");
@@ -22,7 +170,6 @@ export async function GET(req: NextRequest) {
     let scanQuery = supabaseAdmin
       .from("scan")
       .select("id, projectid, description, worktype, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at", { count: "exact" })
-      .or("worktype.is.null,worktype.not.in.(Sample,Rework)")
       .order("id", { ascending: false });
 
     if (status && status !== "ALL") {
@@ -41,7 +188,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    if (page && page > 0) {
+    const offsetParam = searchParams.get("offset");
+    const offset = offsetParam !== null && !isNaN(Number(offsetParam)) ? Math.max(0, Number(offsetParam)) : null;
+
+    if (offset !== null) {
+      scanQuery = scanQuery.range(offset, offset + limit - 1);
+    } else if (page && page > 0) {
       const start = (page - 1) * limit;
       scanQuery = scanQuery.range(start, start + limit - 1);
     } else {
@@ -65,8 +217,8 @@ export async function GET(req: NextRequest) {
             missingQCRes,
             missingDesignerRes,
           ] = await Promise.all([
-            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
-            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("worktype.is.null,worktype.not.in.(Sample,Rework)"),
+            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }),
+            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending"),
             supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("scan_by.eq.0,scan_by.is.null"),
             supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("qc_by.eq.0,qc_by.is.null"),
             supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("modeldesign_by.eq.0,modeldesign_by.is.null"),

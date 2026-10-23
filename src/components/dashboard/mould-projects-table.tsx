@@ -225,9 +225,9 @@ function ProjectSubplatesRow({
                   {plates.map((sp) => {
                     const dim = formatSubplateDimensions({
                       shape: sp.shape || "Plate",
-                      length: sp.length,
-                      width: sp.width,
-                      height: sp.height,
+                      length: sp.length ?? undefined,
+                      width: sp.width ?? undefined,
+                      height: sp.height ?? undefined,
                       unit: sp.unit || "mm",
                     });
                     return (
@@ -247,7 +247,21 @@ function ProjectSubplatesRow({
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
-                          {sp.weight ? `${Number(sp.weight).toFixed(3)} kg` : "—"}
+                          {(() => {
+                            if (sp.weight && Number(sp.weight) > 0) {
+                              return `${Number(sp.weight).toFixed(3)} kg`;
+                            }
+                            const calc = calculateSubplateWeight({
+                              shape: sp.shape || "Plate",
+                              material: sp.material || "MS-Bright",
+                              length: sp.length ?? undefined,
+                              width: sp.width ?? undefined,
+                              height: sp.height ?? undefined,
+                              unit: sp.unit || "mm",
+                              quantity: sp.sqty || 1,
+                            });
+                            return calc > 0 ? `${calc.toFixed(3)} kg` : "—";
+                          })()}
                         </td>
                         <td className="py-2.5 px-3 text-center font-bold text-slate-700">
                           {sp.sqty || 1}
@@ -324,10 +338,11 @@ export function MouldProjectsTable({
   const queryClient = useQueryClient();
 
   // Inline Master-Detail Accordion State
-  const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
+  const [expandedRowId, setExpandedRowId] = useState<number | string | null>(null);
 
   const toggleRowExpand = (project: ScanProject) => {
-    setExpandedRowId((prev) => (prev === project.id ? null : project.id));
+    const targetId = project.id;
+    setExpandedRowId((prev) => (prev !== null && String(prev) === String(targetId) ? null : targetId));
   };
 
   // Add / Edit Subplate Modal State
@@ -726,7 +741,8 @@ export function MouldProjectsTable({
             type="checkbox"
             checked={table.getIsAllPageRowsSelected()}
             onChange={table.getToggleAllPageRowsSelectedHandler()}
-            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+            onClick={(e) => e.stopPropagation()}
+            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
           />
         ),
         cell: ({ row }) => (
@@ -735,7 +751,8 @@ export function MouldProjectsTable({
             checked={row.getIsSelected()}
             disabled={!row.getCanSelect()}
             onChange={row.getToggleSelectedHandler()}
-            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+            onClick={(e) => e.stopPropagation()}
+            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
           />
         ),
       }),
@@ -743,7 +760,7 @@ export function MouldProjectsTable({
       columnHelper.accessor("projectid", {
         header: "Project Code",
         cell: (info) => {
-          const isExpanded = expandedRowId === info.row.original.id;
+          const isExpanded = expandedRowId !== null && String(expandedRowId) === String(info.row.original.id);
           return (
             <div className="flex items-center gap-1.5">
               <button
@@ -854,7 +871,7 @@ export function MouldProjectsTable({
         id: "actions",
         header: "Actions",
         cell: ({ row }) => (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={() => handleOpenView(row.original)}
               title="View Subplates"
@@ -1154,25 +1171,36 @@ export function MouldProjectsTable({
             ) : (
               table.getRowModel().rows.map((row) => {
                 const project = row.original;
-                const isExpanded = expandedRowId === project.id;
+                const isExpanded = expandedRowId !== null && String(expandedRowId) === String(project.id);
 
                 return (
                   <React.Fragment key={row.id}>
                     <tr
+                      onClick={() => toggleRowExpand(project)}
                       onContextMenu={(e) => handleRowContextMenu(e, project)}
                       {...longPress.getHandlers(project)}
-                      className={`transition-colors hover:bg-slate-50/80 cursor-context-menu select-none ${
+                      className={`transition-colors hover:bg-blue-50/50 cursor-pointer select-none ${
                         row.getIsSelected() ? "bg-blue-50/50" : ""
                       } ${isExpanded ? "bg-blue-50/30 border-b-transparent font-medium" : ""}`}
                     >
-                      {row.getVisibleCells().map((cell) => (
-                        <td key={cell.id}>
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </td>
-                      ))}
+                      {row.getVisibleCells().map((cell) => {
+                        const isInteractive = cell.column.id === "select" || cell.column.id === "actions";
+                        return (
+                          <td
+                            key={cell.id}
+                            onClick={isInteractive ? undefined : (e) => {
+                              e.stopPropagation();
+                              toggleRowExpand(project);
+                            }}
+                            className={isInteractive ? "" : "cursor-pointer"}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext()
+                            )}
+                          </td>
+                        );
+                      })}
                     </tr>
 
                     {/* Inline Master-Detail Workbench */}

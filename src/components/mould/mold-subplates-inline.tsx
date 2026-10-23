@@ -14,7 +14,7 @@ import {
   Boxes,
 } from "lucide-react";
 import type { Subplate, ScanProject } from "@/lib/supabase/types";
-import { formatSubplateDimensions } from "@/lib/weight-calculator";
+import { formatSubplateDimensions, calculateSubplateWeight } from "@/lib/weight-calculator";
 
 interface MoldSubplatesInlineProps {
   project: ScanProject;
@@ -386,8 +386,22 @@ export function MoldSubplatesInline({
                         {sp.material || "MS-Bright"}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
-                        {sp.weight ? `${sp.weight} kg` : "—"}
-                      </td>
+                          {(() => {
+                        if (sp.weight && Number(sp.weight) > 0) {
+                          return `${sp.weight} kg`;
+                        }
+                        const calc = calculateSubplateWeight({
+                          shape: sp.shape || "Plate",
+                          material: sp.material || "MS-Bright",
+                          length: sp.length ?? undefined,
+                          width: sp.width ?? undefined,
+                          height: sp.height ?? undefined,
+                          unit: sp.unit || "mm",
+                          quantity: sp.sqty || 1,
+                        });
+                        return calc > 0 ? `${calc.toFixed(3)} kg` : "—";
+                      })()}
+                        </td>
                       <td className="py-2.5 px-3 font-mono font-bold text-slate-700 whitespace-nowrap">
                         {sp.sqty || 1}
                       </td>

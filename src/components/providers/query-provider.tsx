@@ -33,24 +33,12 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 24 * 60 * 60 * 1000,
-        buster: "v5.0.0_live_realtime",
+        buster: "v6.0.0_progressive_stream",
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
-            const key0 = String(query.queryKey[0]);
-            // Strictly exclude any operational or fast-changing manufacturing state
-            if ([
-              "projects",
-              "subplates",
-              "dashboard",
-              "worklogs",
-              "challans",
-              "dispatch",
-              "inward",
-              "purchases",
-              "expenses",
-              "search",
-              "counts"
-            ].includes(key0)) {
+            const key1 = String(query.queryKey[1] || "");
+            // Only exclude transient modal preview IDs
+            if (key1 === "preview-id") {
               return false;
             }
             return query.state.status === "success";

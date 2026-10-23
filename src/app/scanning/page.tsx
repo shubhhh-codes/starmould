@@ -408,7 +408,8 @@ function ScanningPageContent() {
                       <React.Fragment key={row.id}>
                         <tr
                           id={`row-${row.id}`}
-                          className={`hover:bg-slate-50/60 transition-all duration-300 group ${
+                          onClick={() => toggleExpandMold(row.id)}
+                          className={`hover:bg-slate-50/60 transition-all duration-300 group cursor-pointer ${
                             isExpanded ? "bg-slate-50/80" : ""
                           } ${getRowHighlightClass(row.id)}`}
                         >
@@ -476,7 +477,7 @@ function ScanningPageContent() {
                           </td>
 
                           {/* Staff Assign: Scanner */}
-                          <td className="py-3 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             <StaffSelect
                               value={row.scan_by}
                               onChange={(val) =>
@@ -489,7 +490,7 @@ function ScanningPageContent() {
                           </td>
 
                           {/* Staff Assign: Designer */}
-                          <td className="py-3 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             <StaffSelect
                               value={row.modeldesign_by}
                               onChange={(val) =>
@@ -502,7 +503,7 @@ function ScanningPageContent() {
                           </td>
 
                           {/* Staff Assign: QC Officer */}
-                          <td className="py-3 px-3 whitespace-nowrap">
+                          <td className="py-3 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                             <StaffSelect
                               value={row.qc_by}
                               onChange={(val) =>
@@ -538,7 +539,7 @@ function ScanningPageContent() {
                               </div>
 
                               {/* Action buttons */}
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                 <button
                                   type="button"
                                   onClick={() => toggleExpandMold(row.id)}

@@ -1,6 +1,14 @@
 name: StarMould Automated Database Backup
 
-run-name: "Database Backup #${{ github.run_number }} (${{ github.event_name == 'schedule' && 'Scheduled 4x IST' || (inputs.reason || 'Manual') }})"
+run-name: >-
+  Database Backup #${{ github.run_number }}
+  ${{ github.event_name == 'schedule' && (
+    github.event.schedule == '30 4 * * *' && '(10:00 AM IST)' ||
+    github.event.schedule == '0 7 * * *' && '(12:30 PM IST)' ||
+    github.event.schedule == '30 10 * * *' && '(04:00 PM IST)' ||
+    github.event.schedule == '30 13 * * *' && '(07:00 PM IST)' ||
+    '(Scheduled IST)'
+  ) || format('({0})', inputs.reason || 'Manual') }}
 
 on:
   schedule:
@@ -20,8 +28,37 @@ on:
         default: 'Manual Snapshot'
 
 jobs:
+  init:
+    name: Initialize IST Timestamp
+    runs-on: ubuntu-latest
+    outputs:
+      job_title: ${{ steps.timestamp.outputs.job_title }}
+      date_ist: ${{ steps.timestamp.outputs.date_ist }}
+      time_ist: ${{ steps.timestamp.outputs.time_ist }}
+      pretty_ist: ${{ steps.timestamp.outputs.pretty_ist }}
+      day_ist: ${{ steps.timestamp.outputs.day_ist }}
+      artifact_name: ${{ steps.timestamp.outputs.artifact_name }}
+    steps:
+      - name: Calculate Exact IST Date & Time
+        id: timestamp
+        run: |
+          TIME_IST=$(TZ='Asia/Kolkata' date +'%I:%M %p')
+          DATE_IST=$(TZ='Asia/Kolkata' date +'%d/%m/%Y')
+          FILE_DATE=$(TZ='Asia/Kolkata' date +'%d-%b-%Y')
+          FILE_TIME=$(TZ='Asia/Kolkata' date +'%I-%M-%p')
+          PRETTY_IST=$(TZ='Asia/Kolkata' date +'%d %b %Y, %I:%M:%S %p IST')
+          DAY_IST=$(TZ='Asia/Kolkata' date +'%A')
+          
+          echo "job_title=Database Backup #${{ github.run_number }} ($TIME_IST) ($DATE_IST)" >> "$GITHUB_OUTPUT"
+          echo "date_ist=$DATE_IST" >> "$GITHUB_OUTPUT"
+          echo "time_ist=$TIME_IST" >> "$GITHUB_OUTPUT"
+          echo "pretty_ist=$PRETTY_IST" >> "$GITHUB_OUTPUT"
+          echo "day_ist=$DAY_IST" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=starmould-backup-${FILE_DATE}_${FILE_TIME}_IST" >> "$GITHUB_OUTPUT"
+
   backup:
-    name: Supabase SQL & JSON Backup (IST)
+    name: ${{ needs.init.outputs.job_title }}
+    needs: init
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -40,20 +77,6 @@ jobs:
       - name: Install Dependencies
         run: npm ci --omit=dev
 
-      - name: Generate IST Timestamp & Details
-        id: timestamp
-        run: |
-          DATE_IST=$(TZ='Asia/Kolkata' date +'%d-%b-%Y')
-          TIME_IST=$(TZ='Asia/Kolkata' date +'%I-%M-%p')
-          PRETTY_IST=$(TZ='Asia/Kolkata' date +'%d %b %Y, %I:%M:%S %p IST')
-          DAY_IST=$(TZ='Asia/Kolkata' date +'%A')
-          
-          echo "date_ist=$DATE_IST" >> "$GITHUB_OUTPUT"
-          echo "time_ist=$TIME_IST" >> "$GITHUB_OUTPUT"
-          echo "pretty_ist=$PRETTY_IST" >> "$GITHUB_OUTPUT"
-          echo "day_ist=$DAY_IST" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=starmould-backup-${DATE_IST}_${TIME_IST}_IST" >> "$GITHUB_OUTPUT"
-
       - name: Execute Supabase Database Backup
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -64,16 +87,16 @@ jobs:
       - name: Upload Backup Artifacts with Exact IST Time
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.timestamp.outputs.artifact_name }}
+          name: ${{ needs.init.outputs.artifact_name }}
           path: ./backups/*
           retention-days: 90
 
       - name: Generate Executive Summary Report with Exact IST Date & Time
         if: always()
         env:
-          REPORT_PRETTY_IST: ${{ steps.timestamp.outputs.pretty_ist }}
-          REPORT_DAY_IST: ${{ steps.timestamp.outputs.day_ist }}
-          REPORT_ARTIFACT_NAME: ${{ steps.timestamp.outputs.artifact_name }}
+          REPORT_PRETTY_IST: ${{ needs.init.outputs.pretty_ist }}
+          REPORT_DAY_IST: ${{ needs.init.outputs.day_ist }}
+          REPORT_ARTIFACT_NAME: ${{ needs.init.outputs.artifact_name }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ "$EVENT_NAME" = "schedule" ]; then

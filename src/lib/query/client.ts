@@ -11,21 +11,21 @@ export const CACHE_TIERS = {
   },
   // Tier B: Moderately changing master records (customers, vendors, users directory)
   MODERATE: {
-    staleTime: 5 * 60 * 1000,  // 5 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 24 * 60 * 60 * 1000,
   },
   // Tier C: Operational pipeline (Live projects, subplates, worklogs, challans, dispatch)
-  // ZERO staleTime ensures immediate sync with live database on every mount or navigation
+  // 60s staleTime allows instantaneous SWR warm-cache renders while keeping data fresh
   OPERATIONAL: {
-    staleTime: 0,
-    gcTime: 5 * 60 * 1000,
-    refetchInterval: 30 * 1000, // 30s active-tab background polling fallback
+    staleTime: 60 * 1000, // 1 minute
+    gcTime: 24 * 60 * 60 * 1000, // 24 hours
+    refetchInterval: false as const, // Disabled constant polling to eliminate network thrashing
     refetchIntervalInBackground: false,
   },
-  // Tier D: Sensitive & Dashboard Rollups (KPI counts, user session)
+  // Tier D: Sensitive & Dashboard Rollups (KPI counts, pipeline aggregation)
   DASHBOARD: {
-    staleTime: 0,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 24 * 60 * 60 * 1000,
   },
 } as const;
 
@@ -36,12 +36,12 @@ export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 0,
-        gcTime: 5 * 60 * 1000,
-        refetchInterval: CACHE_TIERS.OPERATIONAL.refetchInterval,
-        refetchIntervalInBackground: CACHE_TIERS.OPERATIONAL.refetchIntervalInBackground,
+        staleTime: 60 * 1000,
+        gcTime: 24 * 60 * 60 * 1000,
+        refetchInterval: false,
+        refetchIntervalInBackground: false,
         refetchOnWindowFocus: true,
-        refetchOnMount: "always",
+        refetchOnMount: true,
         refetchOnReconnect: true,
         retry: 1,
       },
