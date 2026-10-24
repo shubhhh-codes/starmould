@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   useReactTable,
   getCoreRowModel,
@@ -26,6 +27,7 @@ import {
   Clock,
   AlertCircle,
   Plus,
+  ShoppingCart,
   Trash2,
   RefreshCw,
   X,
@@ -54,6 +56,7 @@ import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal, Drawer, ConfirmDialog } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
+import { CreatePurchaseOrderModal } from "@/components/purchase/create-purchase-order-modal";
 import { appStore } from "@/lib/state/store";
 import {
   calculateSubplateWeight,
@@ -69,6 +72,7 @@ import { useLongPress } from "@/lib/hooks/use-long-press";
 import { useQueryClient, useIsRestoring } from "@tanstack/react-query";
 import { useSubplatesByProjectQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
+import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 
 const REAL_MATERIALS = [
   "MS-Bright",
@@ -324,6 +328,7 @@ export function MouldProjectsTable({
   onRefresh,
   onDeleteProject,
 }: MouldProjectsTableProps) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
@@ -393,6 +398,10 @@ export function MouldProjectsTable({
     sqty: "1",
     location: "SM",
   });
+
+  // Create Purchase Order Modal State (Dashboard Inline)
+  const [createPOProject, setCreatePOProject] = useState<ScanProject | null>(null);
+  const [isCreatePOOpen, setIsCreatePOOpen] = useState(false);
 
   // Context Menu State for Right-Click
   const [contextMenu, setContextMenu] = useState<{
@@ -510,7 +519,13 @@ export function MouldProjectsTable({
             const res = await fetch(`/api/scanning?id=${project.id}`, { method: "DELETE" });
             if (res.ok) {
               queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+              queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+              queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
               queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+              broadcastQueryInvalidation(queryKeys.projects.all());
+              broadcastQueryInvalidation(queryKeys.purchases.all());
+              broadcastQueryInvalidation(queryKeys.subplates.all());
+              broadcastQueryInvalidation(queryKeys.dashboard.counts());
               onRefresh?.();
             } else {
               // Rollback: restore the removed row immediately before invalidating
@@ -590,6 +605,11 @@ export function MouldProjectsTable({
       sqty: "1",
       location: "SM",
     });
+  };
+
+  const handleCreatePO = (project: ScanProject) => {
+    setCreatePOProject(project);
+    setIsCreatePOOpen(true);
   };
 
   const handleOpenEditPlate = (subplate: Subplate, project?: ScanProject | null) => {
@@ -769,10 +789,15 @@ export function MouldProjectsTable({
         }
       }
 
-      // Invalidate queries so TanStack Query updates all active subplate tables/accordions
+      // Invalidate queries so TanStack Query updates all active subplate tables/accordions & purchase orders
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
 
       appStore.addToast({
         type: "success",
@@ -820,7 +845,12 @@ export function MouldProjectsTable({
             setViewSubplates((prev) => prev.filter((p) => p.id !== subplateId));
             queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
             queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+            broadcastQueryInvalidation(queryKeys.subplates.all());
+            broadcastQueryInvalidation(queryKeys.projects.all());
+            broadcastQueryInvalidation(queryKeys.purchases.all());
+            broadcastQueryInvalidation(queryKeys.dashboard.counts());
             onRefresh?.();
             appStore.addToast({
               type: "success",
@@ -1034,6 +1064,13 @@ export function MouldProjectsTable({
               <Plus className="h-3.5 w-3.5" />
             </button>
             <button
+              onClick={() => handleCreatePO(row.original)}
+              title="Create PO"
+              className="p-1.5 rounded-md hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors cursor-pointer"
+            >
+              <ShoppingCart className="h-3.5 w-3.5" />
+            </button>
+            <button
               onClick={() => handleDeleteSingleProject(row.original)}
               title="Delete Mould"
               className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
@@ -1155,7 +1192,13 @@ export function MouldProjectsTable({
           }
           if (!onDeleteProject) {
             queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+            broadcastQueryInvalidation(queryKeys.projects.all());
+            broadcastQueryInvalidation(queryKeys.subplates.all());
+            broadcastQueryInvalidation(queryKeys.purchases.all());
+            broadcastQueryInvalidation(queryKeys.dashboard.counts());
             onRefresh?.();
           }
           setRowSelection({});
@@ -1459,6 +1502,13 @@ export function MouldProjectsTable({
                       className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 cursor-pointer"
                     >
                       <Plus className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => handleCreatePO(m)}
+                      title="Create PO"
+                      className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-amber-600 cursor-pointer"
+                    >
+                      <ShoppingCart className="h-3 w-3" />
                     </button>
                     <button
                       onClick={() => handleDeleteSingleProject(m)}
@@ -2228,6 +2278,14 @@ export function MouldProjectsTable({
                   },
                 },
                 {
+                  label: "Create Purchase PO",
+                  icon: ShoppingCart,
+                  variant: "primary",
+                  onClick: () => {
+                    if (contextMenu.project) handleCreatePO(contextMenu.project);
+                  },
+                },
+                {
                   label: "View Subplates",
                   icon: Eye,
                   variant: "default",
@@ -2272,6 +2330,18 @@ export function MouldProjectsTable({
         variant={confirmDialog.variant}
         isLoading={confirmDialog.isLoading}
       />
+
+      {/* Create Raw Material Purchase Order Modal (Dashboard Inline) */}
+      {isCreatePOOpen && (
+        <CreatePurchaseOrderModal
+          isOpen={isCreatePOOpen}
+          onClose={() => {
+            setIsCreatePOOpen(false);
+            setCreatePOProject(null);
+          }}
+          initialProject={createPOProject}
+        />
+      )}
     </div>
   );
 }

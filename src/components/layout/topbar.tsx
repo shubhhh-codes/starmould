@@ -198,7 +198,7 @@ export function Topbar({
       <header className="sticky top-0 z-30 h-16 bg-slate-900/95 backdrop-blur-md border-b border-slate-800/80 text-slate-200 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2.5 sm:gap-4 shadow-sm">
         
         {/* Left Section: Menu Toggle & Dynamic Breadcrumb / Page Title */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3.5 min-w-0">
           <button
             onClick={() => {
               if (typeof window !== "undefined" && window.innerWidth < 768) {
@@ -208,14 +208,14 @@ export function Topbar({
                 onToggleSidebar?.();
               }
             }}
-            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer border border-slate-800 hover:border-slate-700 shadow-2xs"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors focus:outline-none min-w-[38px] min-h-[38px] flex items-center justify-center cursor-pointer border border-slate-800 hover:border-slate-700 shadow-2xs shrink-0"
             aria-label="Toggle Navigation Sidebar"
           >
             <Menu className="h-4.5 w-4.5" />
           </button>
 
           {/* Current Page Context Badge */}
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
               <PageIcon className="w-4 h-4" />
             </div>
@@ -225,15 +225,15 @@ export function Topbar({
                   {currentPage.category}
                 </span>
               </div>
-              <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate max-w-[130px] sm:max-w-[180px] md:max-w-[240px]">
+              <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate max-w-[120px] xs:max-w-[150px] sm:max-w-[180px] md:max-w-[240px]">
                 {currentPage.title}
               </h2>
             </div>
           </div>
         </div>
 
-        {/* Center: Global Fast Search & Command Palette Trigger */}
-        <div className="flex-1 max-w-sm md:max-w-md mx-auto px-1 sm:px-3">
+        {/* Center: Global Fast Search & Command Palette Trigger (Tablet & Desktop) */}
+        <div className="hidden sm:block flex-1 max-w-sm md:max-w-md mx-auto px-1 sm:px-3 min-w-0">
           <button
             type="button"
             onClick={() => setShowCommandPalette(true)}
@@ -252,7 +252,16 @@ export function Topbar({
         </div>
 
         {/* Right Section: Shift Status, Notifications & User Profile */}
-        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+          {/* Quick Search Button (Mobile only) */}
+          <button
+            type="button"
+            title="Quick Search"
+            onClick={() => setShowCommandPalette(true)}
+            className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700 cursor-pointer shrink-0"
+          >
+            <Search className="h-4 w-4" />
+          </button>
 
           {/* Quick Notifications Button */}
           <button

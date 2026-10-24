@@ -56,12 +56,15 @@ function formatDate(dateStr?: string): string {
 // ─── Company constants (Starmould = Buyer) ────────────────────────────────────
 const COMPANY = {
   name: "STARMOULD TECHNOLOGY PRIVATE LIMITED",
-  address1: "G-705, Nr Swaminarayan Restaurant, Road-5,",
-  address2: "Metoda G.I.D.C. Gate no-2, Rajkot, Gujarat - 360021",
+  displayName: "Starmould Technology Private Limited",
+  address1: "G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,",
+  address2: "Rajkot-360 021. (Gujarat) INDIA.",
+  cin: "U25910GJ2023PTC142461",
   gstin: "24ABLCS1427Q1ZV",
   pan: "ABLCS1427Q",
   mobile: "8238451671",
-  email: "info.starmould@yahoo.com",
+  email: "starmoulda@yahoo.in",
+  website: "www.starmould.in",
 } as const;
 
 // ─── Exact colors from Purchase_Order_V23.pdf stream ─────────────────────────
@@ -317,6 +320,9 @@ export function PurchaseOrderVoucher({
                   <div>{COMPANY.address1}</div>
                   <div>{COMPANY.address2}</div>
                   <div className="mt-[3px]">
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>CIN No:</span> {COMPANY.cin}
+                  </div>
+                  <div>
                     <span className="font-bold" style={{ color: TEXT_DARK }}>GSTIN:</span> {COMPANY.gstin}
                     &nbsp;|&nbsp;
                     <span className="font-bold" style={{ color: TEXT_DARK }}>PAN:</span> {COMPANY.pan}
@@ -485,12 +491,51 @@ export function PurchaseOrderVoucher({
           </div>
         </div>
 
-        {/* ── BOTTOM DECORATIVE STRIPES (Exact from PDF: Grey 4px line, then Teal 12px bottom edge) ───── */}
-        <div className="w-[794px]">
-          {/* Centered grey line matching PDF: x=42, y=1099, w=710, h=4 */}
-          <div className="w-[710px] h-[4px] mx-auto mb-[8px]" style={{ backgroundColor: GREY_LINE }} />
-          {/* Bottom edge teal bar matching PDF: x=0, y=1111, w=794, h=12 */}
-          <div className="w-[794px] h-[12px]" style={{ backgroundColor: TEAL_PRIMARY }} />
+        {/* ── BOTTOM DECORATIVE FOOTER BAR (Matches Starmould Letterhead Design) ───── */}
+        <div className="w-[794px] mt-auto">
+          {/* Main Dark Navy Footer Bar */}
+          <div
+            className="w-[794px] px-[36px] py-[8px] flex items-center justify-between text-white"
+            style={{ backgroundColor: "#1b2537" }}
+          >
+            {/* Left side: Location Pin + Divider + Company Name & Full Address */}
+            <div className="flex items-center gap-[10px]">
+              <div className="shrink-0 flex items-center justify-center">
+                <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+                </svg>
+              </div>
+              <div className="w-[1px] h-[34px] bg-white/40 shrink-0" />
+              <div className="flex flex-col text-white leading-[1.25]">
+                <span className="text-[9.5px] font-bold tracking-tight">{COMPANY.displayName}</span>
+                <span className="text-[8px] text-white/90">{COMPANY.address1}</span>
+                <span className="text-[8px] text-white/90">{COMPANY.address2}</span>
+              </div>
+            </div>
+
+            {/* Right side: Mail & Web Icons + Divider + Email & Website */}
+            <div className="flex items-center gap-[9px]">
+              <div className="flex flex-col items-center justify-center gap-[5px] shrink-0 text-white">
+                <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                  <path d="M2 12h20" />
+                </svg>
+              </div>
+              <div className="w-[1px] h-[28px] bg-white/40 shrink-0" />
+              <div className="flex flex-col text-white leading-[1.3] text-[8.5px] font-semibold tracking-wide">
+                <span>{COMPANY.email}</span>
+                <span>{COMPANY.website}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom white margin */}
+          <div className="w-[794px] h-[14px] bg-white" />
         </div>
 
       </div>

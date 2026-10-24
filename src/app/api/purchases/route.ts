@@ -37,9 +37,10 @@ export async function GET(req: NextRequest) {
       includePlates
         ? supabaseAdmin
             .from("subplate")
-            .select("id, platename, projectid, subprojectid, material, width, height, length, unit, sqty")
+            .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, shape, width, height, length, weight, unit, sqty")
             .is("deleted_at", null)
-            .limit(500)
+            .order("id", { ascending: false })
+            .limit(2000)
         : Promise.resolve({ data: [] }),
     ]);
 
@@ -70,7 +71,45 @@ export async function GET(req: NextRequest) {
       items = itemRows || [];
     }
 
-    // Attach items and names to POs
+    // 3. Batch check which POs have inward receipts recorded and calculate inward vs pending quantities
+    const inwardSet = new Set<number>();
+    const poInwardStats = new Map<number, { ordered: number; inward: number; pending: number }>();
+
+    if (pids.length > 0) {
+      const [poInwardRes, poInwardItemsRes, pendingViewRes] = await Promise.all([
+        supabaseAdmin
+          .from("po_inward")
+          .select("pid")
+          .in("pid", pids)
+          .neq("status", "0"),
+        supabaseAdmin
+          .from("purchase_inward_items")
+          .select("pid")
+          .in("pid", pids),
+        supabaseAdmin
+          .from("view_po_pending_inward_qty")
+          .select("id, plateid, qty, inward_qty, pending_qty")
+          .in("id", pids),
+      ]);
+
+      (poInwardRes.data || []).forEach((r: any) => {
+        if (r.pid) inwardSet.add(Number(r.pid));
+      });
+      (poInwardItemsRes.data || []).forEach((r: any) => {
+        if (r.pid) inwardSet.add(Number(r.pid));
+      });
+
+      (pendingViewRes.data || []).forEach((r: any) => {
+        const poId = Number(r.id);
+        const current = poInwardStats.get(poId) || { ordered: 0, inward: 0, pending: 0 };
+        current.ordered += Number(r.qty) || 0;
+        current.inward += Number(r.inward_qty) || 0;
+        current.pending += Number(r.pending_qty) || 0;
+        poInwardStats.set(poId, current);
+      });
+    }
+
+    // Attach items, names and inward status to POs
     const enrichedPOs = pos.map((po) => {
       const poItems = items
         .filter((it) => it.pid === po.id)
@@ -79,11 +118,29 @@ export async function GET(req: NextRequest) {
           platename: plateMap.get(it.plateid) || `Plate #${it.plateid}`,
         }));
 
+      const stats = poInwardStats.get(Number(po.id));
+      const hasInward = inwardSet.has(Number(po.id));
+      const totalOrdered = stats ? stats.ordered : poItems.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+      const totalInward = stats ? stats.inward : 0;
+      const totalPending = stats ? stats.pending : totalOrdered;
+
+      const isFullyReceived = Boolean(hasInward && totalInward > 0 && totalPending <= 0);
+      const isPartiallyReceived = Boolean(hasInward && totalInward > 0 && totalPending > 0);
+      const inwardStatus = isFullyReceived ? "completed" : isPartiallyReceived ? "partial" : "pending";
+
       return {
         ...po,
         vendorname: vendMap.get(po.vname) || `Vendor #${po.vname}`,
-        customername: po.customer_name || custMap.get(po.cname) || `Customer #${po.cname}`, customer_name: po.customer_name || custMap.get(po.cname) || null,
+        customername: po.customer_name || custMap.get(po.cname) || `Customer #${po.cname}`,
+        customer_name: po.customer_name || custMap.get(po.cname) || null,
         items: poItems,
+        has_inward: hasInward,
+        is_fully_received: isFullyReceived,
+        is_partially_received: isPartiallyReceived,
+        inward_status: inwardStatus,
+        total_ordered_qty: totalOrdered,
+        total_inward_qty: totalInward,
+        total_pending_qty: totalPending,
       };
     });
 
@@ -128,6 +185,50 @@ export async function POST(req: NextRequest) {
 
     if (!vname || !cname || !projectid || !items || items.length === 0) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // Validate remaining quantity limits against plate required quantity (sqty)
+    const plateIds = (items || []).map((it: any) => Number(it.plateid)).filter(Boolean);
+    if (plateIds.length > 0) {
+      const [{ data: dbPlates }, { data: existingItems }] = await Promise.all([
+        supabaseAdmin
+          .from("subplate")
+          .select("id, platename, sqty")
+          .in("id", plateIds),
+        supabaseAdmin
+          .from("purchase_items")
+          .select("plateid, qty, purchase:pid!inner(status)")
+          .in("plateid", plateIds)
+          .neq("purchase.status", "0"),
+      ]);
+
+      const existingMap = new Map<number, number>();
+      (existingItems || []).forEach((row: any) => {
+        const pid = Number(row.plateid);
+        existingMap.set(pid, (existingMap.get(pid) || 0) + (Number(row.qty) || 0));
+      });
+
+      const plateReqMap = new Map((dbPlates || []).map((p: any) => [p.id, Number(p.sqty) || 1]));
+      const plateNameMap = new Map((dbPlates || []).map((p: any) => [p.id, p.platename]));
+
+      const reqTotalMap = new Map<number, number>();
+      items.forEach((it: any) => {
+        const pid = Number(it.plateid);
+        reqTotalMap.set(pid, (reqTotalMap.get(pid) || 0) + (Number(it.qty) || 0));
+      });
+
+      for (const [pid, newQty] of reqTotalMap.entries()) {
+        const totalReq = plateReqMap.get(pid) ?? 1;
+        const alreadyOrdered = existingMap.get(pid) ?? 0;
+        const remaining = Math.max(0, totalReq - alreadyOrdered);
+        if (newQty > remaining) {
+          const pName = plateNameMap.get(pid) || `Plate #${pid}`;
+          return NextResponse.json(
+            { error: `Order quantity (${newQty}) for "${pName}" exceeds remaining required quantity limit (${remaining}).` },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // ── PO Number: SMPO{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
@@ -202,7 +303,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
+    // Auto-sync subplates order_by & order_at so pipeline stage transitions cleanly
+    const orderedPlateIds = lineItemsToInsert.map((it: { plateid: number }) => it.plateid).filter(Boolean);
+    if (orderedPlateIds.length > 0) {
+      await supabaseAdmin
+        .from("subplate")
+        .update({
+          order_by: auth.user.id || 1,
+          order_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", orderedPlateIds)
+        .is("order_by", null);
+    }
+
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
+    invalidateCache("subplate_default_");
 
     return NextResponse.json({
       purchase: {
@@ -229,6 +346,70 @@ export async function PUT(req: NextRequest) {
 
     if (!id || !vname || !cname || !projectid || !items || items.length === 0) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // Security Guard: PO cannot be edited once fully received
+    const poId = Number(id);
+    const { data: pendingRows } = await supabaseAdmin
+      .from("view_po_pending_inward_qty")
+      .select("qty, inward_qty, pending_qty")
+      .eq("id", poId);
+
+    if (pendingRows && pendingRows.length > 0) {
+      const totalInward = pendingRows.reduce((sum, r) => sum + (Number(r.inward_qty) || 0), 0);
+      const totalPending = pendingRows.reduce((sum, r) => sum + (Number(r.pending_qty) || 0), 0);
+      if (totalInward > 0 && totalPending <= 0) {
+        return NextResponse.json(
+          { error: "This purchase order cannot be edited because all items have already been fully received at the workshop gate." },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate remaining quantity limits (excluding the PO being edited)
+    const plateIds = (items || []).map((it: any) => Number(it.plateid)).filter(Boolean);
+    if (plateIds.length > 0) {
+      const [{ data: dbPlates }, { data: existingItems }] = await Promise.all([
+        supabaseAdmin
+          .from("subplate")
+          .select("id, platename, sqty")
+          .in("id", plateIds),
+        supabaseAdmin
+          .from("purchase_items")
+          .select("plateid, qty, pid, purchase:pid!inner(status)")
+          .in("plateid", plateIds)
+          .neq("purchase.status", "0"),
+      ]);
+
+      const existingMap = new Map<number, number>();
+      (existingItems || []).forEach((row: any) => {
+        if (Number(row.pid) !== Number(id)) {
+          const pid = Number(row.plateid);
+          existingMap.set(pid, (existingMap.get(pid) || 0) + (Number(row.qty) || 0));
+        }
+      });
+
+      const plateReqMap = new Map((dbPlates || []).map((p: any) => [p.id, Number(p.sqty) || 1]));
+      const plateNameMap = new Map((dbPlates || []).map((p: any) => [p.id, p.platename]));
+
+      const reqTotalMap = new Map<number, number>();
+      items.forEach((it: any) => {
+        const pid = Number(it.plateid);
+        reqTotalMap.set(pid, (reqTotalMap.get(pid) || 0) + (Number(it.qty) || 0));
+      });
+
+      for (const [pid, newQty] of reqTotalMap.entries()) {
+        const totalReq = plateReqMap.get(pid) ?? 1;
+        const alreadyOrdered = existingMap.get(pid) ?? 0;
+        const remaining = Math.max(0, totalReq - alreadyOrdered);
+        if (newQty > remaining) {
+          const pName = plateNameMap.get(pid) || `Plate #${pid}`;
+          return NextResponse.json(
+            { error: `Order quantity (${newQty}) for "${pName}" exceeds remaining required quantity limit (${remaining}).` },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // 1. Update purchase header
@@ -295,7 +476,23 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Auto-sync subplates order_by & order_at for any newly added/updated plate lines
+    const orderedPlateIds = (items || []).map((it: any) => Number(it.plateid)).filter(Boolean);
+    if (orderedPlateIds.length > 0) {
+      await supabaseAdmin
+        .from("subplate")
+        .update({
+          order_by: auth.user.id || 1,
+          order_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", orderedPlateIds)
+        .is("order_by", null);
+    }
+
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
+    invalidateCache("subplate_default_");
 
     // Fetch refreshed line items
     const { data: finalItems } = await supabaseAdmin
@@ -330,16 +527,65 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Purchase ID required" }, { status: 400 });
     }
 
+    const poId = Number(id);
+
+    // Security Guard: PO cannot be deleted if any material inward has already been recorded
+    const [inwardRecRes, inwardItemsRes] = await Promise.all([
+      supabaseAdmin
+        .from("po_inward")
+        .select("id", { count: "exact", head: true })
+        .eq("pid", poId)
+        .neq("status", "0"),
+      supabaseAdmin
+        .from("purchase_inward_items")
+        .select("id", { count: "exact", head: true })
+        .eq("pid", poId),
+    ]);
+
+    if ((inwardRecRes.count && inwardRecRes.count > 0) || (inwardItemsRes.count && inwardItemsRes.count > 0)) {
+      return NextResponse.json(
+        { error: "This purchase order cannot be deleted because material inward has already been recorded." },
+        { status: 400 }
+      );
+    }
+
     const { error } = await supabaseAdmin
       .from("purchase")
       .update({ status: "0", updated_at: new Date().toISOString() })
-      .eq("id", Number(id));
+      .eq("id", poId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Reset subplates order_by if no other active PO exists for them
+    const { data: cancelledItems } = await supabaseAdmin
+      .from("purchase_items")
+      .select("plateid")
+      .eq("pid", Number(id));
+
+    if (cancelledItems && cancelledItems.length > 0) {
+      const plateIds = cancelledItems.map((ci) => ci.plateid).filter(Boolean);
+      for (const pid of plateIds) {
+        const { data: otherActivePOs } = await supabaseAdmin
+          .from("purchase_items")
+          .select("id, purchase:pid!inner(status)")
+          .eq("plateid", pid)
+          .neq("purchase.status", "0")
+          .limit(1);
+
+        if (!otherActivePOs || otherActivePOs.length === 0) {
+          await supabaseAdmin
+            .from("subplate")
+            .update({ order_by: null, order_at: null, updated_at: new Date().toISOString() })
+            .eq("id", pid);
+        }
+      }
+    }
+
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
+    invalidateCache("subplate_default_");
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

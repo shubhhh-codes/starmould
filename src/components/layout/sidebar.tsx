@@ -26,6 +26,7 @@ import {
   X,
   Building2,
   Settings,
+  FileText,
 } from "lucide-react";
 
 export interface NavItem {
@@ -73,6 +74,13 @@ export const navigationItems: NavItem[] = [
     icon: Scan,
     allowedRoles: [0, 1, 2, 3, 4, 6, 7, 9, 10],
     permKey: "nav_scanning",
+  },
+  {
+    title: "Quotations",
+    href: "/quotation",
+    icon: FileText,
+    allowedRoles: [0, 1, 5],
+    permKey: "nav_quotation",
   },
   {
     title: "Purchase Order",

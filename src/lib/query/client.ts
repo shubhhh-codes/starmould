@@ -24,7 +24,7 @@ export const CACHE_TIERS = {
   },
   // Tier D: Sensitive & Dashboard Rollups (KPI counts, pipeline aggregation)
   DASHBOARD: {
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 0, // Instant refresh on invalidation / task assignment
     gcTime: 24 * 60 * 60 * 1000,
   },
 } as const;

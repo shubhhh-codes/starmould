@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedVendors } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
 
 // GET /api/purchase-inward - fetch open pending items directly from view_po_pending_inward_qty (Admin, Manager only)
 export async function GET(req: NextRequest) {
@@ -36,7 +36,6 @@ export async function GET(req: NextRequest) {
 
     const receiptIds = receipts.map((r) => r.id);
     let receiptItems: any[] = [];
-    let inSubplates: any[] = [];
 
     if (receiptIds.length > 0) {
       const { data: rItems } = await supabaseAdmin
@@ -44,20 +43,28 @@ export async function GET(req: NextRequest) {
         .select("*")
         .in("inpid", receiptIds);
       receiptItems = rItems || [];
+    }
 
-      const inPlateIds = Array.from(new Set(receiptItems.map((it) => it.plateid).filter(Boolean)));
-      if (inPlateIds.length > 0) {
-        const { data: sps } = await supabaseAdmin
-          .from("subplate")
-          .select("id, platename")
-          .in("id", inPlateIds.slice(0, 500));
-        inSubplates = sps || [];
-      }
+    // Collect all plate IDs from both pending items and receipt items
+    const allPlateIds = Array.from(
+      new Set([
+        ...pendingReceiveList.map((it: any) => it.plateid),
+        ...receiptItems.map((it: any) => it.plateid),
+      ].filter(Boolean))
+    );
+
+    let allSubplates: any[] = [];
+    if (allPlateIds.length > 0) {
+      const { data: sps } = await supabaseAdmin
+        .from("subplate")
+        .select("id, platename, shape, width, height, length, weight, unit, material, plate_category")
+        .in("id", allPlateIds.slice(0, 1000));
+      allSubplates = sps || [];
     }
 
     const custMap = new Map((customers || []).map((c) => [c.id, c.customername]));
     const vendMap = new Map((vendors || []).map((v) => [v.id, v.vendor_name]));
-    const inPlateMap = new Map(inSubplates.map((sp) => [sp.id, sp.platename]));
+    const inPlateMap = new Map(allSubplates.map((sp) => [sp.id, sp.platename]));
 
     const enrichedReceipts = receipts.map((r) => {
       const items = receiptItems
@@ -79,6 +86,9 @@ export async function GET(req: NextRequest) {
       source: "view_po_pending_inward_qty",
       pendingReceiveItems: pendingReceiveList,
       receipts: enrichedReceipts,
+      customers: customers || [],
+      vendors: vendors || [],
+      subplates: allSubplates,
     });
     response.headers.set("Cache-Control", "private, no-store, must-revalidate");
     return response;
@@ -120,6 +130,10 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
+    invalidateCache("subplate_default_");
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
@@ -202,6 +216,24 @@ export async function POST(req: NextRequest) {
     if (itErr) {
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
+
+    // Auto-sync subplates received_workby & received_workat so programming queue updates
+    const inwardPlateIds = inwardItemsToInsert.map((it: any) => it.plateid).filter(Boolean);
+    if (inwardPlateIds.length > 0) {
+      await supabaseAdmin
+        .from("subplate")
+        .update({
+          received_workby: auth.user.id || 1,
+          received_workat: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .in("id", inwardPlateIds)
+        .is("received_workby", null);
+    }
+
+    invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
+    invalidateCache("subplate_default_");
 
     return NextResponse.json({
       receipt: {

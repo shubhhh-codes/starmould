@@ -642,8 +642,8 @@ function SubplatePageContent() {
 		return {
 			badgeLabel: `Stage ${stage.step}: ${stage.label.replace(/^\d+\.\s*/, "")}`,
 			subtext: staffName ? `Assigned: ${staffName}` : "In Progress",
-			badgeStyle: "bg-cyan-50 text-cyan-800 border-cyan-200 font-semibold",
-			dotColor: "bg-cyan-500",
+			badgeStyle: "bg-blue-50 text-blue-900 border-blue-200/90 font-bold shadow-2xs",
+			dotColor: "bg-blue-600",
 			completed,
 			isCompleted: false,
 			activeStage: stage,
@@ -1161,7 +1161,16 @@ function SubplatePageContent() {
 												{/* Main Subplate Row */}
 												<tr
 													id={`row-${row.id}`}
-													className={`hover:bg-slate-50/70 transition-all duration-300 group ${getRowHighlightClass(row.id)}`}
+													onClick={(e) => {
+														const target = e.target as HTMLElement;
+														// Do not trigger toggle if user clicked on interactive elements
+														if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
+															return;
+														}
+														toggleRow(row.id);
+													}}
+													className={`hover:bg-slate-50/90 transition-all duration-150 group cursor-pointer ${getRowHighlightClass(row.id)}`}
+													title="Click to expand/collapse Stage Studio"
 												>
 													{/* Row Expand Toggle */}
 													<td className="py-3 px-2 text-center">
@@ -1267,15 +1276,15 @@ function SubplatePageContent() {
 																			className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
 																				isExpanded
 																					? "bg-slate-200 text-slate-800 hover:bg-slate-300"
-																					: "text-cyan-700 bg-cyan-50 hover:bg-cyan-100 border border-cyan-200/80"
+																					: "text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200/90 font-bold"
 																			}`}
 																			title={isExpanded ? "Close stage studio" : "Open 9-stage management studio"}
 																		>
 																			<span>{isExpanded ? "Hide Studio" : "Open Studio"}</span>
 																			{isExpanded ? (
-																				<ChevronDown className="w-3.5 h-3.5" />
+																				<ChevronDown className="w-3.5 h-3.5 text-slate-700" />
 																			) : (
-																				<ChevronRight className="w-3.5 h-3.5" />
+																				<ChevronRight className="w-3.5 h-3.5 text-blue-700" />
 																			)}
 																		</button>
 																	</div>
@@ -1293,7 +1302,7 @@ function SubplatePageContent() {
 																					title={`Stage ${idx + 1}: ${stage.label.replace(/^\d+\.\s*/, "")}${isDone ? ` (Done: ${name || "Assigned"})` : " (Pending)"}`}
 																					className={`h-2 flex-1 rounded-sm transition-all cursor-pointer ${
 																						isDone
-																							? "bg-cyan-500 hover:bg-cyan-600 shadow-2xs"
+																							? "bg-blue-600 hover:bg-blue-700 shadow-2xs"
 																							: "bg-slate-200 hover:bg-slate-300"
 																					}`}
 																					onClick={() => toggleRow(row.id)}
@@ -1340,10 +1349,10 @@ function SubplatePageContent() {
 																			<Layers className="w-4 h-4" />
 																		</div>
 																		<div>
-																			<h4 className="text-xs font-bold text-slate-900">
+																			<h4 className="text-sm font-bold text-slate-900">
 																				9-Stage Production Tracking Studio for &quot;{row.platename}&quot;
 																			</h4>
-																			<p className="text-[11px] text-slate-500">
+																			<p className="text-xs text-slate-500">
 																				{isAdmin
 																					? "Click any stage to assign or change staff. Timestamp is recorded automatically."
 																					: "Assign yourself to pending stages or manage your active assignments."}
@@ -1351,13 +1360,13 @@ function SubplatePageContent() {
 																		</div>
 																	</div>
 
-																	<div className="flex items-center gap-2 text-xs">
-																		<span className="font-semibold text-slate-600">
+																	<div className="flex items-center gap-2.5 text-xs">
+																		<span className="font-bold text-slate-800">
 																			Progress: {completedCount}/9 Completed
 																		</span>
-																		<div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+																		<div className="w-28 h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60">
 																			<div
-																				className="h-full bg-cyan-600 transition-all duration-300"
+																				className="h-full bg-blue-600 rounded-full transition-all duration-300"
 																				style={{ width: `${(completedCount / 9) * 100}%` }}
 																			/>
 																		</div>
@@ -1377,82 +1386,83 @@ function SubplatePageContent() {
 																		return (
 																			<div
 																				key={stage.key}
-																				className={`p-2.5 rounded-xl border transition space-y-2 flex flex-col justify-between ${
+																				className={`p-3 rounded-xl border transition-all space-y-2.5 flex flex-col justify-between ${
 																					isAssigned
-																						? "bg-cyan-50/50 border-cyan-200 shadow-2xs"
-																						: "bg-slate-50/60 border-slate-200"
+																						? "bg-white border-blue-200 shadow-xs ring-1 ring-blue-500/10"
+																						: "bg-white/80 border-slate-200 hover:border-slate-300"
 																				}`}
 																			>
 																				<div>
 																					{/* Step Header */}
-																					<div className="flex items-center justify-between gap-1 mb-1">
-																						<span className="text-[10px] font-bold text-slate-500 uppercase">
+																					<div className="flex items-center justify-between gap-1 mb-1.5">
+																						<span
+																							className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded font-mono ${
+																								isAssigned
+																									? "bg-blue-50 text-blue-700 border border-blue-200/60"
+																									: "bg-slate-100 text-slate-500 border border-slate-200/60"
+																							}`}
+																						>
 																							Stage {stage.step}
 																						</span>
 																						{isAssigned ? (
-																							<CheckCircle2 className="w-3.5 h-3.5 text-cyan-600 shrink-0" />
+																							<CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
 																						) : (
 																							<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
 																						)}
 																					</div>
-																					<div className="text-xs font-bold text-slate-800 leading-tight">
+																					<div className="text-xs font-bold text-slate-900 leading-snug">
 																						{stage.label.replace(/^\d+\.\s*/, "")}
 																					</div>
 																				</div>
 
 																				{/* Staff Dropdown */}
 																				<div className="space-y-1">
-																					<label className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider block">
+																					<label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
 																						Assigned Staff
 																					</label>
-																					{!isAdmin && isAssignedToOther ? (
-																						<div className="w-full px-2 py-1 text-xs rounded border border-slate-200 bg-slate-100 text-slate-600 flex items-center justify-between" title="Assigned to another team member (Admin only)">
-																							<span className="truncate font-medium">{name || "Assigned"}</span>
-																							<Lock className="w-3 h-3 text-slate-400 shrink-0 ml-1" />
-																						</div>
-																					) : (
-																						<select
-																							value={val || 0}
-																							onChange={(e) =>
-																								handleStageStaffChange(
-																									row.id,
-																									stage.key,
-																									Number(e.target.value)
-																								)
-																							}
-																							className={`w-full px-2 py-1 text-xs rounded border transition focus:ring-1 focus:ring-cyan-500 cursor-pointer ${
-																								isAssigned
-																									? "bg-white border-cyan-300 font-semibold text-slate-900"
-																									: "bg-white border-slate-200 text-slate-500"
-																							}`}
-																						>
-																							<option value={0}>Unassigned</option>
-																							{isAdmin ? (
-																								activeStaff.map((u) => (
-																									<option key={u.id} value={u.id}>
-																										{u.name || u.initials} ({u.initials})
-																									</option>
-																								))
-																							) : currentUser ? (
-																								<option value={currentUser.id}>
-																									{currentUser.name} (Myself)
-																								</option>
-																							) : null}
-																						</select>
-																					)}
+																					<StaffSelect
+																						value={val}
+																						onChange={(userId) =>
+																							handleStageStaffChange(
+																								row.id,
+																								stage.key,
+																								userId
+																							)
+																						}
+																						staff={
+																							isAdmin
+																								? activeStaff
+																								: currentUser
+																								? [
+																										{
+																											id: Number(currentUser.id),
+																											name: currentUser.name || "Me",
+																											initials:
+																												currentUser.initials ||
+																												currentUser.name?.slice(0, 2).toUpperCase() ||
+																												"ME",
+																										} as any,
+																								  ]
+																								: []
+																						}
+																						disabled={!isAdmin && isAssignedToOther}
+																						color="blue"
+																						className="w-full"
+																						placeholder="Unassigned"
+																					/>
 																				</div>
 
 																				{/* Timestamp Display */}
-																				<div className="pt-1 border-t border-slate-200/60 text-[10px] text-slate-500">
+																				<div className="pt-2 border-t border-slate-100 text-[10px]">
 																					{isAssigned && timestamp ? (
-																						<div className="flex items-center gap-1 text-cyan-800 font-mono text-[9px]">
-																							<Clock className="w-2.5 h-2.5 shrink-0" />
+																						<div className="flex items-center gap-1.5 text-slate-600 font-mono text-[10px] font-medium">
+																							<Clock className="w-3 h-3 text-slate-400 shrink-0" />
 																							<span>{formatTimestamp(timestamp)}</span>
 																						</div>
 																					) : isAssigned ? (
-																						<span className="text-cyan-700 text-[9px]">Assigned</span>
+																						<span className="text-blue-700 font-semibold text-[10px]">Assigned</span>
 																					) : (
-																						<span className="text-slate-400 italic text-[9px]">Pending</span>
+																						<span className="text-slate-400 font-medium text-[10px]">Pending</span>
 																					)}
 																				</div>
 																			</div>
@@ -1491,7 +1501,14 @@ function SubplatePageContent() {
 									<div
 										key={row.id}
 										id={`m-row-${row.id}`}
-										className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs transition-all duration-300 ${getRowHighlightClass(row.id)}`}
+										onClick={(e) => {
+											const target = e.target as HTMLElement;
+											if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
+												return;
+											}
+											toggleRow(row.id);
+										}}
+										className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs transition-all duration-200 cursor-pointer ${getRowHighlightClass(row.id)}`}
 									>
 										<div className="flex items-center justify-between">
 											<div className="flex items-center gap-1.5">
@@ -1589,7 +1606,7 @@ function SubplatePageContent() {
 																	{stage.label}
 																</div>
 																{isAssigned && timestamp && (
-																	<div className="text-[9px] text-cyan-700 font-mono">
+																	<div className="text-[10px] text-slate-600 font-mono">
 																		{formatTimestamp(timestamp)}
 																	</div>
 																)}
@@ -1617,7 +1634,7 @@ function SubplatePageContent() {
 																		: []
 																}
 																disabled={!isAdmin && isAssignedToOther}
-																color="cyan"
+																color="blue"
 																placeholder="Unassigned"
 															/>
 														</div>

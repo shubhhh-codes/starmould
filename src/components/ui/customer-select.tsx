@@ -230,9 +230,13 @@ export function CustomerSelect({
             placeholder={placeholder}
             onFocus={() => {
               setIsOpen(true);
-              setIsTyping(true);
+              setIsTyping(false);
               setQuery("");
-              setActiveIndex(0);
+              const selIdx = filteredCustomers.findIndex(
+                (c) => String(c.id) === String(value)
+              );
+              setActiveIndex(selIdx >= 0 ? selIdx : 0);
+              inputRef.current?.select();
             }}
             onChange={(e) => {
               setIsTyping(true);

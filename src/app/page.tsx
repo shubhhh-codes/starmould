@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useProgressiveProjectsStream, useDashboardCountsQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
+import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 import { NewMouldModal } from "@/components/mould/new-mould-modal";
 import { clearLocalProjectsStore } from "@/lib/cache/projects-local-store";
 import { appStore } from "@/lib/state/store";
@@ -180,6 +181,7 @@ export default function DashboardPage() {
         window.location.reload();
         return;
       }
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       await Promise.all([
         projectsStream.refetch(),
         countsQuery.refetch(),
@@ -220,6 +222,10 @@ export default function DashboardPage() {
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
       return true;
     } catch (err: any) {
       // 4. Rollback if delete fails
@@ -276,30 +282,46 @@ export default function DashboardPage() {
     };
   }, [countsQuery.data?.pipeline]);
 
-  // Stage filtering based on subplate attributes attached to each mould project
+  // Stage filtering based on department-wise pending backlog queues
   const displayedProjects = useMemo(() => {
     if (!activeStage) return projects;
 
     return projects.filter((p) => {
       const plates = p.subplates || [];
       if (activeStage === "design") {
-        return plates.some((sp) => sp.design_by && Number(sp.design_by) > 0);
+        return plates.some((sp) => !sp.design_by || Number(sp.design_by) === 0);
       } else if (activeStage === "order") {
-        return plates.some((sp) => sp.order_by && Number(sp.order_by) > 0);
+        return plates.some((sp) => !sp.order_by || Number(sp.order_by) === 0);
       } else if (activeStage === "programming") {
         return plates.some(
           (sp) =>
-            (sp.received_qcby && Number(sp.received_qcby) > 0) ||
-            (sp.received_workby && Number(sp.received_workby) > 0)
+            ((sp.order_by && Number(sp.order_by) > 0) || (sp.received_workby && Number(sp.received_workby) > 0)) &&
+            (!sp.received_qcby || Number(sp.received_qcby) === 0)
         );
       } else if (activeStage === "machining" || activeStage === "vmc") {
-        return plates.some((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0);
+        return plates.some(
+          (sp) =>
+            sp.received_qcby && Number(sp.received_qcby) > 0 &&
+            (!sp.vmc_workby || Number(sp.vmc_workby) === 0)
+        );
       } else if (activeStage === "drilltap") {
-        return plates.some((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0);
+        return plates.some(
+          (sp) =>
+            sp.vmc_workby && Number(sp.vmc_workby) > 0 &&
+            (!sp.drilltap_workby || Number(sp.drilltap_workby) === 0)
+        );
       } else if (activeStage === "finalqc") {
-        return plates.some((sp) => sp.final_qcby && Number(sp.final_qcby) > 0);
+        return plates.some(
+          (sp) =>
+            sp.drilltap_workby && Number(sp.drilltap_workby) > 0 &&
+            (!sp.final_qcby || Number(sp.final_qcby) === 0)
+        );
       } else if (activeStage === "packing") {
-        return plates.some((sp) => sp.packing_workby && Number(sp.packing_workby) > 0);
+        return plates.some(
+          (sp) =>
+            sp.final_qcby && Number(sp.final_qcby) > 0 &&
+            (!sp.packing_workby || Number(sp.packing_workby) === 0)
+        );
       }
       return true;
     });
@@ -429,7 +451,12 @@ export default function DashboardPage() {
           await Promise.all([
             projectsStream.refetch(),
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() }),
           ]);
+          broadcastQueryInvalidation(queryKeys.dashboard.counts());
+          broadcastQueryInvalidation(queryKeys.purchases.all());
+          broadcastQueryInvalidation(queryKeys.subplates.all());
         }}
       />
     </AppLayout>

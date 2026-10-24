@@ -40,6 +40,7 @@ const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/report": "nav_reports",
   "/export": "nav_export",
   "/settings": "nav_settings", // Admin settings
+  "/quotation": "nav_quotation",
 };
 
 const PERMS_CACHE_KEY = "starmould_role_perms_cache";

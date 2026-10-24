@@ -332,7 +332,9 @@ export function NewMouldModal({
                   aria-checked={isSelected}
                   tabIndex={0}
                   data-autofocus={idx === 0 ? "true" : undefined}
-                  onClick={() => selectWorkTypeAndAdvance(wt.id)}
+                  onClick={() =>
+                    setForm((prev) => ({ ...prev, worktype: wt.id }))
+                  }
                   onKeyDown={(e) => handleWorkTypeKeyDown(e, idx)}
                   className={`h-10 px-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all cursor-pointer select-none focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-1 focus:border-blue-600 ${
                     isSelected

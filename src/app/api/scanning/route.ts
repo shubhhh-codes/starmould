@@ -519,6 +519,7 @@ export async function POST(req: NextRequest) {
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
 
     return NextResponse.json(
       {
@@ -627,6 +628,7 @@ export async function PATCH(req: NextRequest) {
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
 
     return NextResponse.json({ scan: data, message: "Updated successfully" });
   } catch (err: unknown) {
@@ -717,6 +719,7 @@ export async function DELETE(req: NextRequest) {
     invalidateCache("shared_scans_lookup");
     invalidateCache("scanning_kpi_metrics_v2");
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
 

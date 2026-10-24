@@ -12,6 +12,13 @@ import { verifySessionToken } from "@/lib/auth";
 export const metadata: Metadata = {
   title: "Star Mould ERP — Precision Tooling & Manufacturing",
   description: "Cloud-native ERP system for mould manufacturing, scanning, printing, and procurement.",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

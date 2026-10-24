@@ -429,20 +429,87 @@ export async function GET(req: NextRequest) {
             font-weight: 600;
             color: #1f2a30;
           }
-          /* Bottom Stripes */
+          /* Bottom Footer Bar (Letterhead Design) */
           .bottom-wrap {
             width: 794px;
+            margin-top: auto;
           }
-          .bottom-stripe-grey {
-            width: 710px;
-            height: 4px;
-            background-color: #62676b;
-            margin: 0 auto 8px auto;
-          }
-          .bottom-stripe-teal {
+          .bottom-dark-bar {
             width: 794px;
-            height: 12px;
-            background-color: #006181;
+            background-color: #1b2537;
+            color: #ffffff;
+            padding: 8px 36px 9px 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+          }
+          .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .footer-pin-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+          }
+          .footer-divider-left {
+            width: 1px;
+            height: 34px;
+            background-color: rgba(255, 255, 255, 0.45);
+            flex-shrink: 0;
+          }
+          .footer-left-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.25;
+            color: #ffffff;
+          }
+          .footer-comp-name {
+            font-size: 9.5px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: -0.1px;
+          }
+          .footer-addr-line {
+            font-size: 8px;
+            color: rgba(255, 255, 255, 0.9);
+          }
+          .footer-right {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+          }
+          .footer-right-icons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            color: #ffffff;
+            flex-shrink: 0;
+          }
+          .footer-divider-right {
+            width: 1px;
+            height: 28px;
+            background-color: rgba(255, 255, 255, 0.45);
+            flex-shrink: 0;
+          }
+          .footer-right-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            color: #ffffff;
+            font-size: 8.5px;
+            font-weight: 600;
+            letter-spacing: 0.1px;
+          }
+          .bottom-white-margin {
+            width: 794px;
+            height: 14px;
+            background-color: #ffffff;
           }
         </style>
       </head>
@@ -499,13 +566,16 @@ export async function GET(req: NextRequest) {
                   </div>
                   <div class="party-col">
                     <div class="party-name">STARMOULD TECHNOLOGY PRIVATE LIMITED</div>
-                    <div>G-705, Nr Swaminarayan Restaurant, Road-5,</div>
-                    <div>Metoda G.I.D.C. Gate no-2, Rajkot, Gujarat - 360021</div>
+                    <div>G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</div>
+                    <div>Rajkot-360 021. (Gujarat) INDIA.</div>
                     <div style="margin-top: 3px;">
+                      <span class="bold-label">CIN No:</span> U25910GJ2023PTC142461
+                    </div>
+                    <div>
                       <span class="bold-label">GSTIN:</span> 24ABLCS1427Q1ZV &nbsp;|&nbsp; <span class="bold-label">PAN:</span> ABLCS1427Q
                     </div>
                     <div><span class="bold-label">Mobile:</span> 8238451671</div>
-                    <div><span class="bold-label">Email:</span> info.starmould@yahoo.com</div>
+                    <div><span class="bold-label">Email:</span> starmoulda@yahoo.in</div>
                   </div>
                 </div>
               </div>
@@ -579,10 +649,45 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
 
-          <!-- Bottom decorative stripes -->
+          <!-- Bottom footer info matching exact design -->
           <div class="bottom-wrap">
-            <div class="bottom-stripe-grey"></div>
-            <div class="bottom-stripe-teal"></div>
+            <div class="bottom-dark-bar">
+              <!-- Left side: Pin + Divider + Company Name & Address -->
+              <div class="footer-left">
+                <div class="footer-pin-icon">
+                  <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                    <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
+                  </svg>
+                </div>
+                <div class="footer-divider-left"></div>
+                <div class="footer-left-text">
+                  <div class="footer-comp-name">Starmould Technology Private Limited</div>
+                  <div class="footer-addr-line">G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</div>
+                  <div class="footer-addr-line">Rajkot-360 021. (Gujarat) INDIA.</div>
+                </div>
+              </div>
+
+              <!-- Right side: Mail & Web Icons + Divider + Email & Website -->
+              <div class="footer-right">
+                <div class="footer-right-icons">
+                  <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                  </svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                    <path d="M2 12h20"/>
+                  </svg>
+                </div>
+                <div class="footer-divider-right"></div>
+                <div class="footer-right-text">
+                  <div>starmoulda@yahoo.in</div>
+                  <div>www.starmould.in</div>
+                </div>
+              </div>
+            </div>
+            <div class="bottom-white-margin"></div>
           </div>
         </div>
       </body>
@@ -611,12 +716,13 @@ export async function GET(req: NextRequest) {
     await browser.close();
 
     const fileName = `${purchase.srno || "Purchase_Order"}.pdf`;
+    const isInline = searchParams.get("inline") === "1" || searchParams.get("view") === "1";
 
     return new NextResponse(Buffer.from(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${fileName}"`,
+        "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${fileName}"`,
         "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });

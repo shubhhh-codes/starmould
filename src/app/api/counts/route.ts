@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCached } from "@/lib/cache";
+import { getCached, invalidateCache } from "@/lib/cache";
 
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const isFresh =
+    req.nextUrl.searchParams.get("fresh") === "true" ||
+    req.headers.get("cache-control")?.includes("no-cache") ||
+    req.headers.get("pragma") === "no-cache";
+
+  if (isFresh) {
+    invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
   }
 
   const tables = [
@@ -28,7 +38,7 @@ export async function GET(req: NextRequest) {
     "users",
   ];
 
-  const counts = await getCached("api_counts_all", 15, async () => {
+  const fetchTableCounts = async () => {
     // 1. Fast aggregation RPC (1 roundtrip instead of 16 individual queries)
     try {
       const { data: rpcCounts, error: rpcErr } = await supabaseAdmin.rpc("get_table_counts");
@@ -59,9 +69,13 @@ export async function GET(req: NextRequest) {
       })
     );
     return resCounts;
-  });
+  };
 
-  const pipeline = await getCached("api_pipeline_stage_counts", 15, async () => {
+  const counts = isFresh
+    ? await fetchTableCounts()
+    : await getCached("api_counts_all", 3, fetchTableCounts);
+
+  const fetchPipelineCounts = async () => {
     try {
       const { data, error } = await supabaseAdmin.rpc("get_pipeline_stage_counts");
       if (!error && data) return data;
@@ -69,7 +83,11 @@ export async function GET(req: NextRequest) {
       console.warn("RPC get_pipeline_stage_counts fallback:", err);
     }
     return null;
-  });
+  };
+
+  const pipeline = isFresh
+    ? await fetchPipelineCounts()
+    : await getCached("api_pipeline_stage_counts", 3, fetchPipelineCounts);
 
   const response = NextResponse.json({
     status: "ok",
@@ -77,6 +95,7 @@ export async function GET(req: NextRequest) {
     counts,
     pipeline,
   });
-  response.headers.set("Cache-Control", "private, no-store, must-revalidate");
+  response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate, max-age=0");
+  response.headers.set("Pragma", "no-cache");
   return response;
 }

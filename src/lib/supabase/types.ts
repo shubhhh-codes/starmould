@@ -195,6 +195,13 @@ export interface PurchaseOrder {
   vendorname?: string;
   customername?: string;
   description?: string;
+  has_inward?: boolean;
+  is_fully_received?: boolean;
+  is_partially_received?: boolean;
+  inward_status?: 'pending' | 'partial' | 'completed';
+  total_ordered_qty?: number;
+  total_inward_qty?: number;
+  total_pending_qty?: number;
 }
 
 export interface PurchaseInwardItem {

@@ -113,8 +113,10 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
       };
     },
     enabled: params.enabled !== false,
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   // Intelligent Prefetching: Only prefetch next page if explicitly paginating with moderate page size (< 100).
@@ -740,9 +742,11 @@ export function useCreateProjectMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       broadcastQueryInvalidation(queryKeys.projects.all());
       broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
@@ -817,9 +821,11 @@ export function useUpdateProjectMutation() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       broadcastQueryInvalidation(queryKeys.projects.all());
       broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
@@ -857,9 +863,11 @@ export function useDeleteProjectMutation() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       broadcastQueryInvalidation(queryKeys.projects.all());
       broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
@@ -913,8 +921,10 @@ export function useSubplatesQuery(params: SubplatesQueryParams = {}) {
         },
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   return query;
@@ -951,9 +961,11 @@ export function useCreateSubplateMutation() {
         queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       broadcastQueryInvalidation(queryKeys.subplates.all());
       broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
@@ -997,9 +1009,11 @@ export function useUpdateSubplateMutation() {
         queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       broadcastQueryInvalidation(queryKeys.subplates.all());
       broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
@@ -1037,9 +1051,11 @@ export function useDeleteSubplateMutation() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       broadcastQueryInvalidation(queryKeys.subplates.all());
       broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
@@ -1311,7 +1327,7 @@ export function useDashboardCountsQuery() {
   return useQuery({
     queryKey: queryKeys.dashboard.counts(),
     queryFn: async () => {
-      const data = await fetchJson<any>("/api/counts");
+      const data = await fetchJson<any>(`/api/counts?fresh=true&_t=${Date.now()}`);
       const counts = data.counts || {};
       return {
         ...counts,
@@ -1319,8 +1335,11 @@ export function useDashboardCountsQuery() {
         pipeline: data.pipeline || null,
       };
     },
-    staleTime: CACHE_TIERS.DASHBOARD.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.DASHBOARD.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchInterval: 10000,
   });
 }
 
@@ -1349,8 +1368,10 @@ export function useWorklogsQuery(params: { userid?: string; date?: string; custo
         kpis: data.kpis || {},
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1407,8 +1428,10 @@ export function usePurchasesQuery(params: { page?: number; limit?: number; inclu
         pagination: data.pagination,
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1480,8 +1503,10 @@ export function useChallansQuery(params: { status?: string; limit?: number } = {
         kpis: data.kpis || { totalChallans: 0, activeCount: 0 },
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1552,8 +1577,10 @@ export function useDispatchQuery(params: { limit?: number } = {}) {
         scans: (data.scans || []) as ScanProject[],
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1608,8 +1635,10 @@ export function useInwardQuery(params: { limit?: number } = {}) {
         kpis: data.kpis || { totalInwards: 0, totalPendingChallanItems: 0 },
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1675,8 +1704,10 @@ export function useExpensesQuery(params: { customerid?: string; payment_type?: s
         },
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1741,8 +1772,10 @@ export function usePurchaseInwardQuery() {
         subplates: (data.subplates || []) as Subplate[],
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -1824,7 +1857,9 @@ export function useExportCountsQuery() {
       const data = await fetchJson<any>("/api/export?type=counts");
       return data.counts || {};
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 0,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 }

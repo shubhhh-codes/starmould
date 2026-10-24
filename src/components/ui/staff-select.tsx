@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Check, X, Lock, Plus, AlertCircle } from "lucide-react";
+import { ChevronDown, Check, X, Lock, Plus, AlertCircle, Search } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 
 export interface StaffUser {
@@ -39,6 +39,7 @@ export function StaffSelect({
 
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [popoverCoords, setPopoverCoords] = useState<{
     top: number;
     left: number;
@@ -52,6 +53,12 @@ export function StaffSelect({
     setIsMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) {
+      setSearchQuery("");
+    }
+  }, [isOpen]);
+
   const currentVal = value ? Number(value) : 0;
   const isAssigned = Boolean(currentVal && currentVal !== 0);
   const isAssignedToMe = Boolean(currentUser?.id && currentVal === Number(currentUser.id));
@@ -60,25 +67,34 @@ export function StaffSelect({
   const selectedUser = staff.find((u) => u.id === currentVal);
   const displayStaff = assignableStaff || staff;
 
-  // Color scheme variants matching StarMould theme
+  const filteredStaff = displayStaff.filter((u) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const nameMatch = u.name?.toLowerCase().includes(q);
+    const initialsMatch = u.initials?.toLowerCase().includes(q);
+    const usertypeMatch = u.usertype?.toLowerCase().includes(q);
+    return nameMatch || initialsMatch || usertypeMatch;
+  });
+
+  // Color scheme variants matching StarMould theme - High contrast & eye-friendly
   const colorMap = {
     blue: {
-      badge: "bg-blue-50 text-blue-700 border-blue-200",
-      active: "bg-blue-50 text-blue-700",
+      badge: "bg-blue-50 text-blue-900 border-blue-200",
+      active: "bg-blue-50 text-blue-900",
       ring: "focus:ring-blue-500/30 focus:border-blue-500",
-      dot: "bg-blue-500",
+      dot: "bg-blue-600",
       accent: "text-blue-600",
-      selfCard: "bg-blue-50/70 hover:bg-blue-100/80 text-blue-900 border-blue-200",
+      selfCard: "bg-blue-50/70 hover:bg-blue-100/80 text-blue-950 border-blue-200",
       selfIcon: "text-blue-600",
     },
     cyan: {
-      badge: "bg-cyan-50 text-cyan-700 border-cyan-200",
-      active: "bg-cyan-50 text-cyan-700",
-      ring: "focus:ring-cyan-500/30 focus:border-cyan-500",
-      dot: "bg-cyan-500",
-      accent: "text-cyan-600",
-      selfCard: "bg-cyan-50/70 hover:bg-cyan-100/80 text-cyan-900 border-cyan-200",
-      selfIcon: "text-cyan-600",
+      badge: "bg-blue-50 text-blue-900 border-blue-200",
+      active: "bg-blue-50 text-blue-900",
+      ring: "focus:ring-blue-500/30 focus:border-blue-500",
+      dot: "bg-blue-600",
+      accent: "text-blue-600",
+      selfCard: "bg-blue-50/70 hover:bg-blue-100/80 text-blue-950 border-blue-200",
+      selfIcon: "text-blue-600",
     },
     purple: {
       badge: "bg-purple-50 text-purple-700 border-purple-200",
@@ -148,12 +164,12 @@ export function StaffSelect({
     const updatePosition = () => {
       if (!dropdownRef.current) return;
       const rect = dropdownRef.current.getBoundingClientRect();
-      const popoverHeight = 280;
+      const popoverHeight = 300;
       const spaceBelow = window.innerHeight - rect.bottom;
       const placeAbove = spaceBelow < popoverHeight && rect.top > popoverHeight;
 
       const top = placeAbove ? rect.top - 4 : rect.bottom + 4;
-      const popoverWidth = 256; // 16rem = 256px
+      const popoverWidth = 280; // 280px wide popover
       const left = Math.max(8, Math.min(rect.left, window.innerWidth - popoverWidth - 12));
 
       setPopoverCoords({ top, left, placeAbove });
@@ -184,41 +200,51 @@ export function StaffSelect({
       }`
     : placeholder;
 
+  const isFullWidth = className.includes("w-full");
+
   return (
-    <div ref={dropdownRef} className={`relative inline-block text-left ${className}`}>
+    <div ref={dropdownRef} className={`relative ${isFullWidth ? "w-full" : "inline-block"} text-left ${className}`}>
       {/* Trigger Button */}
       <button
         type="button"
         disabled={disabled}
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen((prev) => !prev);
+        }}
         title={hoverTooltip}
-        className={`group relative inline-flex items-center justify-between gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-all duration-150 ${
+        className={`group relative ${isFullWidth ? "w-full" : "inline-flex"} flex items-center justify-between gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 ${
           disabled
             ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
             : selectedUser
-            ? `${scheme.badge} shadow-xs hover:border-slate-300`
-            : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
-        } ${scheme.ring} focus:outline-none focus:ring-2`}
+            ? "bg-white text-slate-900 border-slate-300 shadow-2xs hover:border-slate-400"
+            : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-white hover:text-slate-800 hover:border-slate-300"
+        } ${scheme.ring} focus:outline-none focus:ring-2 cursor-pointer`}
       >
-        <span className="truncate max-w-[90px] flex items-center gap-1">
+        <span className="truncate flex-1 flex items-center gap-1.5 min-w-0 text-left">
           {selectedUser ? (
             <>
-              <span className={`w-1.5 h-1.5 rounded-full ${scheme.dot} shrink-0`} />
-              <span className="font-mono font-semibold tracking-wide">
-                {selectedUser.initials || selectedUser.name}
+              <span className={`w-2 h-2 rounded-full ${scheme.dot} shrink-0`} />
+              <span className="font-bold text-slate-900 truncate text-xs">
+                {selectedUser.name}
               </span>
+              {selectedUser.initials && (
+                <span className="font-mono text-[10px] text-slate-600 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
+                  {selectedUser.initials}
+                </span>
+              )}
             </>
           ) : (
-            <span className="text-slate-400">{placeholder}</span>
+            <span className="text-slate-400 italic text-xs font-normal">{placeholder}</span>
           )}
         </span>
 
         {disabled || (!isAdmin && isAssignedToOther) ? (
-          <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+          <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
         ) : (
           <ChevronDown
-            className={`w-3 h-3 text-slate-400 transition-transform duration-150 shrink-0 ${
-              isOpen ? "rotate-180 " + scheme.accent : "group-hover:text-slate-600"
+            className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-150 shrink-0 ml-1 ${
+              isOpen ? "rotate-180 " + scheme.accent : "group-hover:text-slate-700"
             }`}
           />
         )}
@@ -233,15 +259,15 @@ export function StaffSelect({
             top: popoverCoords.placeAbove ? "auto" : `${popoverCoords.top}px`,
             bottom: popoverCoords.placeAbove ? `${Math.max(8, window.innerHeight - popoverCoords.top)}px` : "auto",
             left: `${popoverCoords.left}px`,
-            width: "16rem",
+            width: "280px",
             zIndex: 99999,
           }}
-          className="bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 text-xs animate-in fade-in zoom-in-95 duration-100 focus:outline-none whitespace-normal select-none"
+          className="bg-white rounded-xl shadow-2xl border border-slate-200 text-xs animate-in fade-in zoom-in-95 duration-100 focus:outline-none whitespace-normal select-none overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
         >
-          
           {/* Header */}
-          <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            <span>{!isAdmin ? "Self-Assignment" : "Assign Staff"}</span>
+          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            <span>{!isAdmin ? "Self-Assignment" : "Assign Staff / Machine"}</span>
             {((isAdmin && isAssigned) || isAssignedToMe) ? (
               <button
                 type="button"
@@ -250,7 +276,7 @@ export function StaffSelect({
                   onChange(0);
                   setIsOpen(false);
                 }}
-                className="text-rose-500 hover:text-rose-700 flex items-center gap-0.5 text-[10px] normal-case font-medium cursor-pointer"
+                className="text-rose-500 hover:text-rose-700 flex items-center gap-0.5 text-[10px] normal-case font-semibold cursor-pointer"
               >
                 <X className="w-2.5 h-2.5" /> Clear
               </button>
@@ -264,6 +290,24 @@ export function StaffSelect({
               </button>
             )}
           </div>
+
+          {/* Quick Search for Admin when list has multiple items */}
+          {isAdmin && displayStaff.length > 5 && (
+            <div className="p-2 border-b border-slate-100 bg-white">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search staff or machine..."
+                  className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500 text-slate-800 placeholder:text-slate-400"
+                  autoFocus
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Body */}
           <div className="p-1.5">
@@ -291,7 +335,7 @@ export function StaffSelect({
                 </div>
               </div>
             ) : !isAdmin ? (
-              /* Non-Admin Case 2: Unassigned or Assigned to Me -> Clean Button matching Image 2 */
+              /* Non-Admin Case 2: Unassigned or Assigned to Me -> Clean Button */
               <div className="space-y-1.5">
                 {currentUser && (
                   <button
@@ -343,7 +387,7 @@ export function StaffSelect({
               </div>
             ) : (
               /* Admin Case: Full Staff Selection List */
-              <div className="max-h-56 overflow-y-auto overflow-x-hidden space-y-0.5 custom-scrollbar">
+              <div className="max-h-60 overflow-y-auto overflow-x-hidden space-y-0.5 custom-scrollbar">
                 {/* Unassigned / Default Option */}
                 <button
                   type="button"
@@ -351,66 +395,71 @@ export function StaffSelect({
                     onChange(0);
                     setIsOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-left transition-colors cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left transition-colors cursor-pointer ${
                     !selectedUser
                       ? "bg-slate-100 text-slate-800 font-semibold"
                       : "text-slate-500 hover:bg-slate-50"
                   }`}
                 >
-                  <span className="text-slate-400 italic">Unassigned</span>
+                  <span className="text-slate-400 italic">Unassigned (Leave Open)</span>
                   {!selectedUser && <Check className="w-3.5 h-3.5 text-slate-600" />}
                 </button>
 
-                {displayStaff.map((u) => {
-                  const isSelected = selectedUser?.id === u.id;
-                  const titleText = `${u.name} (${u.initials || u.name}) ${
-                    u.usertype ? `• ${u.usertype}` : ""
-                  }`;
+                {filteredStaff.length === 0 ? (
+                  <div className="py-4 text-center text-slate-400 text-xs italic">
+                    No staff found
+                  </div>
+                ) : (
+                  filteredStaff.map((u) => {
+                    const isSelected = selectedUser?.id === u.id;
+                    const titleText = `${u.name} (${u.initials || u.name}) ${
+                      u.usertype ? `• ${u.usertype}` : ""
+                    }`;
 
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      title={titleText}
-                      onClick={() => {
-                        onChange(u.id);
-                        setIsOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md text-left transition-colors group cursor-pointer ${
-                        isSelected
-                          ? `${scheme.active} font-semibold`
-                          : "text-slate-700 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={`inline-flex items-center justify-center font-mono font-bold text-[10px] px-1.5 py-0.5 rounded border shrink-0 ${
-                            isSelected
-                              ? scheme.badge
-                              : "bg-slate-100 text-slate-600 border-slate-200 group-hover:bg-white"
-                          }`}
-                        >
-                          {u.initials || u.name.slice(0, 5)}
-                        </span>
-                        <div className="truncate min-w-0">
-                          <div className="truncate font-medium text-slate-800">
-                            {u.name}
-                          </div>
-                          {u.usertype && (
-                            <div className="text-[10px] text-slate-400 truncate">
-                              {u.usertype}
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        title={titleText}
+                        onClick={() => {
+                          onChange(u.id);
+                          setIsOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors group cursor-pointer ${
+                          isSelected
+                            ? `${scheme.active} font-semibold`
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={`inline-flex items-center justify-center font-mono font-bold text-[10px] w-6 h-6 rounded border shrink-0 ${
+                              isSelected
+                                ? scheme.badge
+                                : "bg-slate-100 text-slate-600 border-slate-200 group-hover:bg-white"
+                            }`}
+                          >
+                            {u.initials || u.name.slice(0, 3).toUpperCase()}
+                          </span>
+                          <div className="truncate min-w-0">
+                            <div className="truncate font-semibold text-slate-900 text-xs">
+                              {u.name}
                             </div>
-                          )}
+                            <div className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                              {u.initials && <span className="font-mono font-medium">({u.initials})</span>}
+                              {u.usertype && <span>• {u.usertype}</span>}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      {isSelected && (
-                        <Check
-                          className={`w-3.5 h-3.5 shrink-0 ${scheme.accent}`}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
+                        {isSelected && (
+                          <Check
+                            className={`w-3.5 h-3.5 shrink-0 ${scheme.accent}`}
+                          />
+                        )}
+                      </button>
+                    );
+                  })
+                )}
               </div>
             )}
           </div>

@@ -406,6 +406,7 @@ export async function POST(req: NextRequest) {
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
 
     return NextResponse.json(
       { subplate: data, message: "Subplate created successfully" },
@@ -586,6 +587,7 @@ export async function PUT(req: NextRequest) {
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
     invalidateCache("shared_scans_lookup");
 
     return NextResponse.json({ subplate: data, message: "Subplate updated successfully in database" });
@@ -638,6 +640,7 @@ export async function DELETE(req: NextRequest) {
     invalidateCache("subplates_worklog_lookup");
     invalidateCache("subplate_kpi_counts");
     invalidateCache("api_counts_all");
+    invalidateCache("api_pipeline_stage_counts");
     invalidateCache("shared_scans_lookup");
 
     return NextResponse.json({ success: true, message: "Subplate permanently deleted from database" });
