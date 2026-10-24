@@ -104,7 +104,11 @@ export function PermissionsProvider({
         }
       }
     } catch (err) {
-      console.error("Error fetching permissions:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Permissions fetch deferred (waiting for server):", err instanceof Error ? err.message : err);
+      } else {
+        console.error("Error fetching permissions:", err);
+      }
     } finally {
       setIsLoading(false);
     }

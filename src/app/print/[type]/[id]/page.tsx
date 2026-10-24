@@ -49,29 +49,30 @@ export default function PrintDocumentPage({ params }: PageProps) {
   };
 
   const handleDownloadPdf = async () => {
-    const el = document.getElementById("po-printable-area");
-    if (!el) {
-      handlePrint();
-      return;
-    }
-
     try {
       setIsDownloading(true);
-      // @ts-ignore
-      const html2pdf = (await import("html2pdf.js")).default;
       const fileName = `${doc?.docNumber || "Purchase_Order"}.pdf`;
 
-      const opt = {
-        margin: [10, 10, 10, 10] as [number, number, number, number],
-        filename: fileName,
-        image: { type: "jpeg" as const, quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
-        jsPDF: { unit: "mm" as const, format: "a4", orientation: "portrait" as const },
-      };
+      // Fetch pristine vector PDF from server Puppeteer engine
+      const downloadUrl = `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+      const res = await fetch(downloadUrl);
 
-      await html2pdf().set(opt).from(el).save();
+      if (!res.ok) {
+        throw new Error("Server PDF generation failed");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
     } catch (err) {
-      console.error("PDF download error:", err);
+      console.error("Direct PDF download error:", err);
+      // Fallback to browser print if server generation encounters an issue
       handlePrint();
     } finally {
       setIsDownloading(false);
@@ -115,7 +116,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
     return (
       <div className="min-h-screen bg-slate-100/70 py-6 px-4 print:p-0 print:bg-white text-slate-900">
         {/* Top Floating Control Bar */}
-        <div className="max-w-[850px] mx-auto mb-4 flex items-center justify-between print:hidden">
+        <div className="w-[794px] mx-auto mb-4 flex items-center justify-between print:hidden">
           <Link
             href="/purchase"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-xs"
@@ -145,8 +146,8 @@ export default function PrintDocumentPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Document Sheet */}
-        <div className="max-w-[850px] mx-auto shadow-lg rounded-xl overflow-hidden print:shadow-none print:rounded-none">
+        {/* Document Sheet (Exact A4 794px) */}
+        <div className="w-[794px] mx-auto shadow-xl border border-slate-200 overflow-hidden print:shadow-none print:border-none print:w-[794px]">
           <PurchaseOrderVoucher
             po={{
               id: Number(doc.id || 0),

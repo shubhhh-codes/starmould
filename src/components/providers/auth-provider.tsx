@@ -134,7 +134,11 @@ export function AuthProvider({
         });
       }
     } catch (err) {
-      console.error("Error loading session:", err);
+      if (process.env.NODE_ENV === "development") {
+        console.warn("Session check deferred (waiting for server):", err instanceof Error ? err.message : err);
+      } else {
+        console.error("Error loading session:", err);
+      }
     } finally {
       setIsSessionLoaded(true);
     }
@@ -150,7 +154,8 @@ export function AuthProvider({
       }
     }
     fetchSession();
-  }, [fetchSession, currentUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchSession]);
 
   // Handle mandatory password reset redirect
   useEffect(() => {

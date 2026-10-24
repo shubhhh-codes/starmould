@@ -70,7 +70,7 @@ async function verifySessionTokenEdge(token: string): Promise<{ id: number; role
   }
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // Allow static files, images, api routes, and favicon
