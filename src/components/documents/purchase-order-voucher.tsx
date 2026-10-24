@@ -109,6 +109,9 @@ export function PurchaseOrderVoucher({
       <style dangerouslySetInnerHTML={{ __html: `
         .po-font-family {
           font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+          -webkit-font-smoothing: antialiased !important;
+          -moz-osx-font-smoothing: grayscale !important;
+          text-rendering: optimizeLegibility !important;
         }
         @media print {
           @page {
@@ -121,6 +124,8 @@ export function PurchaseOrderVoucher({
             background: white !important;
             width: 794px !important;
             height: 1123px !important;
+            -webkit-font-smoothing: antialiased !important;
+            -moz-osx-font-smoothing: grayscale !important;
           }
           body * {
             visibility: hidden !important;
@@ -245,23 +250,20 @@ export function PurchaseOrderVoucher({
                 { label: "PO NUMBER",   value: po.srno },
                 { label: "PO DATE",     value: formatDate(po.odate) },
                 { label: "VENDOR CODE", value: vendorCode },
-              ].map(({ label, value }, idx) => (
+              ].map(({ label, value }) => (
                 <div
                   key={label}
                   className="flex-1 px-[22px] py-[9px] flex flex-col justify-center"
-                  style={{
-                    borderRight: idx < 2 ? `1px solid ${TEAL_BORDER}` : "none",
-                  }}
                 >
                   <div
-                    className="text-[8px] font-bold tracking-[0.5px] uppercase mb-[2px]"
+                    className="text-[8px] font-bold tracking-[0.5px] uppercase mb-[4px]"
                     style={{ color: TEAL_PRIMARY }}
                   >
                     {label}
                   </div>
                   <div
-                    className="font-semibold text-[12.5px]"
-                    style={{ color: TEXT_DARK }}
+                    className="text-[12.5px] font-normal"
+                    style={{ color: "#33414a", fontWeight: 400 }}
                   >
                     {value}
                   </div>
@@ -272,19 +274,13 @@ export function PurchaseOrderVoucher({
             {/* ──────────────────────────────────────────────────────────────────
                 3. PARTY SECTION — Vendor / Supplier  +  Buyer (Bill To)
                 ────────────────────────────────────────────────────────────────── */}
-            <div
-              className="w-[710px] border mb-[22px]"
-              style={{ borderColor: TEAL_PRIMARY }}
-            >
+            <div className="w-[710px] mb-[22px]">
               {/* Header bar */}
               <div className="flex h-[37px]" style={{ backgroundColor: TEAL_PRIMARY }}>
-                <div
-                  className="flex-1 flex items-center px-[16px] text-white font-bold text-[11px] tracking-[0.5px] uppercase"
-                  style={{ borderRight: "1px solid rgba(255, 255, 255, 0.25)" }}
-                >
+                <div className="flex-1 flex items-center px-[16px] text-white font-semibold text-[11px] tracking-[0.5px] uppercase" style={{ fontWeight: 600 }}>
                   VENDOR / SUPPLIER
                 </div>
-                <div className="flex-1 flex items-center px-[16px] text-white font-bold text-[11px] tracking-[0.5px] uppercase">
+                <div className="flex-1 flex items-center px-[16px] text-white font-semibold text-[11px] tracking-[0.5px] uppercase" style={{ fontWeight: 600 }}>
                   BUYER (BILL TO)
                 </div>
               </div>
@@ -294,7 +290,7 @@ export function PurchaseOrderVoucher({
                 {/* LEFT — Vendor */}
                 <div
                   className="flex-1 p-[12px_16px] text-[10px] leading-[1.5]"
-                  style={{ borderRight: `1px solid ${TEAL_BORDER}`, color: TEXT_MUTED }}
+                  style={{ color: TEXT_MUTED }}
                 >
                   <div className="font-bold text-[11.5px] mb-[2px]" style={{ color: TEXT_DARK }}>
                     {vendorName}
@@ -339,10 +335,10 @@ export function PurchaseOrderVoucher({
                 4. PARTICULARS TABLE
                 ────────────────────────────────────────────────────────────────── */}
             <div>
-              {/* Section label */}
+              {/* Section label bar matching PDF: 42 393 710 33 re with #e6f2f6 */}
               <div
-                className="font-bold text-[11.5px] tracking-[0.5px] uppercase mb-[6px]"
-                style={{ color: TEAL_PRIMARY }}
+                className="w-[710px] h-[33px] flex items-center px-[10px] font-semibold text-[11px] tracking-[0.5px] uppercase mb-[6px]"
+                style={{ backgroundColor: "#e6f2f6", color: TEAL_PRIMARY, fontWeight: 600 }}
               >
                 PARTICULARS
               </div>
@@ -351,18 +347,18 @@ export function PurchaseOrderVoucher({
                 className="w-[710px] border overflow-hidden"
                 style={{ borderColor: TEAL_BORDER }}
               >
-                <table className="w-full text-left border-collapse text-[9.5px]">
+                <table className="w-full border-collapse text-[9.5px]">
                   <thead>
                     <tr
-                      className="text-white font-bold uppercase tracking-[0.5px]"
+                      className="text-white"
                       style={{ backgroundColor: TEAL_PRIMARY }}
                     >
-                      <th className="h-[39px] px-[8px] text-center w-[38px] border-r border-teal-600/30">#</th>
-                      <th className="h-[39px] px-[12px] w-[312px] border-r border-teal-600/30">Purchase Material</th>
-                      <th className="h-[39px] px-[8px] text-center w-[62px] border-r border-teal-600/30">Qty</th>
-                      <th className="h-[39px] px-[8px] text-center w-[110px] border-r border-teal-600/30">Material Type</th>
-                      <th className="h-[39px] px-[8px] text-center w-[90px] border-r border-teal-600/30">Mould</th>
-                      <th className="h-[39px] px-[12px] text-right w-[96px]">Rate (₹)</th>
+                      <th className="h-[39px] px-[8px] text-center w-[38px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>#</th>
+                      <th className="h-[39px] px-[12px] text-center w-[312px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Purchase Material</th>
+                      <th className="h-[39px] px-[8px] text-center w-[62px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Qty</th>
+                      <th className="h-[39px] px-[8px] text-center w-[110px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Material Type</th>
+                      <th className="h-[39px] px-[8px] text-center w-[90px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Mould</th>
+                      <th className="h-[39px] px-[12px] text-center w-[96px] font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Rate (₹)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -375,8 +371,8 @@ export function PurchaseOrderVoucher({
                     ) : (
                       items.map((it: any, idx: number) => {
                         const qty     = Number(it.qty) || 1;
-                        const rate    = Number(it.rate) || 0;
-                        const name    = it.platename || `Subplate #${it.plateid}`;
+                        const rate    = it.rate !== undefined && it.rate !== null ? Number(it.rate) : null;
+                        const name    = it.platename || it.name || `Subplate #${it.plateid}`;
                         const dims    = it.material || "";
                         const matType = it.materialtype || "—";
 
@@ -384,19 +380,19 @@ export function PurchaseOrderVoucher({
                           <tr
                             key={idx}
                             style={{
-                              backgroundColor: idx % 2 === 0 ? "#ffffff" : TEAL_LIGHT,
+                              backgroundColor: idx % 2 === 0 ? TEAL_LIGHT : "#ffffff",
                             }}
                           >
-                            <td className="h-[46px] px-[8px] text-center font-semibold border-t border-r" style={{ borderColor: TEAL_BORDER, color: TEXT_DARK }}>
+                            <td className="h-[46px] px-[8px] text-center border-t border-r" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
                               {idx + 1}
                             </td>
-                            <td className="h-[46px] px-[12px] border-t border-r" style={{ borderColor: TEAL_BORDER }}>
-                              <div className="font-semibold text-[9.5px]" style={{ color: TEXT_DARK }}>{name}</div>
+                            <td className="h-[46px] px-[16px] text-left border-t border-r" style={{ borderColor: TEAL_BORDER }}>
+                              <div className="text-[9.5px]" style={{ color: TEXT_MUTED }}>{name}</div>
                               {dims && dims !== "—" && (
                                 <div className="text-[8.5px] mt-[2px]" style={{ color: GREY_LINE }}>{dims}</div>
                               )}
                             </td>
-                            <td className="h-[46px] px-[8px] text-center font-semibold border-t border-r" style={{ borderColor: TEAL_BORDER, color: TEXT_DARK }}>
+                            <td className="h-[46px] px-[8px] text-center border-t border-r" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
                               {qty}
                             </td>
                             <td className="h-[46px] px-[8px] text-center border-t border-r" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
@@ -405,8 +401,8 @@ export function PurchaseOrderVoucher({
                             <td className="h-[46px] px-[8px] text-center border-t border-r" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
                               {po.projectid || "—"}
                             </td>
-                            <td className="h-[46px] px-[12px] text-right font-semibold border-t" style={{ borderColor: TEAL_BORDER, color: TEXT_DARK }}>
-                              {rate > 0 ? `₹ ${rate.toLocaleString("en-IN")}` : "—"}
+                            <td className="h-[46px] px-[12px] text-center font-bold border-t" style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}>
+                              {rate !== null && rate > 0 ? `₹ ${rate.toLocaleString("en-IN")}` : "—"}
                             </td>
                           </tr>
                         );
@@ -425,14 +421,11 @@ export function PurchaseOrderVoucher({
             {/* ──────────────────────────────────────────────────────────────────
                 5. TERMS & CONDITIONS
                 ────────────────────────────────────────────────────────────────── */}
-            <div
-              className="w-[710px] border overflow-hidden mb-[16px]"
-              style={{ borderColor: TEAL_PRIMARY }}
-            >
+            <div className="w-[710px] mb-[16px]">
               {/* Header */}
               <div
-                className="h-[37px] px-[16px] flex items-center text-white font-bold text-[11.5px] tracking-[0.5px] uppercase"
-                style={{ backgroundColor: TEAL_PRIMARY }}
+                className="h-[37px] px-[16px] flex items-center text-white font-semibold text-[11px] tracking-[0.5px] uppercase"
+                style={{ backgroundColor: TEAL_PRIMARY, fontWeight: 600 }}
               >
                 TERMS &amp; CONDITIONS
               </div>

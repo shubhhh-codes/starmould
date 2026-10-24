@@ -13,10 +13,6 @@ import { serverLogger } from "@/lib/server-logger";
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
-    serverLogger.warn("GET /api/settings/permissions: Unauthorized access attempt", {
-      status: auth.status,
-      error: auth.error,
-    });
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "./auth-provider";
 import { DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_MENU_ORDERS } from "@/lib/permissions/defaults";
 import { RolePermissionsMatrix, RoleMenuOrders } from "@/lib/permissions/types";
@@ -114,14 +115,19 @@ export function PermissionsProvider({
     }
   }, []);
 
+  const pathname = usePathname();
+
   useEffect(() => {
     const cached = getCachedPerms();
     if (cached) {
       setMatrix(cached.matrix);
       setMenuOrders(cached.menuOrders);
     }
+    // Do not fetch permissions on unauthenticated views like /login
+    if (pathname === "/login") return;
+    if (!activeUser && !getCachedSession()) return;
     fetchPermissions();
-  }, [fetchPermissions]);
+  }, [fetchPermissions, activeUser, pathname]);
 
   const hasPermission = useCallback(
     (permissionKey: string, customRoleId?: number): boolean => {

@@ -199,8 +199,15 @@ export function ClientErrorListener() {
       try {
         const response = await originalFetch.apply(this, args);
 
+        // Ignore expected unauthenticated 401 checks (e.g. initial auth/session check or on /login)
+        const isExpectedAuthCheck =
+          response.status === 401 &&
+          (url.includes("/api/auth/me") ||
+            url.includes("/api/settings/permissions") ||
+            (typeof window !== "undefined" && window.location.pathname === "/login"));
+
         // If the request is to our own API and returned an error (4xx or 5xx)
-        if (!response.ok && (url.startsWith("/api") || url.includes("/api/"))) {
+        if (!response.ok && !isExpectedAuthCheck && (url.startsWith("/api") || url.includes("/api/"))) {
           try {
             const clone = response.clone();
             const text = await clone.text();

@@ -257,26 +257,22 @@ export async function GET(req: NextRequest) {
             flex-direction: column;
             justify-content: center;
           }
-          .info-col:not(:last-child) {
-            border-right: 1px solid #bcd8e0;
-          }
           .info-label {
             font-size: 8px;
             font-weight: 700;
             color: #006181;
             letter-spacing: 0.5px;
             text-transform: uppercase;
-            margin-bottom: 2px;
+            margin-bottom: 4px;
           }
           .info-val {
             font-size: 12.5px;
-            font-weight: 600;
-            color: #1f2a30;
+            font-weight: 400;
+            color: #33414a;
           }
           /* Party Section */
           .party-box {
             width: 710px;
-            border: 1px solid #006181;
             margin-bottom: 22px;
           }
           .party-header {
@@ -290,13 +286,10 @@ export async function GET(req: NextRequest) {
             align-items: center;
             padding: 0 16px;
             font-size: 11px;
-            font-weight: 700;
+            font-weight: 600;
             color: #ffffff;
             letter-spacing: 0.5px;
             text-transform: uppercase;
-          }
-          .party-header-cell:first-child {
-            border-right: 1px solid rgba(255, 255, 255, 0.25);
           }
           .party-body {
             display: flex;
@@ -308,9 +301,6 @@ export async function GET(req: NextRequest) {
             font-size: 10px;
             line-height: 1.5;
             color: #3d4a52;
-          }
-          .party-col:first-child {
-            border-right: 1px solid #bcd8e0;
           }
           .party-name {
             font-size: 11.5px;
@@ -324,8 +314,14 @@ export async function GET(req: NextRequest) {
           }
           /* Particulars Table */
           .section-heading {
-            font-size: 11.5px;
-            font-weight: 700;
+            width: 710px;
+            height: 33px;
+            background-color: #e6f2f6;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-size: 11px;
+            font-weight: 600;
             color: #006181;
             letter-spacing: 0.5px;
             text-transform: uppercase;
@@ -344,11 +340,11 @@ export async function GET(req: NextRequest) {
             background-color: #006181;
             color: #ffffff;
             height: 39px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            border-right: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 9.5px;
+            font-weight: 600;
+            border-right: 1px solid rgba(255, 255, 255, 0.4);
             padding: 0 8px;
+            text-align: center;
           }
           th:last-child {
             border-right: none;
@@ -364,10 +360,10 @@ export async function GET(req: NextRequest) {
           td:last-child {
             border-right: none;
           }
-          tr.even {
+          tr.tinted {
             background-color: #f3f9fb;
           }
-          tr.odd {
+          tr.white {
             background-color: #ffffff;
           }
           .footnote {
@@ -380,15 +376,14 @@ export async function GET(req: NextRequest) {
           /* Terms */
           .terms-box {
             width: 710px;
-            border: 1px solid #006181;
             margin-bottom: 16px;
           }
           .terms-header {
             height: 37px;
             background-color: #006181;
             color: #ffffff;
-            font-size: 11.5px;
-            font-weight: 700;
+            font-size: 11px;
+            font-weight: 600;
             letter-spacing: 0.5px;
             text-transform: uppercase;
             display: flex;
@@ -521,35 +516,36 @@ export async function GET(req: NextRequest) {
                   <thead>
                     <tr>
                       <th style="width: 38px; text-align: center;">#</th>
-                      <th style="width: 312px; text-align: left; padding-left: 12px;">Purchase Material</th>
+                      <th style="width: 312px; text-align: center;">Purchase Material</th>
                       <th style="width: 62px; text-align: center;">Qty</th>
                       <th style="width: 110px; text-align: center;">Material Type</th>
                       <th style="width: 90px; text-align: center;">Mould</th>
-                      <th style="width: 96px; text-align: right; padding-right: 12px;">Rate (₹)</th>
+                      <th style="width: 96px; text-align: center;">Rate (₹)</th>
                     </tr>
                   </thead>
                   <tbody>
                     ${
                       processedItems.length === 0
-                        ? `<tr><td colspan="6" style="text-align: center; height: 50px;">No items found</td></tr>`
+                        ? `<tr><td colspan="6" style="text-align: center; height: 46px; color: #62676b; font-style: italic;">No items found in this purchase order.</td></tr>`
                         : processedItems
-                            .map(
-                              (it, idx) => `
-                          <tr class="${idx % 2 === 0 ? "odd" : "even"}">
-                            <td style="text-align: center; font-weight: 600;">${it.srNo}</td>
-                            <td style="padding-left: 12px;">
-                              <div style="font-weight: 600; color: #1f2a30;">${it.name}</div>
-                              ${it.dimensions ? `<div style="font-size: 8.5px; color: #62676b; margin-top: 2px;">${it.dimensions}</div>` : ""}
-                            </td>
-                            <td style="text-align: center; font-weight: 600;">${it.qty}</td>
-                            <td style="text-align: center;">${it.materialtype}</td>
-                            <td style="text-align: center;">${purchase.projectid || "—"}</td>
-                            <td style="text-align: right; padding-right: 12px; font-weight: 600;">
-                              ${it.rate > 0 ? "₹ " + Number(it.rate).toLocaleString("en-IN") : "—"}
-                            </td>
-                          </tr>
-                        `
-                            )
+                            .map((it, idx) => {
+                              const bgClass = idx % 2 === 0 ? "tinted" : "white";
+                              return `
+                                <tr class="${bgClass}">
+                                  <td style="text-align: center; color: #3d4a52;">${idx + 1}</td>
+                                  <td style="text-align: left; padding: 0 16px; color: #3d4a52;">
+                                    <div>${it.name}</div>
+                                    ${it.dimensions ? `<div style="font-size: 8.5px; color: #62676b; margin-top: 2px;">${it.dimensions}</div>` : ""}
+                                  </td>
+                                  <td style="text-align: center; color: #3d4a52;">${it.qty}</td>
+                                  <td style="text-align: center; color: #3d4a52;">${it.materialtype}</td>
+                                  <td style="text-align: center; color: #3d4a52;">${purchase.projectid || "—"}</td>
+                                  <td style="text-align: center; font-weight: 700; color: #006181; font-size: 10.5px;">
+                                    ${it.rate > 0 ? "₹ " + Number(it.rate).toLocaleString("en-IN") : "—"}
+                                  </td>
+                                </tr>
+                              `;
+                            })
                             .join("")
                     }
                   </tbody>

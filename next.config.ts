@@ -8,7 +8,8 @@ const nextConfig: NextConfig = {
     root: path.resolve(__dirname),
   },
   allowedDevOrigins: [
-    "192.168.1.122",
+    "192.168.1.105",
+    "192.168.1.105:3000",
     "localhost",
     "127.0.0.1",
   ],
