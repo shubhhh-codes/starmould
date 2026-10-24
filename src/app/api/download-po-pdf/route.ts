@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
         dimensions: it.material || (sp ? `${sp.width} x ${sp.height} x ${sp.length} ${sp.unit || "mm"}` : ""),
         materialtype: it.materialtype || sp?.material || "—",
         qty: it.qty || 1,
-        rate: it.rate || 0,
+        rate: it.rate !== null && it.rate !== undefined && it.rate !== "" ? Number(it.rate) : null,
       };
     });
 
@@ -330,6 +330,7 @@ export async function GET(req: NextRequest) {
           .table-wrap {
             width: 710px;
             border: 1px solid #bcd8e0;
+            margin-bottom: 16px;
           }
           table {
             width: 100%;
@@ -541,7 +542,7 @@ export async function GET(req: NextRequest) {
                                   <td style="text-align: center; color: #3d4a52;">${it.materialtype}</td>
                                   <td style="text-align: center; color: #3d4a52;">${purchase.projectid || "—"}</td>
                                   <td style="text-align: center; font-weight: 700; color: #006181; font-size: 10.5px;">
-                                    ${it.rate > 0 ? "₹ " + Number(it.rate).toLocaleString("en-IN") : "—"}
+                                    ${it.rate !== null && it.rate !== undefined && Number(it.rate) > 0 ? "₹ " + Number(it.rate).toLocaleString("en-IN") : "—"}
                                   </td>
                                 </tr>
                               `;
@@ -551,7 +552,6 @@ export async function GET(req: NextRequest) {
                   </tbody>
                 </table>
               </div>
-              <div class="footnote">Rates are given for reference only, in Indian Rupees (₹).</div>
 
               <!-- 5. Terms & Conditions -->
               <div class="terms-box">

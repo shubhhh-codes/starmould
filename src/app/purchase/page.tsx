@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, Suspense } from "react";
+import React, { useState, useMemo, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -35,6 +35,7 @@ import type {
 } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
+import { ERPSelect } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
@@ -124,13 +125,14 @@ function PurchasePageContent() {
             material: string;
             materialtype: string;
             qty: number;
+            rate?: number | "" | null;
         }[];
     }>({
         odate: new Date().toISOString().slice(0, 10),
         vname: "",
         cname: "",
         projectid: "",
-        items: [{ plateid: "", material: "", materialtype: "", qty: 1 }],
+        items: [{ plateid: "", material: "", materialtype: "", qty: 1, rate: "" }],
     });
 
     const [formError, setFormError] = useState<string | null>(null);
@@ -165,6 +167,34 @@ function PurchasePageContent() {
             return false;
         });
     }, [scans, formData.cname, clients]);
+
+    const vendorOptions = useMemo(() => {
+        return vendors.map((v: any) => ({
+            value: v.id,
+            label: v.customername,
+            badge: v.initials || undefined,
+            badgeVariant: "purple" as const,
+            subtitle: v.mobile || undefined,
+        }));
+    }, [vendors]);
+
+    const customerOptions = useMemo(() => {
+        return clients.map((c: any) => ({
+            value: c.id,
+            label: c.customername,
+            badge: c.initials || undefined,
+            badgeVariant: "blue" as const,
+            subtitle: c.city || undefined,
+        }));
+    }, [clients]);
+
+    const mouldOptions = useMemo(() => {
+        return availableMoulds.map((s: any) => ({
+            value: s.projectid || "",
+            label: s.projectid || "",
+            subtitle: s.description || undefined,
+        }));
+    }, [availableMoulds]);
 
     // Selected scan for subplate resolution
     const selectedScan = useMemo(() => {
@@ -213,26 +243,62 @@ function PurchasePageContent() {
         return Array.from(set);
     }, [scans, purchases]);
 
-    // Pending Purchase List Logic
-    // Source: PurchaseController.php lines 332-335:
-    // SubplateModel::leftJoin('view_po_pending_inward_qty', 'subplate.id', '=', 'view_po_pending_inward_qty.plateid')
-    // ->whereNull('view_po_pending_inward_qty.plateid')
-    const pendingPlates = useMemo(() => {
-        // Collect all plate IDs already referenced in any active purchase_items
-        const orderedPlateIds = new Set<number>();
+    // Map of plate ID -> already ordered quantity in active POs
+    const orderedQtyByPlateId = useMemo(() => {
+        const map = new Map<number, number>();
         purchases.forEach((p) => {
-            if (
-                String(p.status) !== "0" &&
-                (p as any).status !== 0 &&
-                p.items
-            ) {
-                p.items.forEach((item: PurchaseItem) =>
-                    orderedPlateIds.add(item.plateid),
-                );
+            if (String(p.status) !== "0" && (p as any).status !== 0 && p.items) {
+                // If editing an existing PO, exclude that PO's items from the subtracted quantity
+                if (editingPO && p.id === editingPO.id) return;
+                p.items.forEach((item: PurchaseItem) => {
+                    const pid = Number(item.plateid);
+                    const q = Number(item.qty) || 0;
+                    map.set(pid, (map.get(pid) || 0) + q);
+                });
             }
         });
-        return allSubplates.filter((sp) => !orderedPlateIds.has(sp.id));
-    }, [allSubplates, purchases]);
+        return map;
+    }, [purchases, editingPO]);
+
+    // Helper to calculate exact remaining quantity for any subplate
+    const getPlateRemainingQty = useCallback(
+        (plateId: number | string | undefined | null) => {
+            if (!plateId) return null;
+            const numId = Number(plateId);
+            const sp = allSubplates.find((p) => p.id === numId);
+            if (!sp) return null;
+            const total = Number(sp.sqty) || 1;
+            // Use API remaining_qty if present and not editing, or compute using orderedQtyByPlateId
+            const ordered = orderedQtyByPlateId.get(numId) ?? (sp.ordered_qty ?? 0);
+            return Math.max(0, total - ordered);
+        },
+        [allSubplates, orderedQtyByPlateId],
+    );
+
+    // Pending Purchase List Logic
+    // Subplates that still have positive remaining quantity to procure (remaining_qty > 0)
+    const pendingPlates = useMemo(() => {
+        return allSubplates.filter((sp) => {
+            const rem = getPlateRemainingQty(sp.id);
+            return rem === null || rem > 0;
+        });
+    }, [allSubplates, getPlateRemainingQty]);
+
+    // Subplate dropdown options for the currently selected mould
+    const subplateOptions = useMemo(() => {
+        return platesForSelectedProject.map((sp) => {
+            const remQty = getPlateRemainingQty(sp.id);
+            const isFullyOrdered = remQty !== null && remQty <= 0;
+            return {
+                value: sp.id,
+                label: sp.platename,
+                badge: remQty !== null ? `Rem: ${remQty} / Req: ${sp.sqty}` : `Qty: ${sp.sqty}`,
+                badgeVariant: remQty !== null && remQty > 0 ? ("amber" as const) : ("slate" as const),
+                disabled: isFullyOrdered,
+                disabledReason: isFullyOrdered ? "Fully Ordered" : undefined,
+            };
+        });
+    }, [platesForSelectedProject, getPlateRemainingQty]);
 
     // Toggle row expansion for child items
     const toggleRow = (id: number) => {
@@ -312,7 +378,7 @@ function PurchasePageContent() {
             ...prev,
             items: [
                 ...prev.items,
-                { plateid: "", material: "", materialtype: "", qty: 1 },
+                { plateid: "", material: "", materialtype: "", qty: 1, rate: "" },
             ],
         }));
     };
@@ -329,7 +395,7 @@ function PurchasePageContent() {
     // Update specific item field
     const handleUpdateItem = (
         index: number,
-        field: "plateid" | "material" | "materialtype" | "qty",
+        field: "plateid" | "material" | "materialtype" | "qty" | "rate",
         value: string | number,
     ) => {
         setFormData((prev) => {
@@ -359,6 +425,9 @@ function PurchasePageContent() {
         const foundPlate = allSubplates.find(
             (sp: Subplate) => sp.id === Number(plateId),
         );
+        const remQty = getPlateRemainingQty(plateId);
+        const defaultQty = remQty !== null && remQty > 0 ? remQty : (foundPlate?.sqty || 1);
+
         setFormData((prev) => {
             const updated = [...prev.items];
             if (foundPlate) {
@@ -379,12 +448,13 @@ function PurchasePageContent() {
                     // Matching purchase/index.blade.php:822: $("#materialtype").val(data.material)
                     materialtype: foundPlate.material || "",
                     material: dims,
-                    qty: foundPlate.sqty || 1,
+                    qty: defaultQty,
                 };
             } else {
                 updated[index] = {
                     ...updated[index],
                     plateid: Number(plateId),
+                    qty: defaultQty,
                 };
             }
             return { ...prev, items: updated };
@@ -410,6 +480,9 @@ function PurchasePageContent() {
                     : "";
         }
 
+        const remPresetQty = presetPlate ? getPlateRemainingQty(presetPlate.id) : null;
+        const initialQty = remPresetQty !== null && remPresetQty > 0 ? remPresetQty : (presetPlate?.sqty || 1);
+
         const presetDims = presetPlate
             ? [
                   presetPlate.width ?? "",
@@ -432,7 +505,8 @@ function PurchasePageContent() {
                           plateid: presetPlate.id,
                           material: presetDims,
                           materialtype: presetPlate.material || "",
-                          qty: presetPlate.sqty || 1,
+                          qty: initialQty,
+                          rate: "",
                       },
                   ]
                 : [
@@ -441,6 +515,7 @@ function PurchasePageContent() {
                           material: "",
                           materialtype: "",
                           qty: 1,
+                          rate: "",
                       },
                   ],
         });
@@ -463,6 +538,7 @@ function PurchasePageContent() {
                       material: it.material || "",
                       materialtype: it.materialtype || "",
                       qty: it.qty || 1,
+                      rate: it.rate !== null && it.rate !== undefined ? it.rate : "",
                   }))
                 : [
                       {
@@ -470,6 +546,7 @@ function PurchasePageContent() {
                           material: "",
                           materialtype: "",
                           qty: 1,
+                          rate: "",
                       },
                   ],
         });
@@ -1360,7 +1437,12 @@ function PurchasePageContent() {
                                                     </span>
                                                 </td>
                                                 <td className="py-3 px-3 text-center font-bold text-slate-800 ">
-                                                    {sp.sqty}
+                                                    {getPlateRemainingQty(sp.id) !== null ? getPlateRemainingQty(sp.id) : sp.sqty}
+                                                    {getPlateRemainingQty(sp.id) !== null && getPlateRemainingQty(sp.id) !== sp.sqty && (
+                                                        <span className="block text-[10px] text-slate-400 font-normal">
+                                                            of {sp.sqty} total
+                                                        </span>
+                                                    )}
                                                 </td>
                                                 <td className="py-3 px-4 text-right">
                                                     <button
@@ -1456,7 +1538,8 @@ function PurchasePageContent() {
                             ? "Modify purchase order details, supplier, and plate line items"
                             : "Generate a new raw material purchase order with vendor details and line items"
                     }
-                    size="xl"
+                    size="3xl"
+                    className="sm:max-w-[760px] w-full"
                 >
                     <form
                         onSubmit={handleSubmitPO}
@@ -1469,8 +1552,8 @@ function PurchasePageContent() {
                             </div>
                         )}
 
-                        {/* Header Fields */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Header Fields (2x2 on desktop, stacked on mobile) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                             {/* Order Date */}
                             <div>
                                 <label className="block font-medium text-slate-700 mb-1">
@@ -1500,26 +1583,19 @@ function PurchasePageContent() {
                                     Supplier Name (vname){" "}
                                     <span className="text-rose-500">*</span>
                                 </label>
-                                <select
+                                <ERPSelect
                                     required
                                     value={formData.vname}
-                                    onChange={(e) =>
+                                    onChange={(val) =>
                                         setFormData((p) => ({
                                             ...p,
-                                            vname: Number(e.target.value),
+                                            vname: Number(val),
                                         }))
                                     }
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
-                                >
-                                    <option value="" disabled>
-                                        Select Supplier / Vendor
-                                    </option>
-                                    {vendors.map((v) => (
-                                        <option key={v.id} value={v.id}>
-                                            {v.customername} ({v.initials})
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={vendorOptions}
+                                    placeholder="Select Supplier / Vendor"
+                                    searchPlaceholder="Search supplier or initials..."
+                                />
                             </div>
 
                             {/* Customer Name */}
@@ -1528,13 +1604,11 @@ function PurchasePageContent() {
                                     Customer Name (cname){" "}
                                     <span className="text-rose-500">*</span>
                                 </label>
-                                <select
+                                <ERPSelect
                                     required
                                     value={formData.cname}
-                                    onChange={(e) => {
-                                        const newCid = e.target.value
-                                            ? Number(e.target.value)
-                                            : "";
+                                    onChange={(val) => {
+                                        const newCid = val ? Number(val) : "";
                                         setFormData((p) => ({
                                             ...p,
                                             cname: newCid,
@@ -1545,21 +1619,15 @@ function PurchasePageContent() {
                                                     material: "",
                                                     materialtype: "",
                                                     qty: 1,
+                                                    rate: "",
                                                 },
                                             ],
                                         }));
                                     }}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
-                                >
-                                    <option value="" disabled>
-                                        Select Customer
-                                    </option>
-                                    {clients.map((c) => (
-                                        <option key={c.id} value={c.id}>
-                                            {c.customername} ({c.initials})
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={customerOptions}
+                                    placeholder="Select Customer"
+                                    searchPlaceholder="Search customer..."
+                                />
                             </div>
 
                             {/* Mould Name (projectid) */}
@@ -1568,11 +1636,11 @@ function PurchasePageContent() {
                                     Mould Name (projectid){" "}
                                     <span className="text-rose-500">*</span>
                                 </label>
-                                <select
+                                <ERPSelect
                                     required
                                     value={formData.projectid}
-                                    onChange={(e) => {
-                                        const newProj = e.target.value;
+                                    onChange={(val) => {
+                                        const newProj = String(val || "");
                                         setFormData((p) => ({
                                             ...p,
                                             projectid: newProj,
@@ -1583,27 +1651,17 @@ function PurchasePageContent() {
                                             })),
                                         }));
                                     }}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
-                                >
-                                    <option value="" disabled>
-                                        {!formData.cname
+                                    options={mouldOptions}
+                                    placeholder={
+                                        !formData.cname
                                             ? "Select Customer First"
                                             : availableMoulds.length === 0
                                               ? "No active moulds found for this customer"
-                                              : "Select Mould Project"}
-                                    </option>
-                                    {availableMoulds.map((s) => (
-                                        <option
-                                            key={s.id}
-                                            value={s.projectid || ""}
-                                        >
-                                            {s.projectid}{" "}
-                                            {s.description
-                                                ? `— ${s.description}`
-                                                : ""}
-                                        </option>
-                                    ))}
-                                </select>
+                                              : "Select Mould Project"
+                                    }
+                                    searchPlaceholder="Search mould project ID..."
+                                    disabled={!formData.cname || availableMoulds.length === 0}
+                                />
                             </div>
                         </div>
 
@@ -1632,88 +1690,88 @@ function PurchasePageContent() {
                             </div>
 
                             <div className="space-y-3">
-                                {formData.items.map((item, idx) => (
-                                    <div
-                                        key={idx}
-                                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 relative"
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <span className="font-mono text-[11px] font-bold text-slate-500">
-                                                #0{idx + 1}
-                                            </span>
-                                            {formData.items.length > 1 && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleRemovePlateRow(
-                                                            idx,
-                                                        )
-                                                    }
-                                                    className="text-rose-500 hover:text-rose-700 p-1"
-                                                    title="Remove item"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            )}
-                                        </div>
+                                {formData.items.map((item, idx) => {
+                                    const rowSubplateOptions = subplateOptions.map((opt) => {
+                                        const isSelectedInOtherRow = formData.items.some(
+                                            (it, i) => i !== idx && Number(it.plateid) === Number(opt.value)
+                                        );
+                                        return {
+                                            ...opt,
+                                            disabled: opt.disabled || isSelectedInOtherRow,
+                                            disabledReason: isSelectedInOtherRow ? "Already added" : opt.disabledReason,
+                                        };
+                                    });
 
-                                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-                                            {/* Plate Selector */}
-                                            <div className="sm:col-span-4">
-                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium">
-                                                    Subplate{" "}
-                                                    <span className="text-rose-500">
-                                                        *
+                                    return (
+                                        <div
+                                            key={idx}
+                                            className="p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5 relative shadow-2xs"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-mono text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-2 py-0.5 rounded-md shadow-2xs">
+                                                        #{String(idx + 1).padStart(2, "0")}
                                                     </span>
-                                                </label>
-                                                <select
-                                                    required
-                                                    value={item.plateid}
-                                                    onChange={(e) =>
-                                                        handleSelectPlate(
-                                                            idx,
-                                                            e.target.value
-                                                                ? Number(
-                                                                      e.target
-                                                                          .value,
-                                                                  )
-                                                                : "",
-                                                        )
-                                                    }
-                                                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none text-xs"
-                                                >
-                                                    <option value="" disabled>
-                                                        {!formData.projectid
-                                                            ? "Select Mould first"
-                                                            : platesForSelectedProject.length ===
-                                                                0
-                                                              ? "No plates found for this mould"
-                                                              : "Select Subplate"}
-                                                    </option>
-                                                    {platesForSelectedProject.map((sp) => {
-                                                        const isSelectedInOtherRow = formData.items.some(
-                                                            (it, i) => i !== idx && Number(it.plateid) === sp.id
-                                                        );
-                                                        return (
-                                                            <option
-                                                                key={sp.id}
-                                                                value={sp.id}
-                                                                disabled={isSelectedInOtherRow}
-                                                            >
-                                                                {sp.platename} (qty: {sp.sqty})
-                                                                {isSelectedInOtherRow ? " — (Already added)" : ""}
-                                                            </option>
-                                                        );
-                                                    })}
-                                                </select>
+                                                    <span className="text-[11px] text-slate-400 hidden sm:inline">
+                                                        Line Item
+                                                    </span>
+                                                </div>
+                                                {formData.items.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            handleRemovePlateRow(
+                                                                idx,
+                                                            )
+                                                        }
+                                                        className="inline-flex items-center gap-1 text-[11px] text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2 py-1 rounded-md transition"
+                                                        title="Remove item"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                        <span className="hidden sm:inline font-medium">Remove</span>
+                                                    </button>
+                                                )}
                                             </div>
 
-                                            {/* Material Type (READONLY - Auto-populated from linked subplate's material) */}
-                                            {/* Source: purchase/index.blade.php:822: name="materialtype[]" readonly */}
-                                            <div className="sm:col-span-2">
-                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium">
+                                            <div className="grid grid-cols-12 gap-2.5 sm:gap-3 items-end">
+                                                {/* 1. Subplate Selector */}
+                                                <div className="col-span-12 sm:col-span-7">
+                                                    <label className="block text-[11px] text-slate-600 mb-1 font-medium">
+                                                        Subplate{" "}
+                                                        <span className="text-rose-500">
+                                                            *
+                                                        </span>
+                                                    </label>
+                                                    <ERPSelect
+                                                        required
+                                                        value={item.plateid}
+                                                        onChange={(val) =>
+                                                            handleSelectPlate(
+                                                                idx,
+                                                                val ? Number(val) : "",
+                                                            )
+                                                        }
+                                                        options={rowSubplateOptions}
+                                                        placeholder={
+                                                            !formData.projectid
+                                                                ? "Select Mould first"
+                                                                : platesForSelectedProject.length === 0
+                                                                  ? "No plates found for this mould"
+                                                                  : "Select Subplate"
+                                                        }
+                                                        searchPlaceholder="Search subplate..."
+                                                        disabled={
+                                                            !formData.projectid ||
+                                                            platesForSelectedProject.length === 0
+                                                        }
+                                                    />
+                                                </div>
+
+                                            {/* 2. Material Type (READONLY) */}
+                                            <div className="col-span-6 sm:col-span-5">
+                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium truncate" title="Material Type (Auto-populated)">
                                                     Material Type{" "}
-                                                    <span className="text-[10px] text-slate-400 font-normal">
+                                                    <span className="text-[10px] text-slate-400 font-normal hidden sm:inline">
                                                         (Readonly)
                                                     </span>
                                                 </label>
@@ -1722,16 +1780,15 @@ function PurchasePageContent() {
                                                     readOnly
                                                     value={item.materialtype}
                                                     placeholder="Auto from plate"
-                                                    className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-xs cursor-not-allowed font-medium select-none"
+                                                    className="w-full px-2.5 py-1.5 sm:py-2 bg-slate-100/90 border border-slate-200 rounded-lg text-slate-700 text-xs cursor-not-allowed font-medium select-none truncate"
                                                     title="Material type is read-only and auto-populated from the selected subplate"
                                                 />
                                             </div>
 
-                                            {/* Dimensions / Required Material */}
-                                            {/* Source: purchase/index.blade.php:828: name="material[]" */}
-                                            <div className="sm:col-span-3">
-                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium">
-                                                    Required Material / Dims
+                                            {/* 3. Dimensions / Required Material */}
+                                            <div className="col-span-6 sm:col-span-6">
+                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium truncate" title="Required Material / Dimensions">
+                                                    Req. Material / Dims
                                                 </label>
                                                 <input
                                                     type="text"
@@ -1744,14 +1801,13 @@ function PurchasePageContent() {
                                                         )
                                                     }
                                                     placeholder="e.g. 955 x 955 x 65 mm"
-                                                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none text-xs"
+                                                    className="w-full px-2.5 py-1.5 sm:py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs text-slate-800"
                                                 />
                                             </div>
 
-                                            {/* Remaining Qty (sqty) - Readonly display */}
-                                            {/* Source: purchase/index.blade.php:844: id="sqty" disabled */}
-                                            <div className="sm:col-span-1">
-                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium text-center">
+                                            {/* 4. Remaining Qty (sqty) */}
+                                            <div className="col-span-4 sm:col-span-2">
+                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium text-center truncate" title="Remaining Quantity">
                                                     Rem. Qty
                                                 </label>
                                                 <input
@@ -1759,22 +1815,17 @@ function PurchasePageContent() {
                                                     disabled
                                                     value={
                                                         item.plateid
-                                                            ? (subplates.find(
-                                                                  (sp) =>
-                                                                      sp.id ===
-                                                                      item.plateid,
-                                                              )?.sqty ?? "—")
+                                                            ? (getPlateRemainingQty(item.plateid) ?? "—")
                                                             : "—"
                                                     }
-                                                    className="w-full px-2 py-1.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 text-xs cursor-not-allowed font-mono text-center"
+                                                    className="w-full px-2 py-1.5 sm:py-2 bg-slate-100/90 border border-slate-200 rounded-lg text-slate-700 text-xs cursor-not-allowed font-mono font-bold text-center"
                                                     title="Remaining quantity to order"
                                                 />
                                             </div>
 
-                                            {/* Order Qty (qty) */}
-                                            {/* Source: purchase/index.blade.php:834: name="qty[]" */}
-                                            <div className="sm:col-span-2">
-                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium">
+                                            {/* 5. Order Qty (qty) */}
+                                            <div className="col-span-4 sm:col-span-2">
+                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium text-center truncate">
                                                     Order Qty{" "}
                                                     <span className="text-rose-500">
                                                         *
@@ -1794,12 +1845,39 @@ function PurchasePageContent() {
                                                             ),
                                                         )
                                                     }
-                                                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg focus:outline-none text-xs text-center font-bold"
+                                                    className="w-full px-2 py-1.5 sm:py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs text-center font-bold text-slate-800"
+                                                />
+                                            </div>
+
+                                            {/* 6. Rate (₹) / Price (Optional) */}
+                                            <div className="col-span-4 sm:col-span-2">
+                                                <label className="block text-[11px] text-slate-600 mb-1 font-medium text-right truncate">
+                                                    Rate (₹){" "}
+                                                    <span className="text-[10px] text-slate-400 font-normal">
+                                                        (Opt)
+                                                    </span>
+                                                </label>
+                                                <input
+                                                    type="number"
+                                                    min={0}
+                                                    step="any"
+                                                    value={item.rate !== undefined && item.rate !== null ? item.rate : ""}
+                                                    onChange={(e) =>
+                                                        handleUpdateItem(
+                                                            idx,
+                                                            "rate",
+                                                            e.target.value === "" ? "" : Number(e.target.value),
+                                                        )
+                                                    }
+                                                    placeholder=""
+                                                    className="w-full px-2.5 py-1.5 sm:py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-xs text-right font-medium text-slate-800"
+                                                    title="Leave empty to display '—' in the PO voucher"
                                                 />
                                             </div>
                                         </div>
                                     </div>
-                                ))}
+                                );
+                            })}
                             </div>
                         </div>
 

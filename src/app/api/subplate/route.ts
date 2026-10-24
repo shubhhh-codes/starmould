@@ -57,7 +57,38 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: pError.message }, { status: 500 });
       }
 
-      const leanRes = NextResponse.json({ subplates: plates || [] });
+      const plateList = plates || [];
+      const plateIds = plateList.map((p) => p.id);
+      const orderedMap: Record<number, number> = {};
+
+      if (plateIds.length > 0) {
+        const { data: orderedRows } = await supabaseAdmin
+          .from("purchase_items")
+          .select("plateid, qty, purchase:pid!inner(status)")
+          .in("plateid", plateIds)
+          .neq("purchase.status", "0");
+
+        if (orderedRows) {
+          orderedRows.forEach((row: any) => {
+            const pid = Number(row.plateid);
+            const q = Number(row.qty) || 0;
+            orderedMap[pid] = (orderedMap[pid] || 0) + q;
+          });
+        }
+      }
+
+      const enrichedPlates = plateList.map((p) => {
+        const ordered = orderedMap[p.id] || 0;
+        const total = Number(p.sqty) || 1;
+        const remaining = Math.max(0, total - ordered);
+        return {
+          ...p,
+          ordered_qty: ordered,
+          remaining_qty: remaining,
+        };
+      });
+
+      const leanRes = NextResponse.json({ subplates: enrichedPlates });
       leanRes.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
       return leanRes;
     }

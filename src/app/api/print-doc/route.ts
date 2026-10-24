@@ -236,7 +236,7 @@ export async function GET(req: NextRequest) {
             material: it.material || (sp ? `${sp.width}x${sp.height}x${sp.length} ${sp.unit || "mm"}` : "—"),
             materialtype: it.materialtype || sp?.material || "MS-Bright",
             qty: it.qty || 1,
-            rate: it.rate || 0,
+            rate: it.rate !== null && it.rate !== undefined && it.rate !== "" ? Number(it.rate) : null,
             hsn: it.hsn || "72284000",
           };
         }),

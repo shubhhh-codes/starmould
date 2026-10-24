@@ -145,6 +145,8 @@ export interface Subplate {
   packing_at: string | null;
   packing_photo: string | null;
   location: string;
+  ordered_qty?: number;
+  remaining_qty?: number;
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +172,7 @@ export interface PurchaseItem {
   material: string; // dimensions/spec
   materialtype: string; // Aluminium, MS-Black, etc.
   qty: number;
+  rate?: number | null;
   platename?: string;
   created_at?: string;
   updated_at?: string;

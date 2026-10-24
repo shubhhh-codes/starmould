@@ -10,7 +10,7 @@ export interface POItem {
   material?: string;
   materialtype?: string;
   qty: number;
-  rate?: number;
+  rate?: number | null;
   hsn?: string;
   discount?: number;
 }
@@ -344,7 +344,7 @@ export function PurchaseOrderVoucher({
               </div>
 
               <div
-                className="w-[710px] border overflow-hidden"
+                className="w-[710px] border overflow-hidden mb-[16px]"
                 style={{ borderColor: TEAL_BORDER }}
               >
                 <table className="w-full border-collapse text-[9.5px]">
@@ -410,11 +410,6 @@ export function PurchaseOrderVoucher({
                     )}
                   </tbody>
                 </table>
-              </div>
-
-              {/* Footnote matching PDF */}
-              <div className="text-[8.5px] italic text-[#4a575e] mt-[4px] mb-[16px]">
-                Rates are given for reference only, in Indian Rupees (₹).
               </div>
             </div>
 

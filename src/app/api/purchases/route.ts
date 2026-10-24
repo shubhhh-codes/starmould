@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     if (pids.length > 0) {
       const { data: itemRows, error: itErr } = await supabaseAdmin
         .from("purchase_items")
-        .select("id, pid, plateid, material, materialtype, qty, created_at, updated_at")
+        .select("id, pid, plateid, material, materialtype, qty, rate, created_at, updated_at")
         .in("pid", pids);
 
       if (itErr) {
@@ -188,6 +188,7 @@ export async function POST(req: NextRequest) {
       material: it.material || "",
       materialtype: it.materialtype || "",
       qty: Number(it.qty) || 1,
+      rate: it.rate !== undefined && it.rate !== null && it.rate !== "" ? Number(it.rate) : null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }));
@@ -265,6 +266,7 @@ export async function PUT(req: NextRequest) {
 
     // Update existing items or insert new items
     for (const it of items) {
+      const parsedRate = it.rate !== undefined && it.rate !== null && it.rate !== "" ? Number(it.rate) : null;
       if (it.id && existingIds.has(Number(it.id))) {
         await supabaseAdmin
           .from("purchase_items")
@@ -273,6 +275,7 @@ export async function PUT(req: NextRequest) {
             material: it.material || "",
             materialtype: it.materialtype || "",
             qty: Number(it.qty) || 1,
+            rate: parsedRate,
             updated_at: new Date().toISOString(),
           })
           .eq("id", Number(it.id));
@@ -285,6 +288,7 @@ export async function PUT(req: NextRequest) {
             material: it.material || "",
             materialtype: it.materialtype || "",
             qty: Number(it.qty) || 1,
+            rate: parsedRate,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           });
