@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
 
       return {
         ...w,
-        customername: cust?.customername || (isNaN(Number(w.customerid)) ? w.customerid : `Customer #${w.customerid}`),
+        customername: cust?.customername || (!w.customerid ? "Unknown Customer" : isNaN(Number(w.customerid)) ? w.customerid : `Customer #${w.customerid}`),
         customer_initials: cust?.initials || "",
         workername: usr?.name || usr?.username || `User #${w.userid}`,
         worker_initials: usr?.initials || "—",
@@ -239,6 +239,7 @@ export async function POST(req: NextRequest) {
     }
 
     invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
 
     return NextResponse.json(
       { worklog: data, message: "Worklog created successfully" },
@@ -334,6 +335,7 @@ export async function PUT(req: NextRequest) {
     }
 
     invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
 
     return NextResponse.json({
       worklog: data,
@@ -385,6 +387,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     invalidateCache("api_counts_all");
+    invalidateCache("subplates_worklog_lookup");
 
     return NextResponse.json({ success: true, message: "Worklog deleted successfully" });
   } catch (err: unknown) {

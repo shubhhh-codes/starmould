@@ -63,7 +63,8 @@ export async function GET(req: NextRequest) {
       const { data: itemRows, error: itErr } = await supabaseAdmin
         .from("purchase_items")
         .select("id, pid, plateid, material, materialtype, qty, rate, created_at, updated_at")
-        .in("pid", pids);
+        .in("pid", pids)
+        .limit(10000);
 
       if (itErr) {
         return NextResponse.json({ error: itErr.message }, { status: 500 });

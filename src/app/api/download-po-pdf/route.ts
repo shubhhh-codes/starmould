@@ -14,7 +14,7 @@ function findChromePath(): string {
     "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
   ];
   for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
+    if (fs.existsSync(/*turbopackIgnore: true*/ c)) return c;
   }
   return "chrome";
 }

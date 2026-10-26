@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
             .from("challan_items")
             .select("*")
             .in("challanid", challanIds.slice(0, 500))
+            .limit(10000)
         : Promise.resolve({ data: [] }),
       challanIds.length > 0
         ? supabaseAdmin

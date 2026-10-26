@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
       const { data: rItems } = await supabaseAdmin
         .from("purchase_inward_items")
         .select("*")
-        .in("inpid", receiptIds);
+        .in("inpid", receiptIds)
+        .limit(10000);
       receiptItems = rItems || [];
     }
 

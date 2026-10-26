@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
             .from("inward_items")
             .select("*")
             .in("inchallanid", inwardIds.slice(0, 500))
+            .limit(10000)
         : Promise.resolve({ data: [] }),
       supabaseAdmin
         .from("view_pending_inward_qty")

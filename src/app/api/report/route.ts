@@ -47,7 +47,8 @@ export async function GET(req: NextRequest) {
         .from("worklog")
         .select("id, projectid, work_hr, rdate, customerid")
         .in("projectid", Object.keys(DOWNTIME_PROJECTS))
-        .order("rdate", { ascending: true });
+        .order("rdate", { ascending: true })
+        .limit(10000);
 
       if (year && /^\d{4}$/.test(year)) {
         query = query.gte("rdate", `${year}-01-01`).lte("rdate", `${year}-12-31`);

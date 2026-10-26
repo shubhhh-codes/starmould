@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
 
         return {
           ...s,
-          customername: cust?.customername || (!s.cname ? "Unknown Customer" : isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
+          customername: cust?.customername || ((!s.cname || String(s.cname).trim() === "") ? "Unknown Customer" : isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
           customer_initials: cust?.initials || "",
           scan_by_name: scanUser?.initials || scanUser?.name || "—",
           qc_by_name: qcUser?.initials || qcUser?.name || "—",
@@ -344,6 +344,7 @@ export async function GET(req: NextRequest) {
               .from("worklog")
               .select("scan_print_id, design_hr, program_hr, machine_hr, driltap_hr, qc_hr, work_hr")
               .in("scan_print_id", scanIds)
+              .limit(10000)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -382,7 +383,7 @@ export async function GET(req: NextRequest) {
 
         return {
           ...s,
-          customername: cust?.customername || (!s.cname ? "Unknown Customer" : isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
+          customername: cust?.customername || ((!s.cname || String(s.cname).trim() === "") ? "Unknown Customer" : isNaN(Number(s.cname)) ? s.cname : `Customer #${s.cname}`),
           customer_initials: cust?.initials || "",
           scan_by_name: scanUser?.initials || scanUser?.name || "—",
           qc_by_name: qcUser?.initials || qcUser?.name || "—",

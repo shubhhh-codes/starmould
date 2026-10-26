@@ -296,7 +296,7 @@ export async function generateDatabaseBackup(options: BackupOptions = {}): Promi
 
     if (saveToDisk) {
       try {
-        if (!fs.existsSync(targetDir)) {
+        if (!fs.existsSync(/*turbopackIgnore: true*/ targetDir)) {
           fs.mkdirSync(targetDir, { recursive: true });
         }
 
@@ -312,12 +312,12 @@ export async function generateDatabaseBackup(options: BackupOptions = {}): Promi
 
         // Automatic backup retention cleanup (delete backups older than retentionDays)
         try {
-          const files = fs.readdirSync(targetDir);
+          const files = fs.readdirSync(/*turbopackIgnore: true*/ targetDir);
           const cutoffTime = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
           for (const file of files) {
             if (file.startsWith("starmould_backup_") && (file.endsWith(".sql") || file.endsWith(".json"))) {
-              const fullPath = path.join(targetDir, file);
-              const stats = fs.statSync(fullPath);
+              const fullPath = path.join(/*turbopackIgnore: true*/ targetDir, file);
+              const stats = fs.statSync(/*turbopackIgnore: true*/ fullPath);
               if (stats.mtimeMs < cutoffTime) {
                 fs.unlinkSync(fullPath);
               }
