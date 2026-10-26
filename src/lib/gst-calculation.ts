@@ -14,6 +14,8 @@
 export type TaxType = "gst_18" | "exempt" | "cgst_sgst" | "igst";
 
 export interface GSTCalculationResult {
+  subtotalAmount: number;
+  discountAmount: number;
   taxableAmount: number;
   taxRate: number;
   taxType: TaxType;
@@ -42,9 +44,10 @@ export function calculateLineTotal(qty: number | string, unitPrice: number | str
 export function calculateGST(
   items: ItemCalculationInput[],
   taxType: TaxType,
-  _taxRate: number = 18
+  _taxRate: number = 18,
+  discount: number = 0
 ): GSTCalculationResult {
-  let taxablePaise = 0;
+  let subtotalPaise = 0;
   for (const item of items) {
     let linePaise: number;
     if (item.total_amount !== undefined && item.total_amount !== null && item.total_amount !== "") {
@@ -55,13 +58,18 @@ export function calculateGST(
       linePaise = Math.round(q * p * 100);
     }
     if (!isNaN(linePaise)) {
-      taxablePaise += linePaise;
+      subtotalPaise += linePaise;
     }
   }
+
+  const discountPaise = Math.round((Number(discount) || 0) * 100);
+  const taxablePaise = Math.max(0, subtotalPaise - discountPaise);
 
   if (taxType === "exempt") {
     const grandTotalPaise = taxablePaise;
     return {
+      subtotalAmount: subtotalPaise / 100,
+      discountAmount: discountPaise / 100,
       taxableAmount: taxablePaise / 100,
       taxRate: 0,
       taxType: "exempt",
@@ -82,6 +90,8 @@ export function calculateGST(
   const halfPaise = Math.round(gstPaise / 2);
 
   return {
+    subtotalAmount: subtotalPaise / 100,
+    discountAmount: discountPaise / 100,
     taxableAmount: taxablePaise / 100,
     taxRate: 18,
     taxType: "gst_18",

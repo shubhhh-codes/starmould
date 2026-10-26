@@ -62,7 +62,19 @@ export async function GET(req: NextRequest) {
         .eq("quotation_id", id)
         .order("sr_no", { ascending: true });
 
-      return NextResponse.json({ quotation: { ...quote, items: items || [] } });
+      let customerCode = quote.customer_code || null;
+      if (!customerCode && quote.customer_id) {
+        const { data: cust } = await supabaseAdmin
+          .from("customers")
+          .select("customer_code, initials")
+          .eq("id", quote.customer_id)
+          .single();
+        if (cust) {
+          customerCode = cust.customer_code || cust.initials || null;
+        }
+      }
+
+      return NextResponse.json({ quotation: { ...quote, customer_code: customerCode, items: items || [] } });
     }
 
     let query = supabaseAdmin
@@ -104,9 +116,22 @@ export async function GET(req: NextRequest) {
       allItems = itemsData || [];
     }
 
-    const enrichedQuotes = quotationList.map((q) => ({
+    const customerIds = Array.from(new Set(quotationList.map((q: any) => q.customer_id).filter(Boolean)));
+    const custMap = new Map<number, string>();
+    if (customerIds.length > 0) {
+      const { data: custs } = await supabaseAdmin
+        .from("customers")
+        .select("id, customer_code, initials")
+        .in("id", customerIds);
+      for (const c of custs || []) {
+        custMap.set(c.id, c.customer_code || c.initials || "");
+      }
+    }
+
+    const enrichedQuotes = quotationList.map((q: any) => ({
       ...q,
-      items: allItems.filter((it) => it.quotation_id === q.id),
+      customer_code: q.customer_code || (q.customer_id ? custMap.get(q.customer_id) : null) || null,
+      items: allItems.filter((it: any) => it.quotation_id === q.id),
     }));
 
     const totalCount = count ?? quotationList.length;
@@ -149,7 +174,6 @@ export async function POST(req: NextRequest) {
       consignee_pan,
       consignee_phone,
       consignee_email,
-      state_code,
       subject,
       reference,
       tax_type,
@@ -190,7 +214,8 @@ export async function POST(req: NextRequest) {
       finalQuotationNo = await generateNextQuotationNo();
     }
 
-    const gst = calculateGST(items, tax_type || "gst_18");
+    const discountVal = Number(body.discount_amount) || 0;
+    const gst = calculateGST(items, tax_type || "gst_18", 18, discountVal);
     const calculatedWords = amountInWords(gst.grandTotal);
 
     const { data: newQuote, error: qErr } = await supabaseAdmin
@@ -205,12 +230,12 @@ export async function POST(req: NextRequest) {
         consignee_pan: consignee_pan || null,
         consignee_phone: consignee_phone || null,
         consignee_email: consignee_email || null,
-        state_code: state_code || "24 - Gujarat",
         subject: subject || null,
         reference: reference || null,
         tax_type: gst.taxType,
         tax_rate: gst.taxRate,
         taxable_amount: gst.taxableAmount,
+        discount_amount: discountVal,
         cgst_amount: gst.cgstAmount,
         sgst_amount: gst.sgstAmount,
         igst_amount: gst.igstAmount,
@@ -293,7 +318,6 @@ export async function PATCH(req: NextRequest) {
       consignee_pan,
       consignee_phone,
       consignee_email,
-      state_code,
       subject,
       reference,
       tax_type,
@@ -365,7 +389,6 @@ export async function PATCH(req: NextRequest) {
         consignee_pan,
         consignee_phone,
         consignee_email,
-        state_code,
         subject,
         reference,
         tax_type: gst.taxType,

@@ -99,7 +99,6 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const [consigneePan, setConsigneePan] = useState("");
   const [consigneePhone, setConsigneePhone] = useState("");
   const [consigneeEmail, setConsigneeEmail] = useState("");
-  const [stateCode, setStateCode] = useState("24 - Gujarat");
   const [subject, setSubject] = useState("");
   const [reference, setReference] = useState("");
 
@@ -108,8 +107,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     { sr_no: 1, product_description: "", qty: 1, unit: "Nos", unit_price: "", total_amount: 0 },
   ]);
 
-  // Tax
+  // Tax & Discount
   const [taxType, setTaxType] = useState<TaxType>("gst_18");
+  const [discountAmount, setDiscountAmount] = useState<number | string>(0);
 
   // Bank
   const [showBankDetails, setShowBankDetails] = useState(false);
@@ -197,10 +197,10 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       setConsigneePan(initialQuotation.consignee_pan || "");
       setConsigneePhone(initialQuotation.consignee_phone || "");
       setConsigneeEmail(initialQuotation.consignee_email || "");
-      setStateCode(initialQuotation.state_code || "24 - Gujarat");
       setSubject(initialQuotation.subject || "");
       setReference(initialQuotation.reference || "");
       setTaxType(initialQuotation.tax_type || "gst_18");
+      setDiscountAmount(initialQuotation.discount_amount || 0);
       setBankName(initialQuotation.bank_name || "Central Bank Of India");
       setBankAccountNo(initialQuotation.bank_account_no || "5875819245");
       setBankIfsc(initialQuotation.bank_ifsc || "CBIN0281313");
@@ -251,10 +251,10 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       setConsigneePan("");
       setConsigneePhone("");
       setConsigneeEmail("");
-      setStateCode("24 - Gujarat");
       setSubject("");
       setReference("");
       setTaxType("gst_18");
+      setDiscountAmount(0);
       setItems([{ sr_no: 1, product_description: "", qty: 1, unit: "Nos", unit_price: "", total_amount: 0 }]);
       setStatus("Draft");
       setIncludeDigitalStamp(true);
@@ -313,13 +313,6 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     setConsigneePhone(c.mobile || c.mobile1 || "");
     setConsigneeEmail(c.email || "");
 
-    if (c.gstin && c.gstin.length >= 2) {
-      const prefix = c.gstin.substring(0, 2);
-      setStateCode(prefix === "24" ? "24 - Gujarat" : `${prefix} - Other State`);
-    } else {
-      setStateCode("24 - Gujarat");
-    }
-
     // Automatically fetch full fresh profile by ID and fallback to previous quotation
     try {
       if (c.id) {
@@ -334,10 +327,6 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
             if (full.pan) setConsigneePan(full.pan);
             if (full.mobile || full.mobile1) setConsigneePhone(full.mobile || full.mobile1);
             if (full.email) setConsigneeEmail(full.email);
-            if (full.gstin && full.gstin.length >= 2) {
-              const prefix = full.gstin.substring(0, 2);
-              setStateCode(prefix === "24" ? "24 - Gujarat" : `${prefix} - Other State`);
-            }
           }
         }
       }
@@ -354,7 +343,6 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
             setConsigneePan((cur) => cur || prevQuote.consignee_pan || "");
             setConsigneePhone((cur) => cur || prevQuote.consignee_phone || "");
             setConsigneeEmail((cur) => cur || prevQuote.consignee_email || "");
-            if (prevQuote.state_code) setStateCode((cur) => cur || prevQuote.state_code);
           }
         }
       }
@@ -392,9 +380,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   };
 
   // Totals calculations via Indian GST Calculation Engine
-  const { taxableAmount, gstAmount, cgstAmount, sgstAmount, igstAmount, grandTotal } = calculateGST(
+  const { taxableAmount, gstAmount, cgstAmount, sgstAmount, igstAmount, grandTotal, subtotalAmount } = calculateGST(
     items,
-    taxType
+    taxType,
+    taxType === "exempt" ? 0 : 18,
+    Number(discountAmount) || 0
   );
   const inWords = amountInWords(grandTotal);
 
@@ -424,11 +414,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         consignee_pan: consigneePan,
         consignee_phone: consigneePhone,
         consignee_email: consigneeEmail,
-        state_code: stateCode,
         subject,
         reference,
         tax_type: taxType,
         tax_rate: taxType === "exempt" ? 0 : 18,
+        discount_amount: Number(discountAmount) || 0,
         taxable_amount: taxableAmount,
         cgst_amount: cgstAmount,
         sgst_amount: sgstAmount,
@@ -936,6 +926,22 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
 
               <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-2 text-xs font-medium">
                 <div className="flex justify-between text-slate-600">
+                  <span>Subtotal</span>
+                  <span className="font-mono font-bold text-slate-800">₹ {formatINRTwoDecimals(subtotalAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600 gap-2">
+                  <span>Discount (₹)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0.00"
+                    value={discountAmount === 0 ? "" : discountAmount}
+                    onChange={(e) => setDiscountAmount(e.target.value)}
+                    className="w-28 text-right px-2 py-1 border border-slate-300 rounded text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex justify-between text-slate-600">
                   <span>Taxable Amount</span>
                   <span className="font-mono font-bold text-slate-800">₹ {formatINRTwoDecimals(taxableAmount)}</span>
                 </div>
@@ -1421,23 +1427,6 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                   </div>
                 </div>
               )}
-            </div>
-
-            {/* DIGITAL STAMP & ANNEXURE NOTE */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 p-4 bg-blue-50/60 rounded-xl border border-blue-200">
-              <label className="flex items-center gap-2.5 text-xs font-semibold text-slate-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeDigitalStamp}
-                  onChange={(e) => setIncludeDigitalStamp(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
-                />
-                Include Stamp & Signature
-              </label>
-
-              <div className="text-[11px] text-blue-800 font-medium">
-                Standard terms & conditions (Annexure-I) are included automatically.
-              </div>
             </div>
 
             {/* Footer Buttons */}

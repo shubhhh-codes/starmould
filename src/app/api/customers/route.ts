@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
     const executeFetch = async () => {
       let query = supabaseAdmin
         .from("customers")
-        .select("id, customername, initials, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, contact_person, status_of_beneficiary, created_at, updated_at", { count: "exact" })
+        .select("id, customername, initials, customer_code, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, contact_person, status_of_beneficiary, created_at, updated_at", { count: "exact" })
         .is("deleted_at", null)
         .order("id", { ascending: false });
 
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
         query = query.eq("usertype", usertype);
       }
       if (search) {
-        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,vendor_code.ilike.%${search}%,city.ilike.%${search}%,gstin.ilike.%${search}%,contact_person.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
+        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,customer_code.ilike.%${search}%,vendor_code.ilike.%${search}%,city.ilike.%${search}%,gstin.ilike.%${search}%,contact_person.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
       }
 
       if (page && page > 0) {
@@ -228,6 +228,7 @@ export async function POST(req: NextRequest) {
         {
           customername: cleanName,
           initials: cleanInitials,
+          customer_code: body.customer_code?.trim() || cleanInitials,
           mobile: mobile?.trim() || null,
           mobile1: mobile1?.trim() || null,
           email: email?.trim() || null,
@@ -357,6 +358,7 @@ export async function PUT(req: NextRequest) {
       mobile1: mobile1?.trim() || null,
       email: email?.trim() || null,
       address: address?.trim() || null,
+      customer_code: body.customer_code !== undefined ? (body.customer_code?.trim() || null) : undefined,
       vendor_code: vendor_code !== undefined ? (vendor_code?.trim() || null) : undefined,
       city: city !== undefined ? (city?.trim() || null) : undefined,
       gstin: gstin !== undefined ? (gstin?.trim()?.toUpperCase() || null) : undefined,

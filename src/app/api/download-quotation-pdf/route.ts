@@ -5,6 +5,8 @@ import { verifySecurePrintToken } from "@/lib/print-token";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
+import { calculateGST, formatINRTwoDecimals } from "@/lib/gst-calculation";
+import { amountInWords } from "@/lib/number-to-words";
 
 function findChromePath(): string {
   const candidates = [
@@ -20,7 +22,7 @@ function findChromePath(): string {
 }
 
 function formatDate(dateStr?: string): string {
-  if (!dateStr) return "-";
+  if (!dateStr) return "—";
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;
@@ -33,40 +35,51 @@ function formatDate(dateStr?: string): string {
     const day = parts.find((p) => p.type === "day")?.value || "";
     const month = parts.find((p) => p.type === "month")?.value || "";
     const year = parts.find((p) => p.type === "year")?.value || "";
-    return `${day}-${month}-${year}`;
+    return `${day}/${month}/${year}`;
   } catch {
     return dateStr;
   }
 }
 
-function formatINR(val?: number): string {
-  if (val === undefined || val === null || isNaN(val)) return "0.00";
-  return Number(val).toLocaleString("en-IN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+// ─── Company constants ─────────────────────────────────────────────────────────
+const COMPANY = {
+  name: "STARMOULD TECHNOLOGY PRIVATE LIMITED",
+  displayName: "Starmould Technology Private Limited",
+  address1: "G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,",
+  address2: "Rajkot-360 021. (Gujarat) INDIA.",
+  cin: "U25910GJ2023PTC142461",
+  gstin: "24ABLCS1427Q1ZV",
+  pan: "ABLCS1427Q",
+  mobile: "8238451671",
+  email: "starmoulda@yahoo.in",
+  website: "www.starmould.in",
+} as const;
 
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req);
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const { searchParams } = new URL(req.url);
     const token = searchParams.get("token");
     let id = searchParams.get("id");
+    let isTokenValid = false;
 
     if (token) {
       const decoded = verifySecurePrintToken(token);
       if (decoded) {
         id = decoded.id;
+        isTokenValid = true;
       }
     } else if (id && id.includes(".")) {
       const decoded = verifySecurePrintToken(id);
       if (decoded) {
         id = decoded.id;
+        isTokenValid = true;
+      }
+    }
+
+    if (!isTokenValid) {
+      const auth = await authenticateRequest(req);
+      if ("error" in auth) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
       }
     }
 
@@ -86,6 +99,40 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
     }
 
+    // Fetch customer code
+    let customerCode = "—";
+    if (quote.customer_id) {
+      const { data: cust } = await supabaseAdmin
+        .from("customers")
+        .select("customer_code, initials, customername")
+        .eq("id", quote.customer_id)
+        .maybeSingle();
+
+      if (cust) {
+        customerCode =
+          cust.customer_code ||
+          cust.initials ||
+          (cust.customername
+            ? cust.customername
+                .trim()
+                .split(/\s+/)
+                .map((w: string) => w[0]?.toUpperCase())
+                .filter(Boolean)
+                .slice(0, 4)
+                .join("")
+            : "—");
+      }
+    } else if (quote.consignee_name) {
+      customerCode =
+        quote.consignee_name
+          .trim()
+          .split(/\s+/)
+          .map((w: string) => w[0]?.toUpperCase())
+          .filter(Boolean)
+          .slice(0, 4)
+          .join("") || "—";
+    }
+
     // Fetch line items
     const { data: items } = await supabaseAdmin
       .from("quotation_items")
@@ -94,8 +141,33 @@ export async function GET(req: NextRequest) {
       .order("sr_no", { ascending: true });
 
     const quoteItems = items || [];
+    const discountVal = Number(quote.discount_amount) || 0;
 
-    // Read Cover image
+    // Financial calculations
+    const {
+      subtotalAmount,
+      discountAmount,
+      taxableAmount,
+      cgstAmount,
+      sgstAmount,
+      igstAmount,
+      grandTotal,
+    } = calculateGST(
+      quoteItems.map((it) => ({
+        qty: it.qty,
+        unit_price: it.unit_price,
+        total_amount: it.total_amount,
+      })),
+      quote.tax_type || "gst_18",
+      quote.tax_type === "exempt" ? 0 : 18,
+      discountVal
+    );
+
+    const inWords = amountInWords(grandTotal);
+    const isIntraState = !quote.consignee_gstin || quote.consignee_gstin.trim().startsWith("24");
+    const isExempt = quote.tax_type === "exempt";
+
+    // Read Cover as Base64
     let coverDataUrl = "";
     try {
       const coverPath = path.join(process.cwd(), "public", "images", "quotation-cover.jpg");
@@ -105,7 +177,7 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    // Read Logo
+    // Read Logo as Base64
     let logoDataUrl = "";
     try {
       const logoPath = path.join(process.cwd(), "public", "images", "stpl-logo.png");
@@ -115,39 +187,113 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    // Read Stamp
+    // Read Stamp as Base64 (Transparent PNG)
     let stampDataUrl = "";
     try {
-      const stampPath = path.join(process.cwd(), "public", "images", "starmould-stamp.jpg");
+      const stampPath = path.join(process.cwd(), "public", "images", "starmould-stamp.png");
       if (fs.existsSync(stampPath)) {
         const stampBuf = fs.readFileSync(stampPath);
-        stampDataUrl = `data:image/jpeg;base64,${stampBuf.toString("base64")}`;
+        stampDataUrl = `data:image/png;base64,${stampBuf.toString("base64")}`;
+      } else {
+        const fallbackPath = path.join(process.cwd(), "public", "images", "starmould-stamp.jpg");
+        if (fs.existsSync(fallbackPath)) {
+          const stampBuf = fs.readFileSync(fallbackPath);
+          stampDataUrl = `data:image/jpeg;base64,${stampBuf.toString("base64")}`;
+        }
       }
     } catch {}
 
-    const companyHeaderHTML = `
-      <div class="company-header">
-        <div class="logo-box">
-          ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Star Mould Logo" class="brand-logo" />` : `<div style="font-size:22px;font-weight:900;color:#0e7490;">STAR MOULD</div>`}
-        </div>
-        <div class="header-company-info">
-          <div class="since-text">SINCE 1995</div>
-          <div class="first-mould-text">(INDIA's First Pulp Mould Manufacturer)</div>
-          <div class="comp-name">STARMOULD TECHNOLOGY PVT. LTD.</div>
-          <div class="comp-sub">G-705, Near Swaminarayan Restaurant, Road -5, G.I.D.C. Metoda, Rajkot - 360021 Gujarat. India</div>
-          <div class="comp-sub">Phone No :- 98256 69459, 95865 33750</div>
-          <div class="comp-sub">Email :- starmoulda@yahoo.in , info.starmould@yahoo.in</div>
-          <div class="comp-sub">Website :- www.starmould.in</div>
-        </div>
-      </div>
-    `;
+    const consigneeName = quote.consignee_name || "—";
+    const consigneeAddress = quote.consignee_address || "—";
+    const consigneeGstin = quote.consignee_gstin || "—";
+    const consigneePan = quote.consignee_pan || "—";
+    const consigneePhone = quote.consignee_phone || "—";
+    const consigneeEmail = quote.consignee_email || "—";
+
+    const bankName = quote.bank_name || "Central Bank Of India";
+    const bankAccountNo = quote.bank_account_no || "5875819245";
+    const bankIfsc = quote.bank_ifsc || "CBIN0281313";
+    const bankBranch = quote.bank_branch || "Saurashtra University Branch";
+
+    const activeTerms = [
+      { label: "Price & GST", content: quote.price_terms },
+      { label: "Delivery Terms", content: quote.delivery_terms },
+      { label: "Payment Terms", content: quote.payment_terms },
+      { label: "Validity", content: quote.validity_terms },
+      { label: "Order Confirmation", content: quote.order_confirmation },
+      { label: "Warranty", content: quote.warranty_terms },
+      { label: "Jurisdiction", content: quote.jurisdiction_terms },
+      { label: "Force Majeure", content: quote.force_majeure },
+    ].filter((t) => Boolean(t.content && t.content.trim()));
+
+    // ── Annexure Detailed Manufacturer Terms (23 Clauses Split Across 2 Pages) ──
+    const ANNEXURE_TERMS_PART1 = [
+      { no: 1, title: "PRICE VALIDITY", text: "This quotation is valid for 30 days from the date of issue. After the validity period, prices are subject to change without prior notice." },
+      { no: 2, title: "PAYMENT TERMS", text: "50% advance payment is mandatory along with order confirmation. The remaining 50% balance must be cleared before dispatch/delivery of goods. Failure to make payment on time may delay delivery." },
+      { no: 3, title: "TAXES", text: "GST and all applicable government taxes will be charged extra as per prevailing rates at the time of billing." },
+      { no: 4, title: "ORDER CONFIRMATION", text: "Orders will be treated as confirmed only after receipt of advance payment and a written purchase order or email confirmation from the customer." },
+      { no: 5, title: "PRODUCTION & DELIVERY SCHEDULE", text: "Manufacturing will start only after confirmation and receipt of advance. Delivery timeline will be calculated from the confirmation date and is subject to availability of raw material and production capacity." },
+      { no: 6, title: "TRANSPORTATION, LOADING & UNLOADING", text: "Transportation, packing, loading, unloading, and insurance are chargeable extra unless mentioned otherwise in writing. Risk transfers to the buyer once goods leave our premises." },
+      { no: 7, title: "RAW MATERIAL PRICE FLUCTUATION", text: "Prices are based on current raw material rates. Any significant increase in raw material prices before production may result in price revision." },
+      { no: 8, title: "DESIGN, DRAWING & SAMPLE APPROVAL", text: "If applicable, all drawings, samples, specifications, and designs must be approved by the customer before production. Any changes after approval will attract additional charges and delivery time." },
+      { no: 9, title: "INSPECTION & ACCEPTANCE", text: "Goods must be inspected immediately upon receipt. Any complaints regarding damage, defect, or shortage must be reported within 24–48 hours of delivery. No claims will be entertained thereafter." },
+      { no: 10, title: "WARRANTY", text: "Warranty is applicable only against manufacturing defects, if specifically mentioned. Warranty does not cover damage due to misuse, mishandling, overloading, improper installation, external impact, or power fluctuations." },
+      { no: 11, title: "REJECTION POLICY", text: "Rejection of goods after acceptance will not be entertained. Any rejection must be mutually agreed upon in writing and returned at the customer's cost." },
+      { no: 12, title: "CANCELLATION POLICY", text: "Once manufacturing has started, the order cannot be cancelled under any circumstances. The advance amount shall be non-refundable." },
+    ];
+
+    const ANNEXURE_TERMS_PART2 = [
+      { no: 13, title: "NO RETURN / EXCHANGE", text: "Manufactured and custom-made goods are not eligible for return or exchange." },
+      { no: 14, title: "DELAY IN PAYMENT", text: "Any delay in payment beyond the agreed period will attract interest at 18% per annum, or as per industry standards." },
+      { no: 15, title: "PACKAGING", text: "Standard packaging will be provided. Special packaging, if required, will be charged extra." },
+      { no: 16, title: "QUANTITY VARIATION", text: "A production variance of ±5% in quantity is considered acceptable and shall be billed accordingly." },
+      { no: 17, title: "CONFIDENTIALITY", text: "All drawings, designs, specifications, and pricing shared are confidential and shall not be disclosed to third parties." },
+      { no: 18, title: "FORCE MAJEURE", text: "We shall not be responsible for delays or non-performance due to events beyond our control including but not limited to natural disasters, fire, strike, government restrictions, or power failure." },
+      { no: 19, title: "INTELLECTUAL PROPERTY", text: "All designs, molds, tools, and development work created by us shall remain our intellectual property unless otherwise agreed in writing." },
+      { no: 20, title: "LIABILITY LIMITATION", text: "Our liability is limited strictly to the value of the goods supplied. We are not liable for indirect, incidental, or consequential losses." },
+      { no: 21, title: "GOVERNING LAW & JURISDICTION", text: "All disputes shall be subject to the exclusive jurisdiction of the courts of Rajkot, Gujarat only." },
+      { no: 22, title: "ENTIRE AGREEMENT", text: "This quotation along with these terms constitutes the entire understanding between both parties and overrides all previous discussions or agreements." },
+      { no: 23, title: "ACCEPTANCE", text: "Placing an order against this quotation implies full acceptance of the above terms and conditions by the customer." },
+    ];
+
+    const renderAnnexureHtml = (termsList: typeof ANNEXURE_TERMS_PART1) => {
+      const rows = termsList
+        .map(
+          (item, idx) => `
+            <tr style="background-color: ${idx % 2 === 0 ? "#f3f9fb" : "#ffffff"};">
+              <td class="annexure-td-title">${item.no}. ${item.title}:</td>
+              <td class="annexure-td-desc">${item.text}</td>
+            </tr>
+          `
+        )
+        .join("");
+
+      return `
+        <table class="annexure-table">
+          <thead>
+            <tr>
+              <th class="annexure-th" style="width: 215px; border-right: 1px solid rgba(255,255,255,0.4);">Clause / Subject</th>
+              <th class="annexure-th" style="width: 495px;">Terms &amp; Conditions Details</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
+    };
+
+    // ── Multi-page determination: Cover page + Commercial Quotation + Bank/Terms + Annexure-I (2 Pages) ──
+    const hasPage3 = true;
+    const totalPages = 5;
 
     const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8" />
-        <title>Quotation_${quote.quotation_no}</title>
+        <title>Quotation_${quote.quotation_no || quote.id}</title>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" />
         <style>
           @page {
             size: A4 portrait;
@@ -158,685 +304,1067 @@ export async function GET(req: NextRequest) {
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          body {
-            font-family: Arial, sans-serif;
+          html, body {
             margin: 0;
             padding: 0;
-            color: #111827;
-            background: #ffffff;
-            font-size: 11px;
-            line-height: 1.35;
+            background-color: #ffffff;
+            color: #1f2a30;
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
           }
-          .page {
-            width: 210mm;
-            min-height: 297mm;
-            max-height: 297mm;
-            height: 297mm;
-            page-break-after: always;
+          .a4-page {
+            width: 794px;
+            height: 1123px;
+            min-height: 1123px;
+            max-height: 1123px;
+            margin: 0 auto;
+            background: #ffffff;
             position: relative;
-            background: #ffffff;
-            overflow: hidden;
-          }
-          .page-inner {
-            padding: 10mm 15mm 12mm 15mm;
-            height: 100%;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
+            overflow: hidden;
+            page-break-after: always;
+            break-after: page;
           }
-          .cover-page {
-            width: 210mm;
-            height: 297mm;
-            padding: 0;
-            margin: 0;
+          .a4-page:last-child {
+            page-break-after: avoid;
+            break-after: avoid;
           }
           .cover-img {
-            width: 100%;
-            height: 100%;
+            width: 794px;
+            height: 1123px;
             object-fit: cover;
             display: block;
           }
-
-          /* Header Component */
-          .company-header {
-            text-align: center;
-            margin-bottom: 8px;
+          .top-stripe-teal {
+            height: 8px;
+            width: 794px;
+            background-color: #006181;
           }
-          .logo-box {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 2px;
+          .top-stripe-grey {
+            height: 4px;
+            width: 794px;
+            background-color: #62676b;
           }
-          .brand-logo {
-            height: 52px;
-            width: auto;
-            object-fit: contain;
+          .page-content {
+            padding: 20px 42px 0 42px;
+            width: 794px;
           }
-          .since-text {
-            font-size: 10px;
-            font-weight: bold;
-            color: #111;
-          }
-          .first-mould-text {
-            font-size: 9.5px;
-            font-weight: 600;
-            color: #222;
-          }
-          .comp-name {
-            font-size: 13.5px;
-            font-weight: 900;
-            letter-spacing: 0.5px;
-            color: #0f172a;
-            margin: 1px 0;
-          }
-          .comp-sub {
-            font-size: 9.5px;
-            color: #334155;
-            line-height: 1.25;
-          }
-
-          /* Bordered Boxes & Bars */
-          .tax-bar {
-            border: 1.5px solid #000;
-            padding: 4px 8px;
+          .header-row {
             display: flex;
             justify-content: space-between;
-            font-size: 10.5px;
-            font-weight: bold;
+            align-items: center;
+            margin-bottom: 28px;
+          }
+          .logo-img {
+            width: 240px;
+            height: auto;
+            display: block;
+          }
+          .title-text {
+            font-size: 26px;
+            font-weight: 800;
+            color: #006181;
+            letter-spacing: 0.5px;
+            line-height: 1;
             margin-bottom: 6px;
+            text-align: right;
           }
-          .tan-cin-grid {
-            margin-bottom: 10px;
-            font-size: 10px;
-            line-height: 1.4;
+          .title-underline {
+            height: 4px;
+            width: 175px;
+            background-color: #62676b;
+            margin-left: auto;
           }
-          .tan-cin-row {
+          .info-box {
+            width: 710px;
+            height: 48px;
+            border: 1px solid #bcd8e0;
+            border-radius: 10px;
+            background-color: #f3f9fb;
             display: flex;
-            gap: 12px;
+            margin-bottom: 16px;
+            overflow: hidden;
           }
-          .tan-cin-col {
-            width: 50%;
+          .info-col {
+            flex: 1;
+            padding: 6px 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
           }
-          .doc-title-bar {
-            text-align: center;
-            font-size: 15px;
-            font-weight: 900;
-            letter-spacing: 1px;
-            text-decoration: underline;
-            margin: 8px 0;
+          .info-label {
+            font-size: 8px;
+            font-weight: 700;
+            color: #006181;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+          }
+          .info-val {
+            font-size: 12px;
+            font-weight: 500;
+            color: #33414a;
+          }
+          .party-box {
+            width: 710px;
+            margin-bottom: 16px;
+          }
+          .party-header {
+            display: flex;
+            background-color: #006181;
+            height: 30px;
+          }
+          .party-header-cell {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            padding: 0 14px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #ffffff;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
           }
-          .quote-no-date-bar {
-            border: 1.5px solid #000;
+          .party-body {
+            display: flex;
+            background-color: #ffffff;
+          }
+          .party-col {
+            flex: 1;
+            padding: 10px 14px;
+            font-size: 9.5px;
+            line-height: 1.45;
+            color: #3d4a52;
+          }
+          .party-name {
+            font-size: 11px;
+            font-weight: 700;
+            color: #1f2a30;
+            margin-bottom: 2px;
+          }
+          .bold-label {
+            font-weight: 700;
+            color: #1f2a30;
+          }
+          .section-heading {
+            width: 710px;
+            height: 28px;
+            background-color: #e6f2f6;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #006181;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+          }
+          .table-wrap {
+            width: 710px;
+            border: 1px solid #bcd8e0;
+            margin-bottom: 14px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9.5px;
+          }
+          th {
+            background-color: #006181;
+            color: #ffffff;
+            height: 34px;
+            font-size: 9.5px;
+            font-weight: 600;
+            border-right: 1px solid rgba(255, 255, 255, 0.4);
+            padding: 0 8px;
+          }
+          th:last-child {
+            border-right: none;
+          }
+          td {
+            height: 34px;
+            border-top: 1px solid #bcd8e0;
+            border-right: 1px solid #bcd8e0;
+            font-size: 9.5px;
             padding: 4px 8px;
+          }
+          td:last-child {
+            border-right: none;
+          }
+          .row-even {
+            background-color: #f3f9fb;
+          }
+          .row-odd {
+            background-color: #ffffff;
+          }
+          .td-center {
+            text-align: center;
+          }
+          .td-left {
+            text-align: left;
+            padding: 0 12px;
+          }
+          .td-right {
+            text-align: right;
+            padding: 0 12px;
+          }
+          .totals-row {
+            width: 710px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 14px;
+            gap: 16px;
+          }
+          .words-box {
+            width: 370px;
+            border: 1px solid #bcd8e0;
+            border-radius: 10px;
+            background-color: #f3f9fb;
+            padding: 10px 14px;
+          }
+          .words-label {
+            font-size: 8px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #006181;
+            margin-bottom: 3px;
+          }
+          .words-text {
+            font-size: 9.5px;
+            font-weight: 600;
+            font-style: italic;
+            color: #1f2a30;
+            line-height: 1.4;
+          }
+          .totals-card {
+            width: 320px;
+            border: 1px solid #bcd8e0;
+            border-radius: 10px;
+            overflow: hidden;
+            font-size: 9.5px;
+          }
+          .calc-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 14px;
+            border-bottom: 1px solid #bcd8e0;
+            color: #3d4a52;
+          }
+          .grand-total-line {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 14px;
+            background-color: #f3f9fb;
+            color: #006181;
+            font-weight: 700;
+            font-size: 11px;
+          }
+          .footer-wrap {
+            width: 794px;
+            margin-top: auto;
+          }
+          .footer-navy-bar {
+            width: 794px;
+            padding: 7px 36px;
+            background-color: #1b2537;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #ffffff;
+          }
+          .footer-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .footer-divider-left {
+            width: 1px;
+            height: 32px;
+            background-color: rgba(255, 255, 255, 0.4);
+          }
+          .footer-comp-name {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: -0.2px;
+          }
+          .footer-comp-addr {
+            font-size: 7.5px;
+            color: rgba(255, 255, 255, 0.9);
+            line-height: 1.25;
+          }
+          .footer-right {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+          }
+          .footer-divider-right {
+            width: 1px;
+            height: 26px;
+            background-color: rgba(255, 255, 255, 0.4);
+          }
+          .footer-right-text {
+            font-size: 8px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            line-height: 1.3;
+          }
+          .bottom-white-margin {
+            width: 794px;
+            height: 10px;
+            background-color: #ffffff;
+          }
+          .page-badge {
+            font-size: 8.5px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 1px 6px;
+          }
+          /* Page 3 Styles */
+          .page3-header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1.5px solid #006181;
+            margin-bottom: 18px;
+          }
+          .bank-box {
+            width: 710px;
+            margin-bottom: 20px;
+          }
+          .bank-header {
+            height: 32px;
+            background-color: #006181;
+            color: #ffffff;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            padding-left: 14px;
+          }
+          .bank-grid {
+            border: 1px solid #bcd8e0;
+            border-top: none;
+            background-color: #f3f9fb;
+            padding: 12px 18px;
             display: flex;
             justify-content: space-between;
             font-size: 11px;
-            font-weight: bold;
-            margin-bottom: 12px;
           }
-
-          /* Details of Consignee */
-          .section-heading {
-            font-size: 11.5px;
-            font-weight: bold;
-            text-decoration: underline;
-            margin-bottom: 8px;
+          .bank-col {
+            flex: 1;
           }
-          .consignee-box {
+          .bank-col-label {
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #006181;
+            margin-bottom: 4px;
+          }
+          .terms-box {
+            width: 710px;
+            margin-bottom: 20px;
+          }
+          .terms-header {
+            height: 32px;
+            background-color: #006181;
+            color: #ffffff;
+            font-size: 10.5px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            padding-left: 14px;
+          }
+          .terms-body {
+            border: 1px solid #bcd8e0;
+            border-top: none;
+            background-color: #ffffff;
+            padding: 10px 18px;
+          }
+          .term-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 10.5px;
+            line-height: 1.5;
+          }
+          .term-row:last-child {
+            border-bottom: none;
+          }
+          .term-label {
+            width: 160px;
+            flex-shrink: 0;
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #1f2a30;
+          }
+          .term-content {
+            flex: 1;
+            font-size: 10.5px;
+            color: #3d4a52;
+            white-space: pre-line;
+          }
+          .notes-strip {
+            width: 710px;
+            border: 1px solid #bcd8e0;
+            border-radius: 8px;
+            background-color: #f3f9fb;
+            padding: 10px 18px;
+            margin-bottom: 20px;
+            font-size: 10px;
+            line-height: 1.5;
+            color: #3d4a52;
+          }
+          .sig-box {
+            width: 710px;
+            min-height: 185px;
+            border: 1px solid #bcd8e0;
+            border-radius: 10px;
+            background-color: #ffffff;
+            padding: 20px 26px 22px 26px;
             display: flex;
             justify-content: space-between;
             margin-bottom: 20px;
+            position: relative;
           }
-          .consignee-left {
-            width: 54%;
-            font-size: 10.5px;
-            line-height: 1.45;
-          }
-          .consignee-right {
-            width: 44%;
-            font-size: 10.5px;
-            line-height: 1.45;
-          }
-          .consignee-row {
+          .sig-col-left {
             display: flex;
-            margin-bottom: 3px;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 145px;
+            width: 320px;
           }
-          .consignee-lbl {
-            width: 95px;
-            font-weight: bold;
-          }
-          .consignee-val {
-            flex: 1;
-          }
-
-          /* Subject & Reference */
-          .subj-ref-section {
-            border-top: 1.5px solid #000;
-            border-bottom: 1.5px solid #000;
-            padding: 8px 0;
-            font-size: 10.5px;
-            line-height: 1.5;
-            margin-top: 10px;
-          }
-          .subj-ref-row {
+          .sig-col-right {
             display: flex;
-            margin-bottom: 2px;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: flex-end;
+            min-height: 145px;
           }
-          .subj-ref-lbl {
-            width: 85px;
-            font-weight: bold;
-          }
-          .subj-ref-val {
-            flex: 1;
-            font-weight: 600;
-          }
-
-          /* Table Styling (Page 3) */
-          .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 12px;
-          }
-          .items-table th, .items-table td {
-            border: 1px solid #000;
-            padding: 6px 8px;
-            font-size: 10.5px;
-          }
-          .items-table th {
-            font-weight: bold;
-            text-align: center;
-            background: #f8fafc;
-          }
-          .th-sr { width: 45px; }
-          .th-desc { text-align: left !important; }
-          .th-qty { width: 55px; text-align: center; }
-          .th-unit { width: 75px; text-align: right; }
-          .th-total { width: 95px; text-align: right; }
-
-          /* Bank & Totals Split (Page 3) */
-          .quote-bottom-split {
-            display: flex;
-            gap: 14px;
-            margin-bottom: 14px;
-          }
-          .split-left {
-            width: 58%;
-          }
-          .split-right {
-            width: 42%;
-          }
-          .bank-heading {
-            font-weight: bold;
-            text-decoration: underline;
-            margin-bottom: 4px;
-            font-size: 10.5px;
-          }
-          .bank-table {
-            width: 100%;
+          .sig-title {
             font-size: 10px;
-            line-height: 1.4;
-            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: #006181;
           }
-          .bank-lbl { width: 100px; }
-          
-          .summary-terms-heading {
-            font-weight: bold;
-            text-decoration: underline;
-            margin-bottom: 4px;
-            font-size: 10px;
-          }
-          .summary-terms-list {
+          .sig-lines {
             font-size: 9.5px;
-            line-height: 1.35;
+            color: #4a575e;
+            line-height: 1.6;
+            padding-bottom: 4px;
           }
-
-          /* Totals Box */
-          .totals-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 16px;
-          }
-          .totals-table td {
-            border: 1px solid #000;
-            padding: 5px 8px;
-            font-size: 10.5px;
-          }
-          .totals-lbl {
-            font-weight: bold;
-            width: 55%;
-          }
-          .totals-val {
-            text-align: right;
-            font-weight: bold;
-            width: 45%;
-          }
-
-          /* Signatures */
-          .sig-box-right {
-            text-align: center;
-            margin-top: 16px;
-          }
-          .sig-comp-title {
-            font-size: 10.5px;
-            font-weight: bold;
-            margin-bottom: 6px;
+          .sig-stamp-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            width: 200px;
+            position: relative;
           }
           .stamp-wrap {
-            height: 75px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            margin-bottom: 6px;
+            pointer-events: none;
+            opacity: 0.90;
+            z-index: 10;
           }
           .stamp-img {
-            max-height: 75px;
-            width: auto;
+            width: 76px;
+            height: 76px;
+            max-width: 76px;
+            max-height: 76px;
             object-fit: contain;
+            display: block;
+            mix-blend-mode: multiply;
           }
-          .sig-auth-text {
+          .signatory-label {
             font-size: 10.5px;
-            font-weight: bold;
-            border-top: 1px dashed #444;
-            display: inline-block;
-            padding-top: 3px;
-            margin-top: 4px;
-            min-width: 130px;
-          }
-
-          /* Annexure Tables (Pages 4 & 5) */
-          .annexure-title {
+            font-weight: 700;
+            color: #1f2a30;
+            padding-top: 8px;
+            padding-bottom: 2px;
+            border-top: 1px solid #cbd5e1;
+            width: 100%;
             text-align: center;
-            font-size: 13px;
-            font-weight: 900;
+            z-index: 20;
+          }
+          .annexure-table {
+            width: 710px;
+            border: 1px solid #bcd8e0;
+            border-radius: 4px;
+            overflow: hidden;
+            border-collapse: collapse;
+          }
+          .annexure-th {
+            height: 28px;
+            background-color: #006181;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
             letter-spacing: 0.5px;
-            text-decoration: underline;
-            margin-bottom: 3px;
+            padding: 0 14px;
+            text-align: left;
           }
-          .annexure-sub {
-            text-align: center;
-            font-size: 11px;
-            font-weight: bold;
-            text-decoration: underline;
+          .annexure-td-title {
+            padding: 6px 12px;
+            font-size: 10px;
+            font-weight: 700;
+            color: #1f2a30;
+            border-top: 1px solid #bcd8e0;
+            border-right: 1px solid #bcd8e0;
+            vertical-align: top;
+            width: 215px;
+          }
+          .annexure-td-desc {
+            padding: 6px 14px;
+            font-size: 9.5px;
+            line-height: 1.5;
+            color: #3d4a52;
+            border-top: 1px solid #bcd8e0;
+            vertical-align: top;
+            width: 495px;
+          }
+          .annexure-banner {
+            width: 710px;
+            height: 28px;
+            background-color: #006181;
+            color: #ffffff;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
             margin-bottom: 10px;
           }
-          .terms-grid {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 9.5px;
-          }
-          .terms-grid td {
-            border: 1px solid #000;
-            padding: 5px 7px;
-            vertical-align: top;
-          }
-          .terms-col-no {
-            width: 34%;
-            font-weight: bold;
-            color: #0f172a;
-          }
-          .terms-col-desc {
-            width: 66%;
-            color: #1e293b;
-            line-height: 1.35;
-          }
-
-          .dual-signature-row {
+          .ack-box {
+            width: 710px;
+            margin-top: 14px;
+            border: 1px solid #bcd8e0;
+            border-radius: 8px;
+            background-color: #f3f9fb;
+            padding: 10px 16px;
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            margin-top: 25px;
-            padding: 0 10px;
-          }
-          .dual-sig-col {
-            text-align: center;
-            width: 200px;
-          }
-          .dual-sig-top {
-            font-size: 10.5px;
-            font-weight: bold;
-            text-decoration: underline;
-            margin-bottom: 8px;
+            gap: 16px;
           }
         </style>
       </head>
       <body>
 
-        <!-- PAGE 1: COVER PAGE -->
-        <div class="page cover-page">
-          ${coverDataUrl ? `<img src="${coverDataUrl}" alt="Quotation Cover" class="cover-img" />` : `<div style="padding:40px;text-align:center;"><h1>STARMOULD</h1><p>INDIA's 1st Pulp Tableware Mould Manufacturer</p></div>`}
+        <!-- ═══════════════════════════════════════════════════════════════════
+             PAGE 1: OFFICIAL CORPORATE COVER PAGE (EXACT A4 794px x 1123px)
+             ═══════════════════════════════════════════════════════════════════ -->
+        <div class="a4-page">
+          ${coverDataUrl ? `<img src="${coverDataUrl}" alt="Cover" class="cover-img" />` : `<div style="padding: 100px; text-align: center; font-size: 30px; font-weight: bold; color: #006181;">STARMOULD QUOTATION</div>`}
         </div>
 
-        <!-- PAGE 2: HEADER + CONSIGNEE + SUBJECT & REFERENCE -->
-        <div class="page">
-          <div class="page-inner">
-            ${companyHeaderHTML}
+        <!-- ═══════════════════════════════════════════════════════════════════
+             PAGE 2: COMMERCIAL OFFER (EXACT A4 794px x 1123px)
+             ═══════════════════════════════════════════════════════════════════ -->
+        <div class="a4-page">
+          <div>
+            <div class="top-stripe-teal"></div>
+            <div class="top-stripe-grey"></div>
 
-            <div class="tax-bar">
-              <div>GSTIN NO :- 24ABLCS1427Q1ZV</div>
-              <div>PAN NO :- ABLCS1427Q</div>
-            </div>
-
-            <div class="tan-cin-grid">
-              <div class="tan-cin-row">
-                <div class="tan-cin-col"><strong>CIN NO</strong> :- U25910GJ2023PTC142461</div>
-                <div class="tan-cin-col"><strong>TAN NO</strong> :- RKTS21097G</div>
-              </div>
-              <div class="tan-cin-row">
-                <div class="tan-cin-col"><strong>Udhyam No</strong> :- UDYAM-GJ-20-0186249</div>
-              </div>
-            </div>
-
-            <div class="doc-title-bar">QUOTATION</div>
-
-            <div class="quote-no-date-bar">
-              <div>Quotation No :- ${quote.quotation_no}</div>
-              <div>Date :- ${formatDate(quote.quotation_date)}</div>
-            </div>
-
-            <div class="section-heading">Details Of Consignee :-</div>
-
-            <div class="consignee-box">
-              <div class="consignee-left">
-                <div style="font-weight:bold;margin-bottom:4px;">M/S :-</div>
-                <div style="font-weight:bold;font-size:11.5px;margin-bottom:4px;">${quote.consignee_name}</div>
-                <div>${(quote.consignee_address || "").replace(/\n/g, "<br/>")}</div>
-              </div>
-
-              <div class="consignee-right">
-                <div class="consignee-row">
-                  <div class="consignee-lbl">GSTIN No</div>
-                  <div class="consignee-val">:- ${quote.consignee_gstin || "N/A"}</div>
+            <div class="page-content">
+              <div class="header-row">
+                <div style="width: 260px;">
+                  ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Star Mould" class="logo-img" />` : `<div style="font-size:24px;font-weight:800;color:#006181;">STAR MOULD</div>`}
                 </div>
-                <div class="consignee-row">
-                  <div class="consignee-lbl">PAN No</div>
-                  <div class="consignee-val">:- ${quote.consignee_pan || "N/A"}</div>
-                </div>
-                <div class="consignee-row">
-                  <div class="consignee-lbl">Telephone No</div>
-                  <div class="consignee-val">:- ${quote.consignee_phone || "N/A"}</div>
-                </div>
-                <div class="consignee-row">
-                  <div class="consignee-lbl">State Code</div>
-                  <div class="consignee-val">:- ${quote.state_code || "24 - Gujarat"}</div>
+                <div>
+                  <div class="title-text">QUOTATION</div>
+                  <div class="title-underline"></div>
                 </div>
               </div>
-            </div>
 
-            ${(Boolean(quote.subject?.trim()) || Boolean(quote.reference?.trim())) ? `
-            <div class="subj-ref-section">
-              ${quote.subject?.trim() ? `
-              <div class="subj-ref-row">
-                <div class="subj-ref-lbl">Subject</div>
-                <div class="subj-ref-val">:- ${quote.subject.trim()}</div>
-              </div>` : ''}
-              ${quote.reference?.trim() ? `
-              <div class="subj-ref-row">
-                <div class="subj-ref-lbl">Reference</div>
-                <div class="subj-ref-val">:- ${quote.reference.trim()}</div>
-              </div>` : ''}
-            </div>` : ''}
-          </div>
-        </div>
+              <div class="info-box">
+                <div class="info-col">
+                  <div class="info-label">QUOTATION NO.</div>
+                  <div class="info-val">${quote.quotation_no || "—"}</div>
+                </div>
+                <div class="info-col">
+                  <div class="info-label">QUOTATION DATE</div>
+                  <div class="info-val">${formatDate(quote.quotation_date)}</div>
+                </div>
+                <div class="info-col">
+                  <div class="info-label">CUSTOMER CODE</div>
+                  <div class="info-val">${customerCode}</div>
+                </div>
+              </div>
 
-        <!-- PAGE 3: PARTICULARS TABLE + BANK DETAILS + QUICK T&C + TOTALS & SIGNATURE -->
-        <div class="page">
-          <div class="page-inner">
-            ${companyHeaderHTML}
-
-            <div class="quote-no-date-bar">
-              <div>Quotation No :- ${quote.quotation_no}</div>
-              <div>Date :- ${formatDate(quote.quotation_date)}</div>
-            </div>
-
-            <table class="items-table">
-              <thead>
-                <tr>
-                  <th class="th-sr">Sr. no.</th>
-                  <th class="th-desc">Product Description</th>
-                  <th class="th-qty">Qty</th>
-                  <th class="th-unit">Unit Price</th>
-                  <th class="th-total">Total amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${quoteItems.map((it: any, idx: number) => `
-                  <tr>
-                    <td style="text-align:center;">${idx + 1}</td>
-                    <td>${(it.product_description || "").replace(/\n/g, "<br/>")}</td>
-                    <td style="text-align:center;">${it.qty}</td>
-                    <td style="text-align:right;">₹ ${formatINR(it.unit_price)}</td>
-                    <td style="text-align:right;">₹ ${formatINR(it.total_amount)}</td>
-                  </tr>
-                `).join("")}
-                ${Array.from({ length: Math.max(0, 5 - quoteItems.length) }).map(() => `
-                  <tr>
-                    <td style="text-align:center;">&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
-
-            <div class="quote-bottom-split">
-              <!-- Left: Bank Details & Quick T&C -->
-              <div class="split-left">
-                <div class="bank-heading">Bank Details :-</div>
-                <table class="bank-table">
-                  <tr>
-                    <td class="bank-lbl">Account No</td>
-                    <td>:- ${quote.bank_account_no || "5875819245"}</td>
-                  </tr>
-                  <tr>
-                    <td class="bank-lbl">IFSC Code</td>
-                    <td>:- ${quote.bank_ifsc || "CBIN0281313"}</td>
-                  </tr>
-                  <tr>
-                    <td class="bank-lbl">Bank Name</td>
-                    <td>:- ${quote.bank_name || "Central Bank Of India"}</td>
-                  </tr>
-                  <tr>
-                    <td class="bank-lbl">Branch Name</td>
-                    <td>:- ${quote.bank_branch || "Saurashtra University Branch"}</td>
-                  </tr>
-                  <tr>
-                    <td class="bank-lbl">Branch Address</td>
-                    <td>:- ${quote.bank_address || "Saurashtra University Campus, Rajkot"}</td>
-                  </tr>
-                </table>
-
-                ${(() => {
-                  const activeTerms: { label: string; text: string }[] = [];
-                  if (quote.price_terms?.trim()) activeTerms.push({ label: "Price Terms", text: quote.price_terms });
-                  if (quote.delivery_terms?.trim()) activeTerms.push({ label: "Delivery Terms", text: quote.delivery_terms });
-                  if (quote.payment_terms?.trim()) activeTerms.push({ label: "Payment Terms", text: quote.payment_terms });
-                  if (quote.validity_terms?.trim()) activeTerms.push({ label: "Validity", text: quote.validity_terms });
-                  if (quote.force_majeure?.trim()) activeTerms.push({ label: "Force Majeure", text: quote.force_majeure });
-                  if (quote.order_confirmation?.trim()) activeTerms.push({ label: "Order Confirmation", text: quote.order_confirmation });
-                  if (quote.warranty_terms?.trim()) activeTerms.push({ label: "Warranty", text: quote.warranty_terms });
-                  if (quote.jurisdiction_terms?.trim()) activeTerms.push({ label: "Jurisdiction", text: quote.jurisdiction_terms });
-
-                  if (activeTerms.length === 0) return "";
-
-                  return `
-                    <div class="summary-terms-heading">Terms & Conditions :=</div>
-                    <div class="summary-terms-list">
-                      ${activeTerms.map((term, idx) => `
-                        <div><strong>${idx + 1}. ${term.label} :-</strong> ${term.text}</div>
-                      `).join("")}
+              <div class="party-box">
+                <div class="party-header">
+                  <div class="party-header-cell">FROM / SUPPLIER</div>
+                  <div class="party-header-cell">CUSTOMER (QUOTATION TO)</div>
+                </div>
+                <div class="party-body">
+                  <div class="party-col">
+                    <div class="party-name">${COMPANY.name}</div>
+                    <div>${COMPANY.address1}</div>
+                    <div>${COMPANY.address2}</div>
+                    <div style="margin-top: 2px;">
+                      <span class="bold-label">CIN No:</span> ${COMPANY.cin}
                     </div>
-                  `;
-                })()}
-              </div>
-
-              <!-- Right: Totals Table & Authorized Signatory -->
-              <div class="split-right">
-                <table class="totals-table">
-                  <tr>
-                    <td class="totals-lbl">Taxable Amount</td>
-                    <td class="totals-val">₹ ${formatINR(quote.taxable_amount)}</td>
-                  </tr>
-                  ${quote.tax_type === "exempt" ? `
-                    <tr>
-                      <td class="totals-lbl">Tax (GST Free)</td>
-                      <td class="totals-val">₹ 0.00</td>
-                    </tr>
-                  ` : `
-                    <tr>
-                      <td class="totals-lbl">GST (18%)</td>
-                      <td class="totals-val">₹ ${formatINR(quote.igst_amount || ((quote.cgst_amount || 0) + (quote.sgst_amount || 0)) || Math.round(((quote.taxable_amount || 0) * 0.18) * 100) / 100)}</td>
-                    </tr>
-                  `}
-                  <tr style="background:#f1f5f9;">
-                    <td class="totals-lbl" style="font-size:11.5px;">Grand Total</td>
-                    <td class="totals-val" style="font-size:11.5px;">₹ ${formatINR(quote.grand_total)}</td>
-                  </tr>
-                </table>
-
-                <div class="sig-box-right">
-                  <div class="sig-comp-title">Starmould Technology PVT. LTD.</div>
-                  <div class="stamp-wrap">
-                    ${(quote.include_digital_stamp && stampDataUrl) ? `<img src="${stampDataUrl}" alt="Stamp" class="stamp-img" />` : `<div style="height:70px;"></div>`}
+                    <div>
+                      <span class="bold-label">GSTIN:</span> ${COMPANY.gstin} | <span class="bold-label">PAN:</span> ${COMPANY.pan}
+                    </div>
+                    <div>
+                      <span class="bold-label">Mobile:</span> ${COMPANY.mobile} | <span class="bold-label">Email:</span> ${COMPANY.email}
+                    </div>
                   </div>
-                  <div class="sig-auth-text">Authorise Signatory</div>
+                  <div class="party-col">
+                    <div class="party-name">${consigneeName}</div>
+                    <div style="white-space: pre-line;">${consigneeAddress}</div>
+                    <div style="margin-top: 2px;">
+                      <span class="bold-label">GSTIN:</span> ${consigneeGstin} | <span class="bold-label">PAN:</span> ${consigneePan}
+                    </div>
+                    <div>
+                      <span class="bold-label">Contact:</span> ${consigneePhone} | <span class="bold-label">Email:</span> ${consigneeEmail}
+                    </div>
+                  </div>
+                </div>
+                ${(Boolean(quote.subject?.trim()) || Boolean(quote.reference?.trim())) ? `
+                  <div style="border-top: 1px solid #bcd8e0; padding: 6px 14px; font-size: 9px; background: #f3f9fb;">
+                    ${quote.subject?.trim() ? `
+                      <div style="display: flex; margin-bottom: 2px;">
+                        <div style="width: 85px; font-weight: 700; color: #1f2a30;">Subject:</div>
+                        <div style="color: #3d4a52;">${quote.subject}</div>
+                      </div>
+                    ` : ""}
+                    ${quote.reference?.trim() ? `
+                      <div style="display: flex;">
+                        <div style="width: 85px; font-weight: 700; color: #1f2a30;">Reference:</div>
+                        <div style="color: #3d4a52;">${quote.reference}</div>
+                      </div>
+                    ` : ""}
+                  </div>
+                ` : ""}
+              </div>
+
+              <div class="section-heading">PARTICULARS</div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width: 38px; text-align: center;">#</th>
+                      <th style="width: 312px; text-align: left; padding: 0 12px;">Product / Particulars</th>
+                      <th style="width: 50px; text-align: center;">Qty</th>
+                      <th style="width: 50px; text-align: center;">Unit</th>
+                      <th style="width: 120px; text-align: right; padding: 0 12px;">Unit Price (₹)</th>
+                      <th style="width: 140px; text-align: right; padding: 0 12px;">Total Amount (₹)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${quoteItems.length === 0 ? `
+                      <tr>
+                        <td colspan="6" style="text-align: center; color: #94a3b8; font-style: italic; height: 42px;">
+                          No items found in this quotation.
+                        </td>
+                      </tr>
+                    ` : quoteItems.map((it, idx) => {
+                      const qty = Number(it.qty) || 1;
+                      const unit = it.unit || "Nos";
+                      const price = Number(it.unit_price) || 0;
+                      const total = it.total_amount !== undefined && it.total_amount !== null && it.total_amount !== ""
+                        ? Number(it.total_amount)
+                        : Math.round(qty * price * 100) / 100;
+                      const rowClass = idx % 2 === 0 ? "row-even" : "row-odd";
+
+                      return `
+                        <tr class="${rowClass}">
+                          <td class="td-center" style="color: #4a575e;">${idx + 1}</td>
+                          <td class="td-left">
+                            <div style="color: #1f2a30; font-weight: 500; white-space: pre-line;">${it.product_description}</div>
+                          </td>
+                          <td class="td-center" style="font-variant-numeric: tabular-nums; color: #3d4a52;">${qty}</td>
+                          <td class="td-center" style="color: #3d4a52;">${unit}</td>
+                          <td class="td-right" style="font-variant-numeric: tabular-nums; color: #3d4a52;">₹ ${formatINRTwoDecimals(price)}</td>
+                          <td class="td-right" style="font-variant-numeric: tabular-nums; font-weight: 600; color: #006181;">₹ ${formatINRTwoDecimals(total)}</td>
+                        </tr>
+                      `;
+                    }).join("")}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="totals-row">
+                <div class="words-box">
+                  <div class="words-label">Amount in Words</div>
+                  <div class="words-text">Rupees ${inWords} Only</div>
+                </div>
+
+                <div class="totals-card">
+                  <div class="calc-line">
+                    <span>Taxable Amount</span>
+                    <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(taxableAmount)}</span>
+                  </div>
+                  ${discountAmount > 0 ? `
+                    <div class="calc-line">
+                      <span>Discount</span>
+                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #e11d48;">-₹ ${formatINRTwoDecimals(discountAmount)}</span>
+                    </div>
+                  ` : ""}
+                  ${isExempt ? `
+                    <div class="calc-line">
+                      <span>Tax (GST Free)</span>
+                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #059669;">₹ 0.00</span>
+                    </div>
+                  ` : isIntraState ? `
+                    <div class="calc-line">
+                      <span>CGST (9%)</span>
+                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(cgstAmount)}</span>
+                    </div>
+                    <div class="calc-line">
+                      <span>SGST (9%)</span>
+                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(sgstAmount)}</span>
+                    </div>
+                  ` : `
+                    <div class="calc-line">
+                      <span>IGST (18%)</span>
+                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(igstAmount)}</span>
+                    </div>
+                  `}
+                  <div class="grand-total-line">
+                    <span style="letter-spacing: 0.5px; text-transform: uppercase;">GRAND TOTAL</span>
+                    <span style="font-variant-numeric: tabular-nums; font-size: 11.5px;">₹ ${formatINRTwoDecimals(grandTotal)}</span>
+                  </div>
+                </div>
+              </div>
+
+              ${hasPage3 ? `
+                <div style="width: 710px; margin-top: 18px; padding: 10px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+                  <span>Please refer to <strong>Page 3</strong> for Bank Remittance &amp; Signatures, and <strong>Pages 4–5</strong> for Annexure-I Terms.</span>
+                  <span style="font-weight: 600; color: #006181;">Turn Over &rarr;</span>
+                </div>
+              ` : ""}
+
+            </div>
+          </div>
+
+          <div class="footer-wrap">
+            <div class="footer-navy-bar">
+              <div class="footer-left">
+                <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+                </svg>
+                <div class="footer-divider-left"></div>
+                <div>
+                  <div class="footer-comp-name">${COMPANY.displayName}</div>
+                  <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
+                </div>
+              </div>
+
+              <div class="footer-right">
+                <div class="page-badge">Page 2 of ${totalPages}</div>
+                <div class="footer-divider-right"></div>
+                <div class="footer-right-text">
+                  <div>${COMPANY.email}</div>
+                  <div>${COMPANY.website}</div>
                 </div>
               </div>
             </div>
-
+            <div class="bottom-white-margin"></div>
           </div>
         </div>
 
-        <!-- PAGE 4: ANNEXURE - I (Part 1 - Points 1 to 12) -->
-        <div class="page">
-          <div class="page-inner">
-            ${companyHeaderHTML}
+        <!-- ═══════════════════════════════════════════════════════════════════
+             PAGE 3: TERMS, BANK DETAILS & AUTHORIZATION (EXACT A4 794px x 1123px)
+             ═══════════════════════════════════════════════════════════════════ -->
+        ${hasPage3 ? `
+          <div class="a4-page">
+            <div>
+              <div class="top-stripe-teal"></div>
+              <div class="top-stripe-grey"></div>
 
-            <div class="annexure-title">ANNEXURE - I</div>
-            <div class="annexure-sub">Terms & Conditions</div>
-
-            <table class="terms-grid">
-              <tbody>
-                <tr>
-                  <td class="terms-col-no">1. PRICE VALIDITY:</td>
-                  <td class="terms-col-desc">This quotation is valid for 10 days from the date of issue. After the validity period, prices are subject to change without prior notice.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">2. PAYMENT TERMS:</td>
-                  <td class="terms-col-desc">100% advance before dispatch of goods.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">3. TAXES:</td>
-                  <td class="terms-col-desc">GST and all applicable government taxes will be charged extra as per prevailing rates at the time of billing.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">4. ORDER CONFIRMATION:</td>
-                  <td class="terms-col-desc">Orders will be treated as confirmed only after receipt of advance payment and a written purchase order or email confirmation from the customer.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">5. PRODUCTION & DELIVERY SCHEDULE:</td>
-                  <td class="terms-col-desc">Manufacturing will start only after confirmation and receipt of advance. Delivery timeline will be calculated from the confirmation date and is subject to availability of raw material and production capacity.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">6. TRANSPORTATION, LOADING & UNLOADING:</td>
-                  <td class="terms-col-desc">Transportation, packing, loading, unloading, and insurance are chargeable extra unless mentioned otherwise in writing. Risk transfers to the buyer once goods leave our premises.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">7. RAW MATERIAL PRICE FLUCTUATION:</td>
-                  <td class="terms-col-desc">Prices are based on current raw material rates. Any significant increase in raw material rates before production may result in price revision.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">8. DESIGN, DRAWING & SAMPLE APPROVAL:</td>
-                  <td class="terms-col-desc">If applicable, all drawings, samples, specifications, and designs must be approved by the customer before production. Any changes after approval will attract additional charges and delivery time.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">9. INSPECTION & ACCEPTANCE:</td>
-                  <td class="terms-col-desc">Goods must be inspected immediately upon receipt. Any complaints regarding damage, defect, or shortage must be reported within 24–48 hours of delivery. No claims will be entertained thereafter.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">10. WARRANTY:</td>
-                  <td class="terms-col-desc">Warranty is applicable only against manufacturing defects, if specifically mentioned. Warranty does not cover damage due to misuse, mishandling, overloading, improper installation, external impact, or power fluctuations</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">11. REJECTION POLICY:</td>
-                  <td class="terms-col-desc">Rejection of goods after acceptance will not be entertained. Any rejection must be mutually agreed upon in writing and returned at the customer's cost.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">12. CANCELLATION POLICY:</td>
-                  <td class="terms-col-desc">Once manufacturing has started, the order cannot be cancelled under any circumstances. The advance amount shall be non-refundable.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- PAGE 5: ANNEXURE - I (Part 2 - Points 13 to 23) + DUAL SIGNATURES -->
-        <div class="page">
-          <div class="page-inner">
-            <div style="height: 15px;"></div>
-            <table class="terms-grid">
-              <tbody>
-                <tr>
-                  <td class="terms-col-no">13. NO RETURN / EXCHANGE:</td>
-                  <td class="terms-col-desc">Manufactured and custom-made goods are not eligible for return or exchange.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">14. DELAY IN PAYMENT:</td>
-                  <td class="terms-col-desc">Any delay in payment beyond the agreed period will attract interest at 18% per annum, or as per industry standards</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">15. PACKAGING:</td>
-                  <td class="terms-col-desc">Standard packaging will be provided. Special packaging, if required, will be charged extra.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">16. QUANTITY VARIATION:</td>
-                  <td class="terms-col-desc">A production variance of ±5% in quantity is considered acceptable and shall be billed accordingly.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">17. CONFIDENTIALITY:</td>
-                  <td class="terms-col-desc">All drawings, designs, specifications, and pricing shared are confidential and shall not be disclosed to third parties.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">18. FORCE MAJEURE:</td>
-                  <td class="terms-col-desc">We shall not be responsible for delays or non-performance due to events beyond our control including but not limited to natural disasters, fire, strike, government restrictions, or power failure</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">19. INTELLECTUAL PROPERTY :</td>
-                  <td class="terms-col-desc">All designs, molds, tools, and development work created by us shall remain our intellectual property unless otherwise agreed in writing.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">20. LIABILITY LIMITATION:</td>
-                  <td class="terms-col-desc">Our liability is limited strictly to the value of the goods supplied. We are not liable for indirect, incidental, or consequential losses.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">21. GOVERNING LAW & JURISDICTION:</td>
-                  <td class="terms-col-desc">All disputes shall be subject to the exclusive jurisdiction of the courts of Rajkot, Gujarat only.</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">22. ENTIRE AGREEMENT:</td>
-                  <td class="terms-col-desc">This quotation along with these terms constitutes the entire understanding between both parties and overrides all previous discussions or agreements</td>
-                </tr>
-                <tr>
-                  <td class="terms-col-no">23. ACCEPTANCE:</td>
-                  <td class="terms-col-desc">Placing an order against this quotation implies full acceptance of the above terms and conditions by the customer.</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div class="dual-signature-row">
-              <div class="dual-sig-col">
-                <div class="dual-sig-top">Receiver's Sign & Stamp</div>
-                <div style="height: 65px;"></div>
-                <div class="sig-auth-text">Authorise Signatory</div>
-              </div>
-
-              <div class="dual-sig-col">
-                <div class="dual-sig-top" style="text-decoration:none;">Starmould Technology PVT. LTD.</div>
-                <div class="stamp-wrap">
-                  ${(quote.include_digital_stamp && stampDataUrl) ? `<img src="${stampDataUrl}" alt="Stamp" class="stamp-img" />` : `<div style="height:65px;"></div>`}
+              <div class="page-content">
+                <div class="header-row" style="margin-bottom: 28px;">
+                  <div class="logo-box">
+                    ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Star Mould" class="logo-img" />` : `<div style="font-size:24px;font-weight:800;color:#006181;">STAR MOULD</div>`}
+                  </div>
+                  <div class="title-box">
+                    <div class="title-text" style="font-size: 22px;">TERMS &amp; AUTHORIZATION</div>
+                    <div class="title-underline" style="margin-bottom: 6px;"></div>
+                    <div style="font-size: 9.5px; color: #475569; font-weight: 500; text-align: right;">Annexure to Quotation No: <strong>${quote.quotation_no || "—"}</strong></div>
+                  </div>
                 </div>
-                <div class="sig-auth-text">Authorise Signatory</div>
+
+                <!-- Bank Details -->
+                <div class="bank-box">
+                  <div class="bank-header">BANK DETAILS FOR REMITTANCE</div>
+                  <div class="bank-grid">
+                    <div class="bank-col">
+                      <div class="bank-col-label">Bank Name</div>
+                      <div style="color: #1f2a30; font-weight: 600;">${bankName}</div>
+                    </div>
+                    <div class="bank-col">
+                      <div class="bank-col-label">Account Number</div>
+                      <div style="font-variant-numeric: tabular-nums; letter-spacing: 0.5px; color: #1f2a30; font-weight: 600;">${bankAccountNo}</div>
+                    </div>
+                    <div class="bank-col">
+                      <div class="bank-col-label">IFSC Code</div>
+                      <div style="font-variant-numeric: tabular-nums; letter-spacing: 0.5px; color: #1f2a30; font-weight: 600;">${bankIfsc}</div>
+                    </div>
+                    <div class="bank-col">
+                      <div class="bank-col-label">Branch &amp; City</div>
+                      <div style="color: #1f2a30; font-weight: 600;">${bankBranch}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Terms & Conditions -->
+                <div class="terms-box">
+                  <div class="terms-header">COMMERCIAL TERMS &amp; CONDITIONS</div>
+                  <div class="terms-body">
+                    ${activeTerms.map((t, idx) => `
+                      <div class="term-row">
+                        <div class="term-label">${idx + 1}. ${t.label}</div>
+                        <div class="term-content">${t.content}</div>
+                      </div>
+                    `).join("")}
+                  </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="notes-strip">
+                  <strong style="color: #006181;">SPECIAL NOTES:&nbsp;</strong>
+                  <span>Goods once manufactured / dispatched will not be accepted back or cancelled without prior mutual written consent. Payment delayed beyond agreed due date shall attract interest @ 18% per annum.</span>
+                </div>
+
+                <!-- Dual Signatures -->
+                <div class="sig-box">
+                  <div class="sig-col-left">
+                    <div class="sig-title">CUSTOMER ACCEPTANCE &amp; CONFIRMATION</div>
+                    
+                    <!-- Blank space for customer stamp -->
+                    <div style="height: 75px;"></div>
+
+                    <div class="sig-lines">
+                      <div>Authorized Signature: __________________________</div>
+                      <div>Name &amp; Designation: &nbsp;__________________________</div>
+                      <div>Date: __________________________</div>
+                    </div>
+                  </div>
+
+                  <div class="sig-col-right">
+                    <div class="sig-title" style="text-align: right;">FOR ${COMPANY.name}</div>
+                    <div class="sig-stamp-group">
+                      ${(quote.include_digital_stamp !== false && stampDataUrl) ? `
+                        <div class="stamp-wrap">
+                          <img src="${stampDataUrl}" alt="Stamp" class="stamp-img" />
+                        </div>
+                      ` : ""}
+                      <div class="signatory-label">Authorized Signatory</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Turn-over notice to Annexure-I -->
+                <div style="width: 710px; margin-top: 14px; padding: 8px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+                  <span>Please refer to <strong>Pages 4 &amp; 5</strong> for Annexure-I: Detailed Manufacturer Terms &amp; Conditions (Clauses 1 to 23).</span>
+                  <span style="font-weight: 600; color: #006181;">Annexure-I Next &rarr;</span>
+                </div>
+
               </div>
             </div>
+
+            <div class="footer-wrap">
+              <div class="footer-navy-bar">
+                <div class="footer-left">
+                  <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
+                    <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+                  </svg>
+                  <div class="footer-divider-left"></div>
+                  <div>
+                    <div class="footer-comp-name">${COMPANY.displayName}</div>
+                    <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
+                  </div>
+                </div>
+
+                <div class="footer-right">
+                  <div class="page-badge">Page 3 of ${totalPages}</div>
+                  <div class="footer-divider-right"></div>
+                  <div class="footer-right-text">
+                    <div>${COMPANY.email}</div>
+                    <div>${COMPANY.website}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="bottom-white-margin"></div>
+            </div>
+          </div>
+        ` : ""}
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             PAGE 4: ANNEXURE - I PART 1 (CLAUSES 1 TO 12)
+             ═══════════════════════════════════════════════════════════════════ -->
+        <div class="a4-page">
+          <div>
+            <div class="top-stripe-teal"></div>
+            <div class="top-stripe-grey"></div>
+
+            <div class="page-content">
+              <div class="header-row">
+                <div style="width: 260px;">
+                  ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Star Mould" class="logo-img" />` : `<div style="font-size:24px;font-weight:800;color:#006181;">STAR MOULD</div>`}
+                </div>
+                <div>
+                  <div class="title-text">ANNEXURE - I</div>
+                  <div class="title-underline"></div>
+                  <div style="font-size: 9.5px; color: #64748b; font-weight: 500; text-align: right; margin-top: 4px;">
+                    Terms &amp; Conditions &bull; Quotation: <strong>${quote.quotation_no || "—"}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="annexure-banner">
+                <span>DETAILED TERMS &amp; CONDITIONS – MANUFACTURER</span>
+                <span style="font-size: 9px; font-weight: 400; opacity: 0.85;">Part 1 (Clauses 1 to 12)</span>
+              </div>
+
+              ${renderAnnexureHtml(ANNEXURE_TERMS_PART1)}
+
+              <div style="width: 710px; margin-top: 14px; padding: 8px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+                <span>Continued on <strong>Page 5</strong> for Clauses 13 to 23 and Customer Final Acceptance.</span>
+                <span style="font-weight: 600; color: #006181;">Continued &rarr;</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer-wrap">
+            <div class="footer-navy-bar">
+              <div class="footer-left">
+                <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+                </svg>
+                <div class="footer-divider-left"></div>
+                <div>
+                  <div class="footer-comp-name">${COMPANY.displayName}</div>
+                  <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
+                </div>
+              </div>
+
+              <div class="footer-right">
+                <div class="page-badge">Page 4 of ${totalPages}</div>
+                <div class="footer-divider-right"></div>
+                <div class="footer-right-text">
+                  <div>${COMPANY.email}</div>
+                  <div>${COMPANY.website}</div>
+                </div>
+              </div>
+            </div>
+            <div class="bottom-white-margin"></div>
+          </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             PAGE 5: ANNEXURE - I PART 2 (CLAUSES 13 TO 23 + ACCEPTANCE)
+             ═══════════════════════════════════════════════════════════════════ -->
+        <div class="a4-page">
+          <div>
+            <div class="top-stripe-teal"></div>
+            <div class="top-stripe-grey"></div>
+
+            <div class="page-content">
+              <div class="header-row">
+                <div style="width: 260px;">
+                  ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Star Mould" class="logo-img" />` : `<div style="font-size:24px;font-weight:800;color:#006181;">STAR MOULD</div>`}
+                </div>
+                <div>
+                  <div class="title-text">ANNEXURE - I</div>
+                  <div class="title-underline"></div>
+                  <div style="font-size: 9.5px; color: #64748b; font-weight: 500; text-align: right; margin-top: 4px;">
+                    Terms &amp; Conditions &bull; Quotation: <strong>${quote.quotation_no || "—"}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="annexure-banner">
+                <span>DETAILED TERMS &amp; CONDITIONS – MANUFACTURER</span>
+                <span style="font-size: 9px; font-weight: 400; opacity: 0.85;">Part 2 (Clauses 13 to 23)</span>
+              </div>
+
+              ${renderAnnexureHtml(ANNEXURE_TERMS_PART2)}
+
+              <!-- Special Notes -->
+              <div class="notes-strip" style="margin-top: 10px; margin-bottom: 10px; padding: 6px 14px; font-size: 9px; line-height: 1.45;">
+                <strong style="color: #006181;">SPECIAL NOTES:&nbsp;</strong>
+                <span>Goods once manufactured / dispatched will not be accepted back or cancelled without prior mutual written consent. Payment delayed beyond agreed due date shall attract interest @ 18% per annum.</span>
+              </div>
+
+              <!-- Dual Signatures -->
+              <div class="sig-box" style="min-height: 145px; padding: 14px 22px; margin-bottom: 0;">
+                <div class="sig-col-left" style="min-height: 120px;">
+                  <div class="sig-title" style="font-size: 9.5px;">CUSTOMER ACCEPTANCE &amp; CONFIRMATION</div>
+                  
+                  <!-- Blank space for customer stamp -->
+                  <div style="height: 52px;"></div>
+
+                  <div class="sig-lines" style="font-size: 9px; line-height: 1.45;">
+                    <div>Authorized Signature: __________________________</div>
+                    <div>Name &amp; Designation: &nbsp;__________________________</div>
+                    <div>Date: __________________________</div>
+                  </div>
+                </div>
+
+                <div class="sig-col-right" style="min-height: 120px;">
+                  <div class="sig-title" style="font-size: 9.5px; text-align: right;">FOR ${COMPANY.name}</div>
+                  <div class="sig-stamp-group">
+                    ${(quote.include_digital_stamp !== false && stampDataUrl) ? `
+                      <div class="stamp-wrap">
+                        <img src="${stampDataUrl}" alt="Stamp" class="stamp-img" />
+                      </div>
+                    ` : ""}
+                    <div class="signatory-label" style="font-size: 10px; padding-top: 4px;">Authorized Signatory</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer-wrap">
+            <div class="footer-navy-bar">
+              <div class="footer-left">
+                <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+                </svg>
+                <div class="footer-divider-left"></div>
+                <div>
+                  <div class="footer-comp-name">${COMPANY.displayName}</div>
+                  <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
+                </div>
+              </div>
+
+              <div class="footer-right">
+                <div class="page-badge">Page 5 of ${totalPages}</div>
+                <div class="footer-divider-right"></div>
+                <div class="footer-right-text">
+                  <div>${COMPANY.email}</div>
+                  <div>${COMPANY.website}</div>
+                </div>
+              </div>
+            </div>
+            <div class="bottom-white-margin"></div>
           </div>
         </div>
 
@@ -844,11 +1372,11 @@ export async function GET(req: NextRequest) {
       </html>
     `;
 
-    const chromePath = findChromePath();
+    // Launch Headless Chrome via Puppeteer-core with exact A4 dimensions
     const browser = await puppeteer.launch({
-      executablePath: chromePath,
+      executablePath: findChromePath(),
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
     });
 
     const page = await browser.newPage();
@@ -859,23 +1387,25 @@ export async function GET(req: NextRequest) {
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
+      preferCSSPageSize: true,
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
     await browser.close();
 
-    const cleanQuoteNo = (quote.quotation_no || "Quotation").replace(/[/\\?%*:|"<>]/g, "_");
-    const filename = `Quotation_${cleanQuoteNo}.pdf`;
+    const fileName = `${quote.quotation_no || `Quotation_${quote.id}`}.pdf`;
+    const isInline = searchParams.get("inline") === "1" || searchParams.get("view") === "1";
 
     return new NextResponse(Buffer.from(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="${fileName}"`,
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal error";
+    const message = err instanceof Error ? err.message : "Quotation PDF Generation Error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -169,8 +169,8 @@ export default function PrintDocumentPage({ params }: PageProps) {
       // ── Vertical boundaries ──
       // Top stop: Cannot scroll higher than top padding (+20px) or center if fits
       const maxY = Math.max(20, Math.round((cH - docH) / 2));
-      // Bottom stop: Bottom edge cannot scroll above viewport bottom
-      const minY = Math.min(maxY, cH - docH - 40);
+      // Bottom stop: Bottom edge cannot scroll above viewport bottom (with comfortable bottom padding)
+      const minY = Math.min(maxY, cH - docH - 80);
       y = Math.max(minY, Math.min(maxY, y));
 
       return { x, y };
@@ -827,18 +827,8 @@ export default function PrintDocumentPage({ params }: PageProps) {
 
         {/* ── STICKY TOP CONTROL & ACTION BAR ──────────────────────────────── */}
         <header className="sticky top-0 z-30 w-full max-w-5xl mx-auto mb-3 sm:mb-4 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl shadow-xs px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2 print:hidden transition-all">
-          {/* Left: Back Button & Document Label */}
+          {/* Left: Document Label */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition active:scale-95 cursor-pointer shrink-0"
-              title="Return to previous screen"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Back</span>
-            </button>
-
             <div className="flex items-center gap-1.5 min-w-0">
               <FileText className="w-4 h-4 text-[#006181] shrink-0 hidden sm:inline" />
               <div className="truncate">
@@ -1034,7 +1024,11 @@ export default function PrintDocumentPage({ params }: PageProps) {
           >
             <div
               ref={sheetRef}
-              className="bg-white shadow-xl border border-slate-200/90 rounded-none sm:rounded-xl overflow-hidden print:shadow-none print:border-none print:transform-none print:w-[794px] print:static print:rounded-none"
+              className={
+                type === "quotation"
+                  ? "bg-transparent print:shadow-none print:border-none print:transform-none print:w-[794px] print:static"
+                  : "bg-white shadow-xl border border-slate-200/90 rounded-none sm:rounded-xl overflow-hidden print:shadow-none print:border-none print:transform-none print:w-[794px] print:static print:rounded-none"
+              }
             >
               {type === "quotation" ? (
                 <QuotationVoucher
@@ -1138,8 +1132,8 @@ export default function PrintDocumentPage({ params }: PageProps) {
           </button>
         </nav>
 
-        {/* ── FLOATING DESKTOP QUICK CONTROL BAR (Adobe / Chrome PDF style) ────── */}
-        <aside className="fixed bottom-5 right-6 z-40 hidden sm:flex items-center gap-1.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 p-1.5 text-xs text-slate-700 print:hidden animate-in fade-in duration-300">
+        {/* ── FLOATING DESKTOP QUICK CONTROL BAR (Adobe / Chrome PDF style - Desktop mouse only) ────── */}
+        <aside className="fixed bottom-5 right-6 z-40 hidden md:[@media(hover:hover)_and_(pointer:fine)]:flex items-center gap-1.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 p-1.5 text-xs text-slate-700 print:hidden animate-in fade-in duration-300">
           <button
             type="button"
             onClick={handleZoomOut}

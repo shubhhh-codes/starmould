@@ -56,6 +56,7 @@ export interface Customer {
   mobile1: string | null;
   email: string | null;
   initials: string;
+  customer_code?: string | null;
   address: string | null;
   usertype: 'Customer' | 'Vendor' | 'Transport' | 'Other' | string;
   vendor_code?: string | null;
