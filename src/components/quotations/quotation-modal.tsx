@@ -17,6 +17,65 @@ interface QuotationModalProps {
   initialQuotation?: Quotation | null;
 }
 
+
+interface AutoResizingTextareaProps {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+  minHeight?: number;
+  disabled?: boolean;
+  required?: boolean;
+}
+
+const AutoResizingTextarea: React.FC<AutoResizingTextareaProps> = ({
+  value,
+  onChange,
+  placeholder,
+  className,
+  minHeight = 80,
+  disabled = false,
+  required = false,
+}) => {
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const adjustHeight = React.useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const contentHeight = Math.max(el.scrollHeight + 4, minHeight);
+    el.style.height = `${contentHeight}px`;
+    el.style.minHeight = `${contentHeight}px`;
+  }, [minHeight]);
+
+  React.useEffect(() => {
+    adjustHeight();
+    const timer = setTimeout(adjustHeight, 50);
+    return () => clearTimeout(timer);
+  }, [value, adjustHeight]);
+
+  React.useEffect(() => {
+    window.addEventListener("resize", adjustHeight);
+    return () => window.removeEventListener("resize", adjustHeight);
+  }, [adjustHeight]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      required={required}
+      disabled={disabled}
+      onFocus={adjustHeight}
+      onChange={(e) => {
+        onChange(e.target.value);
+        adjustHeight();
+      }}
+      placeholder={placeholder}
+      className={className}
+    />
+  );
+};
+
 export const QuotationModal: React.FC<QuotationModalProps> = ({
   isOpen,
   onClose,
@@ -681,12 +740,12 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       <label className="block text-[11px] font-semibold text-slate-600 mb-1">
                         Particulars / Description *
                       </label>
-                      <textarea
-                        rows={2}
+                      <AutoResizingTextarea
                         required
                         value={item.product_description}
-                        onChange={(e) => handleItemChange(index, "product_description", e.target.value)}
+                        onChange={(val) => handleItemChange(index, "product_description", val)}
                         placeholder="Description and specifications..."
+                        minHeight={52}
                         className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 resize-y"
                       />
                     </div>
@@ -769,12 +828,12 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                           {index + 1}
                         </td>
                         <td className="py-2.5 px-3 align-top">
-                          <textarea
-                            rows={2}
+                          <AutoResizingTextarea
                             required
                             value={item.product_description}
-                            onChange={(e) => handleItemChange(index, "product_description", e.target.value)}
+                            onChange={(val) => handleItemChange(index, "product_description", val)}
                             placeholder="Description and specifications..."
+                            minHeight={52}
                             className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-md focus:outline-hidden focus:ring-2 focus:ring-blue-500 resize-y"
                           />
                         </td>
@@ -990,11 +1049,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       </div>
                     </div>
                     {enablePrice && (
-                      <textarea
-                        rows={2}
+                      <AutoResizingTextarea
                         value={priceTerms}
-                        onChange={(e) => setPriceTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        onChange={setPriceTerms}
+                        minHeight={84}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-blue-500 resize-y"
                         placeholder="Prices are in Indian Rupees (₹)..."
                       />
                     )}
@@ -1052,11 +1111,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       </div>
                     </div>
                     {enableDelivery && (
-                      <textarea
-                        rows={2}
+                      <AutoResizingTextarea
                         value={deliveryTerms}
-                        onChange={(e) => setDeliveryTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                        onChange={setDeliveryTerms}
+                        minHeight={84}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-emerald-500 resize-y"
                         placeholder="[__] days from receipt of a clear PO..."
                       />
                     )}
@@ -1114,11 +1173,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       </div>
                     </div>
                     {enablePayment && (
-                      <textarea
-                        rows={2}
+                      <AutoResizingTextarea
                         value={paymentTerms}
-                        onChange={(e) => setPaymentTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                        onChange={setPaymentTerms}
+                        minHeight={84}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-indigo-500 resize-y"
                         placeholder="[50% advance along with PO...]"
                       />
                     )}
@@ -1176,11 +1235,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       </div>
                     </div>
                     {enableValidity && (
-                      <input
-                        type="text"
+                      <AutoResizingTextarea
                         value={validityTerms}
-                        onChange={(e) => setValidityTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+                        onChange={setValidityTerms}
+                        minHeight={50}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-amber-500 resize-y"
                         placeholder="This quotation is valid for [15] days..."
                       />
                     )}
@@ -1238,11 +1297,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       </div>
                     </div>
                     {enableForceMajeure && (
-                      <input
-                        type="text"
+                      <AutoResizingTextarea
                         value={forceMajeure}
-                        onChange={(e) => setForceMajeure(e.target.value)}
-                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono focus:outline-hidden focus:ring-1 focus:ring-rose-500 min-h-[38px]"
+                        onChange={setForceMajeure}
+                        minHeight={42}
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-rose-500 resize-y"
                         placeholder="This Clause Is Applicable."
                       />
                     )}
