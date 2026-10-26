@@ -117,7 +117,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4" suppressHydrationWarning>
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300">Username or Email</label>
               <div className="relative">
@@ -132,6 +132,7 @@ export default function LoginPage() {
                   spellCheck="false"
                   className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   required
+                  suppressHydrationWarning
                 />
               </div>
             </div>
@@ -151,6 +152,7 @@ export default function LoginPage() {
                   spellCheck="false"
                   className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                   required
+                  suppressHydrationWarning
                 />
                 <button
                   type="button"

@@ -96,7 +96,7 @@ export default function ChangePasswordPage() {
               <p className="text-xs text-slate-400">Redirecting to your workspace...</p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" suppressHydrationWarning>
               {error && (
                 <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
                   <AlertCircle className="h-4 w-4 text-rose-400 flex-shrink-0" />
@@ -115,6 +115,7 @@ export default function ChangePasswordPage() {
                     placeholder="Enter current password"
                     className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                     required
+                    suppressHydrationWarning
                   />
                   <button
                     type="button"
@@ -141,6 +142,7 @@ export default function ChangePasswordPage() {
                     minLength={8}
                     className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                     required
+                    suppressHydrationWarning
                   />
                   <button
                     type="button"
@@ -165,6 +167,7 @@ export default function ChangePasswordPage() {
                     minLength={8}
                     className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                     required
+                    suppressHydrationWarning
                   />
                   <button
                     type="button"

@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-voucher";
+import { QuotationVoucher } from "@/components/quotations/quotation-voucher";
 
 interface PageProps {
   params: Promise<{
@@ -106,7 +107,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
     if (!el) return;
 
     const measure = () => {
-      const printableArea = el.querySelector("#po-printable-area") as HTMLElement;
+      const printableArea = (el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area")) as HTMLElement;
       const h = printableArea?.offsetHeight || el.offsetHeight || el.scrollHeight || 1140;
       if (h > 200) {
         setSheetHeight(Math.max(1140, h));
@@ -120,7 +121,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
     });
 
     observer.observe(el);
-    const printableArea = el.querySelector("#po-printable-area");
+    const printableArea = el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area");
     if (printableArea) observer.observe(printableArea);
 
     return () => observer.disconnect();
@@ -153,13 +154,23 @@ export default function PrintDocumentPage({ params }: PageProps) {
       let x = newPan.x;
       let y = newPan.y;
 
-      // Allow generous margins so focal point under cursor NEVER jumps or gets cut off
-      const minX = Math.min(cW - docW - 200, 40);
-      const maxX = Math.max(cW - 60, (cW - docW) / 2 + 200);
-      x = Math.max(minX, Math.min(maxX, x));
+      // ── Horizontal boundaries ──
+      if (docW <= cW) {
+        // Fits horizontally: keep centered with slight drag tolerance (±80px)
+        const centerX = Math.round((cW - docW) / 2);
+        x = Math.max(centerX - 80, Math.min(centerX + 80, x));
+      } else {
+        // Wider than container (zoomed in): allow panning edge-to-edge with 40px margin
+        const minX = cW - docW - 40;
+        const maxX = 40;
+        x = Math.max(minX, Math.min(maxX, x));
+      }
 
-      const minY = Math.min(cH - docH - 250, 40);
-      const maxY = Math.max(cH - 60, 100);
+      // ── Vertical boundaries ──
+      // Top stop: Cannot scroll higher than top padding (+20px) or center if fits
+      const maxY = Math.max(20, Math.round((cH - docH) / 2));
+      // Bottom stop: Bottom edge cannot scroll above viewport bottom
+      const minY = Math.min(maxY, cH - docH - 40);
       y = Math.max(minY, Math.min(maxY, y));
 
       return { x, y };
@@ -179,9 +190,9 @@ export default function PrintDocumentPage({ params }: PageProps) {
     el.style.transform = `translate3d(${panRef.current.x}px, ${panRef.current.y}px, 0) scale(${zoomRef.current})`;
   }, []);
 
-  // Initialize Zoom & Centering on Mount
+  // Initialize Zoom & Centering on Mount (when document has loaded)
   useEffect(() => {
-    if (isMounted && !hasInitializedZoom) {
+    if (isMounted && !hasInitializedZoom && !isLoading && doc) {
       const container = mainRef.current;
       const cW = container?.clientWidth || viewportWidth || 800;
       if (cW < 840) {
@@ -206,7 +217,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
       }
       setHasInitializedZoom(true);
     }
-  }, [isMounted, viewportWidth, getFitZoomAndPan, hasInitializedZoom]);
+  }, [isMounted, isLoading, doc, viewportWidth, getFitZoomAndPan, hasInitializedZoom]);
 
   // True Focal Zoom Engine: anchors exact point under pointer or viewport center
   const zoomTo = useCallback(
@@ -348,8 +359,12 @@ export default function PrintDocumentPage({ params }: PageProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleZoomIn, handleZoomOut, handleResetZoom, handleFit, clampPan, applyTransformDirect]);
 
-  // Direct Mouse Wheel Focal Zoom (wheel forward = zoom in, wheel back = zoom out; locked to cursor)
+  // Direct Mouse Wheel Handler:
+  // - Normal Wheel: Natural vertical & horizontal scroll / pan through document
+  // - Shift + Wheel: Horizontal pan
+  // - Ctrl / Cmd + Wheel: Smooth focal zoom anchored to cursor
   useEffect(() => {
+    if (isLoading || !doc) return;
     const container = mainRef.current;
     if (!container) return;
 
@@ -372,42 +387,63 @@ export default function PrintDocumentPage({ params }: PageProps) {
         if (wheelRaf) cancelAnimationFrame(wheelRaf);
         wheelRaf = requestAnimationFrame(() => applyTransformDirect(false));
         if (wheelCommitTimer) clearTimeout(wheelCommitTimer);
-        wheelCommitTimer = setTimeout(() => setPan({ ...panRef.current }), 100);
+        wheelCommitTimer = setTimeout(() => setPan({ ...panRef.current }), 40);
         return;
       }
 
-      // DIRECT MOUSE WHEEL FOCAL ZOOM centered exactly at mouse cursor (e.clientX, e.clientY)
-      const rect = container.getBoundingClientRect();
-      const focalX = e.clientX - rect.left;
-      const focalY = e.clientY - rect.top;
+      // ONLY Zoom if Ctrl or Cmd key is pressed (or trackpad pinch-to-zoom)
+      if (e.ctrlKey || e.metaKey) {
+        const rect = container.getBoundingClientRect();
+        const focalX = e.clientX - rect.left;
+        const focalY = e.clientY - rect.top;
 
-      const oldZoom = zoomRef.current;
-      // Exponential zoom factor: smooth on trackpads, responsive on discrete wheel clicks
-      const zoomFactor = Math.exp(-e.deltaY * 0.002);
-      const newZoom = Math.min(3.5, Math.max(0.35, Number((oldZoom * zoomFactor).toFixed(3))));
-      if (Math.abs(newZoom - oldZoom) < 0.001) return;
+        const oldZoom = zoomRef.current;
+        // Exponential zoom factor: smooth on trackpads, responsive on discrete wheel clicks
+        const zoomFactor = Math.exp(-e.deltaY * 0.002);
+        const newZoom = Math.min(3.5, Math.max(0.35, Number((oldZoom * zoomFactor).toFixed(3))));
+        if (Math.abs(newZoom - oldZoom) < 0.001) return;
 
-      // Exact focal affine transformation: anchor point under cursor stays 100% locked
-      const scaleRatio = newZoom / oldZoom;
-      const newPanX = focalX - (focalX - panRef.current.x) * scaleRatio;
-      const newPanY = focalY - (focalY - panRef.current.y) * scaleRatio;
+        // Exact focal affine transformation: anchor point under cursor stays 100% locked
+        const scaleRatio = newZoom / oldZoom;
+        const newPanX = focalX - (focalX - panRef.current.x) * scaleRatio;
+        const newPanY = focalY - (focalY - panRef.current.y) * scaleRatio;
 
-      const boundedPan = clampPan({ x: newPanX, y: newPanY }, newZoom);
+        const boundedPan = clampPan({ x: newPanX, y: newPanY }, newZoom);
 
-      zoomRef.current = newZoom;
-      panRef.current = boundedPan;
+        zoomRef.current = newZoom;
+        panRef.current = boundedPan;
+
+        if (wheelRaf) cancelAnimationFrame(wheelRaf);
+        wheelRaf = requestAnimationFrame(() => {
+          applyTransformDirect(false);
+        });
+
+        // Debounce React state update so UI controls stay in sync without rendering lag
+        if (wheelCommitTimer) clearTimeout(wheelCommitTimer);
+        wheelCommitTimer = setTimeout(() => {
+          setZoom(Number(newZoom.toFixed(2)));
+          setPan(boundedPan);
+        }, 40);
+        return;
+      }
+
+      // Normal Wheel without Ctrl: natural vertical & horizontal scroll / pan
+      const deltaX = e.deltaX || 0;
+      const deltaY = e.deltaY || 0;
+
+      const newPan = clampPan(
+        {
+          x: panRef.current.x - deltaX,
+          y: panRef.current.y - deltaY,
+        },
+        zoomRef.current
+      );
+      panRef.current = newPan;
 
       if (wheelRaf) cancelAnimationFrame(wheelRaf);
-      wheelRaf = requestAnimationFrame(() => {
-        applyTransformDirect(false);
-      });
-
-      // Debounce React state update so UI controls stay in sync without rendering lag
+      wheelRaf = requestAnimationFrame(() => applyTransformDirect(false));
       if (wheelCommitTimer) clearTimeout(wheelCommitTimer);
-      wheelCommitTimer = setTimeout(() => {
-        setZoom(Number(newZoom.toFixed(2)));
-        setPan(boundedPan);
-      }, 70);
+      wheelCommitTimer = setTimeout(() => setPan({ ...panRef.current }), 40);
     };
 
     container.addEventListener("wheel", onWheel, { passive: false });
@@ -416,7 +452,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
       if (wheelRaf) cancelAnimationFrame(wheelRaf);
       if (wheelCommitTimer) clearTimeout(wheelCommitTimer);
     };
-  }, [clampPan, applyTransformDirect]);
+  }, [isLoading, doc, clampPan, applyTransformDirect]);
 
   // Touch Pinch-to-zoom & 1-finger pan handlers with exact midpoint anchor
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -603,10 +639,13 @@ export default function PrintDocumentPage({ params }: PageProps) {
   const handleDownloadPdf = async () => {
     try {
       setIsDownloading(true);
-      const fileName = `${doc?.docNumber || "Purchase_Order"}.pdf`;
+      const isQuotation = type === "quotation";
+      const fileName = `${doc?.docNumber || (isQuotation ? "Quotation" : "Purchase_Order")}.pdf`;
 
       // Fetch pristine vector PDF from server Puppeteer engine
-      const downloadUrl = `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+      const downloadUrl = isQuotation
+        ? `/api/download-quotation-pdf?id=${encodeURIComponent(doc?.id || doc?.quote?.id || id)}`
+        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
       const res = await fetch(downloadUrl);
 
       if (!res.ok) {
@@ -632,14 +671,15 @@ export default function PrintDocumentPage({ params }: PageProps) {
   };
 
   const handleShare = async () => {
-    const title = `PO ${doc?.docNumber || ""} - Star Mould`;
+    const isQuotation = type === "quotation";
+    const title = `${isQuotation ? "Quotation" : "PO"} ${doc?.docNumber || ""} - Star Mould`;
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
           title,
-          text: `Star Mould Purchase Order ${doc?.docNumber || ""} for ${
-            doc?.party?.vendor_name || doc?.customerName || ""
+          text: `Star Mould ${isQuotation ? "Quotation" : "Purchase Order"} ${doc?.docNumber || ""} for ${
+            doc?.party?.customername || doc?.party?.vendor_name || doc?.customerName || ""
           }`,
           url: shareUrl,
         });
@@ -663,7 +703,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
     if (typeof window !== "undefined" && window.history.length > 1) {
       window.history.back();
     } else {
-      router.push("/purchase");
+      router.push(type === "quotation" ? "/quotation" : "/purchase");
     }
   };
 
@@ -755,10 +795,10 @@ export default function PrintDocumentPage({ params }: PageProps) {
               Go Back
             </button>
             <Link
-              href="/purchase"
+              href={type === "quotation" ? "/quotation" : "/purchase"}
               className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition"
             >
-              Return to Purchase
+              Return to {type === "quotation" ? "Quotations" : "Purchase"}
             </Link>
           </div>
         </div>
@@ -766,8 +806,8 @@ export default function PrintDocumentPage({ params }: PageProps) {
     );
   }
 
-  // ─── 3. PURCHASE ORDER VOUCHER VIEW (Exact Star Mould PDF Geometry) ────────
-  if (type === "purchase") {
+  // ─── 3. PURCHASE ORDER & QUOTATION VOUCHER VIEW (Exact Star Mould PDF Geometry) ────────
+  if (type === "purchase" || type === "quotation") {
     return (
       <div className="min-h-screen bg-slate-100/80 py-3 sm:py-6 px-2 sm:px-4 print:p-0 print:bg-white text-slate-900 animate-in fade-in duration-200">
         {/* Print rules override for pristine physical page printing */}
@@ -803,11 +843,11 @@ export default function PrintDocumentPage({ params }: PageProps) {
               <FileText className="w-4 h-4 text-[#006181] shrink-0 hidden sm:inline" />
               <div className="truncate">
                 <span className="font-mono font-bold text-xs text-slate-900 truncate block">
-                  {doc.docNumber || "Purchase Order"}
+                  {doc.docNumber || (type === "quotation" ? "Quotation" : "Purchase Order")}
                 </span>
-                {doc.party?.vendor_name && (
+                {(doc.party?.customername || doc.party?.vendor_name) && (
                   <span className="text-[10px] text-slate-500 font-medium truncate block hidden sm:block">
-                    {doc.party.vendor_name}
+                    {doc.party.customername || doc.party.vendor_name}
                   </span>
                 )}
               </div>
@@ -956,7 +996,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
                 title="Open browser print dialogue (A4)"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>Print PO</span>
+                <span>{type === "quotation" ? "Print Quotation" : "Print PO"}</span>
               </button>
             </div>
           </div>
@@ -996,21 +1036,29 @@ export default function PrintDocumentPage({ params }: PageProps) {
               ref={sheetRef}
               className="bg-white shadow-xl border border-slate-200/90 rounded-none sm:rounded-xl overflow-hidden print:shadow-none print:border-none print:transform-none print:w-[794px] print:static print:rounded-none"
             >
-              <PurchaseOrderVoucher
-                po={{
-                  id: Number(doc.id || 0),
-                  srno: doc.docNumber,
-                  odate: doc.docDate,
-                  vname: doc.party?.id,
-                  cname: 0,
-                  projectid: doc.projectCode,
-                  items: doc.items,
-                }}
-                vendor={doc.party}
-                customerName={doc.customerName}
-                onPrint={handlePrint}
-                isModal={false}
-              />
+              {type === "quotation" ? (
+                <QuotationVoucher
+                  quote={doc.quote || doc}
+                  isModal={false}
+                  onClose={handleBack}
+                />
+              ) : (
+                <PurchaseOrderVoucher
+                  po={{
+                    id: Number(doc.id || 0),
+                    srno: doc.docNumber,
+                    odate: doc.docDate,
+                    vname: doc.party?.id,
+                    cname: 0,
+                    projectid: doc.projectCode,
+                    items: doc.items,
+                  }}
+                  vendor={doc.party}
+                  customerName={doc.customerName}
+                  onPrint={handlePrint}
+                  isModal={false}
+                />
+              )}
             </div>
           </div>
         </main>

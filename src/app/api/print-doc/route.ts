@@ -42,6 +42,9 @@ export async function GET(req: NextRequest) {
     if (type === "purchase" && ![0, 1].includes(userRoleId)) {
       return NextResponse.json({ error: "Access denied: Purchase document is restricted to Admin and Manager" }, { status: 403 });
     }
+    if (type === "quotation" && ![0, 1, 5].includes(userRoleId)) {
+      return NextResponse.json({ error: "Access denied: Quotation document is restricted to Admin, Manager, and Sales" }, { status: 403 });
+    }
     if (["challan", "inward", "dispatch"].includes(type) && ![0, 1, 2].includes(userRoleId)) {
       return NextResponse.json({ error: "Access denied: Logistics documents are restricted to Admin, Manager, and Supervisor" }, { status: 403 });
     }
@@ -467,6 +470,50 @@ export async function GET(req: NextRequest) {
             qty: subplate.sqty || 1,
           },
         ],
+      });
+    }
+
+    // 6. Quotation Document
+    if (type === "quotation") {
+      const { data: quote, error: qErr } = await supabaseAdmin
+        .from("quotations")
+        .select("*")
+        .eq("id", id)
+        .is("deleted_at", null)
+        .single();
+
+      if (qErr || !quote) {
+        return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
+      }
+
+      const { data: items } = await supabaseAdmin
+        .from("quotation_items")
+        .select("*")
+        .eq("quotation_id", id)
+        .order("sr_no", { ascending: true });
+
+      const fullQuote = {
+        ...quote,
+        items: items || [],
+      };
+
+      return NextResponse.json({
+        id: quote.id,
+        docType: "QUOTATION",
+        docNumber: quote.quotation_no,
+        docDate: quote.quotation_date,
+        party: {
+          id: quote.id,
+          customername: quote.consignee_name,
+          vendor_name: quote.consignee_name,
+          address: quote.consignee_address,
+          gstin: quote.consignee_gstin,
+          state: quote.consignee_state,
+          email: quote.consignee_email,
+          mobile: quote.consignee_mobile,
+        },
+        quote: fullQuote,
+        items: fullQuote.items,
       });
     }
 

@@ -132,6 +132,8 @@ export function AuthProvider({
           }
           return formattedUser;
         });
+      } else {
+        setUser(null);
       }
     } catch (err) {
       if (process.env.NODE_ENV === "development") {

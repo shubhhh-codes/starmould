@@ -19,6 +19,21 @@ export async function GET(req: NextRequest) {
     const checkInitial = searchParams.get("checkInitial");
     const checkUsername = searchParams.get("checkUsername");
     const excludeId = searchParams.get("excludeId");
+    const id = searchParams.get("id");
+
+    // Single customer fetch by ID
+    if (id) {
+      const { data: customer, error: cErr } = await supabaseAdmin
+        .from("customers")
+        .select("*")
+        .eq("id", Number(id))
+        .is("deleted_at", null)
+        .single();
+      if (cErr || !customer) {
+        return NextResponse.json({ error: "Customer not found" }, { status: 404 });
+      }
+      return NextResponse.json({ customer, data: customer });
+    }
 
     // 1. Initial existence check (replicates checkinitials in CustomerController.php:44-50)
     if (checkInitial) {
