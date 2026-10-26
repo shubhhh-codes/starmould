@@ -958,7 +958,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         </span>
                         {!enablePrice && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
                       </label>
-                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0">
                         <select
                           disabled={!enablePrice}
                           onChange={(e) => {
@@ -968,7 +968,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                               setEnablePrice(true);
                             }
                           }}
-                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-blue-400 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-40 truncate"
+                          className="flex-1 min-w-0 sm:w-64 max-w-full px-2.5 py-1.5 text-xs sm:text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-blue-400 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-40 truncate"
                           defaultValue=""
                         >
                           <option value="" disabled>Select Price Option...</option>
@@ -982,7 +982,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                             setPresetModalTab("price");
                             setIsPresetModalOpen(true);
                           }}
-                          className="p-1.5 sm:p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-slate-100 border border-slate-200 bg-white cursor-pointer shrink-0 shadow-2xs"
                           title="Manage Price Presets"
                         >
                           <Settings className="w-3.5 h-3.5" />
@@ -1020,7 +1020,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         </span>
                         {!enableDelivery && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
                       </label>
-                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0">
                         <select
                           disabled={!enableDelivery}
                           onChange={(e) => {
@@ -1030,7 +1030,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                               setEnableDelivery(true);
                             }
                           }}
-                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-emerald-400 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 cursor-pointer disabled:opacity-40 truncate"
+                          className="flex-1 min-w-0 sm:w-64 max-w-full px-2.5 py-1.5 text-xs sm:text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-emerald-400 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 cursor-pointer disabled:opacity-40 truncate"
                           defaultValue=""
                         >
                           <option value="" disabled>Select Delivery Option...</option>
@@ -1044,7 +1044,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                             setPresetModalTab("delivery");
                             setIsPresetModalOpen(true);
                           }}
-                          className="p-1.5 sm:p-1 text-slate-400 hover:text-emerald-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          className="p-1.5 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-slate-100 border border-slate-200 bg-white cursor-pointer shrink-0 shadow-2xs"
                           title="Manage Delivery Presets"
                         >
                           <Settings className="w-3.5 h-3.5" />
@@ -1082,7 +1082,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         </span>
                         {!enablePayment && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
                       </label>
-                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0">
                         <select
                           disabled={!enablePayment}
                           onChange={(e) => {
@@ -1092,7 +1092,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                               setEnablePayment(true);
                             }
                           }}
-                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-indigo-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 cursor-pointer disabled:opacity-40 truncate"
+                          className="flex-1 min-w-0 sm:w-64 max-w-full px-2.5 py-1.5 text-xs sm:text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-indigo-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 cursor-pointer disabled:opacity-40 truncate"
                           defaultValue=""
                         >
                           <option value="" disabled>Select Payment Option (e.g. 50/50, 70/30)...</option>
@@ -1106,7 +1106,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                             setPresetModalTab("payment");
                             setIsPresetModalOpen(true);
                           }}
-                          className="p-1.5 sm:p-1 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          className="p-1.5 text-slate-500 hover:text-indigo-600 rounded-lg hover:bg-slate-100 border border-slate-200 bg-white cursor-pointer shrink-0 shadow-2xs"
                           title="Manage Payment Presets"
                         >
                           <Settings className="w-3.5 h-3.5" />
@@ -1144,7 +1144,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         </span>
                         {!enableValidity && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
                       </label>
-                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0">
                         <select
                           disabled={!enableValidity}
                           onChange={(e) => {
@@ -1154,7 +1154,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                               setEnableValidity(true);
                             }
                           }}
-                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-500 cursor-pointer disabled:opacity-40 truncate"
+                          className="flex-1 min-w-0 sm:w-64 max-w-full px-2.5 py-1.5 text-xs sm:text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-500 cursor-pointer disabled:opacity-40 truncate"
                           defaultValue=""
                         >
                           <option value="" disabled>Select Validity Option...</option>
@@ -1168,7 +1168,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                             setPresetModalTab("validity");
                             setIsPresetModalOpen(true);
                           }}
-                          className="p-1.5 sm:p-1 text-slate-400 hover:text-amber-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          className="p-1.5 text-slate-500 hover:text-amber-600 rounded-lg hover:bg-slate-100 border border-slate-200 bg-white cursor-pointer shrink-0 shadow-2xs"
                           title="Manage Validity Presets"
                         >
                           <Settings className="w-3.5 h-3.5" />
@@ -1206,7 +1206,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         </span>
                         {!enableForceMajeure && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
                       </label>
-                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto min-w-0">
                         <select
                           disabled={!enableForceMajeure}
                           onChange={(e) => {
@@ -1216,7 +1216,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                               setEnableForceMajeure(true);
                             }
                           }}
-                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-rose-400 focus:outline-hidden focus:ring-1 focus:ring-rose-500 cursor-pointer disabled:opacity-40 truncate"
+                          className="flex-1 min-w-0 sm:w-64 max-w-full px-2.5 py-1.5 text-xs sm:text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-rose-400 focus:outline-hidden focus:ring-1 focus:ring-rose-500 cursor-pointer disabled:opacity-40 truncate"
                           defaultValue=""
                         >
                           <option value="" disabled>Select Force Majeure Option...</option>
@@ -1230,7 +1230,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                             setPresetModalTab("force_majeure");
                             setIsPresetModalOpen(true);
                           }}
-                          className="p-1.5 sm:p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          className="p-1.5 text-slate-500 hover:text-rose-600 rounded-lg hover:bg-slate-100 border border-slate-200 bg-white cursor-pointer shrink-0 shadow-2xs"
                           title="Manage Force Majeure Presets"
                         >
                           <Settings className="w-3.5 h-3.5" />
@@ -1242,7 +1242,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         type="text"
                         value={forceMajeure}
                         onChange={(e) => setForceMajeure(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] focus:outline-hidden focus:ring-1 focus:ring-rose-500"
+                        className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg bg-white font-mono focus:outline-hidden focus:ring-1 focus:ring-rose-500 min-h-[38px]"
                         placeholder="This Clause Is Applicable."
                       />
                     )}
