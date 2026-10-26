@@ -451,7 +451,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-3 sm:p-5 md:p-6 space-y-5 sm:space-y-6">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 md:p-6 space-y-5 sm:space-y-6">
             {errorMsg && (
               <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
                 {errorMsg}
@@ -627,13 +627,13 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
 
             {/* PARTICULARS / PRODUCTS TABLE */}
             <div className="space-y-2 sm:space-y-3">
-              <div className="flex flex-wrap justify-between items-center gap-2">
+              <div className="flex justify-between items-center gap-2">
                 <div>
                   <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
                     Product Details ({items.length})
                   </span>
-                  <span className="text-[10.5px] text-slate-400 sm:hidden block">
-                    Swipe horizontally to view all columns →
+                  <span className="text-[11px] text-slate-500 hidden sm:block">
+                    Add products, services, or tooling particulars
                   </span>
                 </div>
                 <button
@@ -645,7 +645,111 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                 </button>
               </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
+              {/* MOBILE VIEW: Stacked Card Layout (Zero Horizontal Scroll) */}
+              <div className="sm:hidden space-y-3">
+                {items.map((item, index) => (
+                  <div
+                    key={index}
+                    className="p-3.5 bg-white border border-slate-200 rounded-xl space-y-3 shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-blue-100 text-blue-800 text-[11px] font-bold inline-flex items-center justify-center">
+                          {index + 1}
+                        </span>
+                        <span className="text-xs font-bold text-slate-700">
+                          Item #{index + 1}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-slate-900 bg-slate-50 px-2.5 py-0.5 rounded-md border border-slate-200">
+                          ₹ {formatINRTwoDecimals(item.total_amount)}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={items.length <= 1}
+                          onClick={() => handleRemoveItem(index)}
+                          className="p-1 text-slate-400 hover:text-red-500 disabled:opacity-20 cursor-pointer transition-colors"
+                          title="Delete item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        Particulars / Description *
+                      </label>
+                      <textarea
+                        rows={2}
+                        required
+                        value={item.product_description}
+                        onChange={(e) => handleItemChange(index, "product_description", e.target.value)}
+                        placeholder="Description and specifications..."
+                        className="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 resize-y"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Qty *
+                        </label>
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="any"
+                          required
+                          value={item.qty}
+                          onChange={(e) => handleItemChange(index, "qty", e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs text-center border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Unit
+                        </label>
+                        <input
+                          type="text"
+                          value={item.unit}
+                          onChange={(e) => handleItemChange(index, "unit", e.target.value)}
+                          placeholder="Nos"
+                          className="w-full px-2.5 py-1.5 text-xs text-center border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Rate (₹) *
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          value={item.unit_price ?? ""}
+                          onChange={(e) => handleItemChange(index, "unit_price", e.target.value)}
+                          placeholder="0.00"
+                          className="w-full px-2.5 py-1.5 text-xs text-right border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Amount (₹)
+                        </label>
+                        <div className="w-full px-2.5 py-1.5 text-xs text-right bg-slate-50 border border-slate-200 rounded-lg font-mono font-bold text-slate-800 flex items-center justify-end h-[34px]">
+                          ₹ {formatINRTwoDecimals(item.total_amount)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* DESKTOP / TABLET VIEW: Compact Table */}
+              <div className="hidden sm:block border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
                 <table className="w-full text-xs min-w-[650px]">
                   <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                     <tr>
