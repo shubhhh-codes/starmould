@@ -61,10 +61,13 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
 
   // Terms
   const [showTermsDetails, setShowTermsDetails] = useState(false);
-  const [priceTerms, setPriceTerms] = useState("Ex-Works Rajkot, +18% GST Freight ,Transit Insurance At Actual.");
-  const [deliveryTerms, setDeliveryTerms] = useState("2 Days");
-  const [paymentTerms, setPaymentTerms] = useState("100% advance before dispatch of goods.");
-  const [validityTerms, setValidityTerms] = useState("10 DAYS");
+  const [priceTerms, setPriceTerms] = useState("Prices are in Indian Rupees (₹), firm and fixed, Ex-Works Rajkot. GST @ [18]% extra as applicable. Freight and transit insurance [extra at actuals / included].");
+  const [deliveryTerms, setDeliveryTerms] = useState("[__] days from receipt of a clear Purchase Order together with the advance payment; subject to material availability and production capacity.");
+  const [paymentTerms, setPaymentTerms] = useState("[50% advance along with Purchase Order, balance 50% before dispatch / within __ days of invoice]. Payment by NEFT / RTGS / cheque in favour of Starmould Technology Pvt. Ltd.");
+  const [validityTerms, setValidityTerms] = useState("This quotation is valid for [15] days from the date of issue. Prices and delivery are subject to change thereafter.");
+  const [orderConfirmation, setOrderConfirmation] = useState("Manufacturing starts only after receipt of advance payment and a written Purchase Order.");
+  const [warrantyTerms, setWarrantyTerms] = useState("[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage.");
+  const [jurisdictionTerms, setJurisdictionTerms] = useState("Subject to Rajkot, Gujarat jurisdiction only.");
   const [forceMajeure, setForceMajeure] = useState("This Clause Is Applicable.");
 
   const [includeDigitalStamp, setIncludeDigitalStamp] = useState(true);
@@ -122,6 +125,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       setDeliveryTerms(initialQuotation.delivery_terms || "");
       setPaymentTerms(initialQuotation.payment_terms || "");
       setValidityTerms(initialQuotation.validity_terms || "");
+      setOrderConfirmation(initialQuotation.order_confirmation || "");
+      setWarrantyTerms(initialQuotation.warranty_terms || "");
+      setJurisdictionTerms(initialQuotation.jurisdiction_terms || "");
       setForceMajeure(initialQuotation.force_majeure || "");
       setIncludeDigitalStamp(initialQuotation.include_digital_stamp !== false);
       setStatus(initialQuotation.status || "Draft");
@@ -184,6 +190,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     if (preset.delivery_terms) setDeliveryTerms(preset.delivery_terms);
     if (preset.payment_terms) setPaymentTerms(preset.payment_terms);
     if (preset.validity_terms) setValidityTerms(preset.validity_terms);
+    if (preset.order_confirmation) setOrderConfirmation(preset.order_confirmation);
+    if (preset.warranty_terms) setWarrantyTerms(preset.warranty_terms);
+    if (preset.jurisdiction_terms) setJurisdictionTerms(preset.jurisdiction_terms);
     if (preset.force_majeure) setForceMajeure(preset.force_majeure);
   };
 
@@ -328,6 +337,9 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         delivery_terms: deliveryTerms,
         payment_terms: paymentTerms,
         validity_terms: validityTerms,
+        order_confirmation: orderConfirmation,
+        warranty_terms: warrantyTerms,
+        jurisdiction_terms: jurisdictionTerms,
         force_majeure: forceMajeure,
         include_digital_stamp: includeDigitalStamp,
         status,
@@ -786,12 +798,13 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">1. Price Terms</label>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">1. Price & GST</label>
                       <input
                         type="text"
                         value={priceTerms}
                         onChange={(e) => setPriceTerms(e.target.value)}
                         className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        placeholder="Prices are in Indian Rupees (₹)..."
                       />
                     </div>
                     <div>
@@ -801,6 +814,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         value={deliveryTerms}
                         onChange={(e) => setDeliveryTerms(e.target.value)}
                         className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        placeholder="[__] days from receipt of a clear PO..."
                       />
                     </div>
                   </div>
@@ -813,6 +827,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         value={paymentTerms}
                         onChange={(e) => setPaymentTerms(e.target.value)}
                         className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        placeholder="[50% advance along with PO...]"
                       />
                     </div>
                     <div>
@@ -822,17 +837,42 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                         value={validityTerms}
                         onChange={(e) => setValidityTerms(e.target.value)}
                         className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        placeholder="This quotation is valid for [15] days..."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">5. Order Confirmation</label>
+                      <input
+                        type="text"
+                        value={orderConfirmation}
+                        onChange={(e) => setOrderConfirmation(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        placeholder="Manufacturing starts only after receipt of advance..."
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">6. Warranty</label>
+                      <input
+                        type="text"
+                        value={warrantyTerms}
+                        onChange={(e) => setWarrantyTerms(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        placeholder="[__ months] against manufacturing defects..."
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">5. Force Majeure</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">7. Jurisdiction</label>
                     <input
                       type="text"
-                      value={forceMajeure}
-                      onChange={(e) => setForceMajeure(e.target.value)}
+                      value={jurisdictionTerms}
+                      onChange={(e) => setJurisdictionTerms(e.target.value)}
                       className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                      placeholder="Subject to Rajkot, Gujarat jurisdiction only."
                     />
                   </div>
                 </div>

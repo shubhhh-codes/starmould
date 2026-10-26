@@ -59,10 +59,13 @@ export const TermsPresetModal: React.FC<TermsPresetModalProps> = ({
   const handleStartCreate = () => {
     setEditingPreset({
       title: "",
-      price_terms: "Ex-Works Rajkot, +18% GST Freight ,Transit Insurance At Actual.",
-      delivery_terms: "2 Days",
-      payment_terms: "100% advance before dispatch of goods.",
-      validity_terms: "10 DAYS",
+      price_terms: "Prices are in Indian Rupees (₹), firm and fixed, Ex-Works Rajkot. GST @ [18]% extra as applicable. Freight and transit insurance [extra at actuals / included].",
+      delivery_terms: "[__] days from receipt of a clear Purchase Order together with the advance payment; subject to material availability and production capacity.",
+      payment_terms: "[50% advance along with Purchase Order, balance 50% before dispatch / within __ days of invoice]. Payment by NEFT / RTGS / cheque in favour of Starmould Technology Pvt. Ltd.",
+      validity_terms: "This quotation is valid for [15] days from the date of issue. Prices and delivery are subject to change thereafter.",
+      order_confirmation: "Manufacturing starts only after receipt of advance payment and a written Purchase Order.",
+      warranty_terms: "[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage.",
+      jurisdiction_terms: "Subject to Rajkot, Gujarat jurisdiction only.",
       force_majeure: "This Clause Is Applicable.",
       is_default: false,
     });
@@ -185,10 +188,13 @@ export const TermsPresetModal: React.FC<TermsPresetModalProps> = ({
                           )}
                         </div>
                         <div className="text-xs text-slate-600 space-y-0.5 mt-2">
-                          <div><strong>Price:</strong> {preset.price_terms}</div>
-                          <div><strong>Delivery:</strong> {preset.delivery_terms}</div>
-                          <div><strong>Payment:</strong> {preset.payment_terms}</div>
-                          <div><strong>Validity:</strong> {preset.validity_terms}</div>
+                          <div><strong>1. Price & GST:</strong> {preset.price_terms}</div>
+                          <div><strong>2. Delivery Terms:</strong> {preset.delivery_terms}</div>
+                          <div><strong>3. Payment Terms:</strong> {preset.payment_terms}</div>
+                          <div><strong>4. Validity:</strong> {preset.validity_terms}</div>
+                          {preset.order_confirmation && <div><strong>5. Order Confirmation:</strong> {preset.order_confirmation}</div>}
+                          {preset.warranty_terms && <div><strong>6. Warranty:</strong> {preset.warranty_terms}</div>}
+                          {preset.jurisdiction_terms && <div><strong>7. Jurisdiction:</strong> {preset.jurisdiction_terms}</div>}
                         </div>
                       </div>
 
@@ -258,13 +264,13 @@ export const TermsPresetModal: React.FC<TermsPresetModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">1. Price Terms</label>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">1. Price & GST</label>
                   <input
                     type="text"
                     value={editingPreset.price_terms || ""}
                     onChange={(e) => setEditingPreset({ ...editingPreset, price_terms: e.target.value })}
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. Ex-Works Rajkot, +18% GST..."
+                    placeholder="e.g. Prices are in Indian Rupees (₹)..."
                   />
                 </div>
                 <div>
@@ -274,7 +280,7 @@ export const TermsPresetModal: React.FC<TermsPresetModalProps> = ({
                     value={editingPreset.delivery_terms || ""}
                     onChange={(e) => setEditingPreset({ ...editingPreset, delivery_terms: e.target.value })}
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. 2 Days / Immediate"
+                    placeholder="e.g. [__] days from receipt of a clear Purchase Order..."
                   />
                 </div>
               </div>
@@ -287,7 +293,7 @@ export const TermsPresetModal: React.FC<TermsPresetModalProps> = ({
                     value={editingPreset.payment_terms || ""}
                     onChange={(e) => setEditingPreset({ ...editingPreset, payment_terms: e.target.value })}
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. 100% advance before dispatch of goods."
+                    placeholder="e.g. 50% advance along with PO..."
                   />
                 </div>
                 <div>
@@ -297,19 +303,42 @@ export const TermsPresetModal: React.FC<TermsPresetModalProps> = ({
                     value={editingPreset.validity_terms || ""}
                     onChange={(e) => setEditingPreset({ ...editingPreset, validity_terms: e.target.value })}
                     className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. 10 DAYS"
+                    placeholder="e.g. This quotation is valid for [15] days..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">5. Order Confirmation</label>
+                  <input
+                    type="text"
+                    value={editingPreset.order_confirmation || ""}
+                    onChange={(e) => setEditingPreset({ ...editingPreset, order_confirmation: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. Manufacturing starts only after receipt of advance..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">6. Warranty</label>
+                  <input
+                    type="text"
+                    value={editingPreset.warranty_terms || ""}
+                    onChange={(e) => setEditingPreset({ ...editingPreset, warranty_terms: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. [__ months] against manufacturing defects only..."
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">5. Force Majeure</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">7. Jurisdiction</label>
                 <input
                   type="text"
-                  value={editingPreset.force_majeure || ""}
-                  onChange={(e) => setEditingPreset({ ...editingPreset, force_majeure: e.target.value })}
+                  value={editingPreset.jurisdiction_terms || ""}
+                  onChange={(e) => setEditingPreset({ ...editingPreset, jurisdiction_terms: e.target.value })}
                   className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g. This Clause Is Applicable."
+                  placeholder="e.g. Subject to Rajkot, Gujarat jurisdiction only."
                 />
               </div>
 

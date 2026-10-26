@@ -647,11 +647,13 @@ export async function GET(req: NextRequest) {
 
                 <div class="summary-terms-heading">Terms & Conditions :=</div>
                 <div class="summary-terms-list">
-                  <div><strong>1. Price :-</strong> ${quote.price_terms || "Ex-Works Rajkot, +18% GST Freight ,Transit Insurance At Actual."}</div>
-                  <div><strong>2. Delivery Terms :-</strong> ${quote.delivery_terms || "2 Days"}</div>
-                  <div><strong>3. Payment Terms :-</strong> ${quote.payment_terms || "100% advance before dispatch of goods."}</div>
-                  <div><strong>4. Validity :-</strong> ${quote.validity_terms || "10 DAYS"}</div>
-                  <div><strong>5. Force Majeure :-</strong> ${quote.force_majeure || "This Clause Is Applicable."}</div>
+                  <div><strong>1. Price & GST :-</strong> ${quote.price_terms || "Prices are in Indian Rupees (₹), firm and fixed, Ex-Works Rajkot. GST @ [18]% extra as applicable. Freight and transit insurance [extra at actuals / included]."}</div>
+                  <div><strong>2. Delivery Terms :-</strong> ${quote.delivery_terms || "[__] days from receipt of a clear Purchase Order together with the advance payment; subject to material availability and production capacity."}</div>
+                  <div><strong>3. Payment Terms :-</strong> ${quote.payment_terms || "[50% advance along with Purchase Order, balance 50% before dispatch / within __ days of invoice]. Payment by NEFT / RTGS / cheque in favour of Starmould Technology Pvt. Ltd."}</div>
+                  <div><strong>4. Validity :-</strong> ${quote.validity_terms || "This quotation is valid for [15] days from the date of issue. Prices and delivery are subject to change thereafter."}</div>
+                  <div><strong>5. Order Confirmation :-</strong> ${quote.order_confirmation || "Manufacturing starts only after receipt of advance payment and a written Purchase Order."}</div>
+                  <div><strong>6. Warranty :-</strong> ${quote.warranty_terms || "[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage."}</div>
+                  <div><strong>7. Jurisdiction :-</strong> ${quote.jurisdiction_terms || "Subject to Rajkot, Gujarat jurisdiction only."}</div>
                 </div>
               </div>
 

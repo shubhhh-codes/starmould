@@ -40,6 +40,9 @@ export interface Quotation {
   delivery_terms?: string;
   payment_terms?: string;
   validity_terms?: string;
+  order_confirmation?: string;
+  warranty_terms?: string;
+  jurisdiction_terms?: string;
   force_majeure?: string;
   notes?: string | null;
   include_digital_stamp: boolean;
@@ -58,6 +61,9 @@ export interface QuotationTermsPreset {
   delivery_terms: string;
   payment_terms: string;
   validity_terms: string;
+  order_confirmation?: string;
+  warranty_terms?: string;
+  jurisdiction_terms?: string;
   force_majeure: string;
   is_default: boolean;
   created_at?: string;
