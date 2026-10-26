@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Plus, Trash2, Settings, Sparkles, Building2, ChevronDown, ChevronUp, Lock } from "lucide-react";
 import { Quotation, QuotationItem, QuotationTermsPreset } from "@/types/quotation";
-import { TermsPresetModal } from "./terms-preset-modal";
+import { TermsPresetModal, TermCategory } from "./terms-preset-modal";
 import { amountInWords } from "@/lib/number-to-words";
 import { calculateGST, formatINRTwoDecimals, type TaxType } from "@/lib/gst-calculation";
 import { CustomerSelect } from "@/components/ui/customer-select";
@@ -70,12 +70,27 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const [jurisdictionTerms, setJurisdictionTerms] = useState("Subject to Rajkot, Gujarat jurisdiction only.");
   const [forceMajeure, setForceMajeure] = useState("This Clause Is Applicable.");
 
+  // Terms toggle states (which ones to keep/exclude in the quotation & PDF)
+  const [enablePrice, setEnablePrice] = useState(true);
+  const [enableDelivery, setEnableDelivery] = useState(true);
+  const [enablePayment, setEnablePayment] = useState(true);
+  const [enableValidity, setEnableValidity] = useState(true);
+  const [enableForceMajeure, setEnableForceMajeure] = useState(true);
+
   const [includeDigitalStamp, setIncludeDigitalStamp] = useState(true);
   const [status, setStatus] = useState<"Draft" | "Sent" | "Accepted" | "Rejected" | "Expired">("Draft");
 
   // Presets
   const [presets, setPresets] = useState<QuotationTermsPreset[]>([]);
   const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
+  const [presetModalTab, setPresetModalTab] = useState<TermCategory>("price");
+
+  // Filter presets by term_type
+  const pricePresets = presets.filter((p) => (p.term_type || "price") === "price");
+  const deliveryPresets = presets.filter((p) => p.term_type === "delivery");
+  const paymentPresets = presets.filter((p) => p.term_type === "payment");
+  const validityPresets = presets.filter((p) => p.term_type === "validity");
+  const forceMajeurePresets = presets.filter((p) => p.term_type === "force_majeure");
 
   // UI status
   const [isSaving, setIsSaving] = useState(false);
@@ -92,10 +107,20 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         if (data.presets) {
           setPresets(data.presets);
           if (!initialQuotation) {
-            const defaultPreset = data.presets.find((p: any) => p.is_default);
-            if (defaultPreset) {
-              applyPreset(defaultPreset);
-            }
+            const defaultPrice = data.presets.find((p: any) => p.term_type === "price" && p.is_default);
+            if (defaultPrice) setPriceTerms(defaultPrice.content || "");
+
+            const defaultDelivery = data.presets.find((p: any) => p.term_type === "delivery" && p.is_default);
+            if (defaultDelivery) setDeliveryTerms(defaultDelivery.content || "");
+
+            const defaultPayment = data.presets.find((p: any) => p.term_type === "payment" && p.is_default);
+            if (defaultPayment) setPaymentTerms(defaultPayment.content || "");
+
+            const defaultValidity = data.presets.find((p: any) => p.term_type === "validity" && p.is_default);
+            if (defaultValidity) setValidityTerms(defaultValidity.content || "");
+
+            const defaultForceMajeure = data.presets.find((p: any) => p.term_type === "force_majeure" && p.is_default);
+            if (defaultForceMajeure) setForceMajeure(defaultForceMajeure.content || "");
           }
         }
       })
@@ -132,6 +157,13 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       setIncludeDigitalStamp(initialQuotation.include_digital_stamp !== false);
       setStatus(initialQuotation.status || "Draft");
 
+      // Set toggle states based on whether text is present in existing quotation
+      setEnablePrice(Boolean(initialQuotation.price_terms && initialQuotation.price_terms.trim()));
+      setEnableDelivery(Boolean(initialQuotation.delivery_terms && initialQuotation.delivery_terms.trim()));
+      setEnablePayment(Boolean(initialQuotation.payment_terms && initialQuotation.payment_terms.trim()));
+      setEnableValidity(Boolean(initialQuotation.validity_terms && initialQuotation.validity_terms.trim()));
+      setEnableForceMajeure(Boolean(initialQuotation.force_majeure && initialQuotation.force_majeure.trim()));
+
       if (initialQuotation.items && initialQuotation.items.length > 0) {
         setItems(
           initialQuotation.items.map((it, idx) => ({
@@ -166,6 +198,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
       setItems([{ sr_no: 1, product_description: "", qty: 1, unit: "Nos", unit_price: "", total_amount: 0 }]);
       setStatus("Draft");
       setIncludeDigitalStamp(true);
+      setEnablePrice(true);
+      setEnableDelivery(true);
+      setEnablePayment(true);
+      setEnableValidity(true);
+      setEnableForceMajeure(true);
     }
 
     setErrorMsg(null);
@@ -186,14 +223,23 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   if (!isOpen) return null;
 
   const applyPreset = (preset: QuotationTermsPreset) => {
-    if (preset.price_terms) setPriceTerms(preset.price_terms);
-    if (preset.delivery_terms) setDeliveryTerms(preset.delivery_terms);
-    if (preset.payment_terms) setPaymentTerms(preset.payment_terms);
-    if (preset.validity_terms) setValidityTerms(preset.validity_terms);
-    if (preset.order_confirmation) setOrderConfirmation(preset.order_confirmation);
-    if (preset.warranty_terms) setWarrantyTerms(preset.warranty_terms);
-    if (preset.jurisdiction_terms) setJurisdictionTerms(preset.jurisdiction_terms);
-    if (preset.force_majeure) setForceMajeure(preset.force_majeure);
+    const text = preset.content || "";
+    if (preset.term_type === "price") {
+      setPriceTerms(text);
+      setEnablePrice(true);
+    } else if (preset.term_type === "delivery") {
+      setDeliveryTerms(text);
+      setEnableDelivery(true);
+    } else if (preset.term_type === "payment") {
+      setPaymentTerms(text);
+      setEnablePayment(true);
+    } else if (preset.term_type === "validity") {
+      setValidityTerms(text);
+      setEnableValidity(true);
+    } else if (preset.term_type === "force_majeure") {
+      setForceMajeure(text);
+      setEnableForceMajeure(true);
+    }
   };
 
   const handleSelectCustomer = async (c: any) => {
@@ -333,14 +379,14 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         bank_ifsc: bankIfsc,
         bank_branch: bankBranch,
         bank_address: bankAddress,
-        price_terms: priceTerms,
-        delivery_terms: deliveryTerms,
-        payment_terms: paymentTerms,
-        validity_terms: validityTerms,
+        price_terms: enablePrice ? priceTerms : "",
+        delivery_terms: enableDelivery ? deliveryTerms : "",
+        payment_terms: enablePayment ? paymentTerms : "",
+        validity_terms: enableValidity ? validityTerms : "",
         order_confirmation: orderConfirmation,
         warranty_terms: warrantyTerms,
         jurisdiction_terms: jurisdictionTerms,
-        force_majeure: forceMajeure,
+        force_majeure: enableForceMajeure ? forceMajeure : "",
         include_digital_stamp: includeDigitalStamp,
         status,
         items: items.map((it) => ({
@@ -374,18 +420,17 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-xs p-2 sm:p-4 md:p-6"
+        className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 backdrop-blur-xs flex sm:items-center sm:justify-center p-0 sm:p-3 md:p-6"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             onClose();
           }
         }}
       >
-        <div className="min-h-full flex items-center justify-center p-0 sm:p-2">
-          <div
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col my-auto max-h-[92vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div
+          className="bg-white sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col h-full sm:h-auto sm:max-h-[92vh]"
+          onClick={(e) => e.stopPropagation()}
+        >
             {/* Header */}
             <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50/70 shrink-0">
               <div>
@@ -581,30 +626,35 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
             </div>
 
             {/* PARTICULARS / PRODUCTS TABLE */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  Product Details ({items.length})
-                </span>
+            <div className="space-y-2 sm:space-y-3">
+              <div className="flex flex-wrap justify-between items-center gap-2">
+                <div>
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+                    Product Details ({items.length})
+                  </span>
+                  <span className="text-[10.5px] text-slate-400 sm:hidden block">
+                    Swipe horizontally to view all columns →
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={handleAddItem}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer shrink-0"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add Item
                 </button>
               </div>
 
-              <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-xs">
-                <table className="w-full text-xs min-w-[550px]">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
+                <table className="w-full text-xs min-w-[650px]">
                   <thead className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
                     <tr>
-                      <th className="py-2.5 px-3 text-center w-12">#</th>
-                      <th className="py-2.5 px-3 text-left">Description / Particulars *</th>
-                      <th className="py-2.5 px-3 text-center w-20">Qty</th>
-                      <th className="py-2.5 px-3 text-center w-24">Unit</th>
-                      <th className="py-2.5 px-3 text-right w-28">Rate (₹)</th>
-                      <th className="py-2.5 px-3 text-right w-32">Amount (₹)</th>
+                      <th className="py-2.5 px-2 text-center w-10">#</th>
+                      <th className="py-2.5 px-3 text-left min-w-[220px]">Description / Particulars *</th>
+                      <th className="py-2.5 px-2 text-center w-20">Qty</th>
+                      <th className="py-2.5 px-2 text-center w-20">Unit</th>
+                      <th className="py-2.5 px-2 text-right w-24">Rate (₹)</th>
+                      <th className="py-2.5 px-3 text-right w-28">Amount (₹)</th>
                       <th className="py-2.5 px-2 text-center w-10"></th>
                     </tr>
                   </thead>
@@ -747,7 +797,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
 
             {/* TERMS & CONDITIONS PRESET ACCORDION */}
             <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-              <div className="w-full flex justify-between items-center p-3.5 bg-slate-50 hover:bg-slate-100/80 transition-colors">
+              <div className="w-full flex justify-between items-center p-3 sm:p-3.5 bg-slate-50 hover:bg-slate-100/80 transition-colors">
                 <div
                   onClick={() => setShowTermsDetails(!showTermsDetails)}
                   className="flex items-center gap-2 flex-1 cursor-pointer select-none"
@@ -755,15 +805,18 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                   <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                     Terms & Conditions
                   </span>
-                  <span className="text-[11px] text-slate-500 font-medium">(Delivery, Payment & Validity)</span>
+                  <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">(5 Modular Clauses)</span>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setIsPresetModalOpen(true)}
-                    className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-900 font-medium underline cursor-pointer"
+                    onClick={() => {
+                      setPresetModalTab("price");
+                      setIsPresetModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] sm:text-xs text-blue-700 hover:text-blue-900 font-semibold cursor-pointer"
                   >
-                    <Settings className="w-3.5 h-3.5" /> Manage Presets
+                    <Settings className="w-3.5 h-3.5" /> Presets
                   </button>
                   <button
                     type="button"
@@ -776,104 +829,359 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
               </div>
 
               {showTermsDetails && (
-                <div className="p-4 space-y-3 bg-white">
-                  {presets.length > 0 && (
-                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-                      <span className="text-xs text-slate-500 font-medium">Quick Apply Preset:</span>
-                      <select
-                        onChange={(e) => {
-                          const p = presets.find((pr) => String(pr.id) === e.target.value);
-                          if (p) applyPreset(p);
-                        }}
-                        className="px-2.5 py-1 text-xs bg-blue-50 border border-blue-200 text-blue-800 rounded-md font-semibold"
-                        defaultValue=""
-                      >
-                        <option value="" disabled>Select Preset...</option>
-                        {presets.map((p) => (
-                          <option key={p.id} value={p.id}>{p.title} {p.is_default ? "(Default)" : ""}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">1. Price & GST</label>
-                      <input
-                        type="text"
-                        value={priceTerms}
-                        onChange={(e) => setPriceTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
-                        placeholder="Prices are in Indian Rupees (₹)..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">2. Delivery Terms</label>
-                      <input
-                        type="text"
-                        value={deliveryTerms}
-                        onChange={(e) => setDeliveryTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
-                        placeholder="[__] days from receipt of a clear PO..."
-                      />
-                    </div>
+                <div className="p-3 sm:p-4 space-y-3.5 sm:space-y-4 bg-white">
+                  <div className="text-[11px] text-slate-500 pb-1 border-b border-slate-100">
+                    Toggle checkbox to include or exclude clauses for this quotation:
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">3. Payment Terms</label>
-                      <input
-                        type="text"
+                  {/* 1. Price Terms */}
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    enablePrice
+                      ? "bg-slate-50/70 border-slate-200/90 shadow-2xs"
+                      : "bg-slate-50/30 border-dashed border-slate-200 opacity-60"
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={enablePrice}
+                          onChange={(e) => setEnablePrice(e.target.checked)}
+                          className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer shrink-0"
+                        />
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-800 inline-flex items-center justify-center text-[10px] shrink-0">1</span>
+                          Price Terms
+                        </span>
+                        {!enablePrice && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
+                      </label>
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                        <select
+                          disabled={!enablePrice}
+                          onChange={(e) => {
+                            const p = pricePresets.find((pr) => String(pr.id) === e.target.value);
+                            if (p) {
+                              setPriceTerms(p.content);
+                              setEnablePrice(true);
+                            }
+                          }}
+                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-blue-400 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer disabled:opacity-40 truncate"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select Price Option...</option>
+                          {pricePresets.map((p) => (
+                            <option key={p.id} value={p.id}>{p.title} {p.is_default ? "★" : ""}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPresetModalTab("price");
+                            setIsPresetModalOpen(true);
+                          }}
+                          className="p-1.5 sm:p-1 text-slate-400 hover:text-blue-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          title="Manage Price Presets"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {enablePrice && (
+                      <textarea
+                        rows={2}
+                        value={priceTerms}
+                        onChange={(e) => setPriceTerms(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                        placeholder="Prices are in Indian Rupees (₹)..."
+                      />
+                    )}
+                  </div>
+
+                  {/* 2. Delivery Terms */}
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    enableDelivery
+                      ? "bg-slate-50/70 border-slate-200/90 shadow-2xs"
+                      : "bg-slate-50/30 border-dashed border-slate-200 opacity-60"
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={enableDelivery}
+                          onChange={(e) => setEnableDelivery(e.target.checked)}
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
+                        />
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 inline-flex items-center justify-center text-[10px] shrink-0">2</span>
+                          Delivery Terms
+                        </span>
+                        {!enableDelivery && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
+                      </label>
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                        <select
+                          disabled={!enableDelivery}
+                          onChange={(e) => {
+                            const p = deliveryPresets.find((pr) => String(pr.id) === e.target.value);
+                            if (p) {
+                              setDeliveryTerms(p.content);
+                              setEnableDelivery(true);
+                            }
+                          }}
+                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-emerald-400 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 cursor-pointer disabled:opacity-40 truncate"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select Delivery Option...</option>
+                          {deliveryPresets.map((p) => (
+                            <option key={p.id} value={p.id}>{p.title} {p.is_default ? "★" : ""}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPresetModalTab("delivery");
+                            setIsPresetModalOpen(true);
+                          }}
+                          className="p-1.5 sm:p-1 text-slate-400 hover:text-emerald-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          title="Manage Delivery Presets"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {enableDelivery && (
+                      <textarea
+                        rows={2}
+                        value={deliveryTerms}
+                        onChange={(e) => setDeliveryTerms(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                        placeholder="[__] days from receipt of a clear PO..."
+                      />
+                    )}
+                  </div>
+
+                  {/* 3. Payment Terms */}
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    enablePayment
+                      ? "bg-slate-50/70 border-slate-200/90 shadow-2xs"
+                      : "bg-slate-50/30 border-dashed border-slate-200 opacity-60"
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={enablePayment}
+                          onChange={(e) => setEnablePayment(e.target.checked)}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer shrink-0"
+                        />
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-800 inline-flex items-center justify-center text-[10px] shrink-0">3</span>
+                          Payment Terms
+                        </span>
+                        {!enablePayment && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
+                      </label>
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                        <select
+                          disabled={!enablePayment}
+                          onChange={(e) => {
+                            const p = paymentPresets.find((pr) => String(pr.id) === e.target.value);
+                            if (p) {
+                              setPaymentTerms(p.content);
+                              setEnablePayment(true);
+                            }
+                          }}
+                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-indigo-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500 cursor-pointer disabled:opacity-40 truncate"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select Payment Option (e.g. 50/50, 70/30)...</option>
+                          {paymentPresets.map((p) => (
+                            <option key={p.id} value={p.id}>{p.title} {p.is_default ? "★" : ""}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPresetModalTab("payment");
+                            setIsPresetModalOpen(true);
+                          }}
+                          className="p-1.5 sm:p-1 text-slate-400 hover:text-indigo-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          title="Manage Payment Presets"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {enablePayment && (
+                      <textarea
+                        rows={2}
                         value={paymentTerms}
                         onChange={(e) => setPaymentTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] leading-relaxed focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
                         placeholder="[50% advance along with PO...]"
                       />
+                    )}
+                  </div>
+
+                  {/* 4. Validity */}
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    enableValidity
+                      ? "bg-slate-50/70 border-slate-200/90 shadow-2xs"
+                      : "bg-slate-50/30 border-dashed border-slate-200 opacity-60"
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={enableValidity}
+                          onChange={(e) => setEnableValidity(e.target.checked)}
+                          className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer shrink-0"
+                        />
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-amber-100 text-amber-800 inline-flex items-center justify-center text-[10px] shrink-0">4</span>
+                          Validity
+                        </span>
+                        {!enableValidity && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
+                      </label>
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                        <select
+                          disabled={!enableValidity}
+                          onChange={(e) => {
+                            const p = validityPresets.find((pr) => String(pr.id) === e.target.value);
+                            if (p) {
+                              setValidityTerms(p.content);
+                              setEnableValidity(true);
+                            }
+                          }}
+                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-amber-400 focus:outline-hidden focus:ring-1 focus:ring-amber-500 cursor-pointer disabled:opacity-40 truncate"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select Validity Option...</option>
+                          {validityPresets.map((p) => (
+                            <option key={p.id} value={p.id}>{p.title} {p.is_default ? "★" : ""}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPresetModalTab("validity");
+                            setIsPresetModalOpen(true);
+                          }}
+                          className="p-1.5 sm:p-1 text-slate-400 hover:text-amber-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          title="Manage Validity Presets"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">4. Validity</label>
+                    {enableValidity && (
                       <input
                         type="text"
                         value={validityTerms}
                         onChange={(e) => setValidityTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] focus:outline-hidden focus:ring-1 focus:ring-amber-500"
                         placeholder="This quotation is valid for [15] days..."
                       />
-                    </div>
+                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">5. Order Confirmation</label>
+                  {/* 5. Force Majeure */}
+                  <div className={`p-3 rounded-xl border transition-all ${
+                    enableForceMajeure
+                      ? "bg-slate-50/70 border-slate-200/90 shadow-2xs"
+                      : "bg-slate-50/30 border-dashed border-slate-200 opacity-60"
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={enableForceMajeure}
+                          onChange={(e) => setEnableForceMajeure(e.target.checked)}
+                          className="w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 cursor-pointer shrink-0"
+                        />
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                          <span className="w-4 h-4 rounded-full bg-rose-100 text-rose-800 inline-flex items-center justify-center text-[10px] shrink-0">5</span>
+                          Force Majeure
+                        </span>
+                        {!enableForceMajeure && <span className="text-[10.5px] text-slate-400 font-medium italic">(Excluded from PDF)</span>}
+                      </label>
+                      <div className="flex items-center gap-1.5 w-full sm:w-auto">
+                        <select
+                          disabled={!enableForceMajeure}
+                          onChange={(e) => {
+                            const p = forceMajeurePresets.find((pr) => String(pr.id) === e.target.value);
+                            if (p) {
+                              setForceMajeure(p.content);
+                              setEnableForceMajeure(true);
+                            }
+                          }}
+                          className="flex-1 sm:flex-initial sm:w-64 max-w-full px-2 py-1.5 sm:py-1 text-[11px] bg-white border border-slate-300 text-slate-700 rounded-lg font-medium shadow-2xs hover:border-rose-400 focus:outline-hidden focus:ring-1 focus:ring-rose-500 cursor-pointer disabled:opacity-40 truncate"
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select Force Majeure Option...</option>
+                          {forceMajeurePresets.map((p) => (
+                            <option key={p.id} value={p.id}>{p.title} {p.is_default ? "★" : ""}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPresetModalTab("force_majeure");
+                            setIsPresetModalOpen(true);
+                          }}
+                          className="p-1.5 sm:p-1 text-slate-400 hover:text-rose-600 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                          title="Manage Force Majeure Presets"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {enableForceMajeure && (
                       <input
                         type="text"
-                        value={orderConfirmation}
-                        onChange={(e) => setOrderConfirmation(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
-                        placeholder="Manufacturing starts only after receipt of advance..."
+                        value={forceMajeure}
+                        onChange={(e) => setForceMajeure(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white font-mono text-[11px] focus:outline-hidden focus:ring-1 focus:ring-rose-500"
+                        placeholder="This Clause Is Applicable."
                       />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">6. Warranty</label>
-                      <input
-                        type="text"
-                        value={warrantyTerms}
-                        onChange={(e) => setWarrantyTerms(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
-                        placeholder="[__ months] against manufacturing defects..."
-                      />
-                    </div>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">7. Jurisdiction</label>
-                    <input
-                      type="text"
-                      value={jurisdictionTerms}
-                      onChange={(e) => setJurisdictionTerms(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md"
-                      placeholder="Subject to Rajkot, Gujarat jurisdiction only."
-                    />
+                  {/* General Commercial Terms */}
+                  <div className="p-3 rounded-xl bg-slate-50/50 border border-slate-200 space-y-3">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                      General Commercial & Legal Clauses
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Order Confirmation</label>
+                        <input
+                          type="text"
+                          value={orderConfirmation}
+                          onChange={(e) => setOrderConfirmation(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                          placeholder="Manufacturing starts only after receipt of advance..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">Warranty</label>
+                        <input
+                          type="text"
+                          value={warrantyTerms}
+                          onChange={(e) => setWarrantyTerms(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                          placeholder="[__ months] against manufacturing defects..."
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Jurisdiction</label>
+                      <input
+                        type="text"
+                        value={jurisdictionTerms}
+                        onChange={(e) => setJurisdictionTerms(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white"
+                        placeholder="Subject to Rajkot, Gujarat jurisdiction only."
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -988,13 +1296,21 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
           </form>
         </div>
       </div>
-    </div>
 
     {/* Preset Modal */}
     <TermsPresetModal
       isOpen={isPresetModalOpen}
-      onClose={() => setIsPresetModalOpen(false)}
+      onClose={() => {
+        setIsPresetModalOpen(false);
+        fetch("/api/quotations/presets")
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.presets) setPresets(data.presets);
+          })
+          .catch(() => {});
+      }}
       onSelectPreset={applyPreset}
+      initialTab={presetModalTab}
     />
   </>
 );

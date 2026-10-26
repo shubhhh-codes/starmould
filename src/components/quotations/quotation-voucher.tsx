@@ -321,18 +321,32 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
                   </table>
                 </div>
 
-                <div>
-                  <div className="font-bold underline text-[10px] mb-1">Terms & Conditions :=</div>
-                  <div className="space-y-1 text-[9.5px] leading-tight">
-                    <div><strong>1. Price & GST :-</strong> {quote.price_terms || "Prices are in Indian Rupees (₹), firm and fixed, Ex-Works Rajkot. GST @ [18]% extra as applicable. Freight and transit insurance [extra at actuals / included]."}</div>
-                    <div><strong>2. Delivery Terms :-</strong> {quote.delivery_terms || "[__] days from receipt of a clear Purchase Order together with the advance payment; subject to material availability and production capacity."}</div>
-                    <div><strong>3. Payment Terms :-</strong> {quote.payment_terms || "[50% advance along with Purchase Order, balance 50% before dispatch / within __ days of invoice]. Payment by NEFT / RTGS / cheque in favour of Starmould Technology Pvt. Ltd."}</div>
-                    <div><strong>4. Validity :-</strong> {quote.validity_terms || "This quotation is valid for [15] days from the date of issue. Prices and delivery are subject to change thereafter."}</div>
-                    <div><strong>5. Order Confirmation :-</strong> {quote.order_confirmation || "Manufacturing starts only after receipt of advance payment and a written Purchase Order."}</div>
-                    <div><strong>6. Warranty :-</strong> {quote.warranty_terms || "[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage."}</div>
-                    <div><strong>7. Jurisdiction :-</strong> {quote.jurisdiction_terms || "Subject to Rajkot, Gujarat jurisdiction only."}</div>
-                  </div>
-                </div>
+                {(() => {
+                  const activeTerms: { label: string; text: string }[] = [];
+                  if (quote.price_terms?.trim()) activeTerms.push({ label: "Price Terms", text: quote.price_terms });
+                  if (quote.delivery_terms?.trim()) activeTerms.push({ label: "Delivery Terms", text: quote.delivery_terms });
+                  if (quote.payment_terms?.trim()) activeTerms.push({ label: "Payment Terms", text: quote.payment_terms });
+                  if (quote.validity_terms?.trim()) activeTerms.push({ label: "Validity", text: quote.validity_terms });
+                  if (quote.force_majeure?.trim()) activeTerms.push({ label: "Force Majeure", text: quote.force_majeure });
+                  if (quote.order_confirmation?.trim()) activeTerms.push({ label: "Order Confirmation", text: quote.order_confirmation });
+                  if (quote.warranty_terms?.trim()) activeTerms.push({ label: "Warranty", text: quote.warranty_terms });
+                  if (quote.jurisdiction_terms?.trim()) activeTerms.push({ label: "Jurisdiction", text: quote.jurisdiction_terms });
+
+                  if (activeTerms.length === 0) return null;
+
+                  return (
+                    <div>
+                      <div className="font-bold underline text-[10px] mb-1">Terms & Conditions :=</div>
+                      <div className="space-y-1 text-[9.5px] leading-tight">
+                        {activeTerms.map((term, idx) => (
+                          <div key={idx}>
+                            <strong>{idx + 1}. {term.label} :-</strong> {term.text}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Right Column: Totals & Signature */}

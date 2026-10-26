@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 
-// GET /api/quotations/presets - fetch terms & conditions presets
+// GET /api/quotations/presets - fetch modular terms presets
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 5], "nav_quotation");
   if ("error" in auth) {
@@ -10,9 +10,18 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { data, error } = await supabaseAdmin
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type");
+
+    let query = supabaseAdmin
       .from("quotation_terms_presets")
-      .select("*")
+      .select("id, term_type, title, content, is_default, created_at, updated_at");
+
+    if (type) {
+      query = query.eq("term_type", type);
+    }
+
+    const { data, error } = await query
       .order("is_default", { ascending: false })
       .order("id", { ascending: true });
 
@@ -36,47 +45,34 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const {
-      title,
-      price_terms,
-      delivery_terms,
-      payment_terms,
-      validity_terms,
-      order_confirmation,
-      warranty_terms,
-      jurisdiction_terms,
-      force_majeure,
-      is_default,
-    } = body;
+    const { term_type = "price", title, content, is_default } = body;
 
     if (!title || !title.trim()) {
       return NextResponse.json({ error: "Preset title is required" }, { status: 400 });
     }
 
-    // If setting as default, clear existing defaults first
+    if (!content || !content.trim()) {
+      return NextResponse.json({ error: "Preset content text is required" }, { status: 400 });
+    }
+
+    // Clear defaults ONLY for this term_type if marking as default
     if (is_default) {
       await supabaseAdmin
         .from("quotation_terms_presets")
         .update({ is_default: false })
-        .neq("id", 0);
+        .eq("term_type", term_type);
     }
 
     const { data, error } = await supabaseAdmin
       .from("quotation_terms_presets")
       .insert({
+        term_type,
         title: title.trim(),
-        price_terms: price_terms || null,
-        delivery_terms: delivery_terms || null,
-        payment_terms: payment_terms || null,
-        validity_terms: validity_terms || null,
-        order_confirmation: order_confirmation || null,
-        warranty_terms: warranty_terms || null,
-        jurisdiction_terms: jurisdiction_terms || null,
-        force_majeure: force_majeure || null,
+        content: content.trim(),
         is_default: Boolean(is_default),
         updated_at: new Date().toISOString(),
       })
-      .select()
+      .select("id, term_type, title, content, is_default, created_at, updated_at")
       .single();
 
     if (error) {
@@ -99,48 +95,35 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const {
-      id,
-      title,
-      price_terms,
-      delivery_terms,
-      payment_terms,
-      validity_terms,
-      order_confirmation,
-      warranty_terms,
-      jurisdiction_terms,
-      force_majeure,
-      is_default,
-    } = body;
+    const { id, term_type, title, content, is_default } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Preset ID is required" }, { status: 400 });
     }
 
+    const tType = term_type || "price";
+
     if (is_default) {
       await supabaseAdmin
         .from("quotation_terms_presets")
         .update({ is_default: false })
+        .eq("term_type", tType)
         .neq("id", id);
     }
 
+    const updatePayload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (term_type !== undefined) updatePayload.term_type = term_type;
+    if (title !== undefined) updatePayload.title = title.trim();
+    if (content !== undefined) updatePayload.content = content.trim();
+    if (is_default !== undefined) updatePayload.is_default = Boolean(is_default);
+
     const { data, error } = await supabaseAdmin
       .from("quotation_terms_presets")
-      .update({
-        title: title?.trim(),
-        price_terms,
-        delivery_terms,
-        payment_terms,
-        validity_terms,
-        order_confirmation,
-        warranty_terms,
-        jurisdiction_terms,
-        force_majeure,
-        is_default: Boolean(is_default),
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq("id", id)
-      .select()
+      .select("id, term_type, title, content, is_default, created_at, updated_at")
       .single();
 
     if (error) {

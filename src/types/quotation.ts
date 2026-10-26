@@ -54,17 +54,13 @@ export interface Quotation {
   items?: QuotationItem[];
 }
 
+export type TermType = "price" | "delivery" | "payment" | "validity" | "force_majeure";
+
 export interface QuotationTermsPreset {
   id: number;
+  term_type: TermType;
   title: string;
-  price_terms: string;
-  delivery_terms: string;
-  payment_terms: string;
-  validity_terms: string;
-  order_confirmation?: string;
-  warranty_terms?: string;
-  jurisdiction_terms?: string;
-  force_majeure: string;
+  content: string;
   is_default: boolean;
   created_at?: string;
   updated_at?: string;
