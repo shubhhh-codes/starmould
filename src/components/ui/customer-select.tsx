@@ -12,7 +12,7 @@ export interface CustomerSelectProps {
   disabled?: boolean;
   required?: boolean;
   className?: string;
-  onAddNew?: () => void;
+  onAddNew?: (initialQuery?: string) => void;
   filterUserType?: string | "ALL"; // "Customer" (default), "Vendor", or "ALL"
   id?: string;
   onSelectAdvance?: () => void;
@@ -316,19 +316,27 @@ export function CustomerSelect({
             {filteredCustomers.length === 0 ? (
               <div className="p-4 text-center">
                 <p className="text-xs text-slate-500 font-medium">
-                  No matches found for &quot;{query}&quot;
+                  {query.trim() ? (
+                    <>No matches found for &quot;<span className="text-slate-700 font-semibold">{query}</span>&quot;</>
+                  ) : (
+                    "No customers found"
+                  )}
                 </p>
                 {onAddNew ? (
                   <button
                     type="button"
                     onClick={() => {
                       setIsOpen(false);
-                      onAddNew();
+                      onAddNew(query.trim());
                     }}
-                    className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition"
+                    className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-semibold transition cursor-pointer"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>Create &quot;{query}&quot; as Customer</span>
+                    <span>
+                      {query.trim()
+                        ? `Customer doesn't exist? Create "${query.trim()}" now`
+                        : "Customer doesn't exist? Create it now"}
+                    </span>
                   </button>
                 ) : (
                   <a
@@ -403,6 +411,27 @@ export function CustomerSelect({
               })
             )}
           </div>
+
+          {/* Persistent Add Customer action when results are shown */}
+          {onAddNew && filteredCustomers.length > 0 && (
+            <div className="p-1.5 border-t border-slate-100 bg-slate-50/70">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onAddNew(query.trim());
+                }}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold text-blue-600 hover:text-blue-700 hover:bg-blue-50/80 border border-dashed border-blue-200 hover:border-blue-300 transition cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>
+                  {query.trim()
+                    ? `Customer doesn't exist? Create "${query.trim()}" now`
+                    : "+ Add New Customer"}
+                </span>
+              </button>
+            </div>
+          )}
 
           {/* Quick footer counter */}
           <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">

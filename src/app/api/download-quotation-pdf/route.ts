@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import { calculateGST, formatINRTwoDecimals } from "@/lib/gst-calculation";
 import { amountInWords } from "@/lib/number-to-words";
+import type { QuotationItem } from "@/types/quotation";
 
 function findChromePath(): string {
   const candidates = [
@@ -285,7 +286,267 @@ export async function GET(req: NextRequest) {
 
     // ── Multi-page determination: Cover page + Commercial Quotation + Bank/Terms + Annexure-I (2 Pages) ──
     const hasPage3 = true;
-    const totalPages = 5;
+
+    const calculateItemHeight = (it: QuotationItem): number => {
+      const base = 34; // base single-line row
+      const title = (it.product_name || it.product_description || "").trim();
+      const titleLines = Math.max(1, Math.ceil(title.length / 42));
+      const titleExtra = (titleLines - 1) * 14;
+
+      const desc = (it.description || "").trim();
+      if (!desc) return base + titleExtra;
+
+      const descLines = desc.split("\n").reduce((acc: number, line: string) => {
+        return acc + Math.max(1, Math.ceil(line.length / 55));
+      }, 0);
+
+      // 12px cell padding (py-[6px]) + title (14px) + gap (2px) + descLines * 12px
+      const calculated = 12 + 14 + titleExtra + 2 + descLines * 12;
+      return Math.max(base, calculated);
+    };
+
+    interface QuotationItemChunk {
+      items: QuotationItem[];
+      startIdx: number;
+      isLast: boolean;
+    }
+
+    const paginateQuotationItems = (
+      itemList: QuotationItem[]
+    ): QuotationItemChunk[] => {
+      if (!itemList || itemList.length === 0) {
+        return [{ items: [], startIdx: 0, isLast: true }];
+      }
+
+      const p1MaxWithTotals = 515;
+      const p1MaxWithoutTotals = 645;
+      const contMaxWithTotals = 640;
+      const contMaxWithoutTotals = 760;
+
+      const totalHeight = itemList.reduce((sum, it) => sum + calculateItemHeight(it), 0);
+
+      if (totalHeight <= p1MaxWithTotals) {
+        return [{ items: itemList, startIdx: 0, isLast: true }];
+      }
+
+      const chunks: QuotationItemChunk[] = [];
+      let currentChunk: QuotationItem[] = [];
+      let currentH = 0;
+      let isFirstPage = true;
+      let runningIdx = 0;
+
+      for (let i = 0; i < itemList.length; i++) {
+        const item = itemList[i];
+        const itemH = calculateItemHeight(item);
+        const maxWithoutTotals = isFirstPage ? p1MaxWithoutTotals : contMaxWithoutTotals;
+
+        if (currentChunk.length === 0 || currentH + itemH <= maxWithoutTotals) {
+          currentChunk.push(item);
+          currentH += itemH;
+        } else {
+          chunks.push({
+            items: currentChunk,
+            startIdx: runningIdx,
+            isLast: false,
+          });
+          runningIdx += currentChunk.length;
+          currentChunk = [item];
+          currentH = itemH;
+          isFirstPage = false;
+        }
+      }
+
+      if (currentChunk.length > 0) {
+        const maxWithTotals = isFirstPage ? p1MaxWithTotals : contMaxWithTotals;
+        if (currentH > maxWithTotals && currentChunk.length > 1) {
+          const remainingItems = [...currentChunk];
+          const pageItems: QuotationItem[] = [];
+          let pageH = 0;
+
+          while (remainingItems.length > 1) {
+            const nextItem = remainingItems[0];
+            const nextH = calculateItemHeight(nextItem);
+            if (pageH + nextH <= (isFirstPage ? p1MaxWithoutTotals : contMaxWithoutTotals)) {
+              pageItems.push(remainingItems.shift()!);
+              pageH += nextH;
+            } else {
+              break;
+            }
+          }
+
+          chunks.push({
+            items: pageItems,
+            startIdx: runningIdx,
+            isLast: false,
+          });
+          runningIdx += pageItems.length;
+
+          chunks.push({
+            items: remainingItems,
+            startIdx: runningIdx,
+            isLast: true,
+          });
+        } else {
+          chunks.push({
+            items: currentChunk,
+            startIdx: runningIdx,
+            isLast: true,
+          });
+        }
+      }
+
+      return chunks;
+    };
+
+    const itemChunks = paginateQuotationItems(quoteItems);
+    const itemPagesCount = itemChunks.length;
+    const bankPageNo = 1 + itemPagesCount + 1;
+    const annexure1PageNo = bankPageNo + 1;
+    const annexure2PageNo = bankPageNo + 2;
+    const totalPages = annexure2PageNo;
+
+    const renderParticularsTableHtml = (tableItems: QuotationItem[], startIdx = 0) => {
+      const rows = tableItems.length === 0 ? `
+        <tr>
+          <td colspan="6" style="text-align: center; color: #94a3b8; font-style: italic; height: 42px;">
+            No items found in this quotation.
+          </td>
+        </tr>
+      ` : tableItems.map((it, idx) => {
+        const itemNumber = startIdx + idx + 1;
+        const qty = Number(it.qty) || 1;
+        const unit = it.unit || "Nos";
+        const price = Number(it.unit_price) || 0;
+        const total = it.total_amount !== undefined && it.total_amount !== null
+          ? Number(it.total_amount)
+          : Math.round(qty * price * 100) / 100;
+        const rowClass = idx % 2 === 0 ? "row-even" : "row-odd";
+
+        return `
+          <tr class="${rowClass}">
+            <td class="td-center" style="color: #4a575e;">${itemNumber}</td>
+            <td class="td-left" style="padding: 6px 12px;">
+              <div style="color: #1f2a30; font-weight: 700; font-size: 10px;">${it.product_name || it.product_description}</div>
+              ${it.description ? `
+                <div style="color: #64748b; font-size: 8.5px; font-weight: 400; white-space: pre-line; line-height: 1.35; margin-top: 2px;">
+                  ${it.description}
+                </div>
+              ` : ""}
+            </td>
+            <td class="td-center" style="font-variant-numeric: tabular-nums; color: #3d4a52;">${qty}</td>
+            <td class="td-center" style="color: #3d4a52;">${unit}</td>
+            <td class="td-right" style="font-variant-numeric: tabular-nums; color: #3d4a52;">₹ ${formatINRTwoDecimals(price)}</td>
+            <td class="td-right" style="font-variant-numeric: tabular-nums; font-weight: 600; color: #006181;">₹ ${formatINRTwoDecimals(total)}</td>
+          </tr>
+        `;
+      }).join("");
+
+      return `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 38px; text-align: center;">#</th>
+                <th style="width: 312px; text-align: left; padding: 0 12px;">Product / Particulars</th>
+                <th style="width: 50px; text-align: center;">Qty</th>
+                <th style="width: 50px; text-align: center;">Unit</th>
+                <th style="width: 120px; text-align: right; padding: 0 12px;">Unit Price (₹)</th>
+                <th style="width: 140px; text-align: right; padding: 0 12px;">Total Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      `;
+    };
+
+    const renderTotalsHtml = () => `
+      <div class="totals-row">
+        <div style="width: 370px; display: flex; flex-direction: column; gap: 8px;">
+          <div class="words-box" style="width: 100%;">
+            <div class="words-label">Amount in Words</div>
+            <div class="words-text">Rupees ${inWords} Only</div>
+          </div>
+
+          ${(quote.notes && quote.notes.trim()) ? `
+            <div style="width: 100%; max-height: 85px; overflow: hidden; border: 1px solid #bcd8e0; border-radius: 10px; background-color: #ffffff; padding: 7px 12px;">
+              <div style="font-size: 7.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #006181; margin-bottom: 2px;">
+                Special Note / Remarks
+              </div>
+              <div style="font-size: 8.5px; font-weight: 400; color: #3d4a52; line-height: 1.35; white-space: pre-line; word-break: break-word;">
+                ${quote.notes.slice(0, 240)}
+              </div>
+            </div>
+          ` : ""}
+        </div>
+
+        <div class="totals-card">
+          <div class="calc-line">
+            <span>Taxable Amount</span>
+            <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(taxableAmount)}</span>
+          </div>
+          ${discountAmount > 0 ? `
+            <div class="calc-line">
+              <span>Discount</span>
+              <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #e11d48;">-₹ ${formatINRTwoDecimals(discountAmount)}</span>
+            </div>
+          ` : ""}
+          ${isExempt ? `
+            <div class="calc-line">
+              <span>Tax (GST Free)</span>
+              <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #059669;">₹ 0.00</span>
+            </div>
+          ` : isIntraState ? `
+            <div class="calc-line">
+              <span>CGST (9%)</span>
+              <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(cgstAmount)}</span>
+            </div>
+            <div class="calc-line">
+              <span>SGST (9%)</span>
+              <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(sgstAmount)}</span>
+            </div>
+          ` : `
+            <div class="calc-line">
+              <span>IGST (18%)</span>
+              <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(igstAmount)}</span>
+            </div>
+          `}
+          <div class="grand-total-line">
+            <span style="letter-spacing: 0.5px; text-transform: uppercase;">GRAND TOTAL</span>
+            <span style="font-variant-numeric: tabular-nums; font-size: 11.5px;">₹ ${formatINRTwoDecimals(grandTotal)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const renderFooterHtml = (pageNo: number) => `
+      <div class="footer-wrap">
+        <div class="footer-navy-bar">
+          <div class="footer-left">
+            <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
+              <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+            </svg>
+            <div class="footer-divider-left"></div>
+            <div>
+              <div class="footer-comp-name">${COMPANY.displayName}</div>
+              <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
+            </div>
+          </div>
+
+          <div class="footer-right">
+            <div class="page-badge">Page ${pageNo} of ${totalPages}</div>
+            <div class="footer-divider-right"></div>
+            <div class="footer-right-text">
+              <div>${COMPANY.email}</div>
+              <div>${COMPANY.website}</div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-white-margin"></div>
+      </div>
+    `;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -944,152 +1205,85 @@ export async function GET(req: NextRequest) {
                     </div>
                   </div>
                 </div>
-                ${(Boolean(quote.subject?.trim()) || Boolean(quote.reference?.trim())) ? `
-                  <div style="border-top: 1px solid #bcd8e0; padding: 6px 14px; font-size: 9px; background: #f3f9fb;">
-                    ${quote.subject?.trim() ? `
-                      <div style="display: flex; margin-bottom: 2px;">
-                        <div style="width: 85px; font-weight: 700; color: #1f2a30;">Subject:</div>
-                        <div style="color: #3d4a52;">${quote.subject}</div>
-                      </div>
-                    ` : ""}
-                    ${quote.reference?.trim() ? `
-                      <div style="display: flex;">
-                        <div style="width: 85px; font-weight: 700; color: #1f2a30;">Reference:</div>
-                        <div style="color: #3d4a52;">${quote.reference}</div>
-                      </div>
-                    ` : ""}
-                  </div>
-                ` : ""}
               </div>
 
               <div class="section-heading">PARTICULARS</div>
-              <div class="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style="width: 38px; text-align: center;">#</th>
-                      <th style="width: 312px; text-align: left; padding: 0 12px;">Product / Particulars</th>
-                      <th style="width: 50px; text-align: center;">Qty</th>
-                      <th style="width: 50px; text-align: center;">Unit</th>
-                      <th style="width: 120px; text-align: right; padding: 0 12px;">Unit Price (₹)</th>
-                      <th style="width: 140px; text-align: right; padding: 0 12px;">Total Amount (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${quoteItems.length === 0 ? `
-                      <tr>
-                        <td colspan="6" style="text-align: center; color: #94a3b8; font-style: italic; height: 42px;">
-                          No items found in this quotation.
-                        </td>
-                      </tr>
-                    ` : quoteItems.map((it, idx) => {
-                      const qty = Number(it.qty) || 1;
-                      const unit = it.unit || "Nos";
-                      const price = Number(it.unit_price) || 0;
-                      const total = it.total_amount !== undefined && it.total_amount !== null && it.total_amount !== ""
-                        ? Number(it.total_amount)
-                        : Math.round(qty * price * 100) / 100;
-                      const rowClass = idx % 2 === 0 ? "row-even" : "row-odd";
 
-                      return `
-                        <tr class="${rowClass}">
-                          <td class="td-center" style="color: #4a575e;">${idx + 1}</td>
-                          <td class="td-left">
-                            <div style="color: #1f2a30; font-weight: 500; white-space: pre-line;">${it.product_description}</div>
-                          </td>
-                          <td class="td-center" style="font-variant-numeric: tabular-nums; color: #3d4a52;">${qty}</td>
-                          <td class="td-center" style="color: #3d4a52;">${unit}</td>
-                          <td class="td-right" style="font-variant-numeric: tabular-nums; color: #3d4a52;">₹ ${formatINRTwoDecimals(price)}</td>
-                          <td class="td-right" style="font-variant-numeric: tabular-nums; font-weight: 600; color: #006181;">₹ ${formatINRTwoDecimals(total)}</td>
-                        </tr>
-                      `;
-                    }).join("")}
-                  </tbody>
-                </table>
-              </div>
+              ${renderParticularsTableHtml(itemChunks[0].items, 0)}
 
-              <div class="totals-row">
-                <div class="words-box">
-                  <div class="words-label">Amount in Words</div>
-                  <div class="words-text">Rupees ${inWords} Only</div>
-                </div>
-
-                <div class="totals-card">
-                  <div class="calc-line">
-                    <span>Taxable Amount</span>
-                    <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(taxableAmount)}</span>
-                  </div>
-                  ${discountAmount > 0 ? `
-                    <div class="calc-line">
-                      <span>Discount</span>
-                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #e11d48;">-₹ ${formatINRTwoDecimals(discountAmount)}</span>
-                    </div>
-                  ` : ""}
-                  ${isExempt ? `
-                    <div class="calc-line">
-                      <span>Tax (GST Free)</span>
-                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #059669;">₹ 0.00</span>
-                    </div>
-                  ` : isIntraState ? `
-                    <div class="calc-line">
-                      <span>CGST (9%)</span>
-                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(cgstAmount)}</span>
-                    </div>
-                    <div class="calc-line">
-                      <span>SGST (9%)</span>
-                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(sgstAmount)}</span>
-                    </div>
-                  ` : `
-                    <div class="calc-line">
-                      <span>IGST (18%)</span>
-                      <span style="font-variant-numeric: tabular-nums; font-weight: 600; color: #1f2a30;">₹ ${formatINRTwoDecimals(igstAmount)}</span>
-                    </div>
-                  `}
-                  <div class="grand-total-line">
-                    <span style="letter-spacing: 0.5px; text-transform: uppercase;">GRAND TOTAL</span>
-                    <span style="font-variant-numeric: tabular-nums; font-size: 11.5px;">₹ ${formatINRTwoDecimals(grandTotal)}</span>
-                  </div>
-                </div>
-              </div>
-
-              ${hasPage3 ? `
+              ${itemChunks[0].isLast ? `
+                ${renderTotalsHtml()}
                 <div style="width: 710px; margin-top: 18px; padding: 10px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
-                  <span>Please refer to <strong>Page 3</strong> for Bank Remittance &amp; Signatures, and <strong>Pages 4–5</strong> for Annexure-I Terms.</span>
+                  <span>Please refer to <strong>Page ${bankPageNo}</strong> for Bank Remittance &amp; Signatures, and <strong>Pages ${annexure1PageNo}–${annexure2PageNo}</strong> for Annexure-I Terms.</span>
                   <span style="font-weight: 600; color: #006181;">Turn Over &rarr;</span>
                 </div>
-              ` : ""}
+              ` : `
+                <div style="width: 710px; margin-top: 18px; padding: 10px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+                  <span>Continued on <strong>Page 3</strong> for remaining particulars and totals.</span>
+                  <span style="font-weight: 600; color: #006181;">Continued &rarr;</span>
+                </div>
+              `}
 
             </div>
           </div>
 
-          <div class="footer-wrap">
-            <div class="footer-navy-bar">
-              <div class="footer-left">
-                <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
-                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
-                </svg>
-                <div class="footer-divider-left"></div>
-                <div>
-                  <div class="footer-comp-name">${COMPANY.displayName}</div>
-                  <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
-                </div>
-              </div>
-
-              <div class="footer-right">
-                <div class="page-badge">Page 2 of ${totalPages}</div>
-                <div class="footer-divider-right"></div>
-                <div class="footer-right-text">
-                  <div>${COMPANY.email}</div>
-                  <div>${COMPANY.website}</div>
-                </div>
-              </div>
-            </div>
-            <div class="bottom-white-margin"></div>
-          </div>
+          ${renderFooterHtml(2)}
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════════════
-             PAGE 3: TERMS, BANK DETAILS & AUTHORIZATION (EXACT A4 794px x 1123px)
+             CONTINUATION ITEM PAGES (IF MULTI-PAGE LINE ITEMS)
+             ═══════════════════════════════════════════════════════════════════ -->
+        ${itemChunks.slice(1).map((chunk, sliceIdx) => {
+          const pageNo = 3 + sliceIdx;
+          return `
+            <div class="a4-page">
+              <div>
+                <div class="top-stripe-teal"></div>
+                <div class="top-stripe-grey"></div>
+
+                <div class="page-content">
+                  <div class="header-row" style="margin-bottom: 20px;">
+                    <div style="width: 260px;">
+                      ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Star Mould" class="logo-img" />` : `<div style="font-size:24px;font-weight:800;color:#006181;">STAR MOULD</div>`}
+                    </div>
+                    <div>
+                      <div class="title-text" style="font-size: 22px;">QUOTATION (CONTINUED)</div>
+                      <div class="title-underline" style="width: 270px; margin-bottom: 6px;"></div>
+                      <div style="font-size: 9.5px; color: #64748b; font-weight: 500; text-align: right;">
+                        Quotation No: <strong>${quote.quotation_no || "—"}</strong> &bull; Customer: <strong>${consigneeName}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="section-heading" style="display: flex; justify-content: space-between; align-items: center; padding-right: 12px;">
+                    <span>PARTICULARS (CONTINUED)</span>
+                    <span style="font-size: 9px; font-weight: 400; color: #475569;">Items ${chunk.startIdx + 1} to ${chunk.startIdx + chunk.items.length}</span>
+                  </div>
+
+                  ${renderParticularsTableHtml(chunk.items, chunk.startIdx)}
+
+                  ${chunk.isLast ? `
+                    ${renderTotalsHtml()}
+                    <div style="width: 710px; margin-top: 18px; padding: 10px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+                      <span>Please refer to <strong>Page ${bankPageNo}</strong> for Bank Remittance &amp; Signatures, and <strong>Pages ${annexure1PageNo}–${annexure2PageNo}</strong> for Annexure-I Terms.</span>
+                      <span style="font-weight: 600; color: #006181;">Turn Over &rarr;</span>
+                    </div>
+                  ` : `
+                    <div style="width: 710px; margin-top: 18px; padding: 10px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
+                      <span>Continued on <strong>Page ${pageNo + 1}</strong> for remaining particulars and totals.</span>
+                      <span style="font-weight: 600; color: #006181;">Continued &rarr;</span>
+                    </div>
+                  `}
+                </div>
+              </div>
+
+              ${renderFooterHtml(pageNo)}
+            </div>
+          `;
+        }).join("")}
+
+        <!-- ═══════════════════════════════════════════════════════════════════
+             PAGE: TERMS, BANK DETAILS & AUTHORIZATION (EXACT A4 794px x 1123px)
              ═══════════════════════════════════════════════════════════════════ -->
         ${hasPage3 ? `
           <div class="a4-page">
@@ -1181,42 +1375,19 @@ export async function GET(req: NextRequest) {
 
                 <!-- Turn-over notice to Annexure-I -->
                 <div style="width: 710px; margin-top: 14px; padding: 8px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
-                  <span>Please refer to <strong>Pages 4 &amp; 5</strong> for Annexure-I: Detailed Manufacturer Terms &amp; Conditions (Clauses 1 to 23).</span>
+                  <span>Please refer to <strong>Pages ${annexure1PageNo} &amp; ${annexure2PageNo}</strong> for Annexure-I: Detailed Manufacturer Terms &amp; Conditions (Clauses 1 to 23).</span>
                   <span style="font-weight: 600; color: #006181;">Annexure-I Next &rarr;</span>
                 </div>
 
               </div>
             </div>
 
-            <div class="footer-wrap">
-              <div class="footer-navy-bar">
-                <div class="footer-left">
-                  <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
-                    <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
-                  </svg>
-                  <div class="footer-divider-left"></div>
-                  <div>
-                    <div class="footer-comp-name">${COMPANY.displayName}</div>
-                    <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
-                  </div>
-                </div>
-
-                <div class="footer-right">
-                  <div class="page-badge">Page 3 of ${totalPages}</div>
-                  <div class="footer-divider-right"></div>
-                  <div class="footer-right-text">
-                    <div>${COMPANY.email}</div>
-                    <div>${COMPANY.website}</div>
-                  </div>
-                </div>
-              </div>
-              <div class="bottom-white-margin"></div>
-            </div>
+            ${renderFooterHtml(bankPageNo)}
           </div>
         ` : ""}
 
         <!-- ═══════════════════════════════════════════════════════════════════
-             PAGE 4: ANNEXURE - I PART 1 (CLAUSES 1 TO 12)
+             PAGE: ANNEXURE - I PART 1 (CLAUSES 1 TO 12)
              ═══════════════════════════════════════════════════════════════════ -->
         <div class="a4-page">
           <div>
@@ -1245,40 +1416,17 @@ export async function GET(req: NextRequest) {
               ${renderAnnexureHtml(ANNEXURE_TERMS_PART1)}
 
               <div style="width: 710px; margin-top: 14px; padding: 8px 16px; border: 1px dashed #bcd8e0; border-radius: 8px; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b;">
-                <span>Continued on <strong>Page 5</strong> for Clauses 13 to 23 and Customer Final Acceptance.</span>
+                <span>Continued on <strong>Page ${annexure2PageNo}</strong> for Clauses 13 to 23 and Customer Final Acceptance.</span>
                 <span style="font-weight: 600; color: #006181;">Continued &rarr;</span>
               </div>
             </div>
           </div>
 
-          <div class="footer-wrap">
-            <div class="footer-navy-bar">
-              <div class="footer-left">
-                <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
-                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
-                </svg>
-                <div class="footer-divider-left"></div>
-                <div>
-                  <div class="footer-comp-name">${COMPANY.displayName}</div>
-                  <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
-                </div>
-              </div>
-
-              <div class="footer-right">
-                <div class="page-badge">Page 4 of ${totalPages}</div>
-                <div class="footer-divider-right"></div>
-                <div class="footer-right-text">
-                  <div>${COMPANY.email}</div>
-                  <div>${COMPANY.website}</div>
-                </div>
-              </div>
-            </div>
-            <div class="bottom-white-margin"></div>
-          </div>
+          ${renderFooterHtml(annexure1PageNo)}
         </div>
 
         <!-- ═══════════════════════════════════════════════════════════════════
-             PAGE 5: ANNEXURE - I PART 2 (CLAUSES 13 TO 23 + ACCEPTANCE)
+             PAGE: ANNEXURE - I PART 2 (CLAUSES 13 TO 23 + ACCEPTANCE)
              ═══════════════════════════════════════════════════════════════════ -->
         <div class="a4-page">
           <div>
@@ -1342,30 +1490,7 @@ export async function GET(req: NextRequest) {
             </div>
           </div>
 
-          <div class="footer-wrap">
-            <div class="footer-navy-bar">
-              <div class="footer-left">
-                <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
-                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
-                </svg>
-                <div class="footer-divider-left"></div>
-                <div>
-                  <div class="footer-comp-name">${COMPANY.displayName}</div>
-                  <div class="footer-comp-addr">${COMPANY.address1} ${COMPANY.address2}</div>
-                </div>
-              </div>
-
-              <div class="footer-right">
-                <div class="page-badge">Page 5 of ${totalPages}</div>
-                <div class="footer-divider-right"></div>
-                <div class="footer-right-text">
-                  <div>${COMPANY.email}</div>
-                  <div>${COMPANY.website}</div>
-                </div>
-              </div>
-            </div>
-            <div class="bottom-white-margin"></div>
-          </div>
+          ${renderFooterHtml(annexure2PageNo)}
         </div>
 
       </body>

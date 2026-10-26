@@ -179,12 +179,129 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
 
   // ── Multi-page determination: Cover page + Quotation content + Annexure-I ──
   // Page 1: Official Corporate Cover Page
-  // Page 2: Commercial Quotation (Items, Totals & GST)
-  // Page 3: Bank Details, Summary Terms & Dual Signatures
-  // Page 4: Annexure-I Detailed Manufacturer Terms (Part 1: Clauses 1 to 12)
-  // Page 5: Annexure-I Detailed Manufacturer Terms (Part 2: Clauses 13 to 23 + Acceptance)
+  // Page 2..N: Commercial Quotation (Line Items, Totals & GST)
+  // Page N+1: Bank Details, Summary Terms & Dual Signatures
+  // Page N+2: Annexure-I Detailed Manufacturer Terms (Part 1: Clauses 1 to 12)
+  // Page N+3: Annexure-I Detailed Manufacturer Terms (Part 2: Clauses 13 to 23 + Acceptance)
   const hasPage3 = true;
-  const totalPages = 5;
+
+  const calculateItemHeight = (it: QuotationItem): number => {
+    const base = 34; // base single-line row
+    const title = (it.product_name || it.product_description || "").trim();
+    const titleLines = Math.max(1, Math.ceil(title.length / 42));
+    const titleExtra = (titleLines - 1) * 14;
+
+    const desc = (it.description || "").trim();
+    if (!desc) return base + titleExtra;
+
+    const descLines = desc.split("\n").reduce((acc, line) => {
+      return acc + Math.max(1, Math.ceil(line.length / 55));
+    }, 0);
+
+    // 12px cell padding (py-[6px]) + title (14px) + gap (2px) + descLines * 12px
+    const calculated = 12 + 14 + titleExtra + 2 + descLines * 12;
+    return Math.max(base, calculated);
+  };
+
+  interface QuotationItemChunk {
+    items: QuotationItem[];
+    startIdx: number;
+    isLast: boolean;
+  }
+
+  const paginateQuotationItems = (
+    itemList: QuotationItem[]
+  ): QuotationItemChunk[] => {
+    if (!itemList || itemList.length === 0) {
+      return [{ items: [], startIdx: 0, isLast: true }];
+    }
+
+    const p1MaxWithTotals = 515;
+    const p1MaxWithoutTotals = 645;
+    const contMaxWithTotals = 640;
+    const contMaxWithoutTotals = 760;
+
+    const totalHeight = itemList.reduce((sum, it) => sum + calculateItemHeight(it), 0);
+
+    if (totalHeight <= p1MaxWithTotals) {
+      return [{ items: itemList, startIdx: 0, isLast: true }];
+    }
+
+    const chunks: QuotationItemChunk[] = [];
+    let currentChunk: QuotationItem[] = [];
+    let currentH = 0;
+    let isFirstPage = true;
+    let runningIdx = 0;
+
+    for (let i = 0; i < itemList.length; i++) {
+      const item = itemList[i];
+      const itemH = calculateItemHeight(item);
+      const maxWithoutTotals = isFirstPage ? p1MaxWithoutTotals : contMaxWithoutTotals;
+
+      if (currentChunk.length === 0 || currentH + itemH <= maxWithoutTotals) {
+        currentChunk.push(item);
+        currentH += itemH;
+      } else {
+        chunks.push({
+          items: currentChunk,
+          startIdx: runningIdx,
+          isLast: false,
+        });
+        runningIdx += currentChunk.length;
+        currentChunk = [item];
+        currentH = itemH;
+        isFirstPage = false;
+      }
+    }
+
+    if (currentChunk.length > 0) {
+      const maxWithTotals = isFirstPage ? p1MaxWithTotals : contMaxWithTotals;
+      if (currentH > maxWithTotals && currentChunk.length > 1) {
+        const remainingItems = [...currentChunk];
+        const pageItems: QuotationItem[] = [];
+        let pageH = 0;
+
+        while (remainingItems.length > 1) {
+          const nextItem = remainingItems[0];
+          const nextH = calculateItemHeight(nextItem);
+          if (pageH + nextH <= (isFirstPage ? p1MaxWithoutTotals : contMaxWithoutTotals)) {
+            pageItems.push(remainingItems.shift()!);
+            pageH += nextH;
+          } else {
+            break;
+          }
+        }
+
+        chunks.push({
+          items: pageItems,
+          startIdx: runningIdx,
+          isLast: false,
+        });
+        runningIdx += pageItems.length;
+
+        chunks.push({
+          items: remainingItems,
+          startIdx: runningIdx,
+          isLast: true,
+        });
+      } else {
+        chunks.push({
+          items: currentChunk,
+          startIdx: runningIdx,
+          isLast: true,
+        });
+      }
+    }
+
+    return chunks;
+  };
+
+  const itemChunks = paginateQuotationItems(items);
+  const itemPagesCount = itemChunks.length;
+  const bankPageNo = 1 + itemPagesCount + 1;
+  const annexure1PageNo = bankPageNo + 1;
+  const annexure2PageNo = bankPageNo + 2;
+  const totalPages = annexure2PageNo;
 
   const renderAnnexureTable = (termsList: typeof ANNEXURE_TERMS_PART1) => (
     <div className="w-[710px] border overflow-hidden rounded-[4px]" style={{ borderColor: TEAL_BORDER }}>
@@ -226,7 +343,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
     </div>
   );
 
-  const renderParticularsTable = (tableItems: QuotationItem[]) => (
+  const renderParticularsTable = (tableItems: QuotationItem[], startIdx = 0) => (
     <div className="w-[710px] border overflow-hidden mb-[14px]" style={{ borderColor: TEAL_BORDER }}>
       <table className="w-full border-collapse text-[9.5px]">
         <thead>
@@ -248,6 +365,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
             </tr>
           ) : (
             tableItems.map((it, idx) => {
+              const itemNumber = startIdx + idx + 1;
               const qty = Number(it.qty) || 1;
               const unit = it.unit || "Nos";
               const price = Number(it.unit_price) || 0;
@@ -264,12 +382,17 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
                   }}
                 >
                   <td className="h-[34px] px-[8px] text-center border-t border-r" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
-                    {idx + 1}
+                    {itemNumber}
                   </td>
-                  <td className="h-[34px] px-[12px] text-left border-t border-r" style={{ borderColor: TEAL_BORDER }}>
-                    <div className="text-[9.5px] font-medium whitespace-pre-line" style={{ color: TEXT_DARK }}>
-                      {it.product_description}
+                  <td className="py-[6px] px-[12px] text-left border-t border-r" style={{ borderColor: TEAL_BORDER }}>
+                    <div className="text-[10px] font-bold" style={{ color: TEXT_DARK }}>
+                      {it.product_name || it.product_description}
                     </div>
+                    {it.description && (
+                      <div className="text-[8.5px] font-normal text-slate-500 whitespace-pre-line leading-[1.38] mt-0.5">
+                        {it.description}
+                      </div>
+                    )}
                   </td>
                   <td className="h-[34px] px-[8px] text-center border-t border-r tabular-nums font-medium" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
                     {qty}
@@ -289,6 +412,96 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
           )}
         </tbody>
       </table>
+    </div>
+  );
+
+  const renderTotalsSection = () => (
+    <div className="w-[710px] flex items-start justify-between gap-4 mb-[14px]">
+      <div className="w-[370px] flex flex-col gap-2">
+        <div
+          className="w-full rounded-[10px] border p-[10px_14px]"
+          style={{ borderColor: TEAL_BORDER, backgroundColor: TEAL_LIGHT }}
+        >
+          <div className="text-[8px] font-bold uppercase tracking-[0.5px] mb-1" style={{ color: TEAL_PRIMARY }}>
+            Amount in Words
+          </div>
+          <div className="text-[9.5px] font-semibold italic leading-[1.4]" style={{ color: TEXT_DARK }}>
+            Rupees {inWords} Only
+          </div>
+        </div>
+
+        {Boolean(quote.notes?.trim()) && (
+          <div
+            className="w-full max-h-[85px] overflow-hidden rounded-[10px] border p-[7px_12px]"
+            style={{ borderColor: TEAL_BORDER, backgroundColor: "#ffffff" }}
+          >
+            <div className="text-[7.5px] font-bold uppercase tracking-[0.5px] mb-0.5" style={{ color: TEAL_PRIMARY }}>
+              Special Note / Remarks
+            </div>
+            <div className="text-[8.5px] font-normal leading-[1.35] line-clamp-4 break-words whitespace-pre-line" style={{ color: TEXT_MUTED }}>
+              {quote.notes}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        className="w-[320px] rounded-[10px] border overflow-hidden text-[9.5px]"
+        style={{ borderColor: TEAL_BORDER }}
+      >
+        <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
+          <span>Taxable Amount</span>
+          <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
+            ₹ {formatINRTwoDecimals(taxableAmount)}
+          </span>
+        </div>
+
+        {discountAmount > 0 && (
+          <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
+            <span>Discount</span>
+            <span className="tabular-nums font-semibold text-rose-600">
+              -₹ {formatINRTwoDecimals(discountAmount)}
+            </span>
+          </div>
+        )}
+
+        {isExempt ? (
+          <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
+            <span>Tax (GST Free)</span>
+            <span className="tabular-nums font-semibold text-emerald-600">₹ 0.00</span>
+          </div>
+        ) : isIntraState ? (
+          <>
+            <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
+              <span>CGST (9%)</span>
+              <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
+                ₹ {formatINRTwoDecimals(cgstAmount)}
+              </span>
+            </div>
+            <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
+              <span>SGST (9%)</span>
+              <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
+                ₹ {formatINRTwoDecimals(sgstAmount)}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
+            <span>IGST (18%)</span>
+            <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
+              ₹ {formatINRTwoDecimals(igstAmount)}
+            </span>
+          </div>
+        )}
+
+        <div
+          className="p-[8px_14px] flex justify-between font-bold text-[11px]"
+          style={{ backgroundColor: TEAL_LIGHT, color: TEAL_PRIMARY }}
+        >
+          <span className="tracking-[0.5px] uppercase">GRAND TOTAL</span>
+          <span className="tabular-nums text-[11.5px]">₹ {formatINRTwoDecimals(grandTotal)}</span>
+        </div>
+      </div>
     </div>
   );
 
@@ -602,26 +815,6 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
                     </div>
                   </div>
                 </div>
-
-                {(Boolean(quote.subject?.trim()) || Boolean(quote.reference?.trim())) && (
-                  <div
-                    className="border-t px-[14px] py-[6px] text-[9px] space-y-1"
-                    style={{ borderColor: TEAL_BORDER, backgroundColor: TEAL_LIGHT }}
-                  >
-                    {quote.subject?.trim() && (
-                      <div className="flex">
-                        <div className="w-[85px] font-bold" style={{ color: TEXT_DARK }}>Subject:</div>
-                        <div className="font-medium" style={{ color: TEXT_MUTED }}>{quote.subject}</div>
-                      </div>
-                    )}
-                    {quote.reference?.trim() && (
-                      <div className="flex">
-                        <div className="w-[85px] font-bold" style={{ color: TEXT_DARK }}>Reference:</div>
-                        <div className="font-medium" style={{ color: TEXT_MUTED }}>{quote.reference}</div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Particulars Table */}
@@ -632,99 +825,134 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
                 PARTICULARS
               </div>
 
-              {renderParticularsTable(items)}
+              {renderParticularsTable(itemChunks[0].items, 0)}
 
-              {/* Totals Block & Words */}
-              <div className="w-[710px] flex items-start justify-between gap-4 mb-[14px]">
-                <div
-                  className="w-[370px] rounded-[10px] border p-[10px_14px]"
-                  style={{ borderColor: TEAL_BORDER, backgroundColor: TEAL_LIGHT }}
-                >
-                  <div className="text-[8px] font-bold uppercase tracking-[0.5px] mb-1" style={{ color: TEAL_PRIMARY }}>
-                    Amount in Words
+              {itemChunks[0].isLast ? (
+                <>
+                  {renderTotalsSection()}
+
+                  {/* Turn-over notice to Bank details */}
+                  <div className="w-[710px] mt-[18px] p-[10px_16px] border border-dashed rounded-[8px] bg-slate-50 flex justify-between items-center text-[9px] text-slate-500" style={{ borderColor: TEAL_BORDER }}>
+                    <span>Please refer to <strong>Page {bankPageNo}</strong> for Bank Remittance &amp; Signatures, and <strong>Pages {annexure1PageNo}–{annexure2PageNo}</strong> for Annexure-I Terms.</span>
+                    <span className="font-semibold" style={{ color: TEAL_PRIMARY }}>Turn Over &rarr;</span>
                   </div>
-                  <div className="text-[9.5px] font-semibold italic leading-[1.4]" style={{ color: TEXT_DARK }}>
-                    Rupees {inWords} Only
-                  </div>
+                </>
+              ) : (
+                /* Turn-over notice to continuation page */
+                <div className="w-[710px] mt-[18px] p-[10px_16px] border border-dashed rounded-[8px] bg-slate-50 flex justify-between items-center text-[9px] text-slate-500" style={{ borderColor: TEAL_BORDER }}>
+                  <span>Continued on <strong>Page 3</strong> for remaining particulars and totals.</span>
+                  <span className="font-semibold" style={{ color: TEAL_PRIMARY }}>Continued &rarr;</span>
                 </div>
-
-                <div
-                  className="w-[320px] rounded-[10px] border overflow-hidden text-[9.5px]"
-                  style={{ borderColor: TEAL_BORDER }}
-                >
-                  <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
-                    <span>Taxable Amount</span>
-                    <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
-                      ₹ {formatINRTwoDecimals(taxableAmount)}
-                    </span>
-                  </div>
-
-                  {discountAmount > 0 && (
-                    <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
-                      <span>Discount</span>
-                      <span className="tabular-nums font-semibold text-rose-600">
-                        -₹ {formatINRTwoDecimals(discountAmount)}
-                      </span>
-                    </div>
-                  )}
-
-                  {isExempt ? (
-                    <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
-                      <span>Tax (GST Free)</span>
-                      <span className="tabular-nums font-semibold text-emerald-600">₹ 0.00</span>
-                    </div>
-                  ) : isIntraState ? (
-                    <>
-                      <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
-                        <span>CGST (9%)</span>
-                        <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
-                          ₹ {formatINRTwoDecimals(cgstAmount)}
-                        </span>
-                      </div>
-                      <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
-                        <span>SGST (9%)</span>
-                        <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
-                          ₹ {formatINRTwoDecimals(sgstAmount)}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-[6px_14px] flex justify-between border-b" style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}>
-                      <span>IGST (18%)</span>
-                      <span className="tabular-nums font-semibold" style={{ color: TEXT_DARK }}>
-                        ₹ {formatINRTwoDecimals(igstAmount)}
-                      </span>
-                    </div>
-                  )}
-
-                  <div
-                    className="p-[8px_14px] flex justify-between font-bold text-[11px]"
-                    style={{ backgroundColor: TEAL_LIGHT, color: TEAL_PRIMARY }}
-                  >
-                    <span className="tracking-[0.5px] uppercase">GRAND TOTAL</span>
-                    <span className="tabular-nums text-[11.5px]">₹ {formatINRTwoDecimals(grandTotal)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Turn-over notice to Page 3 */}
-              <div className="w-[710px] mt-[18px] p-[10px_16px] border border-dashed rounded-[8px] bg-slate-50 flex justify-between items-center text-[9px] text-slate-500" style={{ borderColor: TEAL_BORDER }}>
-                <span>Please refer to <strong>Page 3</strong> for Bank Remittance &amp; Signatures, and <strong>Pages 4–5</strong> for Annexure-I Terms.</span>
-                <span className="font-semibold" style={{ color: TEAL_PRIMARY }}>Turn Over &rarr;</span>
-              </div>
+              )}
             </div>
           </div>
 
           {renderFooter(2)}
         </div>
 
-        {/* ── Visual Page Divider: Page 2 -> Page 3 ── */}
+        {/* ── Continuation Item Pages (if items span across multiple pages) ── */}
+        {itemChunks.slice(1).map((chunk, sliceIdx) => {
+          const pageNo = 3 + sliceIdx;
+          return (
+            <React.Fragment key={pageNo}>
+              {/* Visual Page Divider */}
+              <div className="w-[794px] py-6 flex items-center justify-center gap-3 select-none print:hidden">
+                <div className="flex-1 h-px bg-slate-400/50" />
+                <div className="flex items-center gap-2 px-3.5 py-1 bg-slate-100 rounded-full border border-slate-300 shadow-xs text-slate-700">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: TEAL_PRIMARY }} />
+                  <span className="text-[10.5px] font-bold tracking-wider uppercase font-mono">
+                    Page Break • Page {pageNo} of {totalPages} • Quotation (Continued)
+                  </span>
+                </div>
+                <div className="flex-1 h-px bg-slate-400/50" />
+              </div>
+
+              <div
+                className="a4-page-sheet w-[794px] h-[1123px] min-h-[1123px] max-h-[1123px] bg-white relative flex flex-col justify-between overflow-hidden shadow-2xl border border-slate-300/80 rounded-sm print:shadow-none print:border-none print:rounded-none"
+                style={{ width: "794px", height: "1123px" }}
+              >
+                <div>
+                  {/* Top stripes */}
+                  <div className="w-[794px]">
+                    <div style={{ height: "8px", width: "794px", backgroundColor: TEAL_PRIMARY }} />
+                    <div style={{ height: "4px", width: "794px", backgroundColor: GREY_LINE }} />
+                  </div>
+
+                  <div className="px-[42px] pt-[20px]">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-[20px]">
+                      <div className="w-[260px]">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src="/images/stpl-logo.png"
+                          alt="Star Mould"
+                          className="w-[240px] h-auto object-contain block"
+                        />
+                      </div>
+
+                      <div className="text-right">
+                        <div
+                          className="text-[22px] font-extrabold tracking-[0.5px] leading-none mb-[6px]"
+                          style={{ color: TEAL_PRIMARY }}
+                        >
+                          QUOTATION (CONTINUED)
+                        </div>
+                        <div
+                          className="h-[4px] w-[320px] ml-auto mb-[6px]"
+                          style={{ backgroundColor: GREY_LINE }}
+                        />
+                        <div className="text-[9.5px] text-slate-500 font-medium">
+                          Quotation No: <strong>{quote.quotation_no || "—"}</strong> &bull; Customer: <strong>{consigneeName}</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Ribbon */}
+                    <div
+                      className="w-[710px] h-[28px] flex items-center justify-between px-[12px] font-semibold text-[10px] tracking-[0.5px] uppercase mb-[6px]"
+                      style={{ backgroundColor: "#e6f2f6", color: TEAL_PRIMARY, fontWeight: 600 }}
+                    >
+                      <span>PARTICULARS (CONTINUED)</span>
+                      <span className="text-[9px] font-normal text-slate-600">
+                        Items {chunk.startIdx + 1} to {chunk.startIdx + chunk.items.length}
+                      </span>
+                    </div>
+
+                    {/* Table */}
+                    {renderParticularsTable(chunk.items, chunk.startIdx)}
+
+                    {/* If last item chunk: show Totals and turnover notice to Bank details */}
+                    {chunk.isLast ? (
+                      <>
+                        {renderTotalsSection()}
+
+                        <div className="w-[710px] mt-[18px] p-[10px_16px] border border-dashed rounded-[8px] bg-slate-50 flex justify-between items-center text-[9px] text-slate-500" style={{ borderColor: TEAL_BORDER }}>
+                          <span>Please refer to <strong>Page {bankPageNo}</strong> for Bank Remittance &amp; Signatures, and <strong>Pages {annexure1PageNo}–{annexure2PageNo}</strong> for Annexure-I Terms.</span>
+                          <span className="font-semibold" style={{ color: TEAL_PRIMARY }}>Turn Over &rarr;</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-[710px] mt-[18px] p-[10px_16px] border border-dashed rounded-[8px] bg-slate-50 flex justify-between items-center text-[9px] text-slate-500" style={{ borderColor: TEAL_BORDER }}>
+                        <span>Continued on <strong>Page {pageNo + 1}</strong> for remaining particulars and totals.</span>
+                        <span className="font-semibold" style={{ color: TEAL_PRIMARY }}>Continued &rarr;</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {renderFooter(pageNo)}
+              </div>
+            </React.Fragment>
+          );
+        })}
+
+        {/* ── Visual Page Divider: Items -> Bank Details ── */}
         <div className="w-[794px] py-6 flex items-center justify-center gap-3 select-none print:hidden">
           <div className="flex-1 h-px bg-slate-400/50" />
           <div className="flex items-center gap-2 px-3.5 py-1 bg-slate-100 rounded-full border border-slate-300 shadow-xs text-slate-700">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: TEAL_PRIMARY }} />
             <span className="text-[10.5px] font-bold tracking-wider uppercase font-mono">
-              Page Break • Page 3 of {totalPages} • Terms &amp; Authorization
+              Page Break • Page {bankPageNo} of {totalPages} • Terms &amp; Authorization
             </span>
           </div>
           <div className="flex-1 h-px bg-slate-400/50" />
@@ -906,29 +1134,29 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
 
                 {/* Turn-over notice to Annexure-I */}
                 <div className="w-[710px] p-[8px_16px] border border-dashed rounded-[8px] bg-slate-50 flex justify-between items-center text-[9px] text-slate-500" style={{ borderColor: TEAL_BORDER }}>
-                  <span>Please refer to <strong>Pages 4 &amp; 5</strong> for Annexure-I: Detailed Manufacturer Terms &amp; Conditions (Clauses 1 to 23).</span>
+                  <span>Please refer to <strong>Pages {annexure1PageNo} &amp; {annexure2PageNo}</strong> for Annexure-I: Detailed Manufacturer Terms &amp; Conditions (Clauses 1 to 23).</span>
                   <span className="font-semibold" style={{ color: TEAL_PRIMARY }}>Annexure-I Next &rarr;</span>
                 </div>
               </div>
             </div>
 
-            {renderFooter(3)}
+            {renderFooter(bankPageNo)}
           </div>
         )}
 
-        {/* ── Visual Page Divider: Page 3 -> Page 4 ── */}
+        {/* ── Visual Page Divider: Bank Details -> Annexure Part 1 ── */}
         <div className="w-[794px] py-6 flex items-center justify-center gap-3 select-none print:hidden">
           <div className="flex-1 h-px bg-slate-400/50" />
           <div className="flex items-center gap-2 px-3.5 py-1 bg-slate-100 rounded-full border border-slate-300 shadow-xs text-slate-700">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: TEAL_PRIMARY }} />
             <span className="text-[10.5px] font-bold tracking-wider uppercase font-mono">
-              Page Break • Page 4 of 5 • Annexure - I (Part 1)
+              Page Break • Page {annexure1PageNo} of {totalPages} • Annexure - I (Part 1)
             </span>
           </div>
           <div className="flex-1 h-px bg-slate-400/50" />
         </div>
 
-        {/* ── PAGE 4: ANNEXURE - I PART 1 (CLAUSES 1 TO 12) ─────────── */}
+        {/* ── PAGE: ANNEXURE - I PART 1 (CLAUSES 1 TO 12) ─────────── */}
         <div
           className="a4-page-sheet w-[794px] h-[1123px] min-h-[1123px] max-h-[1123px] bg-white relative flex flex-col justify-between overflow-hidden shadow-2xl border border-slate-300/80 rounded-sm print:shadow-none print:border-none print:rounded-none"
           style={{ width: "794px", height: "1123px" }}
@@ -941,7 +1169,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
             </div>
 
             <div className="px-[42px] pt-[20px]">
-              {/* Page 4 Header */}
+              {/* Header */}
               <div className="flex items-center justify-between mb-[20px]">
                 <div className="w-[260px]">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -983,22 +1211,22 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
 
               {/* Bottom turn-over notice */}
               <div className="w-[710px] mt-[14px] p-[8px_16px] border border-dashed rounded-[8px] bg-slate-50 flex justify-between items-center text-[9px] text-slate-500" style={{ borderColor: TEAL_BORDER }}>
-                <span>Continued on <strong>Page 5</strong> for Clauses 13 to 23 and Customer Final Acceptance.</span>
+                <span>Continued on <strong>Page {annexure2PageNo}</strong> for Clauses 13 to 23 and Customer Final Acceptance.</span>
                 <span className="font-semibold" style={{ color: TEAL_PRIMARY }}>Continued &rarr;</span>
               </div>
             </div>
           </div>
 
-          {renderFooter(4)}
+          {renderFooter(annexure1PageNo)}
         </div>
 
-        {/* ── Visual Page Divider: Page 4 -> Page 5 ── */}
+        {/* ── Visual Page Divider: Annexure Part 1 -> Part 2 ── */}
         <div className="w-[794px] py-6 flex items-center justify-center gap-3 select-none print:hidden">
           <div className="flex-1 h-px bg-slate-400/50" />
           <div className="flex items-center gap-2 px-3.5 py-1 bg-slate-100 rounded-full border border-slate-300 shadow-xs text-slate-700">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: TEAL_PRIMARY }} />
             <span className="text-[10.5px] font-bold tracking-wider uppercase font-mono">
-              Page Break • Page 5 of 5 • Annexure - I (Part 2)
+              Page Break • Page {annexure2PageNo} of {totalPages} • Annexure - I (Part 2)
             </span>
           </div>
           <div className="flex-1 h-px bg-slate-400/50" />
@@ -1125,7 +1353,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
             </div>
           </div>
 
-          {renderFooter(5)}
+          {renderFooter(annexure2PageNo)}
         </div>
       </div>
     </div>

@@ -336,7 +336,7 @@ function QuotationPageContent() {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Search quotation no, customer name, subject..."
+                placeholder="Search quotation no, customer name..."
                 className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
               />
               {searchQuery && (
@@ -382,7 +382,6 @@ function QuotationPageContent() {
                       <th className="py-3 px-4">Quotation No</th>
                       <th className="py-3 px-4">Date</th>
                       <th className="py-3 px-4">Customer</th>
-                      <th className="py-3 px-4">Subject</th>
                       <th className="py-3 px-4 text-center">Items</th>
                       <th className="py-3 px-4 text-right">Taxable (₹)</th>
                       <th className="py-3 px-4 text-right">Grand Total (₹)</th>
@@ -391,7 +390,7 @@ function QuotationPageContent() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    <TableSkeletonRows rows={6} columns={10} />
+                    <TableSkeletonRows rows={6} columns={9} />
                   </tbody>
                 </table>
               </div>
@@ -431,7 +430,6 @@ function QuotationPageContent() {
                     <th className="py-3 px-4">Quotation No</th>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4">Subject</th>
                     <th className="py-3 px-4 text-center">Items</th>
                     <th className="py-3 px-4 text-right">Taxable (₹)</th>
                     <th className="py-3 px-4 text-right">Grand Total (₹)</th>
@@ -478,9 +476,6 @@ function QuotationPageContent() {
                                 GST: {q.consignee_gstin}
                               </div>
                             )}
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 max-w-[200px] truncate">
-                            {q.subject || "-"}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[11px]">

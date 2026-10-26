@@ -120,11 +120,6 @@ export function QuotationCardList({
                       </span>
                     </div>
                   )}
-                  {q.subject && (
-                    <div className="mt-1.5 text-xs text-slate-600 line-clamp-2">
-                      <span className="text-slate-400 font-medium">Subject:</span> {q.subject}
-                    </div>
-                  )}
                 </div>
 
                 {/* Amount Badge */}

@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`quotation_no.ilike.%${search}%,consignee_name.ilike.%${search}%,subject.ilike.%${search}%`);
+      query = query.or(`quotation_no.ilike.%${search}%,consignee_name.ilike.%${search}%`);
     }
 
     if (page && page > 0) {
@@ -174,8 +174,6 @@ export async function POST(req: NextRequest) {
       consignee_pan,
       consignee_phone,
       consignee_email,
-      subject,
-      reference,
       tax_type,
       tax_rate,
       taxable_amount,
@@ -230,8 +228,6 @@ export async function POST(req: NextRequest) {
         consignee_pan: consignee_pan || null,
         consignee_phone: consignee_phone || null,
         consignee_email: consignee_email || null,
-        subject: subject || null,
-        reference: reference || null,
         tax_type: gst.taxType,
         tax_rate: gst.taxRate,
         taxable_amount: gst.taxableAmount,
@@ -267,15 +263,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: qErr.message }, { status: 500 });
     }
 
-    const itemsToInsert = items.map((it: any, index: number) => ({
-      quotation_id: newQuote.id,
-      sr_no: index + 1,
-      product_description: it.product_description || "",
-      qty: Number(it.qty) || 1,
-      unit: it.unit || "Nos",
-      unit_price: Number(it.unit_price) || 0,
-      total_amount: Number(it.total_amount) || (Number(it.qty) || 1) * (Number(it.unit_price) || 0),
-    }));
+    const itemsToInsert = items.map((it: any, index: number) => {
+      const productName = (it.product_name || it.product_description || "").trim();
+      const description = (it.description || "").trim();
+      const productDescription = description ? `${productName}\n${description}` : productName;
+
+      return {
+        quotation_id: newQuote.id,
+        sr_no: index + 1,
+        product_name: productName,
+        description: description || null,
+        product_description: productDescription,
+        qty: Number(it.qty) || 1,
+        unit: it.unit || "Nos",
+        unit_price: Number(it.unit_price) || 0,
+        total_amount: Number(it.total_amount) || (Number(it.qty) || 1) * (Number(it.unit_price) || 0),
+      };
+    });
 
     const { data: insertedItems, error: itErr } = await supabaseAdmin
       .from("quotation_items")
@@ -318,8 +322,6 @@ export async function PATCH(req: NextRequest) {
       consignee_pan,
       consignee_phone,
       consignee_email,
-      subject,
-      reference,
       tax_type,
       tax_rate,
       taxable_amount,
@@ -389,8 +391,6 @@ export async function PATCH(req: NextRequest) {
         consignee_pan,
         consignee_phone,
         consignee_email,
-        subject,
-        reference,
         tax_type: gst.taxType,
         tax_rate: gst.taxRate,
         taxable_amount: gst.taxableAmount,
@@ -429,15 +429,23 @@ export async function PATCH(req: NextRequest) {
     if (items && Array.isArray(items)) {
       await supabaseAdmin.from("quotation_items").delete().eq("quotation_id", id);
 
-      const itemsToInsert = items.map((it: any, index: number) => ({
-        quotation_id: id,
-        sr_no: index + 1,
-        product_description: it.product_description || "",
-        qty: Number(it.qty) || 1,
-        unit: it.unit || "Nos",
-        unit_price: Number(it.unit_price) || 0,
-        total_amount: Number(it.total_amount) || (Number(it.qty) || 1) * (Number(it.unit_price) || 0),
-      }));
+      const itemsToInsert = items.map((it: any, index: number) => {
+        const productName = (it.product_name || it.product_description || "").trim();
+        const description = (it.description || "").trim();
+        const productDescription = description ? `${productName}\n${description}` : productName;
+
+        return {
+          quotation_id: id,
+          sr_no: index + 1,
+          product_name: productName,
+          description: description || null,
+          product_description: productDescription,
+          qty: Number(it.qty) || 1,
+          unit: it.unit || "Nos",
+          unit_price: Number(it.unit_price) || 0,
+          total_amount: Number(it.total_amount) || (Number(it.qty) || 1) * (Number(it.unit_price) || 0),
+        };
+      });
 
       await supabaseAdmin.from("quotation_items").insert(itemsToInsert);
     }

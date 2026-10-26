@@ -2,6 +2,8 @@ export interface QuotationItem {
   id?: number;
   quotation_id?: number;
   sr_no: number;
+  product_name?: string;
+  description?: string;
   product_description: string;
   qty: number;
   unit: string;
@@ -21,8 +23,6 @@ export interface Quotation {
   consignee_pan?: string | null;
   consignee_phone?: string | null;
   consignee_email?: string | null;
-  subject?: string | null;
-  reference?: string | null;
   tax_type: "gst_18" | "exempt" | "cgst_sgst" | "igst";
   tax_rate: number;
   taxable_amount: number;
