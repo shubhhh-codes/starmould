@@ -42,10 +42,11 @@ const AutoResizingTextarea: React.FC<AutoResizingTextareaProps> = ({
   const adjustHeight = React.useCallback(() => {
     const el = textareaRef.current;
     if (!el) return;
+    el.style.minHeight = "0px";
     el.style.height = "auto";
-    const contentHeight = Math.max(el.scrollHeight + 4, minHeight);
-    el.style.height = `${contentHeight}px`;
-    el.style.minHeight = `${contentHeight}px`;
+    const targetHeight = Math.max(el.scrollHeight, minHeight);
+    el.style.height = `${targetHeight}px`;
+    el.style.minHeight = `${minHeight}px`;
   }, [minHeight]);
 
   React.useEffect(() => {
