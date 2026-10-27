@@ -15,8 +15,8 @@ export interface ModalProps {
   title?: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl";
-  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl";
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | "6xl";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | "5xl" | "6xl";
   className?: string;
   showCloseButton?: boolean;
 }
@@ -100,6 +100,7 @@ export function Modal({
     "3xl": "sm:max-w-3xl",
     "4xl": "sm:max-w-4xl",
     "5xl": "sm:max-w-5xl",
+    "6xl": "sm:max-w-6xl",
   };
 
   return (

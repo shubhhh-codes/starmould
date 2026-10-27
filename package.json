@@ -7,7 +7,8 @@
     "dev:webpack": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npx tsx scripts/regression_suite.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -115,39 +115,54 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Sequence SM/DC/0001
+    // Sequence SM/DC/0001 with collision retry loop (Issue #3)
     const { data: maxRows } = await supabaseAdmin
       .from("dispatch")
       .select("id")
       .order("id", { ascending: false })
       .limit(1);
 
-    const nextId = (maxRows?.[0]?.id ?? 0) + 1;
-    const challanno = `SM/DC/${String(nextId).padStart(4, "0")}`;
+    let newDispatch: any = null;
+    let dErr: any = null;
+    const baseId = (maxRows?.[0]?.id ?? 0) + 1;
 
-    // 1. Insert header
-    const { data: newDispatch, error: dErr } = await supabaseAdmin
-      .from("dispatch")
-      .insert([
-        {
-          challanno,
-          chdate: chdate || new Date().toISOString().slice(0, 10),
-          customerid: Number(customerid),
-          vendortid: vendortid ? Number(vendortid) : Number(customerid),
-          projectid: projectid || "",
-          invoiceno: invoiceno || "N/A",
-          vehicleno: vehicleno || "N/A",
-          deliverytype: deliverytype || "Door Delivery",
-          freightmode: freightmode || "To Pay",
-          freightcharge: freightcharge || "N/A",
-          noofcases: noofcases || "1",
-          status: "1",
-          created_by: auth.user.name || "Admin",
-          created_at: new Date().toISOString(),
-        },
-      ])
-      .select()
-      .single();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const nextId = baseId + attempt;
+      const challanno = `SM/DC/${String(nextId).padStart(4, "0")}`;
+
+      const res = await supabaseAdmin
+        .from("dispatch")
+        .insert([
+          {
+            challanno,
+            chdate: chdate || new Date().toISOString().slice(0, 10),
+            customerid: Number(customerid),
+            vendortid: vendortid ? Number(vendortid) : Number(customerid),
+            projectid: projectid || "",
+            invoiceno: invoiceno || "N/A",
+            vehicleno: vehicleno || "N/A",
+            deliverytype: deliverytype || "Door Delivery",
+            freightmode: freightmode || "To Pay",
+            freightcharge: freightcharge || "N/A",
+            noofcases: noofcases || "1",
+            status: "1",
+            created_by: auth.user.name || "Admin",
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (!res.error) {
+        newDispatch = res.data;
+        dErr = null;
+        break;
+      }
+      dErr = res.error;
+      if (res.error.code !== "23505" && !res.error.message?.includes("unique constraint")) {
+        break;
+      }
+    }
 
     if (dErr) {
       if (
@@ -169,7 +184,7 @@ export async function POST(req: NextRequest) {
       plateid: it.plateid ? Number(it.plateid) : null,
       custom_plate_name: it.custom_plate_name || null,
       custom_plate_qty: it.custom_plate_qty ? Number(it.custom_plate_qty) : null,
-      customer: it.customer ? Number(it.customer) : Number(customerid),
+      customer: it.customer && !isNaN(Number(it.customer)) ? Number(it.customer) : Number(customerid),
       project: it.project || projectid || "",
       particulars: it.particulars || "",
       condition: it.condition || "",

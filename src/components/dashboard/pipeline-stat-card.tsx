@@ -15,8 +15,9 @@ import {
 export interface PipelineStageItem {
   id: string;
   label: string;
-  mouldsCount: number;
-  platesCount: number;
+  fullLabel?: string;
+  pendingCount: number;
+  completedCount: number;
   icon: LucideIcon;
   colorTheme: {
     bg: string;
@@ -30,13 +31,27 @@ export interface PipelineStageItem {
 interface PipelineStatGridProps {
   stats: {
     scantotal: number;
-    designby: number;
-    orderbytotal: number;
-    receivedqcby: number;
-    vmcworkby: number;
-    drilltapworkby: number;
-    finalqcby: number;
-    packingworkby: number;
+    designPending?: number;
+    designCompleted?: number;
+    orderPending?: number;
+    orderCompleted?: number;
+    programmingPending?: number;
+    programmingCompleted?: number;
+    vmcPending?: number;
+    vmcCompleted?: number;
+    drilltapPending?: number;
+    drilltapCompleted?: number;
+    finalqcPending?: number;
+    finalqcCompleted?: number;
+    packingPending?: number;
+    packingCompleted?: number;
+    designby?: number;
+    orderbytotal?: number;
+    receivedqcby?: number;
+    vmcworkby?: number;
+    drilltapworkby?: number;
+    finalqcby?: number;
+    packingworkby?: number;
     designMoulds?: number;
     orderMoulds?: number;
     programmingMoulds?: number;
@@ -58,25 +73,25 @@ export function PipelineStatGrid({
 }: PipelineStatGridProps) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6" suppressHydrationWarning>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5 xl:gap-3 mb-6" suppressHydrationWarning>
         {Array.from({ length: 7 }).map((_, i) => (
           <div
             key={i}
-            className="rounded-xl bg-white border border-slate-200 p-3 shadow-xs animate-pulse space-y-2.5"
+            className="rounded-xl bg-white border border-slate-200 p-2 sm:p-2.5 xl:p-3 shadow-xs animate-pulse space-y-2.5"
             suppressHydrationWarning
           >
             <div className="flex items-center justify-between">
-              <div className="h-3 w-16 bg-slate-200 rounded" />
-              <div className="w-6 h-6 bg-slate-200 rounded-md" />
+              <div className="h-3 w-14 bg-slate-200 rounded" />
+              <div className="w-5 h-5 bg-slate-200 rounded-md" />
             </div>
-            <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-slate-100">
+            <div className="grid grid-cols-2 gap-0.5 pt-1.5 border-t border-slate-100">
               <div className="space-y-1">
-                <div className="h-4 w-8 mx-auto bg-slate-300 rounded" />
-                <div className="h-2 w-10 mx-auto bg-slate-200 rounded" />
+                <div className="h-4 w-7 mx-auto bg-slate-300 rounded" />
+                <div className="h-2 w-9 mx-auto bg-slate-200 rounded" />
               </div>
               <div className="space-y-1 border-l border-slate-100">
-                <div className="h-4 w-8 mx-auto bg-slate-300 rounded" />
-                <div className="h-2 w-10 mx-auto bg-slate-200 rounded" />
+                <div className="h-4 w-7 mx-auto bg-slate-300 rounded" />
+                <div className="h-2 w-9 mx-auto bg-slate-200 rounded" />
               </div>
             </div>
           </div>
@@ -88,9 +103,10 @@ export function PipelineStatGrid({
   const stages: PipelineStageItem[] = [
     {
       id: "design",
-      label: "Design Order",
-      mouldsCount: stats.designMoulds ?? stats.scantotal,
-      platesCount: stats.designby,
+      label: "Design",
+      fullLabel: "Design Order",
+      pendingCount: stats.designPending ?? stats.designby ?? 0,
+      completedCount: stats.designCompleted ?? 0,
       icon: PenTool,
       colorTheme: {
         bg: "hover:bg-blue-50/70",
@@ -103,8 +119,9 @@ export function PipelineStatGrid({
     {
       id: "order",
       label: "Purchase",
-      mouldsCount: stats.orderMoulds ?? stats.scantotal,
-      platesCount: stats.orderbytotal,
+      fullLabel: "Purchase",
+      pendingCount: stats.orderPending ?? stats.orderbytotal ?? 0,
+      completedCount: stats.orderCompleted ?? 0,
       icon: Boxes,
       colorTheme: {
         bg: "hover:bg-amber-50/70",
@@ -116,9 +133,10 @@ export function PipelineStatGrid({
     },
     {
       id: "programming",
-      label: "Programming Work",
-      mouldsCount: stats.programmingMoulds ?? stats.scantotal,
-      platesCount: stats.receivedqcby,
+      label: "Programming",
+      fullLabel: "Programming Work",
+      pendingCount: stats.programmingPending ?? stats.receivedqcby ?? 0,
+      completedCount: stats.programmingCompleted ?? 0,
       icon: Cpu,
       colorTheme: {
         bg: "hover:bg-indigo-50/70",
@@ -130,9 +148,10 @@ export function PipelineStatGrid({
     },
     {
       id: "machining",
-      label: "Machining (VMC)",
-      mouldsCount: stats.vmcMoulds ?? stats.scantotal,
-      platesCount: stats.vmcworkby,
+      label: "Machining",
+      fullLabel: "Machining (VMC)",
+      pendingCount: stats.vmcPending ?? stats.vmcworkby ?? 0,
+      completedCount: stats.vmcCompleted ?? 0,
       icon: Wrench,
       colorTheme: {
         bg: "hover:bg-cyan-50/70",
@@ -145,8 +164,9 @@ export function PipelineStatGrid({
     {
       id: "drilltap",
       label: "Drill & Tap",
-      mouldsCount: stats.drilltapMoulds ?? stats.scantotal,
-      platesCount: stats.drilltapworkby,
+      fullLabel: "Drill & Tap",
+      pendingCount: stats.drilltapPending ?? stats.drilltapworkby ?? 0,
+      completedCount: stats.drilltapCompleted ?? 0,
       icon: Disc,
       colorTheme: {
         bg: "hover:bg-violet-50/70",
@@ -159,8 +179,9 @@ export function PipelineStatGrid({
     {
       id: "finalqc",
       label: "Final QC",
-      mouldsCount: stats.finalqcMoulds ?? stats.scantotal,
-      platesCount: stats.finalqcby,
+      fullLabel: "Final QC",
+      pendingCount: stats.finalqcPending ?? stats.finalqcby ?? 0,
+      completedCount: stats.finalqcCompleted ?? 0,
       icon: CheckCheck,
       colorTheme: {
         bg: "hover:bg-emerald-50/70",
@@ -173,8 +194,9 @@ export function PipelineStatGrid({
     {
       id: "packing",
       label: "Packing",
-      mouldsCount: stats.packingMoulds ?? stats.scantotal,
-      platesCount: stats.packingworkby,
+      fullLabel: "Packing",
+      pendingCount: stats.packingPending ?? stats.packingworkby ?? 0,
+      completedCount: stats.packingCompleted ?? 0,
       icon: PackageCheck,
       colorTheme: {
         bg: "hover:bg-rose-50/70",
@@ -187,7 +209,7 @@ export function PipelineStatGrid({
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6" suppressHydrationWarning>
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-2.5 xl:gap-3 mb-6" suppressHydrationWarning>
       {stages.map((stage) => {
         const isSelected = activeStage === stage.id;
         const Icon = stage.icon;
@@ -197,35 +219,59 @@ export function PipelineStatGrid({
             key={stage.id}
             suppressHydrationWarning
             onClick={() => onSelectStage?.(isSelected ? null : stage.id)}
-            className={`card-interactive cursor-pointer rounded-xl bg-white border p-3 select-none ${
+            title={stage.fullLabel || stage.label}
+            className={`card-interactive cursor-pointer rounded-xl bg-white border p-2 sm:p-2.5 xl:p-3 select-none transition-all duration-200 ${
               isSelected
                 ? `ring-2 ring-blue-500 shadow-md border-blue-400 bg-blue-50/40 transform -translate-y-0.5`
                 : `${stage.colorTheme.border} ${stage.colorTheme.bg}`
             }`}
           >
             {/* Header / Title */}
-            <div className="flex items-center justify-between gap-1 mb-2">
-              <span className={`text-[11px] font-semibold truncate ${isSelected ? "text-blue-900 font-bold" : "text-slate-700"}`}>
-                {stage.label}
+            <div className="flex items-center justify-between gap-1 mb-1.5 min-w-0">
+              <span
+                className={`min-w-0 text-[10.5px] sm:text-[11px] xl:text-xs font-semibold truncate ${
+                  isSelected ? "text-blue-900 font-bold" : "text-slate-700"
+                }`}
+              >
+                <span className="hidden 2xl:inline">{stage.fullLabel || stage.label}</span>
+                <span className="2xl:hidden">{stage.label}</span>
               </span>
-              <div className={`p-1 rounded-md ${stage.colorTheme.iconBg} flex-shrink-0 transition-transform duration-150 ${isSelected ? "scale-110" : ""}`}>
+              <div
+                className={`p-1 rounded-md ${stage.colorTheme.iconBg} shrink-0 transition-transform duration-150 ${
+                  isSelected ? "scale-110" : ""
+                }`}
+              >
                 <Icon className="h-3 w-3" />
               </div>
             </div>
 
-            {/* Counts breakdown: Moulds & Plates */}
-            <div className="grid grid-cols-2 gap-1 pt-1.5 border-t border-slate-100 text-center">
-              <div>
-                <div className="text-base font-bold text-slate-900 leading-tight" suppressHydrationWarning>
-                  {stage.mouldsCount}
+            {/* Counts breakdown: Pending & Completed */}
+            <div className="grid grid-cols-2 gap-0.5 pt-1.5 border-t border-slate-100 text-center">
+              <div className="min-w-0 px-0.5">
+                <div
+                  className={`text-sm sm:text-base font-bold leading-tight ${
+                    stage.pendingCount > 0 ? "text-amber-600" : "text-slate-800"
+                  }`}
+                  suppressHydrationWarning
+                >
+                  {stage.pendingCount}
                 </div>
-                <div className="text-[10px] text-slate-400 font-medium">Moulds</div>
+                <div className="text-[9px] xl:text-[10px] text-slate-500 font-medium tracking-tight truncate">
+                  Pending
+                </div>
               </div>
-              <div className="border-l border-slate-100">
-                <div className={`text-base font-bold leading-tight ${stage.colorTheme.text}`} suppressHydrationWarning>
-                  {stage.platesCount}
+              <div className="min-w-0 px-0.5 border-l border-slate-100">
+                <div
+                  className={`text-sm sm:text-base font-bold leading-tight ${
+                    stage.completedCount > 0 ? "text-emerald-600" : "text-slate-400"
+                  }`}
+                  suppressHydrationWarning
+                >
+                  {stage.completedCount}
                 </div>
-                <div className="text-[10px] text-slate-400 font-medium">Plates</div>
+                <div className="text-[9px] xl:text-[10px] text-slate-500 font-medium tracking-tight truncate">
+                  Completed
+                </div>
               </div>
             </div>
           </div>

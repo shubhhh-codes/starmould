@@ -44,6 +44,11 @@ export function checkRateLimit(
   lockoutMs: number = LOCKOUT_MS,
   prefix: string = ""
 ): RateLimitResult {
+  // Allow unlimited attempts in local development so you are never locked out on localhost
+  if (process.env.NODE_ENV === "development") {
+    return { allowed: true, attemptsRemaining: 999 };
+  }
+
   pruneExpired();
   const now = Date.now();
   const storeKey = prefix ? `${prefix}:${ip}` : ip;
@@ -80,4 +85,9 @@ export function checkRateLimit(
 export function resetRateLimit(ip: string, prefix: string = ""): void {
   const storeKey = prefix ? `${prefix}:${ip}` : ip;
   store.delete(storeKey);
+}
+
+/** Clear all stored rate limits across all IPs */
+export function clearAllRateLimits(): void {
+  store.clear();
 }

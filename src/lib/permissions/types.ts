@@ -5,6 +5,9 @@ export interface PermissionDefinition {
   label: string;
   description: string;
   category: PermissionCategory;
+  module?: string;
+  moduleLabel?: string;
+  moduleIcon?: string;
   route?: string;
   iconName?: string;
 }
@@ -205,54 +208,293 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   // 1. Navigation & Module Access (Dynamic from sidebar.tsx)
   ...dynamicNavDefinitions,
 
-  // 2. Action & Creation Capabilities
+  // 2. Action & Creation Capabilities (Modular & Granular Sub-Actions)
+  // --- SUBPLATE MASTER ACTIONS ---
   {
-    key: "action_create_customer",
-    label: "Create & Manage Customers",
-    description: "Authorize creating client customer accounts (strictly restricted to Admin by default).",
+    key: "action_create_subplate",
+    label: "Add Subplate",
+    description: "Authorize drafting and registering new subplate workpieces with dimensions and steel grades.",
     category: "actions",
+    module: "subplate",
+    moduleLabel: "Subplate Master",
+    moduleIcon: "Layers",
   },
   {
-    key: "action_create_vendor",
-    label: "Create Vendors & Transporters",
-    description: "Authorize adding new suppliers, transport carriers, and outsourced partners.",
+    key: "action_edit_subplate",
+    label: "Edit Subplate",
+    description: "Authorize modifying plate dimensions, material grades, remarks, or design files.",
     category: "actions",
+    module: "subplate",
+    moduleLabel: "Subplate Master",
+    moduleIcon: "Layers",
   },
+  {
+    key: "action_delete_subplate",
+    label: "Delete Subplate",
+    description: "Authorize soft-deleting or removing workpiece subplates.",
+    category: "actions",
+    module: "subplate",
+    moduleLabel: "Subplate Master",
+    moduleIcon: "Layers",
+  },
+  {
+    key: "action_assign_subplate_designer",
+    label: "Assign Staff to Stages",
+    description: "Authorize assigning designers, programmers, and floor staff to subplate stages.",
+    category: "actions",
+    module: "subplate",
+    moduleLabel: "Subplate Master",
+    moduleIcon: "Layers",
+  },
+
+  // --- MOULD & 3D SCANNING PIPELINE ---
   {
     key: "action_create_scanning_project",
-    label: "Create Scanning Projects",
-    description: "Authorize initializing new mould workpiece scanning jobs.",
+    label: "New Mould Entry",
+    description: "Authorize creating and registering new mould projects and pipeline entries.",
     category: "actions",
+    module: "scanning",
+    moduleLabel: "Moulds Settings",
+    moduleIcon: "Scan",
+  },
+  {
+    key: "action_edit_mould",
+    label: "Edit Mould Entry",
+    description: "Authorize modifying mould project details, customer links, target dates, and work types.",
+    category: "actions",
+    module: "scanning",
+    moduleLabel: "Moulds Settings",
+    moduleIcon: "Scan",
+  },
+  {
+    key: "action_delete_mould",
+    label: "Delete Mould Entry",
+    description: "Authorize soft-deleting or removing mould projects.",
+    category: "actions",
+    module: "scanning",
+    moduleLabel: "Moulds Settings",
+    moduleIcon: "Scan",
+  },
+  {
+    key: "action_advance_pipeline",
+    label: "Advance Pipeline Stages",
+    description: "Authorize progressing moulds through Scanning, Design, CAM, VMC, and Benchwork.",
+    category: "actions",
+    module: "scanning",
+    moduleLabel: "Moulds Settings",
+    moduleIcon: "Scan",
+  },
+
+  // --- CLIENT CUSTOMERS ---
+  {
+    key: "action_create_customer",
+    label: "Add Customer",
+    description: "Authorize creating client customer accounts and commercial billing profiles.",
+    category: "actions",
+    module: "customers",
+    moduleLabel: "Customer Directory",
+    moduleIcon: "Building2",
+  },
+  {
+    key: "action_edit_customer",
+    label: "Edit Customer",
+    description: "Authorize editing customer company names, addresses, contacts, and GSTIN.",
+    category: "actions",
+    module: "customers",
+    moduleLabel: "Customer Directory",
+    moduleIcon: "Building2",
+  },
+  {
+    key: "action_delete_customer",
+    label: "Delete Customer",
+    description: "Authorize soft-deleting or deactivating client customer profiles.",
+    category: "actions",
+    module: "customers",
+    moduleLabel: "Customer Directory",
+    moduleIcon: "Building2",
+  },
+
+  // --- VENDORS & TRANSPORTERS ---
+  {
+    key: "action_create_vendor",
+    label: "Add Vendor / Partner",
+    description: "Authorize adding new suppliers, transport carriers, and outsourced partners.",
+    category: "actions",
+    module: "vendors",
+    moduleLabel: "Vendors & Transporters",
+    moduleIcon: "Truck",
+  },
+  {
+    key: "action_edit_vendor",
+    label: "Edit Vendor",
+    description: "Authorize editing supplier bank details, IFSC, addresses, PAN, and GSTIN.",
+    category: "actions",
+    module: "vendors",
+    moduleLabel: "Vendors & Transporters",
+    moduleIcon: "Truck",
+  },
+  {
+    key: "action_delete_vendor",
+    label: "Delete Vendor",
+    description: "Authorize soft-deleting or deactivating suppliers and transport records.",
+    category: "actions",
+    module: "vendors",
+    moduleLabel: "Vendors & Transporters",
+    moduleIcon: "Truck",
+  },
+
+  // --- PROCUREMENT & PURCHASE ORDERS ---
+  {
+    key: "action_create_purchase",
+    label: "Add Purchase PO",
+    description: "Authorize drafting and issuing raw material purchase orders to verified suppliers.",
+    category: "actions",
+    module: "purchase",
+    moduleLabel: "Purchase Orders & Inward",
+    moduleIcon: "ShoppingCart",
+  },
+  {
+    key: "action_edit_purchase",
+    label: "Edit Purchase PO",
+    description: "Authorize modifying open PO quantities, pricing, delivery dates, or status.",
+    category: "actions",
+    module: "purchase",
+    moduleLabel: "Purchase Orders & Inward",
+    moduleIcon: "ShoppingCart",
+  },
+  {
+    key: "action_delete_purchase",
+    label: "Delete Purchase PO",
+    description: "Authorize canceling or removing draft purchase orders.",
+    category: "actions",
+    module: "purchase",
+    moduleLabel: "Purchase Orders & Inward",
+    moduleIcon: "ShoppingCart",
+  },
+  {
+    key: "action_create_purchase_inward",
+    label: "Receive Inward Material",
+    description: "Authorize inspecting incoming supplier materials and recording items at workshop gate.",
+    category: "actions",
+    module: "purchase",
+    moduleLabel: "Purchase Orders & Inward",
+    moduleIcon: "ShoppingCart",
+  },
+
+  // --- MOVEMENTS & LOGISTICS ---
+  {
+    key: "action_create_challan",
+    label: "Add Job Work Challan",
+    description: "Authorize issuing outward delivery notes for heat treatment, grinding, or external jobwork.",
+    category: "actions",
+    module: "logistics",
+    moduleLabel: "Challan & Dispatch Logistics",
+    moduleIcon: "ArrowUpRight",
+  },
+  {
+    key: "action_create_dispatch",
+    label: "Add Dispatch Challan",
+    description: "Authorize generating official dispatch notes, transport carrier details, and gate passes.",
+    category: "actions",
+    module: "logistics",
+    moduleLabel: "Challan & Dispatch Logistics",
+    moduleIcon: "ArrowUpRight",
+  },
+  {
+    key: "action_create_inward",
+    label: "Receive Inward Return",
+    description: "Authorize recording items received back from external processing or client returns.",
+    category: "actions",
+    module: "logistics",
+    moduleLabel: "Challan & Dispatch Logistics",
+    moduleIcon: "ArrowUpRight",
   },
   {
     key: "action_approve_qc",
-    label: "Approve Quality Checks (QC)",
-    description: "Authorize sign-off on incoming, VMC machining, and final QC inspection gates.",
+    label: "Approve QC Sign-Off",
+    description: "Authorize sign-off on incoming inspection, VMC machining, and final QC inspection gates.",
     category: "actions",
-  },
-  {
-    key: "action_create_purchase",
-    label: "Create Purchase Orders",
-    description: "Authorize drafting and confirming purchase orders to raw material suppliers.",
-    category: "actions",
+    module: "logistics",
+    moduleLabel: "Challan & Dispatch Logistics",
+    moduleIcon: "ArrowUpRight",
   },
   {
     key: "action_create_challan_dispatch",
-    label: "Create Challan & Dispatch",
+    label: "Challan & Dispatch Movement",
     description: "Authorize generating outward delivery notes and official dispatch dockets.",
     category: "actions",
+    module: "logistics",
+    moduleLabel: "Challan & Dispatch Logistics",
+    moduleIcon: "ArrowUpRight",
+  },
+
+  // --- QUOTATIONS & ESTIMATES ---
+  {
+    key: "action_create_quotation",
+    label: "New Quotation",
+    description: "Authorize drafting new cost estimates and mould quotations for customers.",
+    category: "actions",
+    module: "quotations",
+    moduleLabel: "Quotations & Estimates",
+    moduleIcon: "FileText",
+  },
+  {
+    key: "action_edit_quotation",
+    label: "Edit Quotation",
+    description: "Authorize revising line items, tooling rates, payment terms, or status.",
+    category: "actions",
+    module: "quotations",
+    moduleLabel: "Quotations & Estimates",
+    moduleIcon: "FileText",
+  },
+  {
+    key: "action_delete_quotation",
+    label: "Delete Quotation",
+    description: "Authorize deleting or archiving quotation drafts.",
+    category: "actions",
+    module: "quotations",
+    moduleLabel: "Quotations & Estimates",
+    moduleIcon: "FileText",
+  },
+
+  // --- WORKSHOP WORKLOGS ---
+  {
+    key: "action_create_worklog",
+    label: "Add Work Entry",
+    description: "Authorize logging machine hours, operating shifts, and daily work tasks.",
+    category: "actions",
+    module: "worklog",
+    moduleLabel: "Workshop Worklogs",
+    moduleIcon: "Briefcase",
+  },
+  {
+    key: "action_edit_all_worklog",
+    label: "Edit Other Staff Worklogs",
+    description: "Authorize supervisors and managers to review and correct hours logged by operators.",
+    category: "actions",
+    module: "worklog",
+    moduleLabel: "Workshop Worklogs",
+    moduleIcon: "Briefcase",
+  },
+
+  // --- SYSTEM ADMINISTRATION ---
+  {
+    key: "action_manage_users",
+    label: "Add / Edit Staff User",
+    description: "Authorize adding staff members, managing logins, and altering role assignments.",
+    category: "actions",
+    module: "administration",
+    moduleLabel: "Staff Users & Administration",
+    moduleIcon: "ShieldCheck",
   },
   {
     key: "action_manage_expenses",
-    label: "Create & Edit Expenses",
-    description: "Authorize recording operational financial disbursements and expense entries.",
+    label: "Add Expense Entry",
+    description: "Authorize recording operational financial disbursements and factory petty cash.",
     category: "actions",
-  },
-  {
-    key: "action_manage_users",
-    label: "Create & Modify User Profiles",
-    description: "Authorize adding new staff members and altering employee role assignments.",
-    category: "actions",
+    module: "administration",
+    moduleLabel: "Staff Users & Administration",
+    moduleIcon: "ShieldCheck",
   },
 
   // 3. Financial & Data Visibility

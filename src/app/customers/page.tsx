@@ -38,6 +38,7 @@ import {
     useDeleteCustomerMutation,
 } from "@/lib/query/hooks";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 // Supported exact usertypes derived directly from legacy customer/index.blade.php & CustomerController.php
 export type UsertypeOption = "Customer" | "Vendor" | "Transport" | "Other";
@@ -73,6 +74,10 @@ function CustomerPageContent() {
     const searchParams = useSearchParams();
     const { currentUser } = useAuth();
     const isAdmin = currentUser?.role_id === 0;
+    const { hasPermission } = useRolePermissions();
+    const canCreateCustomer = hasPermission("action_create_customer");
+    const canEditCustomer = hasPermission("action_edit_customer");
+    const canDeleteCustomer = hasPermission("action_delete_customer");
 
     const urlSearch = searchParams?.get("search") || searchParams?.get("q") || "";
     const isCustomerMode = true;
@@ -210,11 +215,7 @@ function CustomerPageContent() {
 
     // Handle open Edit modal
     const handleOpenEdit = (customer: Customer) => {
-        if (!isAdmin && customer.usertype === "Customer") {
-            showNotification(
-                "error",
-                "Access Denied: Customer records can only be modified by Administrators.",
-            );
+        if (!canEditCustomer) {
             return;
         }
         setModalMode("edit");
@@ -300,11 +301,10 @@ function CustomerPageContent() {
         }
 
         // RBAC client-side guard
-        if (!isAdmin && formData.usertype === "Customer") {
-            showNotification(
-                "error",
-                "Access Denied: Only Administrators are authorized to create Customer records.",
-            );
+        if (modalMode === "add" && !canCreateCustomer) {
+            return;
+        }
+        if (modalMode === "edit" && !canEditCustomer) {
             return;
         }
 
@@ -339,11 +339,7 @@ function CustomerPageContent() {
     // Handle soft delete via live Supabase API
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
-        if (!isAdmin && deleteTarget.usertype === "Customer") {
-            showNotification(
-                "error",
-                "Access Denied: Customer records can only be deleted by Administrators.",
-            );
+        if (!canDeleteCustomer) {
             setDeleteTarget(null);
             return;
         }
@@ -475,28 +471,27 @@ function CustomerPageContent() {
                             <span>Print</span>
                         </button>
 
-                        {/* Dedicated Admin-Only Customer Creation Button */}
-                        {isAdmin && (
+                        {/* Customer Creation Button */}
+                        {canCreateCustomer && (
                             <button
                                 onClick={() => handleOpenAdd()}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs shadow-blue-600/30 transition active:scale-95 cursor-pointer"
-                                title="Add a new client customer (Admin Exclusive)"
+                                title="Add a new client customer"
                             >
                                 <Building2 className="w-4 h-4" />
                                 <span>Add Customer</span>
-                                <span className="text-[10px] bg-blue-500/50 px-1.5 py-0.2 rounded font-normal">Admin</span>
                             </button>
                         )}
                     </div>
                 </div>
 
-                {/* Read-Only Notice on Customer Tab for Non-Admins */}
-                {!isAdmin && (
+                {/* Read-Only Notice on Customer Tab for Non-Authorized Roles */}
+                {!isAdmin && !canCreateCustomer && !canEditCustomer && (
                     <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 animate-in fade-in">
                         <div className="flex items-center gap-2.5">
                             <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0" />
                             <span>
-                                <strong>Customer Directory (Read-Only)</strong>: Customer creation and modifications are restricted exclusively to System Administrators. You can view contact and billing details.
+                                <strong>Customer Directory (Read-Only)</strong>: Customer creation and modifications are restricted based on your role permissions. You can view contact and billing details.
                             </span>
                         </div>
                         <button
@@ -715,40 +710,28 @@ function CustomerPageContent() {
                                                     </span>
                                                 </td>
 
-                                                {/* Actions: Edit & Delete with Admin RBAC Guards */}
+                                                {/* Actions: Edit & Delete with RBAC Guards */}
                                                 <td className="py-3 px-4 text-right whitespace-nowrap">
                                                     <div className="flex items-center justify-end gap-1.5">
-                                                        {isCustomerRecord && !isAdmin ? (
-                                                            <span
-                                                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200"
-                                                                title="Only Administrators can edit Customer profiles"
+                                                        {canEditCustomer && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleOpenEdit(c)
+                                                                }
+                                                                className="px-2.5 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition cursor-pointer"
                                                             >
-                                                                <Lock className="w-3 h-3" />
-                                                                Admin Only
-                                                            </span>
-                                                        ) : (
-                                                            <>
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleOpenEdit(
-                                                                            c,
-                                                                        )
-                                                                    }
-                                                                    className="px-2.5 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition cursor-pointer"
-                                                                >
-                                                                    Edit
-                                                                </button>
-                                                                <button
-                                                                    onClick={() =>
-                                                                        setDeleteTarget(
-                                                                            c,
-                                                                        )
-                                                                    }
-                                                                    className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition cursor-pointer"
-                                                                >
-                                                                    Delete
-                                                                </button>
-                                                            </>
+                                                                Edit
+                                                            </button>
+                                                        )}
+                                                        {canDeleteCustomer && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    setDeleteTarget(c)
+                                                                }
+                                                                className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition cursor-pointer"
+                                                            >
+                                                                Delete
+                                                            </button>
                                                         )}
                                                     </div>
                                                 </td>
@@ -840,33 +823,25 @@ function CustomerPageContent() {
                                         )}
 
                                         <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60">
-                                            {isCustomerRecord && !isAdmin ? (
-                                                <span
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-slate-400 bg-slate-100 rounded-lg border border-slate-200"
-                                                    title="Only Administrators can edit Customer profiles"
+                                            {canEditCustomer && (
+                                                <button
+                                                    onClick={() =>
+                                                        handleOpenEdit(c)
+                                                    }
+                                                    className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
                                                 >
-                                                    <Lock className="w-3 h-3" />
-                                                    Admin Restricted
-                                                </span>
-                                            ) : (
-                                                <>
-                                                    <button
-                                                        onClick={() =>
-                                                            handleOpenEdit(c)
-                                                        }
-                                                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() =>
-                                                            setDeleteTarget(c)
-                                                        }
-                                                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </>
+                                                    Edit
+                                                </button>
+                                            )}
+                                            {canDeleteCustomer && (
+                                                <button
+                                                    onClick={() =>
+                                                        setDeleteTarget(c)
+                                                    }
+                                                    className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                                                >
+                                                    Delete
+                                                </button>
                                             )}
                                         </div>
                                     </div>

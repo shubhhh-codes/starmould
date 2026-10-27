@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const year = searchParams.get("year") || "2023";
+    const year = searchParams.get("year") || String(new Date().getFullYear());
 
     // 1. Fetch downtime worklogs with high-performance cached lookup
     const { downtimeRecords, totalWorklogs } = await getCached(`downtime_summary_report_${year}`, 60, async () => {

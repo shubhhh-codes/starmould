@@ -209,13 +209,16 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
   }>({ customers: [], users: [], kpis: {} });
 
   const streamedScansRef = React.useRef<ScanProject[]>(streamedScans);
-  streamedScansRef.current = streamedScans;
   const totalCountRef = React.useRef(totalCount);
-  totalCountRef.current = totalCount;
   const extraMetadataRef = React.useRef(extraMetadata);
-  extraMetadataRef.current = extraMetadata;
   const lastSyncTimeRef = React.useRef<string | null>(lastSyncTime);
-  lastSyncTimeRef.current = lastSyncTime;
+
+  React.useEffect(() => {
+    streamedScansRef.current = streamedScans;
+    totalCountRef.current = totalCount;
+    extraMetadataRef.current = extraMetadata;
+    lastSyncTimeRef.current = lastSyncTime;
+  }, [streamedScans, totalCount, extraMetadata, lastSyncTime]);
 
   const streamAbortControllerRef = React.useRef<AbortController | null>(null);
   const isFreshStreamingRef = React.useRef(false);
@@ -984,10 +987,11 @@ export function useUpdateSubplateMutation() {
       await queryClient.cancelQueries({ queryKey: queryKeys.subplates.all() });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.subplates.all() });
 
+      const patch = updated.updates || updated;
       queryClient.setQueriesData({ queryKey: queryKeys.subplates.all() }, (old: any) => {
         if (!old) return old;
         const updateList = (list: any[]) =>
-          list.map((item) => (item.id === updated.id ? { ...item, ...updated } : item));
+          list.map((item) => (item.id === updated.id ? { ...item, ...patch } : item));
         if (Array.isArray(old)) return updateList(old);
         if (old.subplates) return { ...old, subplates: updateList(old.subplates) };
         if (old.data) return { ...old, data: updateList(old.data) };
@@ -1002,6 +1006,30 @@ export function useUpdateSubplateMutation() {
           queryClient.setQueryData(key, val);
         }
       }
+    },
+    onSuccess: (resData, variables) => {
+      const serverPlate = resData?.subplate || resData?.data;
+      if (serverPlate) {
+        queryClient.setQueriesData({ queryKey: queryKeys.subplates.all() }, (old: any) => {
+          if (!old) return old;
+          const updateList = (list: any[]) =>
+            list.map((item) => (item.id === serverPlate.id ? { ...item, ...serverPlate } : item));
+          if (Array.isArray(old)) return updateList(old);
+          if (old.subplates) return { ...old, subplates: updateList(old.subplates) };
+          if (old.data) return { ...old, data: updateList(old.data) };
+          return old;
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      if (variables?.projectid) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
     onSettled: (_data, _err, variables) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });

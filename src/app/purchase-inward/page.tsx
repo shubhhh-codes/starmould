@@ -3,6 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { AppLayout } from "@/components/layout/app-layout";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
     PackagePlus,
     Search,
@@ -41,6 +43,7 @@ import type {
 } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import {
@@ -53,6 +56,10 @@ import { queryKeys } from "@/lib/query/keys";
 import { calculateSubplateWeight } from "@/lib/weight-calculator";
 
 export default function PurchaseInwardPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreatePurchaseInward = hasPermission("action_create_purchase_inward");
     const [isMounted, setIsMounted] = useState(false);
     useEffect(() => {
         setIsMounted(true);
@@ -165,6 +172,15 @@ export default function PurchaseInwardPage() {
         return Array.from(set).sort();
     }, [pendingReceiveItems]);
 
+
+
+    const mouldFilterOptions: ERPSelectOption[] = useMemo(() => [
+        { value: "ALL", label: `All Moulds (${availableMoulds.length})` },
+        ...availableMoulds.map((m) => ({ value: m, label: m })),
+    ], [availableMoulds]);
+
+    
+
     const availableVendors = useMemo(() => {
         const set = new Set<string>();
         pendingReceiveItems.forEach((it) => {
@@ -172,6 +188,11 @@ export default function PurchaseInwardPage() {
         });
         return Array.from(set).sort();
     }, [pendingReceiveItems]);
+
+    const vendorFilterOptions: ERPSelectOption[] = useMemo(() => [
+        { value: "ALL", label: `All Suppliers (${availableVendors.length})` },
+        ...availableVendors.map((v) => ({ value: v, label: v })),
+    ], [availableVendors]);
 
     // Filtered pending items based on search & active dropdowns
     const filteredPendingItems = useMemo(() => {
@@ -716,43 +737,31 @@ export default function PurchaseInwardPage() {
                                 {/* Dropdown Filters & Rows Per Page */}
                                 <div className="flex flex-wrap items-center gap-2.5">
                                     {/* Mould Filter */}
-                                    <div className="flex items-center gap-1.5 text-xs">
-                                        <span className="text-slate-500 hidden sm:inline">Mould:</span>
-                                        <select
+                                    <div className="w-44 min-w-0">
+                                        <ERPSelect
                                             value={mouldFilter}
-                                            onChange={(e) => {
-                                                setMouldFilter(e.target.value);
+                                            onChange={(val) => {
+                                                setMouldFilter(String(val));
                                                 setCurrentPage(1);
                                             }}
-                                            className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500 font-mono"
-                                        >
-                                            <option value="ALL">All Moulds ({availableMoulds.length})</option>
-                                            {availableMoulds.map((m) => (
-                                                <option key={m} value={m}>
-                                                    {m}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            options={mouldFilterOptions}
+                                            placeholder="All Moulds"
+                                            searchPlaceholder="Search moulds..."
+                                        />
                                     </div>
 
                                     {/* Supplier Filter */}
-                                    <div className="flex items-center gap-1.5 text-xs">
-                                        <span className="text-slate-500 hidden sm:inline">Supplier:</span>
-                                        <select
+                                    <div className="w-48 min-w-0">
+                                        <ERPSelect
                                             value={vendorFilter}
-                                            onChange={(e) => {
-                                                setVendorFilter(e.target.value);
+                                            onChange={(val) => {
+                                                setVendorFilter(String(val));
                                                 setCurrentPage(1);
                                             }}
-                                            className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500"
-                                        >
-                                            <option value="ALL">All Suppliers ({availableVendors.length})</option>
-                                            {availableVendors.map((v) => (
-                                                <option key={v} value={v}>
-                                                    {v}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            options={vendorFilterOptions}
+                                            placeholder="All Suppliers"
+                                            searchPlaceholder="Search suppliers..."
+                                        />
                                     </div>
 
                                     {/* Rows per page for flat table */}
@@ -1019,7 +1028,7 @@ export default function PurchaseInwardPage() {
 
                                                                             {/* Action: Receive */}
                                                                             <td className="py-3 px-4 text-right">
-                                                                                <button
+                                                                                {canCreatePurchaseInward && (<button
                                                                                     type="button"
                                                                                     onClick={() => handleOpenReceiveModal(item)}
                                                                                     className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition active:scale-95 shadow-2xs cursor-pointer"
@@ -1027,7 +1036,7 @@ export default function PurchaseInwardPage() {
                                                                                 >
                                                                                     <ArrowDownLeft className="w-3.5 h-3.5" />
                                                                                     <span>Receive</span>
-                                                                                </button>
+                                                                                </button>)}
                                                                             </td>
                                                                         </tr>
                                                                     );
@@ -1374,7 +1383,7 @@ export default function PurchaseInwardPage() {
                             </div>
                         </div>
                     }
-                    size="2xl"
+                    size="3xl"
                 >
                     {selectedReceiveItems.length > 0 && (() => {
                         let totalReceivingUnits = 0;

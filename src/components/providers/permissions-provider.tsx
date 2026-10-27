@@ -89,7 +89,14 @@ export function PermissionsProvider({
 
   const fetchPermissions = useCallback(async () => {
     try {
-      const res = await fetch("/api/settings/permissions");
+      // Strictly bypass all browser/proxy disk caches on every request
+      const res = await fetch(`/api/settings/permissions?_t=${Date.now()}`, {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+          Pragma: "no-cache",
+        },
+      });
       if (res.ok) {
         const data = await res.json();
         if (data.permissions) {
@@ -129,6 +136,58 @@ export function PermissionsProvider({
     if (!activeUser && !getCachedSession()) return;
     fetchPermissions();
   }, [fetchPermissions, activeUser, pathname]);
+
+  // Real-time synchronization across browser tabs, windows, and tab visibility
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // 1. Storage event across tabs in the same browser
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === PERMS_CACHE_KEY && e.newValue) {
+        try {
+          setMatrix(JSON.parse(e.newValue));
+        } catch {}
+      }
+      if (e.key === ORDERS_CACHE_KEY && e.newValue) {
+        try {
+          setMenuOrders(JSON.parse(e.newValue));
+        } catch {}
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+
+    // 2. Tab focus / visibility change: immediately re-verify live permissions
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        fetchPermissions();
+      }
+    };
+    window.addEventListener("focus", handleVisibility);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    // 3. Instant BroadcastChannel sync
+    let bc: BroadcastChannel | null = null;
+    if ("BroadcastChannel" in window) {
+      try {
+        bc = new BroadcastChannel("starmould_tabs_sync");
+        bc.onmessage = (event) => {
+          if (
+            event.data?.type === "PERMISSIONS_UPDATED" ||
+            (event.data?.type === "INVALIDATE" && Array.isArray(event.data?.queryKey) && event.data.queryKey.includes("role_permissions"))
+          ) {
+            fetchPermissions();
+          }
+        };
+      } catch {}
+    }
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleVisibility);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (bc) bc.close();
+    };
+  }, [fetchPermissions]);
 
   const hasPermission = useCallback(
     (permissionKey: string, customRoleId?: number): boolean => {
@@ -210,6 +269,13 @@ export function PermissionsProvider({
           if (data.menu_orders) {
             setMenuOrders(data.menu_orders);
           }
+          if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+            try {
+              const bc = new BroadcastChannel("starmould_tabs_sync");
+              bc.postMessage({ type: "PERMISSIONS_UPDATED" });
+              bc.close();
+            } catch {}
+          }
           return true;
         }
         return false;
@@ -229,15 +295,14 @@ export function PermissionsProvider({
       permissions: Record<string, boolean>,
       menuOrder: string[]
     ): Promise<{ success: boolean; error?: string }> => {
-      if (roleId === 0) {
-        return { success: false, error: "Administrator role is protected and cannot be modified." };
-      }
+      // For Admin (roleId === 0), permissions remain locked to 100% full access, but menuOrder can be customized
+      const permissionsToSend = roleId === 0 ? DEFAULT_ROLE_PERMISSIONS[0] : permissions;
       try {
         setIsSaving(true);
         const res = await fetch("/api/settings/permissions", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ roleId, permissions, menuOrder }),
+          body: JSON.stringify({ roleId, permissions: permissionsToSend, menuOrder }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
@@ -248,6 +313,13 @@ export function PermissionsProvider({
           if (data.menu_orders) {
             setMenuOrders(data.menu_orders);
             try { localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(data.menu_orders)); } catch {}
+          }
+          if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+            try {
+              const bc = new BroadcastChannel("starmould_tabs_sync");
+              bc.postMessage({ type: "PERMISSIONS_UPDATED" });
+              bc.close();
+            } catch {}
           }
           return { success: true };
         }
@@ -283,6 +355,13 @@ export function PermissionsProvider({
           if (data.menu_orders) {
             setMenuOrders(data.menu_orders);
             try { localStorage.setItem(ORDERS_CACHE_KEY, JSON.stringify(data.menu_orders)); } catch {}
+          }
+          if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+            try {
+              const bc = new BroadcastChannel("starmould_tabs_sync");
+              bc.postMessage({ type: "PERMISSIONS_UPDATED" });
+              bc.close();
+            } catch {}
           }
           return { success: true };
         }

@@ -145,6 +145,7 @@ export default function SettingsPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [menuSearchQuery, setMenuSearchQuery] = useState<string>("");
+  const [actionSearchQuery, setActionSearchQuery] = useState<string>("");
   const [isDownloadingSql, setIsDownloadingSql] = useState(false);
   const [isDownloadingJson, setIsDownloadingJson] = useState(false);
   const [backupStatus, setBackupStatus] = useState<any>(null);
@@ -341,10 +342,18 @@ export default function SettingsPage() {
 
   // Check if there are unsaved modifications
   const hasUnsavedChanges = useMemo(() => {
-    if (isRoleAdmin) return false;
-    const remotePerms = matrix[selectedRoleId];
     const remoteOrder = menuOrders[selectedRoleId] || DEFAULT_ROLE_MENU_ORDERS[selectedRoleId] || [];
 
+    if (isRoleAdmin) {
+      // Admin can customize tile order: detect reordering
+      if (localMenuOrder.length !== remoteOrder.length) return true;
+      for (let i = 0; i < localMenuOrder.length; i++) {
+        if (localMenuOrder[i] !== remoteOrder[i]) return true;
+      }
+      return false;
+    }
+
+    const remotePerms = matrix[selectedRoleId];
     if (!remotePerms) return false;
 
     // Check permissions difference
@@ -371,14 +380,17 @@ export default function SettingsPage() {
 
   // Drag and Drop Event Handlers
   const handleDragStart = (e: React.DragEvent, itemKey: string, sourceColumn: "active" | "inactive", sourceIndex: number) => {
-    if (isRoleAdmin) return;
+    // If admin, they can ONLY reorder active items (cannot drag inactive items)
+    if (isRoleAdmin && sourceColumn !== "active") return;
     setDraggedItem({ itemKey, sourceColumn, sourceIndex });
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", itemKey);
   };
 
   const handleDragOverColumn = (e: React.DragEvent, column: "active" | "inactive") => {
-    if (isRoleAdmin || !draggedItem) return;
+    if (!draggedItem) return;
+    // For Admin, cannot drag into inactive column!
+    if (isRoleAdmin && column === "inactive") return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     if (dropTarget?.column !== column || dropTarget?.index !== undefined) {
@@ -387,7 +399,9 @@ export default function SettingsPage() {
   };
 
   const handleDragOverItem = (e: React.DragEvent, column: "active" | "inactive", index: number) => {
-    if (isRoleAdmin || !draggedItem) return;
+    if (!draggedItem) return;
+    // For Admin, cannot drop onto inactive column!
+    if (isRoleAdmin && column === "inactive") return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
@@ -395,13 +409,33 @@ export default function SettingsPage() {
   };
 
   const handleDrop = (targetColumn: "active" | "inactive", targetIndex?: number) => {
-    if (isRoleAdmin || !draggedItem) {
+    if (!draggedItem) {
       setDraggedItem(null);
       setDropTarget(null);
       return;
     }
 
     const { itemKey, sourceColumn, sourceIndex } = draggedItem;
+
+    // For Admin: ONLY reordering within active column is permitted
+    if (isRoleAdmin) {
+      if (sourceColumn === "active" && targetColumn === "active") {
+        const destIndex = targetIndex !== undefined ? targetIndex : localMenuOrder.length - 1;
+        if (sourceIndex !== destIndex) {
+          setLocalMenuOrder((prev) => {
+            const next = [...prev];
+            const [moved] = next.splice(sourceIndex, 1);
+            if (moved) {
+              next.splice(destIndex, 0, moved);
+            }
+            return next;
+          });
+        }
+      }
+      setDraggedItem(null);
+      setDropTarget(null);
+      return;
+    }
 
     if (sourceColumn === "inactive" && targetColumn === "active") {
       setLocalPermissions((prev) => ({ ...prev, [itemKey]: true }));
@@ -456,7 +490,7 @@ export default function SettingsPage() {
   };
 
   const handleMoveOrder = (index: number, direction: "up" | "down") => {
-    if (isRoleAdmin) return;
+    // Admin CAN reorder active items up and down
     setLocalMenuOrder((prev) => {
       const targetIndex = direction === "up" ? index - 1 : index + 1;
       if (targetIndex < 0 || targetIndex >= prev.length) return prev;
@@ -495,6 +529,74 @@ export default function SettingsPage() {
       return next;
     });
     setLocalMenuOrder(["nav_dashboard"]);
+  };
+
+  const allActionDefs = useMemo(() => {
+    return PERMISSION_DEFINITIONS.filter((p) => p.category === "actions");
+  }, []);
+
+  const activeActionsCount = useMemo(() => {
+    if (isRoleAdmin) return allActionDefs.length;
+    return allActionDefs.filter((p) => localPermissions[p.key] === true).length;
+  }, [isRoleAdmin, allActionDefs, localPermissions]);
+
+  const groupedActions = useMemo(() => {
+    const modulesMap = new Map<string, {
+      moduleKey: string;
+      label: string;
+      icon: string;
+      permissions: typeof allActionDefs;
+    }>();
+
+    const query = actionSearchQuery.trim().toLowerCase();
+
+    allActionDefs.forEach((p) => {
+      if (query) {
+        const matchesLabel = p.label.toLowerCase().includes(query);
+        const matchesDesc = p.description.toLowerCase().includes(query);
+        const matchesModule = (p.moduleLabel || "").toLowerCase().includes(query);
+        const matchesKey = p.key.toLowerCase().includes(query);
+        if (!matchesLabel && !matchesDesc && !matchesModule && !matchesKey) {
+          return;
+        }
+      }
+
+      const modKey = p.module || "general";
+      if (!modulesMap.has(modKey)) {
+        modulesMap.set(modKey, {
+          moduleKey: modKey,
+          label: p.moduleLabel || "General Capabilities",
+          icon: p.moduleIcon || "Sliders",
+          permissions: [],
+        });
+      }
+      modulesMap.get(modKey)!.permissions.push(p);
+    });
+
+    return Array.from(modulesMap.values());
+  }, [allActionDefs, actionSearchQuery]);
+
+  const handleToggleModuleAll = (moduleKey: string, grant: boolean) => {
+    if (isRoleAdmin) return;
+    const modulePerms = allActionDefs.filter((p) => (p.module || "general") === moduleKey);
+    setLocalPermissions((prev) => {
+      const updated = { ...prev };
+      modulePerms.forEach((p) => {
+        updated[p.key] = grant;
+      });
+      return updated;
+    });
+  };
+
+  const handleToggleAllActions = (grant: boolean) => {
+    if (isRoleAdmin) return;
+    setLocalPermissions((prev) => {
+      const updated = { ...prev };
+      allActionDefs.forEach((p) => {
+        updated[p.key] = grant;
+      });
+      return updated;
+    });
   };
 
   // Toggle for Action and Financial permissions
@@ -554,12 +656,17 @@ export default function SettingsPage() {
   };
 
   const handleSaveChanges = async () => {
-    if (isRoleAdmin) return;
-    const res = await updateRoleConfig(selectedRoleId, localPermissions, localMenuOrder);
-    if (res.success) {
-      showToast("success", `Menu structure & permissions for ${activeRole.display_name} saved successfully.`);
-    } else {
-      showToast("error", `Failed to save changes for ${activeRole.display_name}: ${res.error || "Unknown error"}`);
+    if (isSaving) return;
+    try {
+      const permsToSave = isRoleAdmin ? DEFAULT_ROLE_PERMISSIONS[0] : localPermissions;
+      const res = await updateRoleConfig(selectedRoleId, permsToSave, localMenuOrder);
+      if (res.success) {
+        showToast("success", isRoleAdmin ? "Admin menu order saved successfully." : `Menu structure & permissions for ${activeRole.display_name} saved successfully.`);
+      } else {
+        showToast("error", `Failed to save changes for ${activeRole.display_name}: ${res.error || "Unknown error"}`);
+      }
+    } catch {
+      showToast("error", "Error saving configuration.");
     }
   };
 
@@ -568,14 +675,14 @@ export default function SettingsPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        if (hasUnsavedChanges && !isSaving && !isRoleAdmin) {
+        if (hasUnsavedChanges && !isSaving) {
           handleSaveChanges();
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [hasUnsavedChanges, isSaving, isRoleAdmin, handleSaveChanges]);
+  }, [hasUnsavedChanges, isSaving, handleSaveChanges]);
 
   if (!isAdmin) {
     return (
@@ -845,6 +952,9 @@ export default function SettingsPage() {
             >
               <Sliders className="w-3.5 h-3.5 shrink-0" />
               <span className="truncate">Actions</span>
+              <span className="text-[10px] px-1 sm:px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-mono font-bold shrink-0">
+                {activeActionsCount}
+              </span>
             </button>
 
             <button
@@ -880,21 +990,31 @@ export default function SettingsPage() {
             </button>
           </div>
 
-          {/* Quick Menu Filter Search */}
-          {activeTab === "menu_builder" && (
-            <div className="relative w-full sm:w-64">
+          {/* Quick Filter Search for Menus or Actions */}
+          {(activeTab === "menu_builder" || activeTab === "actions") && (
+            <div className="relative w-full sm:w-72">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                value={menuSearchQuery}
-                onChange={(e) => setMenuSearchQuery(e.target.value)}
-                placeholder="Search menus (e.g. PO, Scanning)..."
+                value={activeTab === "actions" ? actionSearchQuery : menuSearchQuery}
+                onChange={(e) =>
+                  activeTab === "actions"
+                    ? setActionSearchQuery(e.target.value)
+                    : setMenuSearchQuery(e.target.value)
+                }
+                placeholder={
+                  activeTab === "actions"
+                    ? "Search actions (e.g. subplate, delete, po)..."
+                    : "Search menus (e.g. PO, Scanning)..."
+                }
                 className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800 placeholder-slate-400"
               />
-              {menuSearchQuery && (
+              {(activeTab === "actions" ? actionSearchQuery : menuSearchQuery) && (
                 <button
                   type="button"
-                  onClick={() => setMenuSearchQuery("")}
+                  onClick={() =>
+                    activeTab === "actions" ? setActionSearchQuery("") : setMenuSearchQuery("")
+                  }
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
                   <X className="w-3 h-3" />
@@ -911,7 +1031,7 @@ export default function SettingsPage() {
             <div>
               <strong className="font-bold">Administrator Role is Universally Unlocked: </strong>
               <span className="text-purple-800/90 text-[11px]">
-                Full universal access across all modules is preserved to prevent lockout.
+                All modules are permanently active. You can reorder tiles using drag-and-drop or the up/down arrow buttons on the right.
               </span>
             </div>
           </div>
@@ -999,11 +1119,17 @@ export default function SettingsPage() {
                     <div className="h-36 border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-xl flex flex-col items-center justify-center p-3 text-center text-slate-400 space-y-1">
                       <Eye className="w-5 h-5 text-slate-400" />
                       <p className="text-xs font-medium text-slate-600">
-                        {menuSearchQuery ? "No matching hidden menus found" : "All available menus are active"}
+                        {menuSearchQuery
+                          ? "No matching hidden menus found"
+                          : isRoleAdmin
+                          ? "All menus are active for Admin"
+                          : "All available menus are active"}
                       </p>
                       <p className="text-[10px] text-slate-400">
                         {menuSearchQuery
                           ? "Try another keyword"
+                          : isRoleAdmin
+                          ? "Administrator menus cannot be hidden to prevent lockout."
                           : `Drag any menu here to hide it for ${activeRole.display_name}.`}
                       </p>
                     </div>
@@ -1126,7 +1252,7 @@ export default function SettingsPage() {
                       return (
                         <div
                           key={item.key}
-                          draggable={!isRoleAdmin}
+                          draggable={true}
                           onDragStart={(e) => handleDragStart(e, item.key, "active", idx)}
                           onDragOver={(e) => handleDragOverItem(e, "active", idx)}
                           onDrop={(e) => {
@@ -1134,13 +1260,11 @@ export default function SettingsPage() {
                             handleDrop("active", idx);
                           }}
                           onDragEnd={handleDragEnd}
-                          className={`group bg-white border rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 transition-all duration-150 ${
+                          className={`group bg-white border rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 transition-all duration-150 cursor-grab active:cursor-grabbing ${
                             isTargetPosition
                               ? "border-blue-500 ring-2 ring-blue-500/30 bg-blue-50/60"
                               : "border-slate-200 hover:border-blue-300 hover:bg-blue-50/20"
-                          } ${isDraggingThis ? "opacity-30 scale-95 border-dashed" : "shadow-2xs"} ${
-                            isRoleAdmin ? "cursor-not-allowed opacity-90" : "cursor-grab active:cursor-grabbing"
-                          }`}
+                          } ${isDraggingThis ? "opacity-30 scale-95 border-dashed" : "shadow-2xs"}`}
                         >
                           <div className="flex items-center gap-2 overflow-hidden">
                             <div
@@ -1170,28 +1294,28 @@ export default function SettingsPage() {
                           </div>
 
                           {/* Reorder and Remove Controls */}
-                          {!isRoleAdmin && (
-                            <div className="flex items-center gap-0.5 shrink-0">
-                              <button
-                                type="button"
-                                disabled={idx === 0}
-                                onClick={() => handleMoveOrder(idx, "up")}
-                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-md transition disabled:opacity-20 cursor-pointer"
-                                title="Move Up"
-                              >
-                                <ChevronUp className="w-3 h-3" />
-                              </button>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleMoveOrder(idx, "up")}
+                              className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-md transition disabled:opacity-20 cursor-pointer"
+                              title="Move Up"
+                            >
+                              <ChevronUp className="w-3 h-3" />
+                            </button>
 
-                              <button
-                                type="button"
-                                disabled={idx === activeNavItems.length - 1}
-                                onClick={() => handleMoveOrder(idx, "down")}
-                                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-md transition disabled:opacity-20 cursor-pointer"
-                                title="Move Down"
-                              >
-                                <ChevronDown className="w-3 h-3" />
-                              </button>
+                            <button
+                              type="button"
+                              disabled={idx === activeNavItems.length - 1}
+                              onClick={() => handleMoveOrder(idx, "down")}
+                              className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200 rounded-md transition disabled:opacity-20 cursor-pointer"
+                              title="Move Down"
+                            >
+                              <ChevronDown className="w-3 h-3" />
+                            </button>
 
+                            {!isRoleAdmin && (
                               <button
                                 type="button"
                                 onClick={() => handleMoveToInactive(item.key)}
@@ -1200,8 +1324,8 @@ export default function SettingsPage() {
                               >
                                 <X className="w-3 h-3" />
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })
@@ -1222,77 +1346,199 @@ export default function SettingsPage() {
         {/* TAB 2: ACTION & CREATION CAPABILITIES */}
         {/* ========================================================================= */}
         {activeTab === "actions" && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-            <div className="pb-3 border-b border-slate-100">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
-                Action Capabilities for {activeRole.display_name}
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Enable or restrict operational actions such as creating customers, suppliers, POs, or approving QC sign-offs.
-              </p>
+          <div className="space-y-4">
+            {/* Top Operational Capabilities Banner */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900">
+                    Operational Action Permissions for {activeRole.display_name}
+                  </h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                    {activeActionsCount} / {allActionDefs.length} Allowed
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Granular action switches grouped by operational modules (Subplates, Scanning, Purchase, Logistics, etc.).
+                </p>
+              </div>
+
+              {!isRoleAdmin && (
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAllActions(true)}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition cursor-pointer"
+                  >
+                    Allow All Actions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAllActions(false)}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition cursor-pointer"
+                  >
+                    Deny All Actions
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div className="divide-y divide-slate-100">
-              {PERMISSION_DEFINITIONS.filter((p) => p.category === "actions").map((p) => {
-                const isGranted = isRoleAdmin ? true : localPermissions[p.key] ?? false;
+            {/* Modular Operational Capabilities Cards */}
+            {groupedActions.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400">
+                <Search className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                <p className="text-xs font-medium">No actions found matching &quot;{actionSearchQuery}&quot;</p>
+                <button
+                  type="button"
+                  onClick={() => setActionSearchQuery("")}
+                  className="mt-2 text-xs text-blue-600 hover:underline cursor-pointer"
+                >
+                  Clear filter
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {groupedActions.map((group) => {
+                  const totalCount = group.permissions.length;
+                  const grantedCount = isRoleAdmin
+                    ? totalCount
+                    : group.permissions.filter((p) => localPermissions[p.key] === true).length;
+                  const isAllGranted = grantedCount === totalCount;
+                  const isNoneGranted = grantedCount === 0;
 
-                return (
-                  <div
-                    key={p.key}
-                    onClick={() => handleTogglePermission(p.key)}
-                    className={`py-3 px-2 flex items-center justify-between gap-3 transition-colors rounded-xl ${
-                      isRoleAdmin
-                        ? "cursor-default"
-                        : isGranted
-                        ? "hover:bg-blue-50/40 cursor-pointer"
-                        : "hover:bg-slate-50 cursor-pointer opacity-75"
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div
-                        className={`p-1.5 rounded-lg mt-0.5 shrink-0 transition-colors ${
-                          isGranted
-                            ? "bg-blue-50 text-blue-600 border border-blue-200/60"
-                            : "bg-slate-100 text-slate-400 border border-slate-200"
-                        }`}
-                      >
-                        <Sliders className="w-3.5 h-3.5" />
-                      </div>
+                  return (
+                    <div
+                      key={group.moduleKey}
+                      className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs transition-all hover:border-slate-300 space-y-3.5 flex flex-col justify-between"
+                    >
                       <div>
-                        <h4
-                          className={`text-xs font-semibold ${
-                            isGranted ? "text-slate-900" : "text-slate-600"
-                          }`}
-                        >
-                          {p.label}
-                        </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                          {p.description}
-                        </p>
+                        {/* Category Header */}
+                        <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-200/60 text-blue-600 shrink-0">
+                              <Sliders className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-bold text-slate-900 truncate uppercase tracking-wider">
+                                {group.label}
+                              </h4>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {grantedCount} of {totalCount} active
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                                isAllGranted
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : isNoneGranted
+                                  ? "bg-slate-100 text-slate-500 border-slate-200"
+                                  : "bg-blue-50 text-blue-700 border-blue-200"
+                              }`}
+                            >
+                              {grantedCount}/{totalCount}
+                            </span>
+                            {!isRoleAdmin && (
+                              <div className="flex items-center ml-1 gap-1">
+                                <button
+                                  type="button"
+                                  title="Allow all in this section"
+                                  onClick={() => handleToggleModuleAll(group.moduleKey, true)}
+                                  disabled={isAllGranted}
+                                  className="px-1.5 py-0.5 text-[10px] font-medium rounded border border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-slate-600 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                  Allow All
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Deny all in this section"
+                                  onClick={() => handleToggleModuleAll(group.moduleKey, false)}
+                                  disabled={isNoneGranted}
+                                  className="px-1.5 py-0.5 text-[10px] font-medium rounded border border-slate-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-slate-600 transition disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                                >
+                                  Deny
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Granular Sub-Actions */}
+                        <div className="divide-y divide-slate-100 mt-1">
+                          {group.permissions.map((p) => {
+                            const isGranted = isRoleAdmin ? true : localPermissions[p.key] ?? false;
+
+                            return (
+                              <div
+                                key={p.key}
+                                onClick={() => handleTogglePermission(p.key)}
+                                className={`py-2.5 px-2 flex items-center justify-between gap-3 transition-colors rounded-xl ${
+                                  isRoleAdmin
+                                    ? "cursor-default"
+                                    : isGranted
+                                    ? "hover:bg-blue-50/40 cursor-pointer"
+                                    : "hover:bg-slate-50 cursor-pointer opacity-80"
+                                }`}
+                              >
+                                <div className="flex items-start gap-2.5 min-w-0">
+                                  <div
+                                    className={`w-2 h-2 rounded-full mt-1.5 shrink-0 transition-colors ${
+                                      isGranted
+                                        ? "bg-blue-600 ring-2 ring-blue-100"
+                                        : "bg-slate-300"
+                                    }`}
+                                  />
+                                  <div className="min-w-0">
+                                    <h5
+                                      className={`text-xs font-semibold truncate ${
+                                        isGranted ? "text-slate-900" : "text-slate-600"
+                                      }`}
+                                    >
+                                      {p.label}
+                                    </h5>
+                                    <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                                      {p.description}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {isRoleAdmin ? (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200 select-none">
+                                      <Lock className="w-2.5 h-2.5" />
+                                      Locked
+                                    </span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleTogglePermission(p.key);
+                                      }}
+                                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                        isGranted ? "bg-blue-600" : "bg-slate-300"
+                                      }`}
+                                    >
+                                      <span
+                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                                          isGranted ? "translate-x-4" : "translate-x-0"
+                                        }`}
+                                      />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
-
-                    <button
-                      type="button"
-                      disabled={isRoleAdmin}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTogglePermission(p.key);
-                      }}
-                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-80 disabled:cursor-not-allowed ${
-                        isGranted ? "bg-blue-600" : "bg-slate-300"
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
-                          isGranted ? "translate-x-4" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

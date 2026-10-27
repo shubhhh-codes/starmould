@@ -137,7 +137,7 @@ export function ERPSelect({
   };
 
   return (
-    <div ref={containerRef} className={`relative w-full ${className}`}>
+    <div ref={containerRef} className={`relative w-full ${isOpen ? "z-30" : "z-10"} ${className}`}>
       {/* Hidden input for form validation */}
       {required && (
         <input

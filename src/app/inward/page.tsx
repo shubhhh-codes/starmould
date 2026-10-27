@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { AppLayout } from "@/components/layout/app-layout";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
     ArrowDownLeft,
     Search,
@@ -32,6 +34,7 @@ import type {
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
 import {
     useInwardQuery,
@@ -43,6 +46,10 @@ import {
 import { useIsRestoring } from "@tanstack/react-query";
 
 export default function InwardPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreateInward = hasPermission("action_create_inward");
     const isRestoring = useIsRestoring();
     const {
         data,
@@ -123,6 +130,44 @@ export default function InwardPage() {
         const vId = Number(modalForm.vendorid);
         return pendingChallans.filter((c: any) => c.vendorid === vId);
     }, [pendingChallans, modalForm.vendorid]);
+
+  const vendorOptions: ERPSelectOption[] = useMemo(() => {
+    return vendors.map((v: any) => ({
+      value: String(v.id),
+      label: v.customername,
+      subtitle: v.initials ? `Code: ${v.initials}` : undefined,
+    }));
+  }, [vendors]);
+
+  const outwardChallanOptions: ERPSelectOption[] = useMemo(() => {
+    return availableOutwardChallans.map((c: any) => ({
+      value: String(c.id),
+      label: `${c.challanno} (${c.chdate})`,
+      subtitle: c.customername ? `Client: ${c.customername}` : undefined,
+      badge: c.challanno,
+      badgeVariant: "blue" as const,
+    }));
+  }, [availableOutwardChallans]);
+
+  const transporterOptions: ERPSelectOption[] = useMemo(() => {
+    return transporters.map((t: any) => ({
+      value: String(t.id),
+      label: t.customername,
+      subtitle: t.initials ? `Code: ${t.initials}` : undefined,
+    }));
+  }, [transporters]);
+
+  const vendorFilterOptions: ERPSelectOption[] = useMemo(() => {
+    return [
+      { value: "ALL", label: `All Vendors (${vendors.length})` },
+      ...vendors.map((v: any) => ({
+        value: String(v.id),
+        label: v.customername,
+        badge: v.initials || undefined,
+        badgeVariant: "blue" as const,
+      })),
+    ];
+  }, [vendors]);
 
     // Expand / collapse child rows
     const toggleRow = (id: number) => {
@@ -340,13 +385,13 @@ export default function InwardPage() {
                             <span>Export Pending Outward</span>
                         </Link>
 
-                        <button
+                        {canCreateInward && (<button
                             onClick={() => setIsModalOpen(true)}
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition shadow-sm shadow-emerald-500/20"
                         >
                             <Plus className="h-4 w-4" />
                             <span>Inward Challan (Receive)</span>
-                        </button>
+                        </button>)}
                     </div>
                 </div>
 
@@ -426,21 +471,15 @@ export default function InwardPage() {
                         />
                     </div>
 
-                    <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <select
+                    <div className="flex items-center gap-3 w-full sm:w-64">
+                        <ERPSelect
                             value={vendorFilter}
-                            onChange={(e) => setVendorFilter(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        >
-                            <option value="ALL">
-                                All Vendors ({vendors.length})
-                            </option>
-                            {vendors.map((v) => (
-                                <option key={v.id} value={v.id}>
-                                    {v.customername}
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(val) => setVendorFilter(String(val))}
+                            options={vendorFilterOptions}
+                            placeholder="Filter by vendor..."
+                            searchPlaceholder="Search vendor..."
+                            showSearch={true}
+                        />
                     </div>
                 </div>
 
@@ -844,8 +883,8 @@ export default function InwardPage() {
                         {/* Form Selection Row (Source: inward/index.blade.php lines 65-115) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Today’s Date *
+                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                    Today’s Date <span className="text-rose-500">*</span>
                                 </label>
                                 <input
                                     type="date"
@@ -857,97 +896,70 @@ export default function InwardPage() {
                                         }))
                                     }
                                     required
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
+                                    className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition shadow-xs"
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Vendor Name *
+                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                    Vendor Name <span className="text-rose-500">*</span>
                                 </label>
-                                <select
+                                <ERPSelect
                                     value={modalForm.vendorid}
-                                    onChange={(e) =>
+                                    onChange={(val) =>
                                         setModalForm((prev) => ({
                                             ...prev,
-                                            vendorid: e.target.value,
+                                            vendorid: String(val),
                                             challanid: "",
                                             items: [],
                                         }))
                                     }
+                                    options={vendorOptions}
+                                    placeholder="Select Vendor Name"
+                                    searchPlaceholder="Search vendor..."
+                                    showSearch={vendorOptions.length > 5}
                                     required
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                                >
-                                    <option value="">
-                                        Select Vendor Name
-                                    </option>
-                                    {vendors.map((v) => (
-                                        <option key={v.id} value={v.id}>
-                                            {v.customername}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Outward Challan No *
+                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                    Outward Challan No <span className="text-rose-500">*</span>
                                 </label>
-                                <select
+                                <ERPSelect
                                     value={modalForm.challanid}
-                                    onChange={(e) =>
-                                        handleSelectChallan(
-                                            e.target.value,
-                                        )
-                                    }
+                                    onChange={(val) => handleSelectChallan(String(val))}
+                                    options={outwardChallanOptions}
                                     disabled={!modalForm.vendorid}
-                                    required
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
-                                >
-                                    <option value="">
-                                        {!modalForm.vendorid
+                                    placeholder={
+                                        !modalForm.vendorid
                                             ? "Select Vendor first"
-                                            : "Select Outward Challan"}
-                                    </option>
-                                    {availableOutwardChallans.map(
-                                        (c: any) => (
-                                            <option
-                                                key={c.id}
-                                                value={c.id}
-                                            >
-                                                {c.challanno} (
-                                                {c.chdate}) -{" "}
-                                                {c.customername}
-                                            </option>
-                                        ),
-                                    )}
-                                </select>
+                                            : "Select Outward Challan"
+                                    }
+                                    searchPlaceholder="Search challan no..."
+                                    showSearch={outwardChallanOptions.length > 5}
+                                    required
+                                />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                                    Transporter *
+                                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                                    Transporter <span className="text-rose-500">*</span>
                                 </label>
-                                <select
+                                <ERPSelect
                                     value={modalForm.vendortid}
-                                    onChange={(e) =>
+                                    onChange={(val) =>
                                         setModalForm((prev) => ({
                                             ...prev,
-                                            vendortid: e.target.value,
+                                            vendortid: String(val),
                                         }))
                                     }
+                                    options={transporterOptions}
+                                    placeholder="Select Transporter Name"
+                                    searchPlaceholder="Search transporter..."
+                                    showSearch={transporterOptions.length > 5}
                                     required
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500"
-                                >
-                                    <option value="">
-                                        Select Transporter Name
-                                    </option>
-                                    {transporters.map((t) => (
-                                        <option key={t.id} value={t.id}>
-                                            {t.customername}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                             </div>
                         </div>
 

@@ -9,10 +9,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
+  // Only invalidate server cache if authenticated Admin explicitly supplies bust flag (Issue #19)
   const isFresh =
-    req.nextUrl.searchParams.get("fresh") === "true" ||
-    req.headers.get("cache-control")?.includes("no-cache") ||
-    req.headers.get("pragma") === "no-cache";
+    (req.nextUrl.searchParams.get("fresh") === "true" ||
+      req.nextUrl.searchParams.get("bust") === "true") &&
+    auth.user.role_id === 0;
 
   if (isFresh) {
     invalidateCache("api_counts_all");
@@ -79,8 +80,49 @@ export async function GET(req: NextRequest) {
     try {
       const { data, error } = await supabaseAdmin.rpc("get_pipeline_stage_counts");
       if (!error && data) return data;
+      if (error) console.warn("RPC get_pipeline_stage_counts error:", error.message);
     } catch (err) {
       console.warn("RPC get_pipeline_stage_counts fallback:", err);
+    }
+
+    // Direct database fallback if RPC is ever unreachable
+    try {
+      const { data: subplates } = await supabaseAdmin
+        .from("subplate")
+        .select("id, design_by, order_by, received_workby, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
+        .is("deleted_at", null);
+
+      if (subplates) {
+        const dp = subplates.filter((sp) => !sp.design_by || Number(sp.design_by) === 0).length;
+        const dc = subplates.filter((sp) => sp.design_by && Number(sp.design_by) > 0).length;
+        const op = subplates.filter((sp) => !sp.order_by || Number(sp.order_by) === 0).length;
+        const oc = subplates.filter((sp) => sp.order_by && Number(sp.order_by) > 0).length;
+        const pp = subplates.filter((sp) => ((sp.order_by && Number(sp.order_by) > 0) || (sp.received_workby && Number(sp.received_workby) > 0)) && (!sp.received_qcby || Number(sp.received_qcby) === 0)).length;
+        const pc = subplates.filter((sp) => sp.received_qcby && Number(sp.received_qcby) > 0).length;
+        const vp = subplates.filter((sp) => sp.received_qcby && Number(sp.received_qcby) > 0 && (!sp.vmc_workby || Number(sp.vmc_workby) === 0)).length;
+        const vc = subplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0).length;
+        const dtp = subplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0 && (!sp.drilltap_workby || Number(sp.drilltap_workby) === 0)).length;
+        const dtc = subplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0).length;
+        const fqp = subplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0 && (!sp.final_qcby || Number(sp.final_qcby) === 0)).length;
+        const fqc = subplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0).length;
+        const pakp = subplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0 && (!sp.packing_workby || Number(sp.packing_workby) === 0)).length;
+        const pakc = subplates.filter((sp) => sp.packing_workby && Number(sp.packing_workby) > 0).length;
+
+        return {
+          scantotal: Number(counts?.scan ?? 0),
+          designPending: dp, designCompleted: dc,
+          orderPending: op, orderCompleted: oc,
+          programmingPending: pp, programmingCompleted: pc,
+          vmcPending: vp, vmcCompleted: vc,
+          drilltapPending: dtp, drilltapCompleted: dtc,
+          finalqcPending: fqp, finalqcCompleted: fqc,
+          packingPending: pakp, packingCompleted: pakc,
+          designby: dp, orderbytotal: op, receivedqcby: pp,
+          vmcworkby: vp, drilltapworkby: dtp, finalqcby: fqp, packingworkby: pakp,
+        };
+      }
+    } catch (fallbackErr) {
+      console.warn("Direct pipeline count fallback error:", fallbackErr);
     }
     return null;
   };

@@ -112,7 +112,12 @@ export async function POST(req: NextRequest) {
       .limit(1);
 
     const prevBalance = Number(latestRows?.[0]?.balance ?? 0);
-    const newBalance = payment_type === "Credit" ? prevBalance + numAmount : prevBalance - numAmount;
+    const newBalance =
+      payment_type === "Credit"
+        ? prevBalance + numAmount
+        : payment_type === "Debit"
+        ? prevBalance - numAmount
+        : prevBalance; // Outstanding preserves cash balance
 
     const now = new Date().toISOString();
     const { data, error } = await supabaseAdmin
@@ -221,9 +226,12 @@ export async function PUT(req: NextRequest) {
         .limit(1);
 
       const priorBalance = Number(priorRows?.[0]?.balance ?? 0);
-      updatePayload.balance = effectiveType === "Credit"
-        ? priorBalance + effectiveAmount
-        : priorBalance - effectiveAmount;
+      updatePayload.balance =
+        effectiveType === "Credit"
+          ? priorBalance + effectiveAmount
+          : effectiveType === "Debit"
+          ? priorBalance - effectiveAmount
+          : priorBalance; // Outstanding preserves cash balance
     }
 
     const { data, error } = await supabaseAdmin

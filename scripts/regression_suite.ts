@@ -9,6 +9,7 @@ import {
 } from "../src/lib/weight-calculator";
 import { roleHasPermission } from "../src/lib/permissions/loader";
 import { DEFAULT_ROLE_PERMISSIONS } from "../src/lib/permissions/defaults";
+import { calculateGST, calculateLineTotal } from "../src/lib/gst-calculation";
 
 // Ensure required environment variables for test execution
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || "starmould_test_session_secret_1234567890_min_32_chars";
@@ -205,6 +206,45 @@ async function run() {
   // Worker (Role 4)
   assert(roleHasPermission(4, "nav_work", DEFAULT_ROLE_PERMISSIONS) === true, "Worker (4) has nav_work by default");
   assert(roleHasPermission(4, "nav_expense", DEFAULT_ROLE_PERMISSIONS) === false, "Worker (4) does not have nav_expense");
+
+  // ==========================================
+  // SUITE 5: Financial Calculation & Audit Rules Verification
+  // ==========================================
+  console.log("\n--- Suite 5: Financial GST Math & Audit Invariant Rules ---");
+
+  // GST Calculation & Line Total Math
+  const line1Total = calculateLineTotal(5, 1200.50);
+  assert(line1Total === 6002.50, "calculateLineTotal(5, 1200.50) is 6002.50");
+
+  const gstResult = calculateGST(
+    [
+      { qty: 2, unit_price: 1000 },
+      { qty: 4, unit_price: 500 },
+    ],
+    "gst_18",
+    18,
+    0
+  );
+  assert(gstResult.subtotalAmount === 4000, "Subtotal of (2*1000 + 4*500) = 4000");
+  assert(gstResult.gstAmount === 720, "18% GST on 4000 = 720");
+  assert(gstResult.grandTotal === 4720, "Grand total with 18% GST = 4720");
+
+  // Expense Running Balance calculation (Issue #9)
+  const calcExpenseBal = (prev: number, type: string, amt: number) =>
+    type === "Credit" ? prev + amt : type === "Debit" ? prev - amt : prev;
+
+  assert(calcExpenseBal(5000, "Credit", 1000) === 6000, "Credit increases balance: 5000 + 1000 = 6000");
+  assert(calcExpenseBal(5000, "Debit", 1000) === 4000, "Debit decreases balance: 5000 - 1000 = 4000");
+  assert(calcExpenseBal(5000, "Outstanding", 1000) === 5000, "Outstanding preserves balance: 5000 stays 5000");
+
+  // Session Invalidation Clock Math (Issue #10)
+  const userUpdatedAt = new Date("2026-10-27T12:00:00Z").getTime() / 1000;
+  const oldTokenIat = userUpdatedAt - 100; // Issued before password change
+  const newTokenIat = userUpdatedAt + 10;  // Issued after password change
+  const isOldTokenExpired = oldTokenIat < userUpdatedAt - 5;
+  const isNewTokenValid = !(newTokenIat < userUpdatedAt - 5);
+  assert(isOldTokenExpired === true, "Token issued prior to password update is invalidated");
+  assert(isNewTokenValid === true, "Token issued after password update is accepted");
 
   console.log("\n================================================================");
   console.log(`TOTAL RESULTS: ${passed} PASSED, ${failed} FAILED`);

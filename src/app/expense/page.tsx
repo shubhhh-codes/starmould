@@ -2,6 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
     Wallet,
     ArrowUpRight,
@@ -28,6 +30,7 @@ import {
     CardGridSkeleton,
 } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
@@ -39,7 +42,13 @@ import {
 } from "@/lib/query/hooks";
 
 export default function ExpensePage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canManageExpenses = hasPermission("action_manage_expenses");
     const isRestoring = useIsRestoring();
+
+
     const [searchQuery, setSearchQuery] = useState("");
     const [accountFilter, setAccountFilter] = useState("ALL");
     const [typeFilter, setTypeFilter] = useState("ALL");
@@ -147,6 +156,40 @@ export default function ExpensePage() {
     const accountOptions = useMemo(() => {
         return customers.filter((c) => c.usertype === "Other" || !c.usertype);
     }, [customers]);
+
+    const accountFilterOptions: ERPSelectOption[] = useMemo(() => [
+        { value: "ALL", label: `All Accounts (${accountOptions.length})` },
+        ...accountOptions.map((acc) => ({
+            value: String(acc.id),
+            label: acc.customername,
+            subtitle: acc.usertype || undefined,
+        })),
+    ], [accountOptions]);
+
+    const typeFilterOptions: ERPSelectOption[] = [
+        { value: "ALL", label: "All Types" },
+        { value: "Credit", label: "Credit Only" },
+        { value: "Debit", label: "Debit Only" },
+    ];
+
+    const erpAccountOptions: ERPSelectOption[] = useMemo(() => {
+        return accountOptions.map((acc: any) => ({
+            value: String(acc.id),
+            label: acc.customername,
+            subtitle: acc.initials ? `Code: ${acc.initials}` : undefined,
+        }));
+    }, [accountOptions]);
+
+    const paymentModeOptions: ERPSelectOption[] = useMemo(
+        () => [
+            { value: "Cash", label: "Cash" },
+            { value: "Gpay", label: "Gpay" },
+            { value: "Cheque", label: "Cheque" },
+            { value: "NEFT", label: "NEFT" },
+            { value: "RTGS", label: "RTGS" },
+        ],
+        []
+    );
 
     // Filtered expenses
     const filteredExpenses = useMemo(() => {
@@ -402,13 +445,13 @@ export default function ExpensePage() {
                             <Building2 className="w-4 h-4 text-blue-600" />
                             + New Account
                         </button>
-                        <button
+                        {canManageExpenses && (<button
                             onClick={() => setIsModalOpen(true)}
                             className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm"
                         >
                             <Plus className="w-4 h-4" />
                             Add Expense / Entry
-                        </button>
+                        </button>)}
                     </div>
                 </div>
 
@@ -497,31 +540,26 @@ export default function ExpensePage() {
                         </div>
 
                         {/* Account Selector */}
-                        <select
-                            value={accountFilter}
-                            onChange={(e) => setAccountFilter(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-                        >
-                            <option value="ALL">
-                                All Accounts ({accountOptions.length})
-                            </option>
-                            {accountOptions.map((acc) => (
-                                <option key={acc.id} value={String(acc.id)}>
-                                    {acc.customername}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="w-full sm:w-60 min-w-0">
+                            <ERPSelect
+                                value={accountFilter}
+                                onChange={(val) => setAccountFilter(String(val))}
+                                options={accountFilterOptions}
+                                placeholder="Select Account"
+                                searchPlaceholder="Search accounts..."
+                            />
+                        </div>
 
                         {/* Type Filter */}
-                        <select
-                            value={typeFilter}
-                            onChange={(e) => setTypeFilter(e.target.value)}
-                            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium"
-                        >
-                            <option value="ALL">All Types</option>
-                            <option value="Credit">Credit Only</option>
-                            <option value="Debit">Debit Only</option>
-                        </select>
+                        <div className="w-full sm:w-40 min-w-0">
+                            <ERPSelect
+                                value={typeFilter}
+                                onChange={(val) => setTypeFilter(String(val))}
+                                options={typeFilterOptions}
+                                placeholder="Filter by type"
+                                showSearch={false}
+                            />
+                        </div>
                     </div>
 
                     {/* Date Range Picker */}
@@ -862,29 +900,20 @@ export default function ExpensePage() {
                                         New Account
                                     </button>
                                 </div>
-                                <select
-                                    required
+                                <ERPSelect
                                     value={modalForm.customerid}
-                                    onChange={(e) =>
-                                        setModalForm({
-                                            ...modalForm,
-                                            customerid: e.target.value,
-                                        })
+                                    onChange={(val) =>
+                                        setModalForm((p) => ({
+                                            ...p,
+                                            customerid: String(val),
+                                        }))
                                     }
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="">
-                                        Select Account
-                                    </option>
-                                    {accountOptions.map((acc) => (
-                                        <option
-                                            key={acc.id}
-                                            value={String(acc.id)}
-                                        >
-                                            {acc.customername}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={erpAccountOptions}
+                                    placeholder="Select Account"
+                                    searchPlaceholder="Search account name..."
+                                    showSearch={erpAccountOptions.length > 5}
+                                    required
+                                />
                             </div>
                         </div>
 
@@ -954,22 +983,19 @@ export default function ExpensePage() {
                                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                                     Payment Mode
                                 </label>
-                                <select
+                                <ERPSelect
                                     value={modalForm.payment_mode}
-                                    onChange={(e) =>
-                                        setModalForm({
-                                            ...modalForm,
-                                            payment_mode: e.target
-                                                .value as any,
-                                        })
+                                    onChange={(val) =>
+                                        setModalForm((p) => ({
+                                            ...p,
+                                            payment_mode: val as any,
+                                        }))
                                     }
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                                >
-                                    <option value="Cash">Cash</option>
-                                    <option value="Gpay">Gpay</option>
-                                    <option value="Check">Check</option>
-                                    <option value="NEFT">NEFT</option>
-                                </select>
+                                    options={paymentModeOptions}
+                                    placeholder="Select Payment Mode"
+                                    showSearch={false}
+                                    required
+                                />
                             </div>
                         </div>
 
@@ -1083,30 +1109,20 @@ export default function ExpensePage() {
                                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                                     Account Name
                                 </label>
-                                <select
-                                    disabled={!editForm.isLatest}
-                                    required
+                                <ERPSelect
                                     value={editForm.customerid}
-                                    onChange={(e) =>
-                                        setEditForm({
-                                            ...editForm,
-                                            customerid: e.target.value,
-                                        })
+                                    onChange={(val) =>
+                                        setEditForm((p) => ({
+                                            ...p,
+                                            customerid: String(val),
+                                        }))
                                     }
-                                    className="w-full px-3 py-2 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="">
-                                        Select Account
-                                    </option>
-                                    {accountOptions.map((acc) => (
-                                        <option
-                                            key={acc.id}
-                                            value={String(acc.id)}
-                                        >
-                                            {acc.customername}
-                                        </option>
-                                    ))}
-                                </select>
+                                    options={erpAccountOptions}
+                                    placeholder="Select Account"
+                                    searchPlaceholder="Search account name..."
+                                    showSearch={erpAccountOptions.length > 5}
+                                    required
+                                />
                             </div>
                         </div>
 
@@ -1179,23 +1195,19 @@ export default function ExpensePage() {
                                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                                     Payment Mode
                                 </label>
-                                <select
-                                    disabled={!editForm.isLatest}
+                                <ERPSelect
                                     value={editForm.payment_mode}
-                                    onChange={(e) =>
-                                        setEditForm({
-                                            ...editForm,
-                                            payment_mode: e.target
-                                                .value as any,
-                                        })
+                                    onChange={(val) =>
+                                        setEditForm((p) => ({
+                                            ...p,
+                                            payment_mode: val as any,
+                                        }))
                                     }
-                                    className="w-full px-3 py-2 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                                >
-                                    <option value="Cash">Cash</option>
-                                    <option value="Gpay">Gpay</option>
-                                    <option value="Check">Check</option>
-                                    <option value="NEFT">NEFT</option>
-                                </select>
+                                    options={paymentModeOptions}
+                                    placeholder="Select Payment Mode"
+                                    showSearch={false}
+                                    required
+                                />
                             </div>
                         </div>
 

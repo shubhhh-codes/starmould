@@ -4,16 +4,12 @@ import { authenticateRequest } from "@/lib/auth";
 import { verifySecurePrintToken } from "@/lib/print-token";
 
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req);
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const { searchParams } = new URL(req.url);
     let type = searchParams.get("type"); // "challan" | "inward" | "purchase" | "dispatch" | "work"
     let id = searchParams.get("id");
     const token = searchParams.get("token");
+    let isTokenValid = false;
 
     // If a secure token is passed, decode and verify it
     if (token) {
@@ -23,30 +19,42 @@ export async function GET(req: NextRequest) {
       }
       type = decoded.type;
       id = decoded.id;
+      isTokenValid = true;
     } else if (id && id.includes(".")) {
       // If the token was passed as the id parameter
       const decoded = verifySecurePrintToken(id);
       if (decoded) {
         type = decoded.type;
         id = decoded.id;
+        isTokenValid = true;
       }
+    }
+
+    let authUser: any = null;
+    if (!isTokenValid) {
+      const auth = await authenticateRequest(req);
+      if ("error" in auth) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
+      }
+      authUser = auth.user;
     }
 
     if (!type || !id) {
       return NextResponse.json({ error: "Document type and ID are required" }, { status: 400 });
     }
 
-    const userRoleId = auth.user.role_id;
-
-    // Strict role validation per document type (matches legacy ERP topbar permissions)
-    if (type === "purchase" && ![0, 1].includes(userRoleId)) {
-      return NextResponse.json({ error: "Access denied: Purchase document is restricted to Admin and Manager" }, { status: 403 });
-    }
-    if (type === "quotation" && ![0, 1, 5].includes(userRoleId)) {
-      return NextResponse.json({ error: "Access denied: Quotation document is restricted to Admin, Manager, and Sales" }, { status: 403 });
-    }
-    if (["challan", "inward", "dispatch"].includes(type) && ![0, 1, 2].includes(userRoleId)) {
-      return NextResponse.json({ error: "Access denied: Logistics documents are restricted to Admin, Manager, and Supervisor" }, { status: 403 });
+    // Role checks only apply to session-authenticated users (valid print token holders bypass session role gates)
+    if (authUser) {
+      const userRoleId = authUser.role_id;
+      if (type === "purchase" && ![0, 1].includes(userRoleId)) {
+        return NextResponse.json({ error: "Access denied: Purchase document is restricted to Admin and Manager" }, { status: 403 });
+      }
+      if (type === "quotation" && ![0, 1, 5].includes(userRoleId)) {
+        return NextResponse.json({ error: "Access denied: Quotation document is restricted to Admin, Manager, and Sales" }, { status: 403 });
+      }
+      if (["challan", "inward", "dispatch"].includes(type) && ![0, 1, 2].includes(userRoleId)) {
+        return NextResponse.json({ error: "Access denied: Logistics documents are restricted to Admin, Manager, and Supervisor" }, { status: 403 });
+      }
     }
 
     // 1. Challan Document
@@ -260,7 +268,7 @@ export async function GET(req: NextRequest) {
         dispatch.customerid
           ? supabaseAdmin
               .from("customers")
-              .select("id, customername, mobile, mobile1, address, email")
+              .select("id, customername, mobile, mobile1, address, city, email, gstin, pan, customer_code")
               .eq("id", dispatch.customerid)
               .maybeSingle()
           : Promise.resolve({ data: null }),
@@ -281,6 +289,19 @@ export async function GET(req: NextRequest) {
       const transporter = transpRes.data;
       const items = itemsRes.data || [];
 
+      // Enrich linked subplate details if present
+      const plateIds = items.map((it: any) => it.plateid).filter(Boolean);
+      let plateMap = new Map();
+      if (plateIds.length > 0) {
+        const { data: pData } = await supabaseAdmin
+          .from("subplate")
+          .select("id, platename, subprojectid, material")
+          .in("id", plateIds);
+        if (pData) {
+          plateMap = new Map(pData.map((p) => [p.id, p]));
+        }
+      }
+
       return NextResponse.json({
         docType: "FINISHED MOULD DELIVERY CHALLAN",
         docNumber: dispatch.challanno,
@@ -293,13 +314,19 @@ export async function GET(req: NextRequest) {
         freightMode: dispatch.freightmode,
         noOfCases: dispatch.noofcases,
         projectCode: dispatch.projectid,
-        items: items.map((it, idx) => ({
-          srNo: idx + 1,
-          particulars: it.custom_plate_name || it.particulars || "Mould Tooling Component",
-          condition: it.condition || "NEW",
-          work: it.work || "NEW MADE",
-          qty: it.qty || 1,
-        })),
+        items: items.map((it: any, idx: number) => {
+          const sp = it.plateid ? plateMap.get(it.plateid) : null;
+          return {
+            srNo: idx + 1,
+            particulars: it.custom_plate_name || sp?.platename || it.particulars || "Mould Tooling Component",
+            subprojectId: sp?.subprojectid || null,
+            material: sp?.material || null,
+            projectCode: it.project || dispatch.projectid || "",
+            condition: it.condition || "NEW",
+            work: it.work || "NEW MADE",
+            qty: it.qty || 1,
+          };
+        }),
       });
     }
 

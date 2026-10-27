@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Building2, X, Loader2, ShieldAlert, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useCreateCustomerMutation } from "@/lib/query/hooks";
 import type { Customer } from "@/lib/supabase/types";
 
@@ -20,7 +21,8 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
   onCustomerCreated,
 }) => {
   const { currentUser } = useAuth();
-  const isAdmin = currentUser?.role_id === 0;
+  const { hasPermission } = useRolePermissions();
+  const canCreateCustomer = hasPermission("action_create_customer");
 
   const createCustomerMutation = useCreateCustomerMutation();
 
@@ -63,6 +65,13 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
     }
   }, [isOpen, initialName]);
 
+  // Auto-close if permission is revoked
+  useEffect(() => {
+    if (isOpen && !canCreateCustomer) {
+      onClose();
+    }
+  }, [isOpen, canCreateCustomer, onClose]);
+
   const handleNameChange = (val: string) => {
     setCustomerName(val);
     if (!hasManuallyEditedInitials) {
@@ -92,8 +101,8 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
     e.preventDefault();
     if (isSubmitting) return;
 
-    if (!isAdmin) {
-      setErrorMsg("Access Denied: Only Administrators are authorized to create Customer records.");
+    if (!canCreateCustomer) {
+      setErrorMsg("Access Denied: You do not have permission to create customer records.");
       return;
     }
 
@@ -174,13 +183,13 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
-          {!isAdmin && (
+          {!canCreateCustomer && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800">
               <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <span className="font-bold text-[11.5px] block">Administrator Access Required</span>
+                <span className="font-bold text-[11.5px] block">Permission Required</span>
                 <span className="text-[11px] leading-tight block mt-0.5">
-                  Only users with Administrator role can register new Customer records into the directory.
+                  You do not have permission to register new Customer records. Please contact an administrator.
                 </span>
               </div>
             </div>
@@ -304,7 +313,7 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !isAdmin}
+              disabled={isSubmitting || !canCreateCustomer}
               className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (

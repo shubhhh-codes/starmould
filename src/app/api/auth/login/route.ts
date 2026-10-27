@@ -9,7 +9,9 @@ export async function POST(req: NextRequest) {
   try {
     // Rate limiting: extract real client IP
     const forwarded = req.headers.get("x-forwarded-for");
-    const ip = (forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") ?? "unknown").trim();
+    const realIp = req.headers.get("x-real-ip") || req.headers.get("cf-connecting-ip");
+    const forwardedList = forwarded ? forwarded.split(",").map((s) => s.trim()).filter(Boolean) : [];
+    const ip = (realIp || (forwardedList.length > 0 ? forwardedList[forwardedList.length - 1] : "unknown")).trim();
 
     const rateCheck = checkRateLimit(ip);
     if (!rateCheck.allowed) {

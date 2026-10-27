@@ -28,16 +28,6 @@ export async function GET(req: NextRequest) {
 
     const { data: inwards, error: inErr } = await query;
     if (inErr) {
-      if (
-        inErr.code === "23505" ||
-        inErr.message?.includes("unique constraint") ||
-        inErr.message?.includes("duplicate key")
-      ) {
-        return NextResponse.json(
-          { error: "An inward receipt with this number already exists." },
-          { status: 400 }
-        );
-      }
       return NextResponse.json({ error: inErr.message }, { status: 500 });
     }
 

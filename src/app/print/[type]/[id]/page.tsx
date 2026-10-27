@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, use, useRef, useCallback } from "react";
+import React, { useEffect, useState, use, useRef, useCallback, useMemo } from "react";
 import {
   Printer,
   Download,
@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-voucher";
+import { DispatchChallanVoucher } from "@/components/documents/dispatch-challan-voucher";
 import { QuotationVoucher } from "@/components/quotations/quotation-voucher";
 
 interface PageProps {
@@ -139,7 +140,12 @@ export default function PrintDocumentPage({ params }: PageProps) {
     return { zoom: fitZ, pan: { x: panX, y: panY } };
   }, [viewportWidth]);
 
-  const fitZoom = getFitZoomAndPan().zoom;
+  const fitZoom = useMemo(() => {
+    const cW = viewportWidth || 800;
+    const isMobileView = cW < 840;
+    const padX = isMobileView ? 16 : 48;
+    return Number(Math.min(1.1, Math.max(0.35, (cW - padX) / 794)).toFixed(2));
+  }, [viewportWidth]);
 
   // Boundary clamping (prevents sheet from flying off-screen while preserving cursor focal lock)
   const clampPan = useCallback(
@@ -640,7 +646,8 @@ export default function PrintDocumentPage({ params }: PageProps) {
     try {
       setIsDownloading(true);
       const isQuotation = type === "quotation";
-      const fileName = `${doc?.docNumber || (isQuotation ? "Quotation" : "Purchase_Order")}.pdf`;
+      const isDispatch = type === "dispatch";
+      const fileName = `${doc?.docNumber || (isQuotation ? "Quotation" : isDispatch ? "Delivery_Challan" : "Purchase_Order")}.pdf`;
 
       // Fetch pristine vector PDF from server Puppeteer engine
       const downloadUrl = isQuotation
@@ -672,13 +679,14 @@ export default function PrintDocumentPage({ params }: PageProps) {
 
   const handleShare = async () => {
     const isQuotation = type === "quotation";
-    const title = `${isQuotation ? "Quotation" : "PO"} ${doc?.docNumber || ""} - Star Mould`;
+    const isDispatch = type === "dispatch";
+    const title = `${isQuotation ? "Quotation" : isDispatch ? "Delivery Challan" : "PO"} ${doc?.docNumber || ""} - Star Mould`;
     const shareUrl = typeof window !== "undefined" ? window.location.href : "";
     if (typeof navigator !== "undefined" && navigator.share) {
       try {
         await navigator.share({
           title,
-          text: `Star Mould ${isQuotation ? "Quotation" : "Purchase Order"} ${doc?.docNumber || ""} for ${
+          text: `Star Mould ${isQuotation ? "Quotation" : isDispatch ? "Delivery Challan" : "Purchase Order"} ${doc?.docNumber || ""} for ${
             doc?.party?.customername || doc?.party?.vendor_name || doc?.customerName || ""
           }`,
           url: shareUrl,
@@ -703,7 +711,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
     if (typeof window !== "undefined" && window.history.length > 1) {
       window.history.back();
     } else {
-      router.push(type === "quotation" ? "/quotation" : "/purchase");
+      router.push(type === "quotation" ? "/quotation" : type === "dispatch" ? "/dispatch" : "/purchase");
     }
   };
 
@@ -795,10 +803,10 @@ export default function PrintDocumentPage({ params }: PageProps) {
               Go Back
             </button>
             <Link
-              href={type === "quotation" ? "/quotation" : "/purchase"}
+              href={type === "quotation" ? "/quotation" : type === "dispatch" ? "/dispatch" : "/purchase"}
               className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition"
             >
-              Return to {type === "quotation" ? "Quotations" : "Purchase"}
+              Return to {type === "quotation" ? "Quotations" : type === "dispatch" ? "Dispatch" : "Purchase"}
             </Link>
           </div>
         </div>
@@ -807,7 +815,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
   }
 
   // ─── 3. PURCHASE ORDER & QUOTATION VOUCHER VIEW (Exact Star Mould PDF Geometry) ────────
-  if (type === "purchase" || type === "quotation") {
+  if (type === "purchase" || type === "quotation" || type === "dispatch") {
     return (
       <div className="min-h-screen bg-slate-100/80 py-3 sm:py-6 px-2 sm:px-4 print:p-0 print:bg-white text-slate-900 animate-in fade-in duration-200">
         {/* Print rules override for pristine physical page printing */}
@@ -833,7 +841,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
               <FileText className="w-4 h-4 text-[#006181] shrink-0 hidden sm:inline" />
               <div className="truncate">
                 <span className="font-mono font-bold text-xs text-slate-900 truncate block">
-                  {doc.docNumber || (type === "quotation" ? "Quotation" : "Purchase Order")}
+                  {doc.docNumber || (type === "quotation" ? "Quotation" : type === "dispatch" ? "Delivery Challan" : "Purchase Order")}
                 </span>
                 {(doc.party?.customername || doc.party?.vendor_name) && (
                   <span className="text-[10px] text-slate-500 font-medium truncate block hidden sm:block">
@@ -986,7 +994,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
                 title="Open browser print dialogue (A4)"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>{type === "quotation" ? "Print Quotation" : "Print PO"}</span>
+                <span>{type === "quotation" ? "Print Quotation" : type === "dispatch" ? "Print Challan" : "Print PO"}</span>
               </button>
             </div>
           </div>
@@ -1035,6 +1043,12 @@ export default function PrintDocumentPage({ params }: PageProps) {
                   quote={doc.quote || doc}
                   isModal={false}
                   onClose={handleBack}
+                />
+              ) : type === "dispatch" ? (
+                <DispatchChallanVoucher
+                  dispatch={doc}
+                  onPrint={handlePrint}
+                  isModal={false}
                 />
               ) : (
                 <PurchaseOrderVoucher

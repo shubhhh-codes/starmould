@@ -3,6 +3,8 @@
 import React, { useState, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/app-layout";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
   Briefcase,
   Search,
@@ -33,6 +35,9 @@ import type {
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
+import { CustomerSelect } from "@/components/ui/customer-select";
+import { ProjectSelect } from "@/components/ui/project-select";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
 import {
   useWorklogsQuery,
@@ -74,6 +79,11 @@ const formatMinutesToHHMM = (totalMinutes: number): string => {
 };
 
 export default function WorkPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreateWorklog = hasPermission("action_create_worklog");
+  const canEditAllWorklogs = hasPermission("action_edit_all_worklog");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // TanStack Query Hooks with Tier C Operational Caching
@@ -148,15 +158,27 @@ export default function WorkPage() {
     return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
 
+  // Selected customer object for robust matching
+  const selectedCustomer = useMemo(() => {
+    if (!modalForm.customerid) return null;
+    return customers.find((c: any) => String(c.id) === String(modalForm.customerid)) || null;
+  }, [customers, modalForm.customerid]);
+
   // Moulds filtered for selected customer in modal
   const customerMoulds = useMemo(() => {
     if (!modalForm.customerid) return [];
-    return scans.filter(
-      (s) =>
-        String(s.cname) === modalForm.customerid ||
-        (s as any).customername === modalForm.customerid
-    );
-  }, [modalForm.customerid, scans]);
+    const custId = String(modalForm.customerid);
+    const selectedCustName = selectedCustomer?.customername?.toLowerCase().trim();
+
+    return scans.filter((s) => {
+      if (s.customer_id && String(s.customer_id) === custId) return true;
+      if (s.cname && String(s.cname) === custId) return true;
+      if (selectedCustName && s.cname && String(s.cname).toLowerCase().trim() === selectedCustName) return true;
+      if (selectedCustName && (s as any).customername && String((s as any).customername).toLowerCase().trim() === selectedCustName) return true;
+      if (String(s.cname) === "0" || !s.cname) return true;
+      return false;
+    });
+  }, [modalForm.customerid, scans, selectedCustomer]);
 
   // Selected mould data for read-only auto-fill
   const selectedMould = useMemo(() => {
@@ -172,6 +194,51 @@ export default function WorkPage() {
     if (!modalForm.projectid) return [];
     return dynamicSubplates as Subplate[];
   }, [modalForm.projectid, dynamicSubplates]);
+
+  const workerFilterOptions: ERPSelectOption[] = useMemo(() => [
+    { value: "ALL", label: "All Workers" },
+    ...users.map((u) => ({
+      value: String(u.id),
+      label: `${u.name} (${u.initials})`,
+      subtitle: (u as any).role || (u.initials ? `Code: ${u.initials}` : undefined),
+    })),
+  ], [users]);
+
+  const historyCustomerOptions: ERPSelectOption[] = useMemo(() => [
+    { value: "ALL", label: "All Customers" },
+    ...customers
+      .filter((c) => c.usertype === "Customer")
+      .map((c) => ({
+        value: String(c.id),
+        label: c.customername,
+        subtitle: c.city || undefined,
+      })),
+  ], [customers]);
+
+  const historyUserOptions: ERPSelectOption[] = useMemo(() => [
+    { value: "ALL", label: "All Staff" },
+    ...users.map((u) => ({
+      value: String(u.id),
+      label: u.name,
+      subtitle: (u as any).role || (u.initials ? `Code: ${u.initials}` : undefined),
+    })),
+  ], [users]);
+
+  const subplateOptions: ERPSelectOption[] = useMemo(() => {
+    if (mouldSubplates.length === 0) {
+      return [{ value: "GENERAL", label: "Default / Main Plate" }];
+    }
+    return [
+      { value: "GENERAL", label: "Default / Main Plate" },
+      ...mouldSubplates.map((sp) => ({
+        value: sp.subprojectid || String(sp.id),
+        label: sp.platename,
+        subtitle: sp.material ? `Material: ${sp.material}` : undefined,
+        badge: sp.subprojectid || undefined,
+        badgeVariant: "blue" as const,
+      })),
+    ];
+  }, [mouldSubplates]);
 
   // Auto-calculated work duration based on start/end date & time
   const calculatedDuration = useMemo(() => {
@@ -408,13 +475,13 @@ export default function WorkPage() {
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
               Export
             </button>
-            <button
+            {canCreateWorklog && (<button
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition shadow-sm shadow-indigo-500/20 text-sm"
             >
               <Plus className="w-4 h-4" />
               Add Work Entry
-            </button>
+            </button>)}
           </div>
         </div>
 
@@ -903,7 +970,7 @@ export default function WorkPage() {
           onClose={() => setIsModalOpen(false)}
           title="Record Mould Work"
           description="Submit task duration, VMC operations, and subplate activity"
-          size="lg"
+          size="xl"
         >
           <form onSubmit={handleCreate} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -926,28 +993,21 @@ export default function WorkPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Customer Name <span className="text-rose-500">*</span>
                     </label>
-                    <select
-                      required
+                    <CustomerSelect
+                      customers={customers as Customer[]}
                       value={modalForm.customerid}
-                      onChange={(e) =>
-                        setModalForm({
-                          ...modalForm,
-                          customerid: e.target.value,
+                      onChange={(val) =>
+                        setModalForm((prev) => ({
+                          ...prev,
+                          customerid: val,
                           projectid: "",
                           subplateid: "",
-                        })
+                        }))
                       }
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">Select Customer</option>
-                      {customers
-                        .filter((c) => c.usertype === "Customer")
-                        .map((c) => (
-                          <option key={c.id} value={String(c.id)}>
-                            {c.customername}
-                          </option>
-                        ))}
-                    </select>
+                      filterUserType="Customer"
+                      placeholder="Search or pick customer..."
+                      required
+                    />
                   </div>
                 </div>
 
@@ -956,48 +1016,33 @@ export default function WorkPage() {
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Mould Name / Code <span className="text-rose-500">*</span>
                     </label>
-                    <select
-                      required
-                      disabled={!modalForm.customerid}
+                    <ProjectSelect
+                      projects={customerMoulds}
                       value={modalForm.projectid}
-                      onChange={(e) => {
-                        const newProjectId = e.target.value;
-                        const matchMould = customerMoulds.find(
-                          (m) => m.projectid === newProjectId || String(m.id) === newProjectId
-                        );
-                        setModalForm({
-                          ...modalForm,
+                      onChange={(newProjectId, matchMould) => {
+                        setModalForm((prev) => ({
+                          ...prev,
                           projectid: newProjectId,
                           subplateid: "",
-                          workdescription: matchMould?.description || modalForm.workdescription,
-                        });
+                          workdescription: matchMould?.description || prev.workdescription,
+                        }));
                       }}
-                      className="w-full px-3 py-2 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">Select Mould</option>
-                      {customerMoulds.map((m) => (
-                        <option
-                          key={m.id}
-                          value={m.projectid || String(m.id)}
-                        >
-                          {m.projectid} — {m.description}
-                        </option>
-                      ))}
-                    </select>
+                      disabled={!modalForm.customerid}
+                      placeholder={!modalForm.customerid ? "Select Customer first" : "Search or pick mould..."}
+                      required
+                    />
                   </div>
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
                       Subplate <span className="text-rose-500">*</span>
                     </label>
-                    <select
-                      required
-                      disabled={!modalForm.projectid}
+                    <ERPSelect
                       value={modalForm.subplateid}
-                      onChange={(e) => {
-                        const chosenVal = e.target.value;
+                      onChange={(chosenVal) => {
+                        const valStr = String(chosenVal);
                         const foundPlate = mouldSubplates.find(
-                          (sp) => sp.subprojectid === chosenVal || String(sp.id) === chosenVal
+                          (sp) => sp.subprojectid === valStr || String(sp.id) === valStr
                         );
 
                         let autoDesc = modalForm.workdescription;
@@ -1008,34 +1053,25 @@ export default function WorkPage() {
                             : "";
                           const mat = foundPlate.material ? ` [${foundPlate.material}]` : "";
                           autoDesc = `${mouldDesc}Plate: ${foundPlate.platename}${dims}${mat}`;
-                        } else if (chosenVal === "GENERAL") {
+                        } else if (valStr === "GENERAL") {
                           autoDesc = selectedMould?.description
                             ? `${selectedMould.description} - Main Plate Work`
                             : "Main Plate Work";
                         }
 
-                        setModalForm({
-                          ...modalForm,
-                          subplateid: chosenVal,
+                        setModalForm((prev) => ({
+                          ...prev,
+                          subplateid: valStr,
                           workdescription: autoDesc,
-                        });
+                        }));
                       }}
-                      className="w-full px-3 py-2 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">Select Subplate</option>
-                      {mouldSubplates.length === 0 ? (
-                        <option value="GENERAL">Default / Main Plate</option>
-                      ) : (
-                        mouldSubplates.map((sp) => (
-                          <option
-                            key={sp.id}
-                            value={sp.subprojectid || String(sp.id)}
-                          >
-                            {sp.platename} ({sp.material})
-                          </option>
-                        ))
-                      )}
-                    </select>
+                      disabled={!modalForm.projectid}
+                      options={subplateOptions}
+                      placeholder={!modalForm.projectid ? "Select Mould first" : "Select Subplate"}
+                      searchPlaceholder="Filter subplate..."
+                      showSearch={subplateOptions.length > 5}
+                      required
+                    />
                   </div>
                 </div>
 

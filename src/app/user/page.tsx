@@ -2,6 +2,8 @@
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
     ShieldCheck,
     Plus,
@@ -42,6 +44,7 @@ import {
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useIsRestoring } from "@tanstack/react-query";
 import {
     useUsersQuery,
     useCreateUserMutation,
@@ -64,13 +67,19 @@ export interface UserRecord {
 }
 
 export default function UserManagementPage() {
-    const { data, isLoading: queryLoading, refetch } = useUsersQuery();
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canManageUsers = hasPermission("action_manage_users");
+    const isRestoring = useIsRestoring();
+    const { data, isLoading: queryLoading, isPending, refetch } = useUsersQuery();
     const createUserMutation = useCreateUserMutation();
     const updateUserMutation = useUpdateUserMutation();
     const deleteUserMutation = useDeleteUserMutation();
 
     const users = (data?.users || []) as UserRecord[];
-    const isLoading = queryLoading && users.length === 0;
+    const hasLoadedData = users.length > 0 || (!!data && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && (queryLoading || isPending));
 
     const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("All");
     const [statusFilter, setStatusFilter] = useState<
@@ -124,6 +133,7 @@ export default function UserManagementPage() {
     const [showPassword, setShowPassword] = useState(false);
     const [initialError, setInitialError] = useState<string | null>(null);
     const [usernameError, setUsernameError] = useState<string | null>(null);
+    const [modalError, setModalError] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
@@ -189,6 +199,7 @@ export default function UserManagementPage() {
         setShowPassword(false);
         setInitialError(null);
         setUsernameError(null);
+        setModalError(null);
         setIsModalOpen(true);
     };
 
@@ -210,6 +221,7 @@ export default function UserManagementPage() {
         setShowPassword(false);
         setInitialError(null);
         setUsernameError(null);
+        setModalError(null);
         setIsModalOpen(true);
     };
 
@@ -299,6 +311,7 @@ export default function UserManagementPage() {
 
         try {
             setIsSubmitting(true);
+            setModalError(null);
             if (modalMode === "add") {
                 const result = await createUserMutation.mutateAsync(formData);
                 showNotification(
@@ -317,6 +330,7 @@ export default function UserManagementPage() {
         } catch (err: unknown) {
             const msg =
                 err instanceof Error ? err.message : "Error saving user";
+            setModalError(msg);
             showNotification("error", msg);
         } finally {
             setIsSubmitting(false);
@@ -393,23 +407,23 @@ export default function UserManagementPage() {
                 {/* Toast Notification */}
                 {notification && (
                     <div
-                        className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
+                        className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-sm font-semibold max-w-md ${
                             notification.type === "success"
-                                ? "bg-emerald-50 border-emerald-200 text-emerald-800 "
-                                : "bg-rose-50 border-rose-200 text-rose-800 "
+                                ? "bg-emerald-600 border-emerald-700 text-white"
+                                : "bg-rose-600 border-rose-700 text-white"
                         }`}
                     >
                         {notification.type === "success" ? (
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
                         ) : (
-                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <AlertCircle className="w-5 h-5 text-white shrink-0" />
                         )}
-                        <span>{notification.message}</span>
+                        <span className="flex-1 leading-snug">{notification.message}</span>
                         <button
                             onClick={() => setNotification(null)}
-                            className="ml-2 text-slate-400 hover:text-slate-600"
+                            className="ml-2 text-white/80 hover:text-white"
                         >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                         </button>
                     </div>
                 )}
@@ -427,15 +441,9 @@ export default function UserManagementPage() {
                         </div>
                         <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
                             User Management
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                Live `users` Table
-                            </span>
                         </h1>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            Role-based access control, operator profiles &
-                            credentials (Write-only passwords, Zero plaintext
-                            `password2`)
+                            Role-based access control, operator profiles & credentials.
                         </p>
                     </div>
                 </div>
@@ -503,13 +511,13 @@ export default function UserManagementPage() {
                             <Printer className="w-4 h-4 text-slate-500" />
                             <span>Print</span>
                         </button>
-                        <button
+                        {canManageUsers && (<button
                             onClick={handleOpenAdd}
                             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition active:scale-95"
                         >
                             <Plus className="w-4 h-4" />
                             <span>Add User</span>
-                        </button>
+                        </button>)}
                     </div>
                 </div>
 
@@ -754,16 +762,28 @@ export default function UserManagementPage() {
                                                         >
                                                             Edit
                                                         </button>
-                                                        <button
-                                                            onClick={() =>
-                                                                setDeleteTarget(
-                                                                    u,
-                                                                )
-                                                            }
-                                                            className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition"
-                                                        >
-                                                            Delete
-                                                        </button>
+                                                        {u.username?.toLowerCase() === "admin" ||
+                                                        u.email?.toLowerCase() === "admin@star.in" ||
+                                                        Number(u.id) === 1 ? (
+                                                            <span
+                                                                title="Super Admin account is permanently locked and cannot be deleted"
+                                                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded cursor-not-allowed select-none"
+                                                            >
+                                                                <Lock className="w-3 h-3 text-slate-400" />
+                                                                Locked
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() =>
+                                                                    setDeleteTarget(
+                                                                        u,
+                                                                    )
+                                                                }
+                                                                className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -951,12 +971,18 @@ export default function UserManagementPage() {
                             : "Edit User Profile"
                     }
                     description="Configure employee credentials, department role, and system access"
-                    size="lg"
+                    size="xl"
                 >
                     <form
                         onSubmit={handleSubmitForm}
                         className="space-y-4 text-xs"
                     >
+                        {modalError && (
+                            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-sm font-medium">
+                                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                                <span className="flex-1 leading-snug">{modalError}</span>
+                            </div>
+                        )}
                         {/* Full Name */}
                                 <div>
                                     <label className="block font-medium text-slate-700 mb-1">
@@ -1005,7 +1031,7 @@ export default function UserManagementPage() {
                                             onBlur={(e) =>
                                                 validateUsername(e.target.value)
                                             }
-                                            placeholder="e.g. shivani, akshay"
+                                            placeholder="username"
                                             className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 lowercase ${
                                                 usernameError
                                                     ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"
@@ -1050,7 +1076,7 @@ export default function UserManagementPage() {
                                             onBlur={(e) =>
                                                 validateInitials(e.target.value)
                                             }
-                                            placeholder="e.g. SHIVA, AKSHA, BGR"
+                                            placeholder="e.g. ABCD1"
                                             className={`w-full px-3 py-2 font-mono uppercase bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 ${
                                                 initialError
                                                     ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"

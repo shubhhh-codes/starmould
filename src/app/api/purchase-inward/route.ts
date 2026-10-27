@@ -164,32 +164,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required receipt fields" }, { status: 400 });
     }
 
-    // Sequence SM/PR/xx (matching PurchaseInwardController.php:101-106)
+    // Sequence SM/PR/xx with retry loop on collision (Issue #3)
     const { count } = await supabaseAdmin
       .from("po_inward")
       .select("*", { count: "exact", head: true });
 
-    const nextSeq = (count ?? 0) + 1;
-    const insrno = nextSeq < 10 ? `SM/PR/0${nextSeq}` : `SM/PR/${nextSeq}`;
+    let receipt: any = null;
+    let recErr: any = null;
 
-    // 1. Insert inward header
-    const { data: receipt, error: recErr } = await supabaseAdmin
-      .from("po_inward")
-      .insert([
-        {
-          pid,
-          insrno,
-          inpono: inpono || null,
-          cname,
-          vname,
-          projectid,
-          odate: odate || new Date().toISOString().slice(0, 10),
-          status: "1",
-          created_at: new Date().toISOString(),
-        },
-      ])
-      .select()
-      .single();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const nextSeq = (count ?? 0) + 1 + attempt;
+      const insrno = nextSeq < 10 ? `SM/PR/0${nextSeq}` : `SM/PR/${nextSeq}`;
+
+      const res = await supabaseAdmin
+        .from("po_inward")
+        .insert([
+          {
+            pid,
+            insrno,
+            inpono: inpono || null,
+            cname,
+            vname,
+            projectid,
+            odate: odate || new Date().toISOString().slice(0, 10),
+            status: "1",
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (!res.error) {
+        receipt = res.data;
+        recErr = null;
+        break;
+      }
+      recErr = res.error;
+      if (res.error.code !== "23505" && !res.error.message?.includes("unique constraint")) {
+        break;
+      }
+    }
 
     if (recErr) {
       return NextResponse.json({ error: recErr.message }, { status: 500 });

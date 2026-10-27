@@ -30,6 +30,8 @@ import { QuotationCardList } from "@/components/quotations/quotation-card-list";
 import { QuotationStatusBadge } from "@/components/quotations/quotation-status-badge";
 import { TermsPresetModal } from "@/components/quotations/terms-preset-modal";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 const STATUS_CONFIG: Record<
   string,
@@ -73,6 +75,13 @@ const STATUS_CONFIG: Record<
 };
 
 function QuotationPageContent() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreateQuotation = hasPermission("action_create_quotation");
+  const canEditQuotation = hasPermission("action_edit_quotation");
+  const canDeleteQuotation = hasPermission("action_delete_quotation");
+
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -125,6 +134,7 @@ function QuotationPageContent() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!canDeleteQuotation) return;
     if (!window.confirm("Are you sure you want to delete this quotation?")) return;
     try {
       const res = await fetch(`/api/quotations?id=${id}`, { method: "DELETE" });
@@ -310,17 +320,19 @@ function QuotationPageContent() {
               <span>Terms Presets</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setEditingQuotation(null);
-                setIsCreateOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Quotation</span>
-            </button>
+            {canCreateQuotation && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingQuotation(null);
+                  setIsCreateOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Quotation</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -530,25 +542,29 @@ function QuotationPageContent() {
                                   <Download className="w-4 h-4" />
                                 )}
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingQuotation(q);
-                                  setIsCreateOpen(true);
-                                }}
-                                className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition cursor-pointer"
-                                title="Edit Quotation"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDelete(q.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
-                                title="Delete Quotation"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              {canEditQuotation && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingQuotation(q);
+                                    setIsCreateOpen(true);
+                                  }}
+                                  className="p-1.5 text-slate-500 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition cursor-pointer"
+                                  title="Edit Quotation"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                              )}
+                              {canDeleteQuotation && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(q.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                                  title="Delete Quotation"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -611,11 +627,11 @@ function QuotationPageContent() {
                 onOpenVoucher={handleOpenVoucherTab}
                 onDownloadPdf={handleDownloadPDF}
                 downloadingId={downloadingId}
-                onEdit={(q) => {
+                onEdit={canEditQuotation ? (q) => {
                   setEditingQuotation(q);
                   setIsCreateOpen(true);
-                }}
-                onDelete={handleDelete}
+                } : undefined}
+                onDelete={canDeleteQuotation ? handleDelete : undefined}
                 onStatusChange={handleStatusUpdate}
                 statusConfig={STATUS_CONFIG}
               />

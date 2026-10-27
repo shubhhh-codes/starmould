@@ -34,7 +34,12 @@ import type {
 } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
+import { CustomerSelect } from "@/components/ui/customer-select";
+import { ProjectSelect } from "@/components/ui/project-select";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
 import {
@@ -48,6 +53,10 @@ import {
 } from "@/lib/query/hooks";
 
 function ChallanPageContent() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreateChallan = hasPermission("action_create_challan");
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
@@ -82,6 +91,8 @@ function ChallanPageContent() {
     }
   }, [urlSearch]);
   const [vendorFilter, setVendorFilter] = useState("ALL");
+
+  
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
@@ -116,15 +127,41 @@ function ChallanPageContent() {
 
   // Explicitly separate vendors, transporters, and customers by table
   const vendors = useMemo(() => (supplierLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })), [supplierLookup]);
+
+  
   const transporters = useMemo(() => (transporterLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })), [transporterLookup]);
   const customersList = useMemo(() => (customerLookup || []).filter((c: any) => c.usertype === "Customer" || !c.usertype), [customerLookup]);
+
+  const vendorFilterOptions: ERPSelectOption[] = useMemo(() => [
+    { value: "ALL", label: `All Vendors (${vendors.length})` },
+    ...vendors.map((v) => ({
+      value: String(v.id),
+      label: v.customername,
+      subtitle: v.initials ? `Code: ${v.initials}` : undefined,
+    })),
+  ], [vendors]);
+
+  // Selected customer object for robust name/id matching
+  const selectedCustomer = useMemo(() => {
+    if (!modalForm.customerid) return null;
+    return (customersList || []).find((c: any) => String(c.id) === String(modalForm.customerid)) || null;
+  }, [customersList, modalForm.customerid]);
 
   // Mould projects for selected customer (Source: challan/index.blade.php getproject())
   const availableProjects = useMemo(() => {
     if (!modalForm.customerid) return [];
     const custId = String(modalForm.customerid);
-    return scans.filter((s: ScanProject) => String(s.cname) === custId || String(s.cname) === "0" || !s.cname);
-  }, [scans, modalForm.customerid]);
+    const selectedCustName = selectedCustomer?.customername?.toLowerCase().trim();
+
+    return scans.filter((s: ScanProject) => {
+      if (s.customer_id && String(s.customer_id) === custId) return true;
+      if (s.cname && String(s.cname) === custId) return true;
+      if (selectedCustName && s.cname && String(s.cname).toLowerCase().trim() === selectedCustName) return true;
+      if (selectedCustName && (s as any).customername && String((s as any).customername).toLowerCase().trim() === selectedCustName) return true;
+      if (String(s.cname) === "0" || !s.cname) return true;
+      return false;
+    });
+  }, [scans, modalForm.customerid, selectedCustomer]);
 
   // Selected scan record for subplate resolution
   const selectedScan = useMemo(() => {
@@ -153,6 +190,44 @@ function ChallanPageContent() {
         (sp.subprojectid && sp.subprojectid.includes(modalForm.projectid))
     );
   }, [allSubplates, modalForm.projectid, selectedScan]);
+
+  const vendorOptions: ERPSelectOption[] = useMemo(() => {
+    return vendors.map((v: any) => ({
+      value: String(v.id),
+      label: v.customername,
+      subtitle: v.initials ? `Code: ${v.initials}` : undefined,
+    }));
+  }, [vendors]);
+
+  const transporterOptions: ERPSelectOption[] = useMemo(() => {
+    return transporters.map((t: any) => ({
+      value: String(t.id),
+      label: t.customername,
+      subtitle: t.initials ? `Code: ${t.initials}` : undefined,
+    }));
+  }, [transporters]);
+
+  const subplateOptions: ERPSelectOption[] = useMemo(() => {
+    return availablePlates.map((p) => ({
+      value: String(p.id),
+      label: p.platename,
+      subtitle: p.material ? `Material: ${p.material}` : undefined,
+      badge: p.subprojectid || undefined,
+      badgeVariant: "blue" as const,
+    }));
+  }, [availablePlates]);
+
+  const customerFilterOptions: ERPSelectOption[] = useMemo(() => {
+    return [
+      { value: "ALL", label: `All Customers (${customersList.length})` },
+      ...customersList.map((c: any) => ({
+        value: String(c.id),
+        label: c.customername,
+        badge: c.initials || undefined,
+        badgeVariant: "blue" as const,
+      })),
+    ];
+  }, [customersList]);
 
   // Expand / collapse child items row
   const toggleRow = (id: number) => {
@@ -409,13 +484,13 @@ function ChallanPageContent() {
               <span>Export Outward</span>
             </Link>
 
-            <button
+            {canCreateChallan && (<button
               onClick={() => setIsModalOpen(true)}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition shadow-sm shadow-blue-500/20"
             >
               <Plus className="h-4 w-4" />
               <span>Add Job Work Challan</span>
-            </button>
+            </button>)}
           </div>
         </div>
 
@@ -872,273 +947,252 @@ function ChallanPageContent() {
           onClose={() => setIsModalOpen(false)}
           title="Add Delivery / Job Work Challan"
           description="Sequential Outward Movement Challan (SM/JW/xx)"
-          size="xl"
+          size="4xl"
         >
           <form onSubmit={handleSubmitChallan} className="space-y-6">
-                {formError && (
-                  <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>{formError}</span>
-                  </div>
-                )}
+            {formError && (
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{formError}</span>
+              </div>
+            )}
 
-                {/* Header Fields (Source: challan/index.blade.php lines 86-143) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Today’s Date *
-                    </label>
-                    <input
-                      type="date"
-                      value={modalForm.chdate}
-                      onChange={(e) =>
-                        setModalForm((prev) => ({ ...prev, chdate: e.target.value }))
-                      }
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
+            {/* Header Fields (Source: challan/index.blade.php lines 86-143) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Today’s Date <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={modalForm.chdate}
+                  onChange={(e) =>
+                    setModalForm((prev) => ({ ...prev, chdate: e.target.value }))
+                  }
+                  required
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm font-medium focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-xs"
+                />
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Vendor Name *
-                    </label>
-                    <select
-                      value={modalForm.vendorid}
-                      onChange={(e) =>
-                        setModalForm((prev) => ({ ...prev, vendorid: e.target.value }))
-                      }
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Vendor Name</option>
-                      {vendors.map((v) => (
-                        <option key={v.id} value={v.id}>
-                          {v.customername}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Vendor Name <span className="text-rose-500">*</span>
+                </label>
+                <ERPSelect
+                  value={modalForm.vendorid}
+                  onChange={(val) =>
+                    setModalForm((prev) => ({ ...prev, vendorid: String(val) }))
+                  }
+                  options={vendorOptions}
+                  placeholder="Select Vendor Name"
+                  searchPlaceholder="Search vendor..."
+                  showSearch={vendorOptions.length > 5}
+                  required
+                />
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Transporter Name *
-                    </label>
-                    <select
-                      value={modalForm.vendortid}
-                      onChange={(e) =>
-                        setModalForm((prev) => ({ ...prev, vendortid: e.target.value }))
-                      }
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Transporter Name</option>
-                      {transporters.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.customername}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Transporter Name <span className="text-rose-500">*</span>
+                </label>
+                <ERPSelect
+                  value={modalForm.vendortid}
+                  onChange={(val) =>
+                    setModalForm((prev) => ({ ...prev, vendortid: String(val) }))
+                  }
+                  options={transporterOptions}
+                  placeholder="Select Transporter Name"
+                  searchPlaceholder="Search transporter..."
+                  showSearch={transporterOptions.length > 5}
+                  required
+                />
+              </div>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Customer Name *
-                    </label>
-                    <select
-                      value={modalForm.customerid}
-                      onChange={(e) =>
-                        setModalForm((prev) => ({
-                          ...prev,
-                          customerid: e.target.value,
-                          projectid: "",
-                          items: [],
-                        }))
-                      }
-                      required
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select Customer Name</option>
-                      {customersList.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.customername}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Customer Name <span className="text-rose-500">*</span>
+                </label>
+                <CustomerSelect
+                  customers={customersList as Customer[]}
+                  value={modalForm.customerid}
+                  onChange={(val) =>
+                    setModalForm((prev) => ({
+                      ...prev,
+                      customerid: val,
+                      projectid: "",
+                      items: [],
+                    }))
+                  }
+                  filterUserType="Customer"
+                  placeholder="Select Customer Name"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Mould Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                Mould Name <span className="text-rose-500">*</span>
+              </label>
+              <ProjectSelect
+                projects={availableProjects}
+                value={modalForm.projectid}
+                onChange={(val, project) =>
+                  setModalForm((prev) => ({
+                    ...prev,
+                    projectid: project?.projectid || val,
+                    items: [],
+                  }))
+                }
+                disabled={!modalForm.customerid}
+                placeholder={
+                  !modalForm.customerid
+                    ? "First select Customer above"
+                    : "Select Mould Project"
+                }
+                required
+              />
+            </div>
+
+            {/* Dynamic Line Items Section (Source: challan/index.blade.php lines 661-796) */}
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <h4 className="text-sm font-bold text-slate-900">
+                  Challan Items ({modalForm.items.length})
+                </h4>
+                <button
+                  type="button"
+                  onClick={handleAddItemRow}
+                  disabled={!modalForm.projectid}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition disabled:opacity-50 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>Add Plate</span>
+                </button>
+              </div>
+
+              {modalForm.items.length === 0 ? (
+                <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                  No plates added yet. Click &quot;Add Plate&quot; to append jobwork items.
                 </div>
-
-                {/* Mould Selection */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Mould Name *
-                  </label>
-                  <select
-                    value={modalForm.projectid}
-                    onChange={(e) =>
-                      setModalForm((prev) => ({
-                        ...prev,
-                        projectid: e.target.value,
-                        items: [],
-                      }))
-                    }
-                    disabled={!modalForm.customerid}
-                    required
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-                  >
-                    <option value="">
-                      {!modalForm.customerid
-                        ? "First select Customer above"
-                        : "Select Mould Project"}
-                    </option>
-                    {availableProjects.map((p) => (
-                      <option key={p.id} value={p.projectid || ""}>
-                        {p.projectid} - {p.description}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Dynamic Line Items Section (Source: challan/index.blade.php lines 661-796) */}
-                <div className="space-y-3 pt-2">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <h4 className="text-sm font-bold text-slate-900">
-                      Challan Items ({modalForm.items.length})
-                    </h4>
-                    <button
-                      type="button"
-                      onClick={handleAddItemRow}
-                      disabled={!modalForm.projectid}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition disabled:opacity-50"
+              ) : (
+                <div className="space-y-3">
+                  {modalForm.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
                     >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>Add Plate</span>
-                    </button>
-                  </div>
+                      <div className="md:col-span-3">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Subplate *
+                        </label>
+                        <ERPSelect
+                          value={item.plateid}
+                          onChange={(val) =>
+                            handleItemChange(idx, "plateid", String(val))
+                          }
+                          options={subplateOptions}
+                          placeholder="Select Subplate"
+                          searchPlaceholder="Filter subplate..."
+                          showSearch={subplateOptions.length > 5}
+                          required
+                        />
+                      </div>
 
-                  {modalForm.items.length === 0 ? (
-                    <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                      No plates added yet. Click &quot;Add Plate&quot; to append jobwork items.
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {modalForm.items.map((item, idx) => (
-                        <div
-                          key={idx}
-                          className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
+                      <div className="md:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Customer
+                        </label>
+                        <input
+                          type="text"
+                          value={item.customer}
+                          readOnly
+                          className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Mould
+                        </label>
+                        <input
+                          type="text"
+                          value={item.project}
+                          readOnly
+                          className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 font-mono"
+                        />
+                      </div>
+
+                      <div className="md:col-span-3">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Particulars *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Rough Milling, Hardening"
+                          value={item.particulars}
+                          onChange={(e) =>
+                            handleItemChange(idx, "particulars", e.target.value)
+                          }
+                          required
+                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div className="md:col-span-1">
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          Qty *
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max={item.sqty > 0 ? item.sqty : undefined}
+                          value={item.qty}
+                          onChange={(e) =>
+                            handleItemChange(idx, "qty", Number(e.target.value))
+                          }
+                          required
+                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+
+                      <div className="md:col-span-1 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveItemRow(idx)}
+                          className="p-2 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg transition cursor-pointer"
+                          title="Delete row"
                         >
-                          <div className="md:col-span-3">
-                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                              Subplate *
-                            </label>
-                            <select
-                              value={item.plateid}
-                              onChange={(e) =>
-                                handleItemChange(idx, "plateid", e.target.value)
-                              }
-                              required
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded text-xs focus:ring-1 focus:ring-blue-500"
-                            >
-                              <option value="">Select Subplate</option>
-                              {availablePlates.map((p) => (
-                                <option key={p.id} value={p.id}>
-                                  {p.platename} ({p.material || "Steel"})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                              Customer
-                            </label>
-                            <input
-                              type="text"
-                              value={item.customer}
-                              readOnly
-                              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded text-xs text-slate-500"
-                            />
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                              Mould
-                            </label>
-                            <input
-                              type="text"
-                              value={item.project}
-                              readOnly
-                              className="w-full px-2.5 py-1.5 bg-slate-100 border border-slate-200 rounded text-xs text-slate-500 font-mono"
-                            />
-                          </div>
-
-                          <div className="md:col-span-3">
-                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                              Particulars (Instructions) *
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Grinding 23mm final size"
-                              value={item.particulars}
-                              onChange={(e) =>
-                                handleItemChange(idx, "particulars", e.target.value)
-                              }
-                              required
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded text-xs focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          <div className="md:col-span-1">
-                            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                              Qty *
-                            </label>
-                            <input
-                              type="number"
-                              min="1"
-                              value={item.qty}
-                              onChange={(e) =>
-                                handleItemChange(idx, "qty", Number(e.target.value))
-                              }
-                              required
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500"
-                            />
-                          </div>
-
-                          <div className="md:col-span-1 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItemRow(idx)}
-                              className="p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded transition"
-                              title="Delete plate"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
+              )}
+            </div>
 
-                {/* Modal Footer */}
-                <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition btn-interactive"
-                  >
-                    Close
-                  </button>
-                  <MotionButton
-                    type="submit"
-                    loading={isSubmitting}
-                    variant="primary"
-                    size="md"
-                  >
-                    Generate Job Work Challan
-                  </MotionButton>
-                </div>
-              </form>
+            {/* Modal Footer */}
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-medium transition btn-interactive cursor-pointer"
+              >
+                Close
+              </button>
+              <MotionButton
+                type="submit"
+                loading={createChallanMutation.isPending}
+                disabled={createChallanMutation.isPending || modalForm.items.length === 0}
+                variant="primary"
+                size="md"
+              >
+                Generate Challan
+              </MotionButton>
+            </div>
+          </form>
         </Modal>
       </div>
     </AppLayout>

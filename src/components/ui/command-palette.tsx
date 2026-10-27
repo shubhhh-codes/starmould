@@ -23,6 +23,7 @@ import {
   Building2,
 } from "lucide-react";
 import { Modal } from "./dialog";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 interface CommandItem {
   id: string;
@@ -157,6 +158,7 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const router = useRouter();
+  const { canAccessRoute, hasPermission } = useRolePermissions();
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [liveResults, setLiveResults] = useState<CommandItem[]>([]);
@@ -230,14 +232,34 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     };
   }, [query, searchDatabase]);
 
+  // Filter default commands based on user permissions
+  const allowedNavCommands = React.useMemo(() => {
+    return DEFAULT_NAV_COMMANDS.filter((cmd) => {
+      if (cmd.id === "action-new-scan") {
+        return hasPermission("action_create_scanning_project");
+      }
+      if (cmd.id === "action-new-po") {
+        return hasPermission("action_create_purchase");
+      }
+      if (cmd.id === "action-new-challan") {
+        return hasPermission("action_create_challan");
+      }
+      if (cmd.href) {
+        const cleanPath = cmd.href.split("?")[0];
+        return canAccessRoute(cleanPath);
+      }
+      return true;
+    });
+  }, [canAccessRoute, hasPermission]);
+
   // Combined displayed results
   const displayedItems = React.useMemo(() => {
     if (!query.trim()) {
-      return DEFAULT_NAV_COMMANDS;
+      return allowedNavCommands;
     }
 
     const q = query.toLowerCase();
-    const matchingNav = DEFAULT_NAV_COMMANDS.filter(
+    const matchingNav = allowedNavCommands.filter(
       (cmd) =>
         cmd.title.toLowerCase().includes(q) ||
         cmd.subtitle?.toLowerCase().includes(q) ||
@@ -245,7 +267,7 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     );
 
     return [...liveResults, ...matchingNav];
-  }, [query, liveResults]);
+  }, [query, liveResults, allowedNavCommands]);
 
   useEffect(() => {
     setSelectedIndex(0);

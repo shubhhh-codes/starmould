@@ -90,7 +90,10 @@ export async function GET(req: NextRequest) {
         query = query.eq("usertype", usertype);
       }
       if (search) {
-        query = query.or(`customername.ilike.%${search}%,initials.ilike.%${search}%,customer_code.ilike.%${search}%,vendor_code.ilike.%${search}%,city.ilike.%${search}%,gstin.ilike.%${search}%,contact_person.ilike.%${search}%,mobile.ilike.%${search}%,email.ilike.%${search}%`);
+        const cleanSearch = search.replace(/[^a-zA-Z0-9\-_ ]/g, "").trim();
+        if (cleanSearch) {
+          query = query.or(`customername.ilike.%${cleanSearch}%,initials.ilike.%${cleanSearch}%,customer_code.ilike.%${cleanSearch}%,vendor_code.ilike.%${cleanSearch}%,city.ilike.%${cleanSearch}%,gstin.ilike.%${cleanSearch}%,contact_person.ilike.%${cleanSearch}%,mobile.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`);
+        }
       }
 
       if (page && page > 0) {
@@ -143,7 +146,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/customers - create customer in Supabase (Admin, Manager only)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "action_create_vendor");
+  const auth = await authenticateRequest(req, [0, 1], "action_create_customer");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -197,13 +200,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // RBAC: Only Admin (role_id === 0) can create 'Customer'. Other roles (Manager, etc.) can only create 'Other'.
-    if (usertype === "Customer" && auth.user.role_id !== 0) {
-      return NextResponse.json(
-        { error: "Access Denied: Only Administrators are authorized to create Customer records. Other roles may only register Vendors, Transporters, or Other entities." },
-        { status: 403 }
-      );
-    }
+    // RBAC already verified by authenticateRequest with action_create_customer
 
     // Check duplicate initials against active records
     const { data: existingInitials } = await supabaseAdmin
@@ -290,7 +287,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/customers - update customer in Supabase (Admin, Manager only)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "action_create_vendor");
+  const auth = await authenticateRequest(req, [0, 1], "action_edit_customer");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -338,26 +335,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Customer name already exists." }, { status: 400 });
     }
 
-    // RBAC: Non-admins cannot update records of type Customer or change a record's type to Customer
-    if (auth.user.role_id !== 0) {
-      if (usertype === "Customer") {
-        return NextResponse.json(
-          { error: "Access Denied: Only Administrators are authorized to manage Customer records." },
-          { status: 403 }
-        );
-      }
-      const { data: currentRec } = await supabaseAdmin
-        .from("customers")
-        .select("usertype")
-        .eq("id", id)
-        .single();
-      if (currentRec?.usertype === "Customer") {
-        return NextResponse.json(
-          { error: "Access Denied: Only Administrators are authorized to modify Customer records." },
-          { status: 403 }
-        );
-      }
-    }
+    // RBAC already verified by authenticateRequest with action_edit_customer
 
     const cleanMobile = mobile !== undefined ? (mobile ? String(mobile).replace(/\D/g, "").slice(0, 10) : null) : undefined;
     const cleanMobile1 = mobile1 !== undefined ? (mobile1 ? String(mobile1).replace(/\D/g, "").slice(0, 10) : null) : undefined;
@@ -434,7 +412,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/customers - soft-delete customer in Supabase (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "financial_soft_delete");
+  const auth = await authenticateRequest(req, [0, 1], "action_delete_customer");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -452,20 +430,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing customer id" }, { status: 400 });
     }
 
-    // RBAC: Non-admins cannot delete records of type Customer
-    if (auth.user.role_id !== 0) {
-      const { data: currentRec } = await supabaseAdmin
-        .from("customers")
-        .select("usertype")
-        .eq("id", id)
-        .single();
-      if (currentRec?.usertype === "Customer") {
-        return NextResponse.json(
-          { error: "Access Denied: Only Administrators are authorized to delete Customer records." },
-          { status: 403 }
-        );
-      }
-    }
+    // RBAC already verified by authenticateRequest with action_delete_customer
 
     // Perform soft delete by setting deleted_at timestamp (replicates Eloquent SoftDeletes)
     const { error } = await supabaseAdmin

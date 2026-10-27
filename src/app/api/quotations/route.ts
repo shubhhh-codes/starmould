@@ -4,7 +4,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { amountInWords } from "@/lib/number-to-words";
 import { calculateGST } from "@/lib/gst-calculation";
 
-export async function generateNextQuotationNo(): Promise<string> {
+export async function generateNextQuotationNo(offset = 0): Promise<string> {
   const nowIST = new Date(
     new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
   );
@@ -18,7 +18,7 @@ export async function generateNextQuotationNo(): Promise<string> {
     .select("id", { count: "exact", head: true })
     .like("quotation_no", `${todayPrefix}%`);
 
-  const seq = String((todayCount ?? 0) + 1).padStart(3, "0");
+  const seq = String((todayCount ?? 0) + 1 + offset).padStart(3, "0");
   return `${todayPrefix}${seq}`;
 }
 
@@ -88,7 +88,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (search) {
-      query = query.or(`quotation_no.ilike.%${search}%,consignee_name.ilike.%${search}%`);
+      const cleanSearch = search.replace(/[^a-zA-Z0-9\-_ ]/g, "").trim();
+      if (cleanSearch) {
+        query = query.or(`quotation_no.ilike.%${cleanSearch}%,consignee_name.ilike.%${cleanSearch}%`);
+      }
     }
 
     if (page && page > 0) {

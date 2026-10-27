@@ -27,9 +27,11 @@ import {
 import type { ScanProject, Customer, User, Subplate } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
 import {
@@ -64,6 +66,11 @@ export function getWorkTypeBadgeStyle(worktype?: string | null): string {
 function ScanningPageContent() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreateProject = hasPermission("action_create_scanning_project");
+  const canEditMould = hasPermission("action_edit_mould");
+  const canDeleteMould = hasPermission("action_delete_mould");
+  const canAdvanceStage = hasPermission("action_advance_pipeline");
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
@@ -88,6 +95,33 @@ function ScanningPageContent() {
 
   const scans = projectsQuery.data?.scans || [];
   const customers = (projectsQuery.data?.customers || []) as Customer[];
+
+  const statusFilterOptions: ERPSelectOption[] = [
+    { value: "ALL", label: "All Statuses" },
+    { value: "pending", label: "Pending" },
+    { value: "registered", label: "Registered" },
+    { value: "completed", label: "Completed" },
+  ];
+
+  const worktypeFilterOptions: ERPSelectOption[] = [
+    { value: "ALL", label: "All Work Types" },
+    { value: "Pulp Mould", label: "Pulp Mould" },
+    { value: "TF", label: "TF" },
+    { value: "Rework", label: "Rework" },
+    { value: "Accessories", label: "Accessories" },
+    { value: "Machine part", label: "Machine part" },
+    { value: "Other", label: "Other" },
+  ];
+
+  const customerFilterOptions: ERPSelectOption[] = useMemo(() => [
+    { value: "ALL", label: "All Customers" },
+    ...customers
+      .filter((c) => !c.deleted_at && c.usertype === "Customer")
+      .map((c) => ({
+        value: String(c.id),
+        label: c.customername,
+      })),
+  ], [customers]);
   const users = (projectsQuery.data?.users || []) as User[];
   const kpis = projectsQuery.data?.kpis || {
     totalScans: 0,
@@ -139,8 +173,14 @@ function ScanningPageContent() {
       const matchStatus =
         statusFilter === "ALL" || s.status === statusFilter;
 
+      const selectedCust = customerFilter !== "ALL" ? customers.find((c) => String(c.id) === customerFilter) : null;
+      const selectedCustName = selectedCust?.customername?.toLowerCase().trim();
       const matchCustomer =
-        customerFilter === "ALL" || String(s.cname) === customerFilter;
+        customerFilter === "ALL" ||
+        (s.customer_id && String(s.customer_id) === customerFilter) ||
+        String(s.cname) === customerFilter ||
+        (selectedCustName && s.cname && String(s.cname).toLowerCase().trim() === selectedCustName) ||
+        (selectedCustName && s.customername && String(s.customername).toLowerCase().trim() === selectedCustName);
 
       const matchWorktype =
         worktypeFilter === "ALL" || s.worktype === worktypeFilter;
@@ -226,15 +266,17 @@ function ScanningPageContent() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              New Mould Project
-            </button>
-          </div>
+          {canCreateProject && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                New Mould Project
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Unassigned Work Alerts Banner */}
@@ -322,45 +364,35 @@ function ScanningPageContent() {
               />
             </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="registered">Registered</option>
-              <option value="completed">Completed</option>
-            </select>
+            <div className="w-36 min-w-0">
+              <ERPSelect
+                value={statusFilter}
+                onChange={(val) => setStatusFilter(String(val))}
+                options={statusFilterOptions}
+                placeholder="Status"
+                showSearch={false}
+              />
+            </div>
 
-            <select
-              value={worktypeFilter}
-              onChange={(e) => setWorktypeFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium"
-            >
-              <option value="ALL">All Work Types</option>
-              <option value="Pulp Mould">Pulp Mould</option>
-              <option value="TF">TF</option>
-              <option value="Rework">Rework</option>
-              <option value="Accessories">Accessories</option>
-              <option value="Machine part">Machine part</option>
-              <option value="Other">Other</option>
-            </select>
+            <div className="w-40 min-w-0">
+              <ERPSelect
+                value={worktypeFilter}
+                onChange={(val) => setWorktypeFilter(String(val))}
+                options={worktypeFilterOptions}
+                placeholder="Work Type"
+                showSearch={false}
+              />
+            </div>
 
-            <select
-              value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium max-w-xs truncate"
-            >
-              <option value="ALL">All Customers</option>
-              {customers
-                .filter((c) => !c.deleted_at && c.usertype === "Customer")
-                .map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.customername}
-                  </option>
-                ))}
-            </select>
+            <div className="w-56 min-w-0">
+              <ERPSelect
+                value={customerFilter}
+                onChange={(val) => setCustomerFilter(String(val))}
+                options={customerFilterOptions}
+                placeholder="All Customers"
+                searchPlaceholder="Search customers..."
+              />
+            </div>
           </div>
         </div>
 
@@ -552,21 +584,23 @@ function ScanningPageContent() {
                                 >
                                   <Layers className="w-4 h-4" />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                                    try {
-                                      await deleteProjectMutation.mutateAsync(row.id);
-                                    } catch (e: any) {
-                                      alert(e?.message || "Error deleting mould");
-                                    }
-                                  }}
-                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                  title="Delete mould"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                {canDeleteMould && (
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                                      try {
+                                        await deleteProjectMutation.mutateAsync(row.id);
+                                      } catch (e: any) {
+                                        alert(e?.message || "Error deleting mould");
+                                      }
+                                    }}
+                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                    title="Delete mould"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -676,21 +710,23 @@ function ScanningPageContent() {
                           {row.worktype || "Pulp Mould"}
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                          try {
-                            await deleteProjectMutation.mutateAsync(row.id);
-                          } catch (e: any) {
-                            alert(e?.message || "Error deleting mould");
-                          }
-                        }}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                        title="Delete mould"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canDeleteMould && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
+                            try {
+                              await deleteProjectMutation.mutateAsync(row.id);
+                            } catch (e: any) {
+                              alert(e?.message || "Error deleting mould");
+                            }
+                          }}
+                          className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                          title="Delete mould"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
 
                     <div>
@@ -845,11 +881,13 @@ function ScanningPageContent() {
         </Drawer>
 
         {/* Create Scanning Project Modal (NewMouldModal with Work Types & Searchable Customer Select) */}
-        <NewMouldModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          customers={customers}
-        />
+        {canCreateProject && (
+          <NewMouldModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            customers={customers}
+          />
+        )}
       </div>
     </AppLayout>
   );

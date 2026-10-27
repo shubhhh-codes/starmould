@@ -101,7 +101,7 @@ export function ProjectSelect({
   };
 
   return (
-    <div ref={containerRef} className={`relative w-full ${className}`}>
+    <div ref={containerRef} className={`relative w-full ${isOpen ? "z-30" : "z-10"} ${className}`}>
       {/* Hidden input to support HTML form validation */}
       <input
         type="text"

@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { ChevronDown, Check, X, Building2, UserPlus, Phone } from "lucide-react";
 import type { Customer } from "@/lib/supabase/types";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 export interface CustomerSelectProps {
   customers: Customer[];
@@ -31,6 +32,25 @@ export function CustomerSelect({
   id,
   onSelectAdvance,
 }: CustomerSelectProps) {
+  const { hasPermission } = useRolePermissions();
+
+  const isVendorType = filterUserType === "Vendor";
+  const isAllType = filterUserType === "ALL" || filterUserType === "All";
+
+  // Check action create permissions strictly based on filter user type
+  const canCreate = isVendorType
+    ? hasPermission("action_create_vendor")
+    : isAllType
+    ? hasPermission("action_create_customer") || hasPermission("action_create_vendor")
+    : hasPermission("action_create_customer");
+
+  // Check directory navigation access
+  const canAccessDirectory = isVendorType
+    ? hasPermission("nav_vendor_transport")
+    : isAllType
+    ? hasPermission("nav_customer_creator") || hasPermission("nav_vendor_transport")
+    : hasPermission("nav_customer_creator");
+
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState<number>(-1);
@@ -196,7 +216,7 @@ export function CustomerSelect({
   };
 
   return (
-    <div ref={containerRef} className={`relative w-full ${className}`}>
+    <div ref={containerRef} className={`relative w-full ${isOpen ? "z-30" : "z-10"} ${className}`}>
       {/* Hidden input for HTML form validation */}
       {required && (
         <input
@@ -319,10 +339,10 @@ export function CustomerSelect({
                   {query.trim() ? (
                     <>No matches found for &quot;<span className="text-slate-700 font-semibold">{query}</span>&quot;</>
                   ) : (
-                    "No customers found"
+                    isVendorType ? "No vendors found" : "No customers found"
                   )}
                 </p>
-                {onAddNew ? (
+                {canCreate && onAddNew ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -334,13 +354,13 @@ export function CustomerSelect({
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>
                       {query.trim()
-                        ? `Customer doesn't exist? Create "${query.trim()}" now`
-                        : "Customer doesn't exist? Create it now"}
+                        ? `${isVendorType ? "Vendor" : "Customer"} doesn't exist? Create "${query.trim()}" now`
+                        : `Create ${isVendorType ? "Vendor" : "Customer"} now`}
                     </span>
                   </button>
-                ) : (
+                ) : canAccessDirectory ? (
                   <a
-                    href="/customers"
+                    href={isVendorType ? "/vendors" : "/customers"}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-semibold transition"
@@ -348,7 +368,7 @@ export function CustomerSelect({
                     <UserPlus className="w-3.5 h-3.5" />
                     <span>Manage Directory</span>
                   </a>
-                )}
+                ) : null}
               </div>
             ) : (
               filteredCustomers.map((cust, idx) => {
@@ -412,8 +432,8 @@ export function CustomerSelect({
             )}
           </div>
 
-          {/* Persistent Add Customer action when results are shown */}
-          {onAddNew && filteredCustomers.length > 0 && (
+          {/* Persistent Add Customer action when results are shown (Strictly guarded by permission) */}
+          {canCreate && onAddNew && filteredCustomers.length > 0 && (
             <div className="p-1.5 border-t border-slate-100 bg-slate-50/70">
               <button
                 type="button"
@@ -426,8 +446,8 @@ export function CustomerSelect({
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>
                   {query.trim()
-                    ? `Customer doesn't exist? Create "${query.trim()}" now`
-                    : "+ Add New Customer"}
+                    ? `${isVendorType ? "Vendor" : "Customer"} doesn't exist? Create "${query.trim()}" now`
+                    : `+ Add New ${isVendorType ? "Vendor" : "Customer"}`}
                 </span>
               </button>
             </div>

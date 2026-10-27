@@ -22,12 +22,13 @@ async function handleBackupCron(req: NextRequest) {
   const providedKey = bearerToken || queryKey;
   const configuredSecret = process.env.CRON_SECRET || process.env.SESSION_SECRET;
 
-  // Verify secret token to prevent unauthorized triggers
+  // Verify secret token to prevent unauthorized triggers (strictly require env secret)
   const isValid =
     providedKey &&
+    configuredSecret &&
     (providedKey === configuredSecret ||
-      providedKey === process.env.SESSION_SECRET ||
-      providedKey === "063e8056c3ed1929562b52b72e41d5eb408ebe1e2a5c3539fa49791b731d8178");
+      providedKey === process.env.CRON_SECRET ||
+      providedKey === process.env.SESSION_SECRET);
 
   if (!isValid) {
     return NextResponse.json(

@@ -10,19 +10,24 @@ function getErrorHash(report: ClientErrorReport): string {
   return `${report.type}:${report.message}:${report.url}:${report.apiUrl}:${report.status}`;
 }
 
-// Periodic cleanup of deduplication map
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of recentErrorHashes.entries()) {
-    if (now - value.firstSeen > 15_000) {
-      recentErrorHashes.delete(key);
+// Inline memory pruning for deduplication map (avoids hanging timers in serverless environments)
+function pruneRecentErrors(): void {
+  if (recentErrorHashes.size > 200) {
+    const now = Date.now();
+    for (const [key, value] of recentErrorHashes.entries()) {
+      if (now - value.firstSeen > 15_000) {
+        recentErrorHashes.delete(key);
+      }
     }
   }
-}, 15_000);
+}
 
 export async function POST(req: NextRequest) {
+  pruneRecentErrors();
   const forwarded = req.headers.get("x-forwarded-for");
-  const ip = (forwarded ? forwarded.split(",")[0] : req.headers.get("x-real-ip") ?? "unknown").trim();
+  const realIp = req.headers.get("x-real-ip") || req.headers.get("cf-connecting-ip");
+  const forwardedList = forwarded ? forwarded.split(",").map((s) => s.trim()).filter(Boolean) : [];
+  const ip = (realIp || (forwardedList.length > 0 ? forwardedList[forwardedList.length - 1] : "unknown")).trim();
   const rateCheck = checkRateLimit(ip, 30, 60 * 1000, 60 * 1000, "client-error");
   if (!rateCheck.allowed) {
     return NextResponse.json(

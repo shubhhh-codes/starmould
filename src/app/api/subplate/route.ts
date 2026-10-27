@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCached, getCachedScansLookup, getCachedUsers, invalidateCache } from "@/lib/cache";
+import { getCached, getCachedUsers, invalidateCache } from "@/lib/cache";
 import { calculateSubplateWeight } from "@/lib/weight-calculator";
 
 function inferPlateCategory(platename: string): string {
@@ -77,6 +77,11 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      const { data: dbUsers } = await supabaseAdmin
+        .from("users")
+        .select("id, name, initials");
+      const userMap = new Map((dbUsers || []).map((u: any) => [u.id, u]));
+
       const enrichedPlates = plateList.map((p) => {
         const ordered = orderedMap[p.id] || 0;
         const total = Number(p.sqty) || 1;
@@ -85,6 +90,15 @@ export async function GET(req: NextRequest) {
           ...p,
           ordered_qty: ordered,
           remaining_qty: remaining,
+          design_by_name: userMap.get(Number(p.design_by))?.name || userMap.get(Number(p.design_by))?.initials || null,
+          order_by_name: userMap.get(Number(p.order_by))?.name || userMap.get(Number(p.order_by))?.initials || null,
+          received_workby_name: userMap.get(Number(p.received_workby))?.name || userMap.get(Number(p.received_workby))?.initials || null,
+          received_qcby_name: userMap.get(Number(p.received_qcby))?.name || userMap.get(Number(p.received_qcby))?.initials || null,
+          vmc_workby_name: userMap.get(Number(p.vmc_workby))?.name || userMap.get(Number(p.vmc_workby))?.initials || null,
+          vmc_qcby_name: userMap.get(Number(p.vmc_qcby))?.name || userMap.get(Number(p.vmc_qcby))?.initials || null,
+          drilltap_workby_name: userMap.get(Number(p.drilltap_workby))?.name || userMap.get(Number(p.drilltap_workby))?.initials || null,
+          final_qcby_name: userMap.get(Number(p.final_qcby))?.name || userMap.get(Number(p.final_qcby))?.initials || null,
+          packing_workby_name: userMap.get(Number(p.packing_workby))?.name || userMap.get(Number(p.packing_workby))?.initials || null,
         };
       });
 
@@ -211,7 +225,7 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const result = await executeFetch();
+    const result = cacheKey ? await getCached(cacheKey, 30, executeFetch) : await executeFetch();
 
     const response = NextResponse.json({
       subplates: result.subplates,
@@ -238,7 +252,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/subplate - Create new subplate entry (Roles 0, 1, 2, 3)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3, 6, 7, 9, 10], "nav_subplate");
+  const auth = await authenticateRequest(req, [0, 1, 2, 3, 6, 7, 9, 10], "action_create_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -418,9 +432,9 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PUT/PATCH /api/subplate - Update subplate (Roles 0, 1, 2, 3)
+// PUT/PATCH /api/subplate - Update subplate (Staff & Admin roles)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3, 6, 7, 9, 10], "nav_subplate");
+  const auth = await authenticateRequest(req, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "action_edit_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -542,12 +556,47 @@ export async function PUT(req: NextRequest) {
       packing_workby: "packing_at",
     };
 
-    // Enforce that non-admin users (e.g. Designers, Workers) can only assign tasks to themselves
+    // Enforce that non-admin users (e.g. Designers, Workers) can only assign tasks to themselves, and strictly for their department's stages
     const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";
-    if (!isUserAdmin) {
+    if (!isUserAdmin && auth.user.role_id !== 1) {
+      const userRoleId = Number(auth.user.role_id);
+      const userRoleName = (auth.user.role || "").toLowerCase();
+
+      const allowedKeys = new Set<string>();
+      if (userRoleId === 3 || userRoleName.includes("designer")) {
+        allowedKeys.add("design_by");
+      } else if (userRoleId === 5 || userRoleName.includes("purchase")) {
+        allowedKeys.add("order_by");
+      } else if (userRoleId === 10 || userRoleName.includes("programmer")) {
+        allowedKeys.add("received_qcby");
+      } else if (userRoleId === 6 || userRoleName.includes("vmc")) {
+        allowedKeys.add("vmc_workby");
+      } else if (userRoleId === 7 || userRoleName.includes("qc") || userRoleName.includes("quality")) {
+        allowedKeys.add("vmc_qcby");
+        allowedKeys.add("final_qcby");
+      } else if (userRoleId === 9 || userRoleName.includes("dispatch")) {
+        allowedKeys.add("packing_workby");
+      } else if (userRoleId === 4 || userRoleName.includes("worker") || userRoleName.includes("operator")) {
+        allowedKeys.add("drilltap_workby");
+        allowedKeys.add("received_workby");
+      }
+
       for (const byField of Object.keys(stageTimestampMap)) {
         if (byField in updatePayload) {
+          if (!allowedKeys.has(byField)) {
+            return NextResponse.json(
+              { error: `Permission denied: Your role (${auth.user.role || "Staff"}) is not authorized to assign this stage.` },
+              { status: 403 }
+            );
+          }
           const targetUserId = updatePayload[byField];
+          // Non-admin users cannot unassign once assigned
+          if (targetUserId === null || targetUserId === 0 || targetUserId === "" || targetUserId === undefined) {
+            return NextResponse.json(
+              { error: "Permission denied: Once assigned, only Administrators can unassign or reassign a production stage." },
+              { status: 403 }
+            );
+          }
           if (targetUserId && Number(targetUserId) !== Number(auth.user.id)) {
             return NextResponse.json(
               { error: "Permission denied: Non-admin users can only assign tasks to themselves." },
@@ -571,6 +620,37 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Strip any non-column properties (such as virtual *_name fields or client enrichment data)
+    const nonColumnKeys = [
+      "id",
+      "updates",
+      "field",
+      "value",
+      "design_by_name",
+      "order_by_name",
+      "received_workby_name",
+      "received_qcby_name",
+      "vmc_workby_name",
+      "vmc_qcby_name",
+      "drilltap_workby_name",
+      "final_qcby_name",
+      "packing_workby_name",
+      "customername",
+      "customer_name",
+      "project_desc",
+      "project_cname",
+      "cname",
+      "staff_name",
+    ];
+    for (const key of nonColumnKeys) {
+      delete updatePayload[key];
+    }
+    for (const key of Object.keys(updatePayload)) {
+      if (key.endsWith("_name") || key.endsWith("_by_name")) {
+        delete updatePayload[key];
+      }
+    }
+
     const { data, error } = await supabaseAdmin
       .from("subplate")
       .update(updatePayload)
@@ -582,6 +662,24 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const { data: updatedUsers } = await supabaseAdmin
+      .from("users")
+      .select("id, name, initials, role_id, status");
+    const userMap = new Map((updatedUsers || []).map((u: any) => [u.id, u]));
+
+    const enrichedData = {
+      ...data,
+      design_by_name: userMap.get(Number(data.design_by))?.name || userMap.get(Number(data.design_by))?.initials || null,
+      order_by_name: userMap.get(Number(data.order_by))?.name || userMap.get(Number(data.order_by))?.initials || null,
+      received_workby_name: userMap.get(Number(data.received_workby))?.name || userMap.get(Number(data.received_workby))?.initials || null,
+      received_qcby_name: userMap.get(Number(data.received_qcby))?.name || userMap.get(Number(data.received_qcby))?.initials || null,
+      vmc_workby_name: userMap.get(Number(data.vmc_workby))?.name || userMap.get(Number(data.vmc_workby))?.initials || null,
+      vmc_qcby_name: userMap.get(Number(data.vmc_qcby))?.name || userMap.get(Number(data.vmc_qcby))?.initials || null,
+      drilltap_workby_name: userMap.get(Number(data.drilltap_workby))?.name || userMap.get(Number(data.drilltap_workby))?.initials || null,
+      final_qcby_name: userMap.get(Number(data.final_qcby))?.name || userMap.get(Number(data.final_qcby))?.initials || null,
+      packing_workby_name: userMap.get(Number(data.packing_workby))?.name || userMap.get(Number(data.packing_workby))?.initials || null,
+    };
+
     invalidateCache("subplate_default_");
     invalidateCache("scanning_default_");
     invalidateCache("subplates_worklog_lookup");
@@ -590,7 +688,7 @@ export async function PUT(req: NextRequest) {
     invalidateCache("api_pipeline_stage_counts");
     invalidateCache("shared_scans_lookup");
 
-    return NextResponse.json({ subplate: data, message: "Subplate updated successfully in database" });
+    return NextResponse.json({ subplate: enrichedData, message: "Subplate updated successfully in database" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -601,7 +699,7 @@ export const PATCH = PUT;
 
 // DELETE /api/subplate - Hard delete subplate from database (Roles 0, 1, 2, 3)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3, 6, 7, 9, 10], "nav_subplate");
+  const auth = await authenticateRequest(req, [0, 1, 2, 3, 6, 7, 9, 10], "action_delete_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

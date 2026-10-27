@@ -28,16 +28,6 @@ export async function GET(req: NextRequest) {
 
     const { data: challans, error: cErr } = await query;
     if (cErr) {
-      if (
-        cErr.code === "23505" ||
-        cErr.message?.includes("unique constraint") ||
-        cErr.message?.includes("duplicate key")
-      ) {
-        return NextResponse.json(
-          { error: "A challan with this number already exists." },
-          { status: 400 }
-        );
-      }
       return NextResponse.json({ error: cErr.message }, { status: 500 });
     }
 

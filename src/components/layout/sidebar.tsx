@@ -166,6 +166,7 @@ import { useAuth, getCachedSession } from "@/components/providers/auth-provider"
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useSmartPrefetch, useBackgroundPrefetchWarmup } from "@/lib/query/prefetch";
 import { overlayStack } from "@/lib/overlay-stack";
+import { DEFAULT_ROLE_MENU_ORDERS } from "@/lib/permissions/defaults";
 
 export interface SidebarProps {
   collapsed?: boolean;
@@ -192,7 +193,11 @@ export function Sidebar({
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
   const { prefetchRoute } = useSmartPrefetch();
   useBackgroundPrefetchWarmup();
-  const cachedUser = typeof window !== "undefined" ? getCachedSession() : null;
+  const [isMounted, setIsMounted] = React.useState(false);
+  React.useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  const cachedUser = isMounted && typeof window !== "undefined" ? getCachedSession() : null;
   const activeUser = propUser !== undefined ? (propUser || cachedUser) : (authUser || cachedUser);
   const userRoleId = activeUser?.role_id;
 
@@ -226,6 +231,23 @@ export function Sidebar({
 
   // Filter and sort menu items strictly by user role and active permission matrix & menu order
   const visibleItems = React.useMemo(() => {
+    // Before mounting (SSR & initial client hydration), render baseline order to guarantee 100% hydration match
+    if (!isMounted) {
+      const defaultAllowed = navigationItems.filter(() => true);
+      const defaultOrder = DEFAULT_ROLE_MENU_ORDERS[0] || [];
+      if (defaultOrder.length === 0) return defaultAllowed;
+      return [...defaultAllowed].sort((a, b) => {
+        const aKey = a.permKey || a.href;
+        const bKey = b.permKey || b.href;
+        const aIndex = defaultOrder.indexOf(aKey);
+        const bIndex = defaultOrder.indexOf(bKey);
+        if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+        if (aIndex !== -1) return -1;
+        if (bIndex !== -1) return 1;
+        return 0;
+      });
+    }
+
     let effectiveRoleId = userRoleId;
     if (effectiveRoleId === undefined && typeof window !== "undefined") {
       const cached = getCachedSession();
@@ -267,7 +289,7 @@ export function Sidebar({
       if (bIndex !== -1) return 1;
       return 0;
     });
-  }, [userRoleId, hasPermission, getRoleMenuOrder]);
+  }, [isMounted, userRoleId, hasPermission, getRoleMenuOrder]);
 
   const handleLogout = async () => {
     await logout();
@@ -345,8 +367,8 @@ export function Sidebar({
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Core Modules
                 </p>
-                {activeUser?.role && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
+                {isMounted && activeUser?.role && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50" suppressHydrationWarning>
                     {activeUser.role}
                   </span>
                 )}

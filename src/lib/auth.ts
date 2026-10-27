@@ -54,7 +54,7 @@ export function signSession(user: SessionUser): string {
 /**
  * Verifies a signed session token. Returns null if invalid, tampered, or expired.
  */
-export function verifySessionToken(token: string): SessionUser | null {
+export function verifySessionToken(token: string): SessionPayload | null {
   if (!token || typeof token !== "string" || !token.includes(".")) return null;
   const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!secret) return null; // Fail safely if no secret is configured
@@ -132,7 +132,7 @@ export async function authenticateRequest(
       try {
         const { data, error } = await supabaseAdmin
           .from("users")
-          .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, must_change_password")
+          .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, must_change_password, updated_at")
           .eq("id", session.id)
           .is("deleted_at", null)
           .single();
@@ -146,9 +146,36 @@ export async function authenticateRequest(
     dbUser = null;
   }
 
-  // If user explicitly found in DB and marked inactive, forbid access
-  if (dbUser && dbUser.status !== null && dbUser.status !== undefined && (String(dbUser.status).toLowerCase() === "inactive" || String(dbUser.status) === "0")) {
+  // 1. If user does not exist in database (deleted or truncated), strictly reject authentication
+  if (!dbUser) {
+    return { error: "User account no longer exists or has been deleted", status: 401 };
+  }
+
+  // 2. Identity match check: The session token username must strictly match the database username
+  // This prevents any session identity hijacking if an auto-increment ID is reused across accounts
+  if (
+    session.username &&
+    dbUser.username &&
+    session.username.toLowerCase() !== dbUser.username.toLowerCase()
+  ) {
+    return { error: "Session invalid: user identity mismatch", status: 401 };
+  }
+
+  // 3. If user explicitly found in DB and marked inactive, forbid access
+  if (
+    dbUser.status !== null &&
+    dbUser.status !== undefined &&
+    (String(dbUser.status).toLowerCase() === "inactive" || String(dbUser.status) === "0")
+  ) {
     return { error: "User account is inactive", status: 403 };
+  }
+
+  // 3b. Token invalidation on password change or security update
+  if (dbUser.updated_at && typeof session.iat === "number") {
+    const updatedAtSec = Math.floor(new Date(dbUser.updated_at).getTime() / 1000);
+    if (session.iat < updatedAtSec - 5) {
+      return { error: "Session expired due to account security update. Please log in again.", status: 401 };
+    }
   }
 
   const roleNames: Record<number, string> = {
@@ -165,8 +192,8 @@ export async function authenticateRequest(
     10: "Programmer",
   };
 
-  // Use fresh DB user record if available; otherwise fall back to cryptographically verified session token
-  const effectiveUser = dbUser || session;
+  // Fresh DB user record
+  const effectiveUser = dbUser;
   const roleId = effectiveUser.role_id !== null && effectiveUser.role_id !== undefined ? Number(effectiveUser.role_id) : 4;
 
   const freshUser: SessionUser = {

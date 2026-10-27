@@ -21,6 +21,8 @@ import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { CustomerSelect } from "@/components/ui/customer-select";
 import { appStore } from "@/lib/state/store";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
   useCreateProjectMutation,
   useCustomerDropdownQuery,
@@ -150,6 +152,23 @@ export function NewMouldModal({
   );
   const isGenerating = Boolean(form.cname && nextIdQuery.isFetching);
 
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission, refreshPermissions } = useRolePermissions();
+  const canCreateProject = hasPermission("action_create_scanning_project");
+
+  // Real-time permission revocation guard: if admin revokes permission while modal is open, auto-close!
+  useEffect(() => {
+    if (isOpen && !canCreateProject) {
+      onClose();
+      appStore.addToast({
+        type: "error",
+        message: "Access Denied: Permission to create mould projects was revoked by administrator.",
+        duration: 5000,
+      });
+    }
+  }, [isOpen, canCreateProject, onClose]);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -271,7 +290,23 @@ export function NewMouldModal({
       }
       onClose();
     } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to create project");
+      const errMsg = err?.message || "Failed to create project";
+      if (
+        errMsg.toLowerCase().includes("permission") ||
+        errMsg.toLowerCase().includes("access denied") ||
+        err?.status === 403
+      ) {
+        setErrorMessage("Access Denied: Your permission to create moulds was revoked by administrator.");
+        appStore.addToast({
+          type: "error",
+          message: "Access Denied: Permission was revoked by administrator.",
+          duration: 5000,
+        });
+        refreshPermissions();
+        setTimeout(() => onClose(), 1200);
+      } else {
+        setErrorMessage(errMsg);
+      }
     }
   };
 

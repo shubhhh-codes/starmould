@@ -307,7 +307,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/vendors - update vendor in public.vendors (Admin, Manager only)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "action_create_vendor");
+  const auth = await authenticateRequest(req, [0, 1], "action_edit_vendor");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -455,7 +455,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/vendors - soft-delete vendor in public.vendors (Admin, Manager only)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "financial_soft_delete");
+  const auth = await authenticateRequest(req, [0, 1], "action_delete_vendor");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

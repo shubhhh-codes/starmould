@@ -14,11 +14,11 @@ export interface StoredConfig {
 let cachedPermissions: RolePermissionsMatrix | null = null;
 let cachedMenuOrders: RoleMenuOrders | null = null;
 let cacheExpiresAt = 0;
-const CACHE_TTL_MS = 30_000; // 30 seconds
+const CACHE_TTL_MS = 3_000; // 3 seconds ultra-responsive cache
 
 /**
  * Loads effective permissions by merging stored Supabase config with factory defaults.
- * Admin (role 0) is always full-access. Cached 30s in-process.
+ * Admin (role 0) is always full-access. Cached 3s in-process.
  */
 export async function loadEffectivePermissions(): Promise<RolePermissionsMatrix> {
   const now = Date.now();
@@ -77,9 +77,17 @@ export async function loadEffectiveMenuOrders(): Promise<RoleMenuOrders> {
       const merged: RoleMenuOrders = { ...DEFAULT_ROLE_MENU_ORDERS };
       for (const [roleIdStr, order] of Object.entries(stored)) {
         const roleId = Number(roleIdStr);
-        if (Array.isArray(order)) merged[roleId] = order;
+        if (Array.isArray(order) && order.length > 0) merged[roleId] = order;
       }
-      merged[0] = [...DEFAULT_ROLE_MENU_ORDERS[0]];
+      // Custom Admin menu order support (preserving user's customized ordering, appending any missing keys)
+      const storedAdminOrder = stored[0] || (stored as any)["0"];
+      if (Array.isArray(storedAdminOrder) && storedAdminOrder.length > 0) {
+        const existingKeys = new Set(storedAdminOrder);
+        const missingKeys = DEFAULT_ROLE_MENU_ORDERS[0].filter((k) => !existingKeys.has(k));
+        merged[0] = [...storedAdminOrder, ...missingKeys];
+      } else {
+        merged[0] = [...DEFAULT_ROLE_MENU_ORDERS[0]];
+      }
       // Non-admin roles never have nav_settings in menu orders
       for (const rId of Object.keys(merged).map(Number).filter((id) => id !== 0)) {
         if (Array.isArray(merged[rId])) {
@@ -87,6 +95,7 @@ export async function loadEffectiveMenuOrders(): Promise<RoleMenuOrders> {
         }
       }
       cachedMenuOrders = merged;
+      cacheExpiresAt = Date.now() + CACHE_TTL_MS;
       return merged;
     }
   } catch (err) {
@@ -94,6 +103,7 @@ export async function loadEffectiveMenuOrders(): Promise<RoleMenuOrders> {
   }
 
   cachedMenuOrders = { ...DEFAULT_ROLE_MENU_ORDERS };
+  cacheExpiresAt = Date.now() + CACHE_TTL_MS;
   return cachedMenuOrders;
 }
 
@@ -106,9 +116,15 @@ export async function saveConfigToSupabase(config: StoredConfig): Promise<{ succ
     ...config.permissions,
     0: { ...DEFAULT_ROLE_PERMISSIONS[0] },
   };
+
+  const rawAdminOrder = config.menu_orders?.[0] || (config.menu_orders as any)?.["0"];
+  const safeAdminOrder = Array.isArray(rawAdminOrder) && rawAdminOrder.length > 0
+    ? rawAdminOrder
+    : [...DEFAULT_ROLE_MENU_ORDERS[0]];
+
   const safeOrders: RoleMenuOrders = {
     ...config.menu_orders,
-    0: [...DEFAULT_ROLE_MENU_ORDERS[0]],
+    0: safeAdminOrder,
   };
 
   // Ensure nav_settings is strictly false and never in menu order for non-admin roles (1, 2, 3, 4)

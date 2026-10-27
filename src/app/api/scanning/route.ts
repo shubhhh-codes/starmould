@@ -415,7 +415,7 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const result = await executeFetch();
+    const result = cacheKey ? await getCached(cacheKey, 30, executeFetch) : await executeFetch();
 
     const response = NextResponse.json({
       scans: result.scans,
@@ -539,7 +539,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/scanning - Update status, staff assignment, payment toggle, or metadata
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3], "action_create_scanning_project");
+  const auth = await authenticateRequest(req, undefined, "action_edit_mould");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -602,6 +602,12 @@ export async function PATCH(req: NextRequest) {
     // Strip legacy dropped columns if passed
     delete updatePayload.amount;
     delete updatePayload.payment;
+    delete updatePayload.scan_by_name;
+    delete updatePayload.qc_by_name;
+    delete updatePayload.modeldesign_by_name;
+    delete updatePayload.customername;
+    delete updatePayload.customer_name;
+    delete updatePayload.subplates;
 
     const { data, error } = await supabaseAdmin
       .from("scan")
@@ -640,7 +646,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/scanning - Delete scan project with subplate dependency protection
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1]);
+  const auth = await authenticateRequest(req, undefined, "action_delete_mould");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

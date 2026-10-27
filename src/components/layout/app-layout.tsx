@@ -19,8 +19,13 @@ function AppLayoutContent({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const { currentUser, isSessionLoaded } = useAuth();
   const { canAccessRoute } = useRolePermissions();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isSessionLoaded && !currentUser && pathname !== "/login") {
@@ -29,18 +34,19 @@ function AppLayoutContent({ children }: AppLayoutProps) {
   }, [isSessionLoaded, currentUser, pathname, router]);
 
   // Determine if current user is authorized for current route dynamically
+  // Prevent SSR hydration mismatch: During SSR and initial client hydration, evaluate to true
   const isAuthorized = React.useMemo(() => {
-    if (!currentUser) return true; // Don't falsely block during initialization
+    if (!isMounted || !currentUser) return true;
     if (currentUser.role_id === 0) return true; // Admin has universal access
     return canAccessRoute(pathname, currentUser.role_id);
-  }, [currentUser, pathname, canAccessRoute]);
+  }, [isMounted, currentUser, pathname, canAccessRoute]);
 
-  // If session loaded but unauthorized, trigger instant redirect
+  // If session loaded but unauthorized after mount, trigger instant redirect
   useEffect(() => {
-    if (isSessionLoaded && currentUser && !isAuthorized) {
+    if (isMounted && isSessionLoaded && currentUser && !isAuthorized) {
       router.replace("/");
     }
-  }, [isSessionLoaded, currentUser, isAuthorized, router]);
+  }, [isMounted, isSessionLoaded, currentUser, isAuthorized, router]);
 
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col w-full max-w-full min-w-0 overflow-x-hidden">
@@ -73,7 +79,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
 
         {/* Dynamic Page Content (Seamless render) */}
         <main className="flex-1 p-3 sm:p-5 lg:p-6 w-full max-w-full min-w-0 overflow-x-hidden">
-          {isSessionLoaded && currentUser && !isAuthorized ? (
+          {isMounted && isSessionLoaded && currentUser && !isAuthorized ? (
             <div className="flex flex-col items-center justify-center py-24 text-center space-y-3 animate-in fade-in duration-200">
               <div className="p-4 bg-rose-50 text-rose-600 rounded-2xl border border-rose-200">
                 <ShieldAlert className="w-8 h-8" />

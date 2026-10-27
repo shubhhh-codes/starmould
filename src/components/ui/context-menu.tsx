@@ -1,14 +1,17 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Plus, Eye, CheckCircle2, Trash2, ArrowUpRight } from "lucide-react";
 
 export interface ContextMenuItem {
   label: string;
+  subtext?: string;
   icon?: React.ElementType;
   onClick: () => void;
   variant?: "default" | "primary" | "success" | "danger";
   separator?: boolean;
+  disabled?: boolean;
 }
 
 export interface ContextMenuProps {
@@ -29,6 +32,7 @@ export function ContextMenu({
   title,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
 
   // Close on outside click, outside touch, or escape key
   useEffect(() => {
@@ -55,15 +59,53 @@ export function ContextMenu({
     };
   }, [isOpen, onClose]);
 
+  // Precise dynamic viewport collision detection - NEVER CROP!
+  useLayoutEffect(() => {
+    if (!isOpen || !menuRef.current) return;
+
+    const updatePosition = () => {
+      if (!menuRef.current) return;
+      const rect = menuRef.current.getBoundingClientRect();
+      const winW = window.innerWidth;
+      const winH = window.innerHeight;
+
+      let top = y;
+      let left = x;
+
+      // Vertical clamping / flipping
+      if (top + rect.height > winH - 12) {
+        if (y - rect.height >= 12) {
+          top = y - rect.height;
+        } else {
+          top = Math.max(12, winH - rect.height - 12);
+        }
+      }
+
+      // Horizontal clamping / flipping
+      if (left + rect.width > winW - 12) {
+        if (x - rect.width >= 12) {
+          left = x - rect.width;
+        } else {
+          left = Math.max(12, winW - rect.width - 12);
+        }
+      }
+
+      setCoords({ top, left });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen, x, y, items.length]);
+
   if (!isOpen) return null;
 
   const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-
-  // Collision adjustment for desktop floating position
-  const menuWidth = 240;
-  const menuHeight = items.length * 40 + (title ? 48 : 16);
-  const adjustedX = Math.min(x, (typeof window !== "undefined" ? window.innerWidth : 1200) - menuWidth - 16);
-  const adjustedY = Math.min(y, (typeof window !== "undefined" ? window.innerHeight : 800) - menuHeight - 16);
 
   if (isMobile) {
     return (
@@ -96,26 +138,40 @@ export function ContextMenu({
           <div className="space-y-1">
             {items.map((item, idx) => {
               const Icon = item.icon;
-              const variantClasses = {
-                default: "text-slate-700 active:bg-slate-100",
-                primary: "text-blue-700 active:bg-blue-50 bg-blue-50/50",
-                success: "text-emerald-700 active:bg-emerald-50",
-                danger: "text-rose-600 active:bg-rose-50",
-              }[item.variant || "default"];
+              const variantClasses = item.disabled
+                ? "text-slate-400 opacity-60 cursor-not-allowed"
+                : {
+                    default: "text-slate-700 active:bg-slate-100",
+                    primary: "text-blue-700 active:bg-blue-50 bg-blue-50/50",
+                    success: "text-emerald-700 active:bg-emerald-50",
+                    danger: "text-rose-600 active:bg-rose-50",
+                  }[item.variant || "default"];
 
               return (
                 <React.Fragment key={idx}>
                   {item.separator && <div className="h-px bg-slate-100 my-1 mx-2" />}
                   <button
                     type="button"
+                    disabled={item.disabled}
                     onClick={() => {
-                      item.onClick();
-                      onClose();
+                      if (!item.disabled) {
+                        item.onClick();
+                        onClose();
+                      }
                     }}
-                    className={`w-full text-left px-4 py-3 rounded-2xl text-sm font-semibold flex items-center gap-3 transition-colors cursor-pointer min-h-[48px] ${variantClasses}`}
+                    className={`w-full text-left px-4 py-2.5 rounded-2xl text-sm font-semibold flex items-center gap-3 transition-colors min-h-[48px] ${
+                      item.disabled ? "cursor-not-allowed" : "cursor-pointer"
+                    } ${variantClasses}`}
                   >
                     {Icon && <Icon className="w-5 h-5 shrink-0 stroke-[2.2]" />}
-                    <span className="flex-1 truncate">{item.label}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{item.label}</div>
+                      {item.subtext && (
+                        <div className="text-[11px] font-normal text-slate-500 truncate mt-0.5">
+                          {item.subtext}
+                        </div>
+                      )}
+                    </div>
                   </button>
                 </React.Fragment>
               );
@@ -134,11 +190,16 @@ export function ContextMenu({
     );
   }
 
-  return (
+  const desktopContent = (
     <div
       ref={menuRef}
-      style={{ top: `${adjustedY}px`, left: `${adjustedX}px` }}
-      className="fixed z-50 min-w-[220px] bg-white border border-slate-200/90 rounded-2xl shadow-2xl py-1.5 animate-in fade-in zoom-in-95 duration-100 backdrop-blur-md select-none"
+      style={{
+        position: "fixed",
+        top: `${coords ? coords.top : Math.max(12, Math.min(y, (typeof window !== "undefined" ? window.innerHeight : 800) - 350))}px`,
+        left: `${coords ? coords.left : Math.max(12, Math.min(x, (typeof window !== "undefined" ? window.innerWidth : 1200) - 280))}px`,
+        zIndex: 99999,
+      }}
+      className="fixed z-[99999] min-w-[250px] max-w-[340px] max-h-[calc(100vh-24px)] overflow-y-auto bg-white border border-slate-200/90 rounded-2xl shadow-2xl py-1.5 animate-in fade-in zoom-in-95 duration-100 backdrop-blur-md select-none"
     >
       {title && (
         <div className="px-3.5 py-1.5 border-b border-slate-100 mb-1">
@@ -151,26 +212,40 @@ export function ContextMenu({
       <div className="space-y-0.5 px-1">
         {items.map((item, idx) => {
           const Icon = item.icon;
-          const variantClasses = {
-            default: "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
-            primary: "text-blue-700 hover:bg-blue-50 hover:text-blue-900",
-            success: "text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900",
-            danger: "text-rose-600 hover:bg-rose-50 hover:text-rose-800",
-          }[item.variant || "default"];
+          const variantClasses = item.disabled
+            ? "text-slate-400 opacity-60 cursor-not-allowed"
+            : {
+                default: "text-slate-700 hover:bg-slate-100 hover:text-slate-900",
+                primary: "text-blue-700 hover:bg-blue-50 hover:text-blue-900",
+                success: "text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900",
+                danger: "text-rose-600 hover:bg-rose-50 hover:text-rose-800",
+              }[item.variant || "default"];
 
           return (
             <React.Fragment key={idx}>
               {item.separator && <div className="h-px bg-slate-100 my-1 mx-2" />}
               <button
                 type="button"
+                disabled={item.disabled}
                 onClick={() => {
-                  item.onClick();
-                  onClose();
+                  if (!item.disabled) {
+                    item.onClick();
+                    onClose();
+                  }
                 }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-colors cursor-pointer ${variantClasses}`}
+                className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 transition-colors ${
+                  item.disabled ? "cursor-not-allowed" : "cursor-pointer"
+                } ${variantClasses}`}
               >
                 {Icon && <Icon className="w-4 h-4 shrink-0 stroke-[2.2]" />}
-                <span className="flex-1 truncate">{item.label}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate">{item.label}</div>
+                  {item.subtext && (
+                    <div className="text-[10px] font-normal text-slate-500 truncate">
+                      {item.subtext}
+                    </div>
+                  )}
+                </div>
               </button>
             </React.Fragment>
           );
@@ -178,4 +253,6 @@ export function ContextMenu({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(desktopContent, document.body) : desktopContent;
 }

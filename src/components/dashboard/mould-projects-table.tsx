@@ -49,11 +49,14 @@ import {
   Sparkles,
   Pencil,
   Check,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
-import type { ScanProject, Subplate } from "@/lib/supabase/types";
+import type { ScanProject, Subplate, User } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal, Drawer, ConfirmDialog } from "@/components/ui/dialog";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
 import { CreatePurchaseOrderModal } from "@/components/purchase/create-purchase-order-modal";
@@ -70,9 +73,13 @@ import {
 import { useSmartPrefetch } from "@/lib/query/prefetch";
 import { useLongPress } from "@/lib/hooks/use-long-press";
 import { useQueryClient, useIsRestoring } from "@tanstack/react-query";
-import { useSubplatesByProjectQuery } from "@/lib/query/hooks";
+import { useSubplatesByProjectQuery, useUsersQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import { broadcastQueryInvalidation } from "@/lib/query/realtime";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
+import { STAGE_DEFINITIONS, getAllowedStagesForUser, getSubplateProgressInfo } from "@/app/subplate/page";
+import { AssignStaffModal } from "@/components/subplate/assign-staff-modal";
 
 const REAL_MATERIALS = [
   "MS-Bright",
@@ -105,18 +112,29 @@ const SHAPES = SUPPORTED_SHAPES;
 function ProjectSubplatesRow({
   project,
   columnsCount,
+  staff = [],
   onAddPlate,
   onOpenView,
   onEditPlate,
   onDeletePlate,
+  onSubplateContextMenu,
 }: {
   project: ScanProject;
   columnsCount: number;
+  staff?: User[];
   onAddPlate: (p: ScanProject) => void;
   onOpenView: (p: ScanProject) => void;
   onEditPlate: (sp: Subplate, p: ScanProject) => void;
   onDeletePlate: (id: number, projectId?: number) => void;
+  onSubplateContextMenu?: (e: React.MouseEvent, sp: Subplate, p: ScanProject) => void;
 }) {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreateSubplate = hasPermission("action_create_subplate");
+  const canEditPlate = hasPermission("action_edit_subplate");
+  const canDeletePlate = hasPermission("action_delete_subplate");
+
   // 1. Instant 0ms Resolution: check if project already has subplates in memory
   const preloadedPlates = useMemo(() => {
     return Array.isArray(project.subplates) && project.subplates.length > 0 ? project.subplates : null;
@@ -158,14 +176,16 @@ function ProjectSubplatesRow({
             </div>
 
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onAddPlate(project)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-emerald-600/20 transition-all cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Add Subplate</span>
-              </button>
+              {canCreateSubplate && (
+                <button
+                  type="button"
+                  onClick={() => onAddPlate(project)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs hover:shadow-emerald-600/20 transition-all cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>Add Subplate</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => onOpenView(project)}
@@ -204,14 +224,16 @@ function ProjectSubplatesRow({
               <p className="text-xs text-slate-500 font-medium">
                 No subplates have been defined for this mould project yet.
               </p>
-              <button
-                type="button"
-                onClick={() => onAddPlate(project)}
-                className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add First Subplate</span>
-              </button>
+              {canCreateSubplate && (
+                <button
+                  type="button"
+                  onClick={() => onAddPlate(project)}
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add First Subplate</span>
+                </button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -238,7 +260,12 @@ function ProjectSubplatesRow({
                       unit: sp.unit || "mm",
                     });
                     return (
-                      <tr key={sp.id} className="hover:bg-slate-50/70 transition-colors">
+                      <tr
+                        key={sp.id}
+                        onContextMenu={(e) => onSubplateContextMenu?.(e, sp, project)}
+                        className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                        title="Right-click for options (Assign to Me)..."
+                      >
                         <td className="py-2.5 px-3 font-semibold text-slate-900">
                           {sp.platename}
                         </td>
@@ -274,28 +301,46 @@ function ProjectSubplatesRow({
                           {sp.sqty || 1}
                         </td>
                         <td className="py-2.5 px-3 text-center">
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Active
-                          </span>
+                          {(() => {
+                            const progress = getSubplateProgressInfo(sp, staff);
+                            return (
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] border font-bold ${progress.badgeStyle}`}
+                                title={progress.subtext}
+                              >
+                                <span className={`w-1.5 h-1.5 rounded-full ${progress.dotColor}`} />
+                                <span>{progress.badgeLabel}</span>
+                                {progress.assignee && (
+                                  <span className="font-mono text-[9px] opacity-80 font-normal ml-0.5">
+                                    ({progress.assignee})
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => onEditPlate(sp, project)}
-                              title="Edit Subplate"
-                              className="p-1 rounded-md hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeletePlate(sp.id, project.id)}
-                              title="Delete Subplate"
-                              className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {canEditPlate && (
+                              <button
+                                type="button"
+                                onClick={() => onEditPlate(sp, project)}
+                                title="Edit Subplate"
+                                className="p-1 rounded-md hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {canDeletePlate && (
+                              <button
+                                type="button"
+                                onClick={() => onDeletePlate(sp.id, project.id)}
+                                title="Delete Subplate"
+                                className="p-1 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -404,6 +449,65 @@ export function MouldProjectsTable({
   const [isCreatePOOpen, setIsCreatePOOpen] = useState(false);
 
   // Context Menu State for Right-Click
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+
+  const canCreateProject = hasPermission("action_create_scanning_project");
+  const canEditMould = hasPermission("action_edit_mould");
+  const canDeleteMould = hasPermission("action_delete_mould");
+  const canCreateSubplate = hasPermission("action_create_subplate");
+  const canEditSubplate = hasPermission("action_edit_subplate");
+  const canDeleteSubplate = hasPermission("action_delete_subplate");
+  const canCreatePurchase = hasPermission("action_create_purchase");
+  const canAssignStaff = hasPermission("action_assign_subplate_designer");
+
+  // Real-time permission revocation guard: auto-close modal if admin revokes permission while open
+  useEffect(() => {
+    if (addPlateProject && !canCreateSubplate) {
+      setAddPlateProject(null);
+      appStore.addToast({
+        type: "error",
+        message: "Access Denied: Permission to add subplates was revoked by administrator.",
+        duration: 5000,
+      });
+    }
+    if (editingSubplate && !canEditSubplate) {
+      setEditingSubplate(null);
+      appStore.addToast({
+        type: "error",
+        message: "Access Denied: Permission to edit subplates was revoked by administrator.",
+        duration: 5000,
+      });
+    }
+    if (isCreatePOOpen && !canCreatePurchase) {
+      setIsCreatePOOpen(false);
+      setCreatePOProject(null);
+      appStore.addToast({
+        type: "error",
+        message: "Access Denied: Permission to create purchase orders was revoked by administrator.",
+        duration: 5000,
+      });
+    }
+  }, [addPlateProject, editingSubplate, isCreatePOOpen, canCreateSubplate, canEditSubplate, canCreatePurchase]);
+
+  const { data: usersData } = useUsersQuery();
+  const users = usersData?.users || [];
+  const activeStaff = useMemo(() => {
+    return users.filter((u) => String(u.status) === "1" || u.status === 1);
+  }, [users]);
+
+  // Quick Staff Assignment Modal (Admin & Staff)
+  const [assignStaffModal, setAssignStaffModal] = useState<{
+    isOpen: boolean;
+    subplate: Subplate | null;
+    stage: (typeof STAGE_DEFINITIONS)[number] | null;
+  }>({
+    isOpen: false,
+    subplate: null,
+    stage: null,
+  });
+
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -415,6 +519,122 @@ export function MouldProjectsTable({
     isOpen: false,
     project: null,
   });
+
+  const [subplateContextMenu, setSubplateContextMenu] = useState<{
+    x: number;
+    y: number;
+    isOpen: boolean;
+    subplate: Subplate | null;
+    project?: ScanProject | null;
+  }>({
+    x: 0,
+    y: 0,
+    isOpen: false,
+    subplate: null,
+    project: null,
+  });
+
+  const handleSubplateContextMenu = (e: React.MouseEvent, sp: Subplate, project?: ScanProject | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSubplateContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      isOpen: true,
+      subplate: sp,
+      project,
+    });
+  };
+
+  const getTargetStageForSubplate = (sp: Subplate) => {
+    if (!currentUser) return STAGE_DEFINITIONS[0];
+    const roleId = Number(currentUser.role_id);
+    const roleName = (currentUser.role || "").toLowerCase();
+
+    let rolePreferredKey: string | null = null;
+    if (roleId === 3 || roleName.includes("designer")) {
+      rolePreferredKey = "design_by";
+    } else if (roleId === 5 || roleName.includes("purchase")) {
+      rolePreferredKey = "order_by";
+    } else if (roleId === 10 || roleName.includes("programmer")) {
+      rolePreferredKey = "received_qcby";
+    } else if (roleId === 6 || roleName.includes("vmc")) {
+      rolePreferredKey = "vmc_workby";
+    } else if (roleId === 7 || roleName.includes("qc") || roleName.includes("quality")) {
+      rolePreferredKey = !(sp as any).vmc_qcby ? "vmc_qcby" : "final_qcby";
+    } else if (roleId === 9 || roleName.includes("dispatch")) {
+      rolePreferredKey = "packing_workby";
+    }
+
+    if (rolePreferredKey) {
+      const matched = STAGE_DEFINITIONS.find((s) => s.key === rolePreferredKey);
+      if (matched) {
+        const currentVal = (sp as any)[matched.key];
+        if (!currentVal || Number(currentVal) === Number(currentUser.id)) {
+          return matched;
+        }
+      }
+    }
+
+    for (const stage of STAGE_DEFINITIONS) {
+      const val = (sp as any)[stage.key];
+      if (!val || Number(val) === 0) {
+        return stage;
+      }
+    }
+    return STAGE_DEFINITIONS[0];
+  };
+
+  const handleAssignSubplateToUser = async (subplateId: number, stageKey: string, userId: number) => {
+    // Non-admin users cannot unassign once assigned
+    if (!isAdmin && userId === 0) {
+      appStore.addToast({
+        type: "error",
+        message: "Once assigned, only Administrators can unassign or reassign a production stage.",
+      });
+      return;
+    }
+
+    const newUserId = userId === 0 ? null : userId;
+    const stageDef = STAGE_DEFINITIONS.find((s) => s.key === stageKey);
+    const staffMember = activeStaff.find((u) => u.id === userId);
+    const staffName = newUserId ? (staffMember?.name || staffMember?.initials || `Staff #${userId}`) : null;
+    const nowIso = newUserId ? new Date().toISOString() : null;
+
+    try {
+      const res = await fetch("/api/subplate", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: subplateId,
+          updates: {
+            [stageKey]: newUserId,
+            ...(stageDef ? { [stageDef.nameKey]: staffName, [stageDef.atKey]: nowIso } : {}),
+          },
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update subplate assignment");
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
+      onRefresh?.();
+      appStore.addToast({
+        type: "success",
+        message: userId === 0 ? "Stage unassigned successfully" : `Assigned to ${staffName || "staff"} successfully`,
+      });
+    } catch (err: any) {
+      appStore.addToast({
+        type: "error",
+        message: err.message || "Failed to update stage assignment",
+      });
+    }
+  };
 
   const handleRowContextMenu = (e: React.MouseEvent, project: ScanProject) => {
     e.preventDefault();
@@ -808,10 +1028,21 @@ export function MouldProjectsTable({
       setAddPlateProject(null);
       onRefresh?.();
     } catch (err: any) {
-      appStore.addToast({
-        type: "error",
-        message: "Error saving subplate: " + err.message,
-      });
+      const errMsg = err?.message || "Error saving subplate";
+      if (errMsg.toLowerCase().includes("permission") || errMsg.toLowerCase().includes("access denied")) {
+        setEditingSubplate(null);
+        setAddPlateProject(null);
+        appStore.addToast({
+          type: "error",
+          message: "Access Denied: Your permission was revoked by administrator.",
+          duration: 5000,
+        });
+      } else {
+        appStore.addToast({
+          type: "error",
+          message: "Error saving subplate: " + errMsg,
+        });
+      }
     } finally {
       setIsSubmittingPlate(false);
     }
@@ -882,6 +1113,28 @@ export function MouldProjectsTable({
     return Array.from(set).sort();
   }, [data]);
 
+  const dashboardCustomerOptions: ERPSelectOption[] = useMemo(() => [
+    { value: "ALL", label: `All Customers (${uniqueCustomers.length})` },
+    ...uniqueCustomers.map((cust) => ({ value: cust, label: cust })),
+  ], [uniqueCustomers]);
+
+
+
+  const modalPlateShapeOptions: ERPSelectOption[] = SUPPORTED_SHAPES.map((s) => ({ value: s, label: s }));
+
+  const modalPlateMaterialOptions: ERPSelectOption[] = Object.keys(MATERIAL_DENSITIES).map((m) => ({
+    value: m,
+    label: m,
+    subtitle: `${MATERIAL_DENSITIES[m] || 7.81} g/cm³`,
+  }));
+
+  const modalPlateLocationOptions: ERPSelectOption[] = [
+    { value: "SM", label: "SM — In-House Production" },
+    { value: "Vendor", label: "Vendor — Outward Jobwork" },
+  ];
+
+  const modalPlateUnitOptions: ERPSelectOption[] = SUPPORTED_UNITS.map((u) => ({ value: u, label: u }));
+
   const uniqueWorktypes = useMemo(() => {
     const set = new Set<string>();
     data.forEach((d) => {
@@ -889,6 +1142,13 @@ export function MouldProjectsTable({
     });
     return Array.from(set).sort();
   }, [data]);
+
+  const dashboardWorktypeOptions: ERPSelectOption[] = useMemo(() => [
+    { value: "ALL", label: `All Work Types (${uniqueWorktypes.length})` },
+    ...uniqueWorktypes.map((wt) => ({ value: wt, label: wt })),
+  ], [uniqueWorktypes]);
+
+
 
   // Filtered dataset
   const filteredData = useMemo(() => {
@@ -1058,32 +1318,38 @@ export function MouldProjectsTable({
             >
               <Eye className="h-3.5 w-3.5" />
             </button>
-            <button
-              onClick={() => handleOpenAddPlate(row.original)}
-              title="Add Subplate"
-              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors cursor-pointer"
-            >
-              <Plus className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={() => handleCreatePO(row.original)}
-              title="Create PO"
-              className="p-1.5 rounded-md hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors cursor-pointer"
-            >
-              <ShoppingCart className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={() => handleDeleteSingleProject(row.original)}
-              title="Delete Mould"
-              className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
+            {canCreateSubplate && (
+              <button
+                onClick={() => handleOpenAddPlate(row.original)}
+                title="Add Subplate"
+                className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {canCreatePurchase && (
+              <button
+                onClick={() => handleCreatePO(row.original)}
+                title="Create PO"
+                className="p-1.5 rounded-md hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors cursor-pointer"
+              >
+                <ShoppingCart className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {canDeleteMould && (
+              <button
+                onClick={() => handleDeleteSingleProject(row.original)}
+                title="Delete Mould"
+                className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
         ),
       }),
     ],
-    []
+    [canCreateSubplate, canCreatePurchase, canDeleteMould]
   );
 
   const table = useReactTable({
@@ -1250,41 +1516,27 @@ export function MouldProjectsTable({
           </div>
 
           {/* Filters: 2-column on mobile, inline on desktop */}
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-2.5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             {/* Customer Dropdown */}
-            <div className="relative">
-              <select
+            <div className="w-full sm:w-48 min-w-0">
+              <ERPSelect
                 value={selectedCustomer}
-                suppressHydrationWarning
-                onChange={(e) => setSelectedCustomer(e.target.value)}
-                className="w-full sm:w-auto min-w-[130px] pl-2.5 pr-7 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium truncate shadow-2xs appearance-none cursor-pointer"
-              >
-                <option value="ALL">All Customers</option>
-                {uniqueCustomers.map((cust) => (
-                  <option key={cust} value={cust}>
-                    {cust}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="h-3 w-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                onChange={(val) => setSelectedCustomer(String(val))}
+                options={dashboardCustomerOptions}
+                placeholder="All Customers"
+                searchPlaceholder="Search customer..."
+              />
             </div>
 
             {/* Work Type Dropdown */}
-            <div className="relative">
-              <select
+            <div className="w-full sm:w-40 min-w-0">
+              <ERPSelect
                 value={selectedWorktype}
-                suppressHydrationWarning
-                onChange={(e) => setSelectedWorktype(e.target.value)}
-                className="w-full sm:w-auto min-w-[130px] pl-2.5 pr-7 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium truncate shadow-2xs appearance-none cursor-pointer"
-              >
-                <option value="ALL">All Work Types</option>
-                {uniqueWorktypes.map((wt) => (
-                  <option key={wt} value={wt}>
-                    {wt}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="h-3 w-3 absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                onChange={(val) => setSelectedWorktype(String(val))}
+                options={dashboardWorktypeOptions}
+                placeholder="All Work Types"
+                showSearch={false}
+              />
             </div>
           </div>
         </div>
@@ -1301,15 +1553,19 @@ export function MouldProjectsTable({
                 >
                   Done
                 </button>
-                <span>•</span>
-                <button
-                  onClick={handleBatchDelete}
-                  className="text-rose-600 hover:text-rose-700 text-[11px] cursor-pointer flex items-center gap-1"
-                  title="Delete selected moulds"
-                >
-                  <Trash2 className="h-3.5 w-3.5 inline" />
-                  <span>Delete</span>
-                </button>
+                {canDeleteMould && (
+                  <>
+                    <span>•</span>
+                    <button
+                      onClick={handleBatchDelete}
+                      className="text-rose-600 hover:text-rose-700 text-[11px] cursor-pointer flex items-center gap-1"
+                      title="Delete selected moulds"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 inline" />
+                      <span>Delete</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1448,10 +1704,12 @@ export function MouldProjectsTable({
                       <ProjectSubplatesRow
                         project={project}
                         columnsCount={columns.length}
+                        staff={activeStaff}
                         onAddPlate={handleOpenAddPlate}
                         onOpenView={handleOpenView}
                         onEditPlate={handleOpenEditPlate}
                         onDeletePlate={handleDeleteSubplate}
+                        onSubplateContextMenu={handleSubplateContextMenu}
                       />
                     )}
                   </React.Fragment>
@@ -1501,27 +1759,33 @@ export function MouldProjectsTable({
                     >
                       <Eye className="h-3 w-3" />
                     </button>
-                    <button
-                      onClick={() => handleOpenAddPlate(m)}
-                      title="Add Subplate"
-                      className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 cursor-pointer"
-                    >
-                      <Plus className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => handleCreatePO(m)}
-                      title="Create PO"
-                      className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-amber-600 cursor-pointer"
-                    >
-                      <ShoppingCart className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteSingleProject(m)}
-                      title="Delete Mould"
-                      className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-rose-600 cursor-pointer"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
+                    {canCreateSubplate && (
+                      <button
+                        onClick={() => handleOpenAddPlate(m)}
+                        title="Add Subplate"
+                        className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-emerald-600 cursor-pointer"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    )}
+                    {canCreatePurchase && (
+                      <button
+                        onClick={() => handleCreatePO(m)}
+                        title="Create PO"
+                        className="p-1 rounded bg-white border border-slate-200 text-slate-500 hover:text-amber-600 cursor-pointer"
+                      >
+                        <ShoppingCart className="h-3 w-3" />
+                      </button>
+                    )}
+                    {canDeleteMould && (
+                      <button
+                        onClick={() => handleDeleteSingleProject(m)}
+                        title="Delete Mould"
+                        className="p-1 rounded bg-white border border-slate-200 text-slate-400 hover:text-rose-600 cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="font-medium text-slate-800 line-clamp-2">
@@ -1653,14 +1917,16 @@ export function MouldProjectsTable({
               <span className="text-xs font-semibold text-slate-500">
                 {viewSubplates.length} Subplates Linked
               </span>
-              <MotionButton
-                variant="primary"
-                size="xs"
-                onClick={() => handleOpenAddPlate(viewProject)}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Subplate</span>
-              </MotionButton>
+              {canCreateSubplate && (
+                <MotionButton
+                  variant="primary"
+                  size="xs"
+                  onClick={() => handleOpenAddPlate(viewProject)}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Subplate</span>
+                </MotionButton>
+              )}
             </div>
 
             {isLoadingSubplates ? (
@@ -1681,7 +1947,9 @@ export function MouldProjectsTable({
                 {viewSubplates.map((sp) => (
                   <div
                     key={sp.id}
-                    className="p-3.5 bg-white hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    onContextMenu={(e) => handleSubplateContextMenu(e, sp, viewProject)}
+                    className="p-3.5 bg-white hover:bg-slate-50/70 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs cursor-pointer"
+                    title="Right-click for options (Assign to Me)..."
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
@@ -1774,20 +2042,24 @@ export function MouldProjectsTable({
                           PAK
                         </span>
                       </div>
-                      <button
-                        onClick={() => handleOpenEditPlate(sp, viewProject)}
-                        title="Edit Subplate"
-                        className="btn-interactive p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteSubplate(sp.id, viewProject.id)}
-                        title="Delete Subplate"
-                        className="btn-interactive p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      {canEditSubplate && (
+                        <button
+                          onClick={() => handleOpenEditPlate(sp, viewProject)}
+                          title="Edit Subplate"
+                          className="btn-interactive p-1.5 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canDeleteSubplate && (
+                        <button
+                          onClick={() => handleDeleteSubplate(sp.id, viewProject.id)}
+                          title="Delete Subplate"
+                          className="btn-interactive p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1874,17 +2146,13 @@ export function MouldProjectsTable({
                   <Compass className="w-3.5 h-3.5 text-cyan-600" />
                   <span>Shape</span>
                 </label>
-                <select
+                <ERPSelect
                   value={plateForm.shape}
-                  onChange={(e) => handleDimensionChange("shape", e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-                >
-                  {SHAPES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleDimensionChange("shape", String(val))}
+                  options={modalPlateShapeOptions}
+                  showSearch={false}
+                  placeholder="Shape"
+                />
               </div>
 
               {/* Material (5 cols) */}
@@ -1898,17 +2166,13 @@ export function MouldProjectsTable({
                     {MATERIAL_DENSITIES[plateForm.material] || 7.81} g/cm³
                   </span>
                 </label>
-                <select
+                <ERPSelect
                   value={plateForm.material}
-                  onChange={(e) => handleDimensionChange("material", e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-                >
-                  {REAL_MATERIALS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(val) => handleDimensionChange("material", String(val))}
+                  options={modalPlateMaterialOptions}
+                  searchPlaceholder="Search material..."
+                  placeholder="Material"
+                />
               </div>
 
               {/* Quantity with Aligned Stepper (3 cols) */}
@@ -2129,17 +2393,13 @@ export function MouldProjectsTable({
                   </>
                 )}
                 <div>
-                  <select
+                  <ERPSelect
                     value={plateForm.unit || "mm"}
-                    onChange={(e) => handleDimensionChange("unit", e.target.value)}
-                    className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-                  >
-                    {SUPPORTED_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(val) => handleDimensionChange("unit", String(val))}
+                    options={modalPlateUnitOptions}
+                    showSearch={false}
+                    placeholder="Unit"
+                  />
                 </div>
               </div>
             </div>
@@ -2197,14 +2457,13 @@ export function MouldProjectsTable({
                   <MapPin className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Production Routing</span>
                 </label>
-                <select
+                <ERPSelect
                   value={plateForm.location}
-                  onChange={(e) => setPlateForm({ ...plateForm, location: e.target.value })}
-                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-                >
-                  <option value="SM">SM — In-House Production</option>
-                  <option value="Vendor">Vendor — Outward Jobwork</option>
-                </select>
+                  onChange={(val) => setPlateForm({ ...plateForm, location: String(val) })}
+                  options={modalPlateLocationOptions}
+                  showSearch={false}
+                  placeholder="Routing"
+                />
               </div>
               <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">
                 <span
@@ -2275,26 +2534,34 @@ export function MouldProjectsTable({
         items={
           contextMenu.project
             ? [
-                {
-                  label: "Add Subplate",
-                  icon: Plus,
-                  variant: "primary",
-                  onClick: () => {
-                    if (contextMenu.project) handleOpenAddPlate(contextMenu.project);
-                  },
-                },
-                {
-                  label: "Create Purchase PO",
-                  icon: ShoppingCart,
-                  variant: "primary",
-                  onClick: () => {
-                    if (contextMenu.project) handleCreatePO(contextMenu.project);
-                  },
-                },
+                ...(canCreateSubplate
+                  ? [
+                      {
+                        label: "Add Subplate",
+                        icon: Plus,
+                        variant: "primary" as const,
+                        onClick: () => {
+                          if (contextMenu.project) handleOpenAddPlate(contextMenu.project);
+                        },
+                      },
+                    ]
+                  : []),
+                ...(canCreatePurchase
+                  ? [
+                      {
+                        label: "Create Purchase PO",
+                        icon: ShoppingCart,
+                        variant: "primary" as const,
+                        onClick: () => {
+                          if (contextMenu.project) handleCreatePO(contextMenu.project);
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   label: "View Subplates",
                   icon: Eye,
-                  variant: "default",
+                  variant: "default" as const,
                   onClick: () => {
                     if (contextMenu.project) handleOpenView(contextMenu.project);
                   },
@@ -2305,23 +2572,190 @@ export function MouldProjectsTable({
                       ? "Mark In Progress"
                       : "Mark Completed",
                   icon: CheckCircle2,
-                  variant: "success",
+                  variant: "success" as const,
                   onClick: () => {
                     if (contextMenu.project) handleToggleProjectStatus(contextMenu.project);
                   },
                 },
-                {
-                  label: "Delete Mould",
-                  icon: Trash2,
-                  variant: "danger",
-                  separator: true,
-                  onClick: () => {
-                    if (contextMenu.project) handleDeleteSingleProject(contextMenu.project);
-                  },
-                },
+                ...(canDeleteMould
+                  ? [
+                      {
+                        label: "Delete Mould",
+                        icon: Trash2,
+                        variant: "danger" as const,
+                        separator: true,
+                        onClick: () => {
+                          if (contextMenu.project) handleDeleteSingleProject(contextMenu.project);
+                        },
+                      },
+                    ]
+                  : []),
               ]
             : []
         }
+      />
+
+      {/* Right-Click Floating Context Menu on Subplate */}
+      {subplateContextMenu.subplate && (
+        <ContextMenu
+          x={subplateContextMenu.x}
+          y={subplateContextMenu.y}
+          isOpen={subplateContextMenu.isOpen}
+          onClose={() =>
+            setSubplateContextMenu((prev) => ({ ...prev, isOpen: false, subplate: null, project: null }))
+          }
+          title={`${subplateContextMenu.subplate.platename} #${subplateContextMenu.subplate.id} • ${
+            subplateContextMenu.subplate.subprojectid ||
+            subplateContextMenu.project?.projectid ||
+            "Subplate"
+          }`}
+          items={(() => {
+            const sp = subplateContextMenu.subplate;
+            if (!sp) return [];
+
+            const targetStage = getTargetStageForSubplate(sp);
+            const targetVal = (sp as any)[targetStage.key];
+            const isAlreadyAssignedToMe = Boolean(
+              currentUser?.id && Number(targetVal) === Number(currentUser.id)
+            );
+            const isAssignedToOther = Boolean(targetVal && targetVal !== 0 && !isAlreadyAssignedToMe);
+            const currentUserId = Number(currentUser?.id);
+
+            const items: ContextMenuItem[] = [];
+
+            if (isAdmin || canAssignStaff) {
+              // =====================================================================
+              // ADMIN ACTIONS:
+              // Show all 9 production stages with department-targeted actions:
+              // - If assigned: "Unassign [Staff Name] ([Stage])" (Danger Red)
+              // - If unassigned: "Assign to [Department]" (e.g. "Assign to Designer", "Assign to VMC Work", etc.)
+              // =====================================================================
+              STAGE_DEFINITIONS.forEach((st) => {
+                const val = (sp as any)[st.key];
+                const isDone = Boolean(val && val !== 0);
+                const staffMember = activeStaff.find((u) => u.id === Number(val));
+                const rawName = (sp as any)[st.nameKey];
+                const validRawName = rawName && rawName !== "-" ? rawName : null;
+                const staffName = validRawName || staffMember?.name || staffMember?.initials || `Staff #${val}`;
+
+                if (isDone) {
+                  items.push({
+                    label: `Unassign ${staffName} (${st.label.replace(/^\d+\.\s*/, "")})`,
+                    subtext: `Stage ${st.step} • Click to unassign staff`,
+                    icon: UserX,
+                    variant: "danger",
+                    onClick: () => handleAssignSubplateToUser(sp.id, st.key, 0),
+                  });
+                } else {
+                  items.push({
+                    label: st.assignTitle,
+                    subtext: `Stage ${st.step} • Click to select staff`,
+                    icon: UserCheck,
+                    variant: "primary",
+                    onClick: () => {
+                      setAssignStaffModal({
+                        isOpen: true,
+                        subplate: sp,
+                        stage: st,
+                      });
+                    },
+                  });
+                }
+              });
+
+              // Admin & Authorized Management Utilities
+              if (canEditSubplate) {
+                items.push({
+                  separator: true,
+                  label: "Edit Subplate Specifications",
+                  icon: Pencil,
+                  onClick: () => handleOpenEditPlate(sp, subplateContextMenu.project),
+                });
+              }
+            } else {
+              // =====================================================================
+              // NON-ADMIN ACTIONS (Strictly single department stage):
+              // =====================================================================
+              const allowedStages = getAllowedStagesForUser(currentUser, false);
+
+              if (!currentUserId) {
+                items.push({
+                  label: "Assign to Me",
+                  subtext: "Please login to assign tasks to your account",
+                  icon: UserCheck,
+                  disabled: true,
+                  onClick: () => {},
+                });
+              } else if (allowedStages.length === 0) {
+                items.push({
+                  label: "No Assigned Department Stages",
+                  subtext: "Your role has no stage assignment permissions",
+                  icon: Lock,
+                  disabled: true,
+                  onClick: () => {},
+                });
+              } else {
+                allowedStages.forEach((st) => {
+                  const val = (sp as any)[st.key];
+                  const isDone = Boolean(val && val !== 0);
+                  const isMine = Boolean(currentUserId && Number(val) === currentUserId);
+                  const isOther = isDone && !isMine;
+                  const staffMember = activeStaff.find((u) => u.id === Number(val));
+                  const rawName = (sp as any)[st.nameKey];
+                  const validRawName = rawName && rawName !== "-" ? rawName : null;
+                  const name = validRawName || staffMember?.name || staffMember?.initials || "staff";
+
+                  if (isMine) {
+                    items.push({
+                      label: `${st.label.replace(/^\d+\.\s*/, "")} (Assigned to You)`,
+                      subtext: `Assigned to you • Only Admin can unassign`,
+                      icon: CheckCircle2,
+                      variant: "success",
+                      disabled: true,
+                      onClick: () => {},
+                    });
+                  } else if (isOther) {
+                    items.push({
+                      label: `${st.label.replace(/^\d+\.\s*/, "")} (Assigned)`,
+                      subtext: `Assigned to ${name} • Only Admin can reassign`,
+                      icon: Lock,
+                      disabled: true,
+                      onClick: () => {},
+                    });
+                  } else {
+                    items.push({
+                      label: `Assign to Me (${st.label.replace(/^\d+\.\s*/, "")})`,
+                      subtext: `Stage ${st.step} • Click to assign to yourself`,
+                      icon: UserCheck,
+                      variant: "primary",
+                      onClick: () => handleAssignSubplateToUser(sp.id, st.key, currentUserId),
+                    });
+                  }
+                });
+              }
+            }
+
+            return items;
+          })()}
+        />
+      )}
+
+      {/* Quick Staff Assignment Modal (Admin & Staff) */}
+      <AssignStaffModal
+        isOpen={assignStaffModal.isOpen}
+        onClose={() =>
+          setAssignStaffModal({
+            isOpen: false,
+            subplate: null,
+            stage: null,
+          })
+        }
+        subplate={assignStaffModal.subplate}
+        stage={assignStaffModal.stage}
+        staff={activeStaff}
+        currentUser={currentUser}
+        isAdmin={isAdmin}
+        onAssign={handleAssignSubplateToUser}
       />
 
       {/* Website Custom Delete & Action Confirmation Modal */}

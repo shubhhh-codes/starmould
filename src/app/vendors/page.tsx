@@ -41,6 +41,7 @@ import {
     useDeleteVendorMutation,
 } from "@/lib/query/hooks";
 import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 // Supported exact usertypes derived directly from legacy customer/index.blade.php & CustomerController.php
 export type UsertypeOption = "Customer" | "Vendor" | "Transport" | "Other";
@@ -76,6 +77,10 @@ function CustomerPageContent() {
     const searchParams = useSearchParams();
     const { currentUser } = useAuth();
     const isAdmin = currentUser?.role_id === 0;
+    const { hasPermission } = useRolePermissions();
+    const canCreateVendor = hasPermission("action_create_vendor");
+    const canEditVendor = hasPermission("action_edit_vendor");
+    const canDeleteVendor = hasPermission("action_delete_vendor");
 
     const tabParam = searchParams?.get("tab") as UsertypeOption | "All" | null;
     const urlSearch = searchParams?.get("search") || searchParams?.get("q") || "";
@@ -311,11 +316,7 @@ function CustomerPageContent() {
 
     // Handle open Edit modal
     const handleOpenEdit = (customer: any) => {
-        if (!isAdmin && customer.usertype === "Customer") {
-            showNotification(
-                "error",
-                "Access Denied: Customer records can only be modified by Administrators.",
-            );
+        if (!canEditVendor) {
             return;
         }
         setModalMode("edit");
@@ -538,11 +539,7 @@ function CustomerPageContent() {
     // Handle soft delete via live Supabase API
     const handleConfirmDelete = async () => {
         if (!deleteTarget) return;
-        if (!isAdmin && deleteTarget.usertype === "Customer") {
-            showNotification(
-                "error",
-                "Access Denied: Customer records can only be deleted by Administrators.",
-            );
+        if (!canDeleteVendor) {
             setDeleteTarget(null);
             return;
         }
@@ -756,7 +753,7 @@ function CustomerPageContent() {
                         )}
 
                         {/* Creation Button for Vendors / Transporters / Others */}
-                        {!isCustomerMode && (
+                        {!isCustomerMode && canCreateVendor && (
                             <button
                                 onClick={() => handleOpenAdd(activeTab === "Transport" ? "Transport" : activeTab === "Other" ? "Other" : "Vendor")}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs shadow-indigo-600/30 transition active:scale-95 cursor-pointer"
@@ -778,12 +775,14 @@ function CustomerPageContent() {
                                 <strong>Customer Directory (Read-Only)</strong>: Customer creation and modifications are restricted exclusively to System Administrators. You can view contact and billing details.
                             </span>
                         </div>
-                        <button
-                            onClick={() => handleOpenAdd("Vendor")}
-                            className="px-3 py-1 bg-amber-200/70 hover:bg-amber-200 text-amber-900 font-semibold text-[11px] rounded-lg border border-amber-300 transition shrink-0 cursor-pointer self-start sm:self-auto"
-                        >
-                            + Add Vendor / Partner Instead
-                        </button>
+                        {canCreateVendor && (
+                            <button
+                                onClick={() => handleOpenAdd("Vendor")}
+                                className="px-3 py-1 bg-amber-200/70 hover:bg-amber-200 text-amber-900 font-semibold text-[11px] rounded-lg border border-amber-300 transition shrink-0 cursor-pointer self-start sm:self-auto"
+                            >
+                                + Add Vendor / Partner Instead
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -995,40 +994,28 @@ function CustomerPageContent() {
                                                     </span>
                                                 </td>
 
-                                                {/* Actions: Edit & Delete with Admin RBAC Guards */}
+                                                {/* Actions: Edit & Delete with RBAC Guards */}
                                                 <td className="py-3 px-4 text-right whitespace-nowrap">
                                                     <div className="flex items-center justify-end gap-1.5">
-                                                        {isCustomerRecord && !isAdmin ? (
-                                                            <span
-                                                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200"
-                                                                title="Only Administrators can edit Customer profiles"
+                                                        {canEditVendor && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleOpenEdit(c)
+                                                                }
+                                                                className="px-2.5 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition cursor-pointer"
                                                             >
-                                                                <Lock className="w-3 h-3" />
-                                                                Admin Only
-                                                            </span>
-                                                        ) : (
-                                                            <>
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleOpenEdit(
-                                                                            c,
-                                                                        )
-                                                                    }
-                                                                    className="px-2.5 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition cursor-pointer"
-                                                                >
-                                                                    Edit
-                                                                </button>
-                                                                <button
-                                                                    onClick={() =>
-                                                                        setDeleteTarget(
-                                                                            c,
-                                                                        )
-                                                                    }
-                                                                    className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition cursor-pointer"
-                                                                >
-                                                                    Delete
-                                                                </button>
-                                                            </>
+                                                                Edit
+                                                            </button>
+                                                        )}
+                                                        {canDeleteVendor && (
+                                                            <button
+                                                                onClick={() =>
+                                                                    setDeleteTarget(c)
+                                                                }
+                                                                className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition cursor-pointer"
+                                                            >
+                                                                Delete
+                                                            </button>
                                                         )}
                                                     </div>
                                                 </td>
@@ -1152,33 +1139,25 @@ function CustomerPageContent() {
                                         )}
 
                                         <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60">
-                                            {isCustomerRecord && !isAdmin ? (
-                                                <span
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-slate-400 bg-slate-100 rounded-lg border border-slate-200"
-                                                    title="Only Administrators can edit Customer profiles"
+                                            {canEditVendor && (
+                                                <button
+                                                    onClick={() =>
+                                                        handleOpenEdit(c)
+                                                    }
+                                                    className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
                                                 >
-                                                    <Lock className="w-3 h-3" />
-                                                    Admin Restricted
-                                                </span>
-                                            ) : (
-                                                <>
-                                                    <button
-                                                        onClick={() =>
-                                                            handleOpenEdit(c)
-                                                        }
-                                                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
-                                                    >
-                                                        Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() =>
-                                                            setDeleteTarget(c)
-                                                        }
-                                                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
-                                                    >
-                                                        Delete
-                                                    </button>
-                                                </>
+                                                    Edit
+                                                </button>
+                                            )}
+                                            {canDeleteVendor && (
+                                                <button
+                                                    onClick={() =>
+                                                        setDeleteTarget(c)
+                                                    }
+                                                    className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                                                >
+                                                    Delete
+                                                </button>
                                             )}
                                         </div>
                                     </div>

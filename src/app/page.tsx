@@ -17,6 +17,8 @@ import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 import { NewMouldModal } from "@/components/mould/new-mould-modal";
 import { clearLocalProjectsStore } from "@/lib/cache/projects-local-store";
 import { appStore } from "@/lib/state/store";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 /**
  * Buttery smooth animated counter using requestAnimationFrame with cubic deceleration
@@ -125,10 +127,20 @@ function SmoothProgressPill({
 }
 
 export default function DashboardPage() {
+  const [isMounted, setIsMounted] = useState(false);
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canCreateProject = hasPermission("action_create_scanning_project");
+  const canDeleteMould = hasPermission("action_delete_mould");
   const [activeStage, setActiveStage] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const isRestoring = useIsRestoring();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // If user visits with ?fresh in URL, reset local store for cold-start testing
   useEffect(() => {
@@ -247,6 +259,20 @@ export default function DashboardPage() {
     if (pipeline) {
       return {
         scantotal: Number(pipeline.scantotal ?? 0),
+        designPending: Number(pipeline.designPending ?? pipeline.designby ?? 0),
+        designCompleted: Number(pipeline.designCompleted ?? 0),
+        orderPending: Number(pipeline.orderPending ?? pipeline.orderbytotal ?? 0),
+        orderCompleted: Number(pipeline.orderCompleted ?? 0),
+        programmingPending: Number(pipeline.programmingPending ?? pipeline.receivedqcby ?? 0),
+        programmingCompleted: Number(pipeline.programmingCompleted ?? 0),
+        vmcPending: Number(pipeline.vmcPending ?? pipeline.vmcworkby ?? 0),
+        vmcCompleted: Number(pipeline.vmcCompleted ?? 0),
+        drilltapPending: Number(pipeline.drilltapPending ?? pipeline.drilltapworkby ?? 0),
+        drilltapCompleted: Number(pipeline.drilltapCompleted ?? 0),
+        finalqcPending: Number(pipeline.finalqcPending ?? pipeline.finalqcby ?? 0),
+        finalqcCompleted: Number(pipeline.finalqcCompleted ?? 0),
+        packingPending: Number(pipeline.packingPending ?? pipeline.packingworkby ?? 0),
+        packingCompleted: Number(pipeline.packingCompleted ?? 0),
         designby: Number(pipeline.designby ?? 0),
         orderbytotal: Number(pipeline.orderbytotal ?? 0),
         receivedqcby: Number(pipeline.receivedqcby ?? 0),
@@ -265,6 +291,20 @@ export default function DashboardPage() {
     }
     return {
       scantotal: 0,
+      designPending: 0,
+      designCompleted: 0,
+      orderPending: 0,
+      orderCompleted: 0,
+      programmingPending: 0,
+      programmingCompleted: 0,
+      vmcPending: 0,
+      vmcCompleted: 0,
+      drilltapPending: 0,
+      drilltapCompleted: 0,
+      finalqcPending: 0,
+      finalqcCompleted: 0,
+      packingPending: 0,
+      packingCompleted: 0,
       designby: 0,
       orderbytotal: 0,
       receivedqcby: 0,
@@ -361,26 +401,30 @@ export default function DashboardPage() {
             />
             <span suppressHydrationWarning>{isRefreshing ? "Syncing..." : "Refresh"}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setIsCreateModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>New Mould Entry</span>
-          </button>
+          {isMounted && canCreateProject && (
+            <button
+              type="button"
+              onClick={() => setIsCreateModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>New Mould Entry</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 7 Core Pipeline Stage Cards */}
-      <div suppressHydrationWarning>
-        <PipelineStatGrid
-          stats={stats}
-          activeStage={activeStage}
-          onSelectStage={setActiveStage}
-          isLoading={false}
-        />
-      </div>
+      {/* 7 Core Pipeline Stage Cards - Admin Only */}
+      {isMounted && isAdmin && (
+        <div suppressHydrationWarning>
+          <PipelineStatGrid
+            stats={stats}
+            activeStage={activeStage}
+            onSelectStage={setActiveStage}
+            isLoading={false}
+          />
+        </div>
+      )}
 
       {/* Main Dense Data Grid */}
       <div className="space-y-3">
@@ -443,22 +487,24 @@ export default function DashboardPage() {
       </div>
 
       {/* New Mould Entry Quick Modal */}
-      <NewMouldModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        customers={projectsStream.customers}
-        onSuccess={async () => {
-          await Promise.all([
-            projectsStream.refetch(),
-            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() }),
-            queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() }),
-          ]);
-          broadcastQueryInvalidation(queryKeys.dashboard.counts());
-          broadcastQueryInvalidation(queryKeys.purchases.all());
-          broadcastQueryInvalidation(queryKeys.subplates.all());
-        }}
-      />
+      {isMounted && canCreateProject && (
+        <NewMouldModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          customers={projectsStream.customers}
+          onSuccess={async () => {
+            await Promise.all([
+              projectsStream.refetch(),
+              queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() }),
+              queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() }),
+            ]);
+            broadcastQueryInvalidation(queryKeys.dashboard.counts());
+            broadcastQueryInvalidation(queryKeys.purchases.all());
+            broadcastQueryInvalidation(queryKeys.subplates.all());
+          }}
+        />
+      )}
     </AppLayout>
   );
 }

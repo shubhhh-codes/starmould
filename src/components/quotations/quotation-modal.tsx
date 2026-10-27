@@ -9,6 +9,7 @@ import { calculateGST, formatINRTwoDecimals, type TaxType } from "@/lib/gst-calc
 import { CustomerSelect } from "@/components/ui/customer-select";
 import { QuickCustomerModal } from "./quick-customer-modal";
 import { useCustomerDropdownQuery } from "@/lib/query/hooks";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import type { Customer } from "@/lib/supabase/types";
 
 interface QuotationModalProps {
@@ -103,8 +104,17 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const [notes, setNotes] = useState("");
 
   // Quick Customer Creation
+  const { hasPermission } = useRolePermissions();
+  const canCreateCustomer = hasPermission("action_create_customer");
   const [isQuickCustomerOpen, setIsQuickCustomerOpen] = useState(false);
   const [quickCustomerInitialName, setQuickCustomerInitialName] = useState("");
+
+  // Auto-close quick customer modal if permission is revoked in real-time
+  useEffect(() => {
+    if (isQuickCustomerOpen && !canCreateCustomer) {
+      setIsQuickCustomerOpen(false);
+    }
+  }, [isQuickCustomerOpen, canCreateCustomer]);
 
   // Items
   const [items, setItems] = useState<any[]>([
@@ -621,10 +631,14 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       setConsigneeEmail("");
                     }
                   }}
-                  onAddNew={(initialQuery) => {
-                    setQuickCustomerInitialName(initialQuery || "");
-                    setIsQuickCustomerOpen(true);
-                  }}
+                  onAddNew={
+                    canCreateCustomer
+                      ? (initialQuery) => {
+                          setQuickCustomerInitialName(initialQuery || "");
+                          setIsQuickCustomerOpen(true);
+                        }
+                      : undefined
+                  }
                   placeholder="Select customer..."
                   filterUserType="Customer"
                   required
@@ -1525,13 +1539,15 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         initialTab={presetModalTab}
       />
 
-      {/* Quick Customer Modal */}
-      <QuickCustomerModal
-        isOpen={isQuickCustomerOpen}
-        onClose={() => setIsQuickCustomerOpen(false)}
-        initialName={quickCustomerInitialName}
-        onCustomerCreated={handleQuickCustomerCreated}
-      />
+      {/* Quick Customer Modal (Only rendered if user has customer creation permission) */}
+      {canCreateCustomer && (
+        <QuickCustomerModal
+          isOpen={isQuickCustomerOpen}
+          onClose={() => setIsQuickCustomerOpen(false)}
+          initialName={quickCustomerInitialName}
+          onCustomerCreated={handleQuickCustomerCreated}
+        />
+      )}
     </>
   );
 };

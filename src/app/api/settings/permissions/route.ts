@@ -1,3 +1,6 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 import { NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_MENU_ORDERS } from "@/lib/permissions/defaults";
@@ -27,7 +30,9 @@ export async function GET(req: NextRequest) {
       userRoleId: auth.user.role_id,
       isAdmin: auth.user.role_id === 0,
     });
-    response.headers.set("Cache-Control", "private, max-age=60, stale-while-revalidate=300");
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
     return response;
   } catch (err) {
     serverLogger.error("GET /api/settings/permissions failed", err, {
@@ -80,7 +85,7 @@ export async function PUT(req: NextRequest) {
     if (menuOrders && typeof menuOrders === "object") {
       for (const [rStr, rOrder] of Object.entries(menuOrders)) {
         const rNum = Number(rStr);
-        if (rNum !== 0 && Array.isArray(rOrder)) {
+        if (Array.isArray(rOrder)) {
           updatedOrders[rNum] = rOrder as string[];
         }
       }
@@ -88,7 +93,13 @@ export async function PUT(req: NextRequest) {
 
     if (roleId !== undefined && roleId !== null) {
       const rNum = Number(roleId);
-      if (rNum !== 0) {
+      if (rNum === 0) {
+        // Admin permissions stay 100% full universal access, but menuOrder can be customized
+        updatedPerms[0] = { ...DEFAULT_ROLE_PERMISSIONS[0] };
+        if (Array.isArray(menuOrder)) {
+          updatedOrders[0] = menuOrder;
+        }
+      } else {
         const base = updatedPerms[rNum] || DEFAULT_ROLE_PERMISSIONS[rNum] || {};
         if (permissions && typeof permissions === "object") {
           updatedPerms[rNum] = {

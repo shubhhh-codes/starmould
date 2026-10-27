@@ -4,7 +4,8 @@ import { authenticateRequest } from "@/lib/auth";
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
-    const response = NextResponse.json({ user: null });
+    const response = NextResponse.json({ user: null, error: auth.error }, { status: 401 });
+    response.cookies.delete("sm_session");
     response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
     return response;
   }

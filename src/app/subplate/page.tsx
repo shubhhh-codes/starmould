@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect, Suspense } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
@@ -25,6 +25,7 @@ import {
 	ChevronRight,
 	ChevronDown,
 	UserCheck,
+	UserX,
 	CheckCheck,
 	Calculator,
 	Scale,
@@ -37,10 +38,15 @@ import {
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
 import { ProjectSelect } from "@/components/ui/project-select";
+import { appStore } from "@/lib/state/store";
+import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
+import { AssignStaffModal } from "@/components/subplate/assign-staff-modal";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
 	calculateSubplateWeight,
 	isHeightDisabled,
@@ -82,16 +88,125 @@ const SHAPES = SUPPORTED_SHAPES;
 
 // 9 Production Stages configuration
 export const STAGE_DEFINITIONS = [
-	{ key: "design_by", atKey: "design_at", nameKey: "design_by_name", short: "DES", label: "1. Design Order", step: 1, color: "blue" },
-	{ key: "order_by", atKey: "order_at", nameKey: "order_by_name", short: "PUR", label: "2. Purchase", step: 2, color: "amber" },
-	{ key: "received_workby", atKey: "received_work_at", nameKey: "received_workby_name", short: "REC", label: "3. Mat. Inward", step: 3, color: "emerald" },
-	{ key: "received_qcby", atKey: "received_qc_at", nameKey: "received_qcby_name", short: "PROG", label: "4. Programming Work", step: 4, color: "teal" },
-	{ key: "vmc_workby", atKey: "vmc_work_at", nameKey: "vmc_workby_name", short: "VMC", label: "5. VMC Work", step: 5, color: "indigo" },
-	{ key: "vmc_qcby", atKey: "vmc_qc_at", nameKey: "vmc_qcby_name", short: "VQC", label: "6. VMC QC", step: 6, color: "purple" },
-	{ key: "drilltap_workby", atKey: "drilltap_at", nameKey: "drilltap_workby_name", short: "D&T", label: "7. Drill & Tap", step: 7, color: "violet" },
-	{ key: "final_qcby", atKey: "final_qc_at", nameKey: "final_qcby_name", short: "FQC", label: "8. Final QC", step: 8, color: "cyan" },
-	{ key: "packing_workby", atKey: "packing_at", nameKey: "packing_workby_name", short: "PAK", label: "9. Packing", step: 9, color: "rose" },
+	{ key: "design_by", atKey: "design_at", nameKey: "design_by_name", short: "DES", label: "1. Design Order", assignTitle: "Assign to Designer", step: 1, color: "blue", roleId: 3, roleName: "Designer" },
+	{ key: "order_by", atKey: "order_at", nameKey: "order_by_name", short: "PUR", label: "2. Purchase", assignTitle: "Assign to Purchase", step: 2, color: "amber", roleId: 5, roleName: "Purchase Incharge" },
+	{ key: "received_workby", atKey: "received_work_at", nameKey: "received_workby_name", short: "REC", label: "3. Mat. Inward", assignTitle: "Assign to Mat. Inward", step: 3, color: "emerald", roleId: 4, roleName: "Worker" },
+	{ key: "received_qcby", atKey: "received_qc_at", nameKey: "received_qcby_name", short: "PROG", label: "4. Programming Work", assignTitle: "Assign to Programmer", step: 4, color: "teal", roleId: 10, roleName: "Programmer" },
+	{ key: "vmc_workby", atKey: "vmc_work_at", nameKey: "vmc_workby_name", short: "VMC", label: "5. VMC Work", assignTitle: "Assign to VMC Work", step: 5, color: "indigo", roleId: 6, roleName: "VMC Department" },
+	{ key: "vmc_qcby", atKey: "vmc_qc_at", nameKey: "vmc_qcby_name", short: "VQC", label: "6. VMC QC", assignTitle: "Assign to VMC QC", step: 6, color: "purple", roleId: 7, roleName: "Quality Checking (QC)" },
+	{ key: "drilltap_workby", atKey: "drilltap_at", nameKey: "drilltap_workby_name", short: "D&T", label: "7. Drill & Tap", assignTitle: "Assign to Drill & Tap", step: 7, color: "violet", roleId: 4, roleName: "Worker" },
+	{ key: "final_qcby", atKey: "final_qc_at", nameKey: "final_qcby_name", short: "FQC", label: "8. Final QC", assignTitle: "Assign to Final QC", step: 8, color: "cyan", roleId: 7, roleName: "Quality Checking (QC)" },
+	{ key: "packing_workby", atKey: "packing_at", nameKey: "packing_workby_name", short: "PAK", label: "9. Packing", assignTitle: "Assign to Packing", step: 9, color: "rose", roleId: 9, roleName: "Dispatch" },
 ] as const;
+
+export type StageDefinition = (typeof STAGE_DEFINITIONS)[number];
+
+/**
+ * Filter stages strictly based on the logged-in user's role:
+ * - Admin (role 0) & Manager (role 1): All 9 stages
+ * - Designer (role 3): ONLY Stage 1 (design_by)
+ * - Purchase Incharge (role 5): ONLY Stage 2 (order_by)
+ * - Programmer (role 10): ONLY Stage 4 (received_qcby)
+ * - VMC (role 6): ONLY Stage 5 (vmc_workby)
+ * - QC (role 7): ONLY Stage 6 (vmc_qcby) & Stage 8 (final_qcby)
+ * - Dispatch (role 9): ONLY Stage 9 (packing_workby)
+ * - Worker (role 4): ONLY Stage 3 (received_workby) & Stage 7 (drilltap_workby)
+ */
+export function getAllowedStagesForUser(currentUser: UserSession | null, isAdmin: boolean): StageDefinition[] {
+	if (isAdmin) {
+		return [...STAGE_DEFINITIONS];
+	}
+	if (!currentUser) return [];
+
+	const roleId = Number(currentUser.role_id);
+	const roleName = (currentUser.role || "").toLowerCase();
+
+	if (roleId === 3 || roleName.includes("designer")) {
+		return STAGE_DEFINITIONS.filter((s) => s.key === "design_by");
+	}
+	if (roleId === 5 || roleName.includes("purchase")) {
+		return STAGE_DEFINITIONS.filter((s) => s.key === "order_by");
+	}
+	if (roleId === 10 || roleName.includes("programmer")) {
+		return STAGE_DEFINITIONS.filter((s) => s.key === "received_qcby");
+	}
+	if (roleId === 6 || roleName.includes("vmc")) {
+		return STAGE_DEFINITIONS.filter((s) => s.key === "vmc_workby");
+	}
+	if (roleId === 7 || roleName.includes("qc") || roleName.includes("quality")) {
+		return STAGE_DEFINITIONS.filter((s) => s.key === "vmc_qcby" || s.key === "final_qcby");
+	}
+	if (roleId === 9 || roleName.includes("dispatch") || roleName.includes("packing")) {
+		return STAGE_DEFINITIONS.filter((s) => s.key === "packing_workby");
+	}
+	if (roleId === 4 || roleName.includes("worker") || roleName.includes("operator")) {
+		return STAGE_DEFINITIONS.filter((s) => s.key === "drilltap_workby" || s.key === "received_workby");
+	}
+	if (roleId === 1 || roleName.includes("manager")) {
+		return [...STAGE_DEFINITIONS];
+	}
+
+	return [];
+}
+
+/**
+ * Helper to get clean active status & progress summary for a subplate
+ */
+export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
+	let completed = 0;
+	let lastAssignedIndex = -1;
+	for (let i = 0; i < STAGE_DEFINITIONS.length; i++) {
+		const val = (sp as any)[STAGE_DEFINITIONS[i].key];
+		if (val && Number(val) !== 0) {
+			completed++;
+			lastAssignedIndex = i;
+		}
+	}
+
+	if (completed === 0) {
+		return {
+			badgeLabel: "Not Started",
+			subtext: "Pending Design Order",
+			badgeStyle: "bg-slate-100 text-slate-700 border-slate-200",
+			dotColor: "bg-slate-400",
+			completed,
+			isCompleted: false,
+			activeStage: STAGE_DEFINITIONS[0],
+			assignee: null,
+		};
+	}
+
+	if (completed === 9) {
+		return {
+			badgeLabel: "Completed & Ready",
+			subtext: "All 9 stages done",
+			badgeStyle: "bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold",
+			dotColor: "bg-emerald-500",
+			completed,
+			isCompleted: true,
+			activeStage: STAGE_DEFINITIONS[8],
+			assignee: null,
+		};
+	}
+
+	const stage = STAGE_DEFINITIONS[lastAssignedIndex] || STAGE_DEFINITIONS[0];
+	const userId = (sp as any)[stage.key];
+	const staffMember = staff.find((u) => u.id === Number(userId));
+	const rawName = (sp as any)[stage.nameKey];
+	const validRawName = rawName && rawName !== "-" ? rawName : null;
+	const staffName = validRawName || staffMember?.name || staffMember?.initials || null;
+
+	return {
+		badgeLabel: `Stage ${stage.step}: ${stage.label.replace(/^\d+\.\s*/, "")}`,
+		subtext: staffName ? `Assigned: ${staffName}` : "In Progress",
+		badgeStyle: "bg-blue-50 text-blue-900 border-blue-200/90 font-bold shadow-2xs",
+		dotColor: "bg-blue-600",
+		completed,
+		isCompleted: false,
+		activeStage: stage,
+		assignee: staffName,
+	};
+}
 
 // Helper to format ISO timestamp to human-readable date/time in IST
 const formatTimestamp = (ts: string | null | undefined): string => {
@@ -325,7 +440,7 @@ function StageChipPicker({
 								{isAssigned && timestamp ? formatTimestamp(timestamp) : !isAdmin ? "Self-Assignment" : "Select staff to assign"}
 							</div>
 						</div>
-						{(isAdmin && isAssigned) || (isAssignedToMe) ? (
+						{isAdmin && isAssigned ? (
 							<button
 								type="button"
 								onClick={() => handleSelect(0)}
@@ -395,14 +510,10 @@ function StageChipPicker({
 							)}
 
 							{isAssignedToMe && (
-								<button
-									type="button"
-									onClick={() => handleSelect(0)}
-									className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition cursor-pointer"
-								>
-									<span className="italic text-slate-400">Unassign / Leave open</span>
-									<X className="w-3.5 h-3.5 text-slate-400" />
-								</button>
+								<div className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] text-slate-500 bg-slate-50 rounded-lg border border-slate-200/80">
+									<Lock className="w-3 h-3 text-slate-400 shrink-0" />
+									<span>Assigned to you • Only Admin can unassign</span>
+								</div>
 							)}
 						</div>
 					) : (
@@ -471,7 +582,12 @@ import { useSubplatesQuery, useProjectsQuery, useCreateSubplateMutation, useUpda
 
 function SubplatePageContent() {
 	const { currentUser } = useAuth();
+	const { hasPermission } = useRolePermissions();
 	const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+	const canCreateSubplate = hasPermission("action_create_subplate");
+	const canExportCSV = hasPermission("financial_export_csv");
+	const canEditSubplate = hasPermission("action_edit_subplate");
+	const canDeleteSubplate = hasPermission("action_delete_subplate");
 	const searchParams = useSearchParams();
 	const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
@@ -515,6 +631,165 @@ function SubplatePageContent() {
 	// Modal State for Add / Edit Subplate
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
+
+	// Real-time permission revocation guard: auto-close modal if permission revoked
+	useEffect(() => {
+		if (isModalOpen) {
+			if (editingSubplate && !canEditSubplate) {
+				setIsModalOpen(false);
+				setEditingSubplate(null);
+				appStore.addToast({
+					type: "error",
+					message: "Access Denied: Permission to edit subplates was revoked by administrator.",
+					duration: 5000,
+				});
+			} else if (!editingSubplate && !canCreateSubplate) {
+				setIsModalOpen(false);
+				appStore.addToast({
+					type: "error",
+					message: "Access Denied: Permission to add subplates was revoked by administrator.",
+					duration: 5000,
+				});
+			}
+		}
+	}, [isModalOpen, editingSubplate, canCreateSubplate, canEditSubplate]);
+
+	// Right-Click Context Menu State
+	const [contextMenu, setContextMenu] = useState<{
+		x: number;
+		y: number;
+		isOpen: boolean;
+		subplate: Subplate | null;
+	}>({
+		x: 0,
+		y: 0,
+		isOpen: false,
+		subplate: null,
+	});
+
+	// Quick Staff Assignment Modal (Admin only)
+	const [assignStaffModal, setAssignStaffModal] = useState<{
+		isOpen: boolean;
+		subplate: Subplate | null;
+		stage: (typeof STAGE_DEFINITIONS)[number] | null;
+	}>({
+		isOpen: false,
+		subplate: null,
+		stage: null,
+	});
+
+	const handleSubplateContextMenu = (e: React.MouseEvent, sp: Subplate) => {
+		e.preventDefault();
+		e.stopPropagation();
+		setContextMenu({
+			x: e.clientX,
+			y: e.clientY,
+			isOpen: true,
+			subplate: sp,
+		});
+	};
+
+	// Determine recommended stage for "Assign to me" based on logged-in user's role and subplate state
+	const getTargetStageForUser = useCallback(
+		(sp: Subplate) => {
+			if (!currentUser) return STAGE_DEFINITIONS[0];
+			const roleId = Number(currentUser.role_id);
+			const roleName = (currentUser.role || "").toLowerCase();
+
+			let rolePreferredKey: string | null = null;
+			if (roleId === 3 || roleName.includes("designer")) {
+				rolePreferredKey = "design_by";
+			} else if (roleId === 5 || roleName.includes("purchase")) {
+				rolePreferredKey = "order_by";
+			} else if (roleId === 10 || roleName.includes("programmer")) {
+				rolePreferredKey = "received_qcby";
+			} else if (roleId === 6 || roleName.includes("vmc")) {
+				rolePreferredKey = "vmc_workby";
+			} else if (roleId === 7 || roleName.includes("qc") || roleName.includes("quality")) {
+				rolePreferredKey = !(sp as any).vmc_qcby ? "vmc_qcby" : "final_qcby";
+			} else if (roleId === 9 || roleName.includes("dispatch")) {
+				rolePreferredKey = "packing_workby";
+			}
+
+			if (rolePreferredKey) {
+				const matched = STAGE_DEFINITIONS.find((s) => s.key === rolePreferredKey);
+				if (matched) {
+					const currentVal = (sp as any)[matched.key];
+					if (!currentVal || Number(currentVal) === Number(currentUser.id)) {
+						return matched;
+					}
+				}
+			}
+
+			for (const stage of STAGE_DEFINITIONS) {
+				const val = (sp as any)[stage.key];
+				if (!val || Number(val) === 0) {
+					return stage;
+				}
+			}
+			return STAGE_DEFINITIONS[0];
+		},
+		[currentUser]
+	);
+	const materialFilterOptions: ERPSelectOption[] = useMemo(() => [
+		{ value: "ALL", label: `All Materials (${REAL_MATERIALS.length})` },
+		...REAL_MATERIALS.map((m) => ({ value: m, label: m })),
+	], []);
+
+	const categoryFilterOptions: ERPSelectOption[] = [
+		{ value: "ALL", label: "All Categories" },
+		{ value: "Core & Cavity Inserts", label: "Core & Cavity Inserts" },
+		{ value: "Base & Clamping Plates", label: "Base & Clamping Plates" },
+		{ value: "Ejection System", label: "Ejection System" },
+		{ value: "Slides & Lifters", label: "Slides & Lifters" },
+		{ value: "Guiding & Alignment", label: "Guiding & Alignment" },
+		{ value: "General Component", label: "General Component" },
+	];
+
+	const locationFilterOptions: ERPSelectOption[] = [
+		{ value: "ALL", label: "All Locations" },
+		{ value: "SM", label: "In-House Only (SM)" },
+		{ value: "VENDOR", label: "At Vendor Only" },
+	];
+
+	const projectFilterOptions: ERPSelectOption[] = useMemo(() => [
+		{ value: "ALL", label: `All Projects (${scans.length})` },
+		...scans.map((s) => ({
+			value: String(s.id),
+			label: s.projectid ? `${s.projectid} - ${s.description || "Mould"}` : `Project #${s.id}`,
+		})),
+	], [scans]);
+
+	const stageFilterOptions: ERPSelectOption[] = [
+		{ value: "ALL", label: "All Stages (9/9 Pipeline)" },
+		{ value: "pending", label: "In-Progress (< 9 Stages Done)" },
+		{ value: "completed", label: "Completed (All 9 Stages Done)" },
+		{ value: "design_by", label: "1. Design Assigned" },
+		{ value: "order_by", label: "2. Purchase Assigned" },
+		{ value: "received_workby", label: "3. Mat. Inward Assigned" },
+		{ value: "received_qcby", label: "4. Programming Work Assigned" },
+		{ value: "vmc_workby", label: "5. VMC Machining Assigned" },
+		{ value: "vmc_qcby", label: "6. VMC QC Assigned" },
+		{ value: "drilltap_workby", label: "7. Drill & Tap Assigned" },
+		{ value: "final_qcby", label: "8. Final QC Assigned" },
+		{ value: "packing_workby", label: "9. Packing Assigned" },
+	];
+
+	const modalShapeOptions: ERPSelectOption[] = SHAPES.map((s) => ({ value: s, label: s }));
+
+	const modalMaterialOptions: ERPSelectOption[] = REAL_MATERIALS.map((m) => ({
+		value: m,
+		label: m,
+		subtitle: `${MATERIAL_DENSITIES[m] || 7.81} g/cm³`,
+	}));
+
+	const modalLocationOptions: ERPSelectOption[] = [
+		{ value: "SM", label: "SM — In-House Production" },
+		{ value: "Vendor", label: "Vendor — Outward Jobwork" },
+	];
+
+	const modalUnitOptions: ERPSelectOption[] = SUPPORTED_UNITS.map((u) => ({ value: u, label: u }));
+
 	const [modalForm, setModalForm] = useState({
 		platename: "",
 		projectid: "",
@@ -594,61 +869,6 @@ function SubplatePageContent() {
 		if (sp.final_qcby) count++;
 		if (sp.packing_workby) count++;
 		return count;
-	};
-
-	// Helper to get clean active status & progress summary for a subplate
-	const getSubplateProgressInfo = (sp: Subplate, staff: User[]) => {
-		let completed = 0;
-		let lastAssignedIndex = -1;
-		for (let i = 0; i < STAGE_DEFINITIONS.length; i++) {
-			const val = (sp as any)[STAGE_DEFINITIONS[i].key];
-			if (val && val !== 0) {
-				completed++;
-				lastAssignedIndex = i;
-			}
-		}
-
-		if (completed === 0) {
-			return {
-				badgeLabel: "Not Started",
-				subtext: "Pending Design Order",
-				badgeStyle: "bg-slate-100 text-slate-700 border-slate-200",
-				dotColor: "bg-slate-400",
-				completed,
-				isCompleted: false,
-				activeStage: STAGE_DEFINITIONS[0],
-				assignee: null,
-			};
-		}
-
-		if (completed === 9) {
-			return {
-				badgeLabel: "Completed & Ready",
-				subtext: "All 9 stages done",
-				badgeStyle: "bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold",
-				dotColor: "bg-emerald-500",
-				completed,
-				isCompleted: true,
-				activeStage: STAGE_DEFINITIONS[8],
-				assignee: null,
-			};
-		}
-
-		const stage = STAGE_DEFINITIONS[lastAssignedIndex] || STAGE_DEFINITIONS[0];
-		const userId = (sp as any)[stage.key];
-		const staffMember = staff.find((u) => u.id === Number(userId));
-		const staffName = (sp as any)[stage.nameKey] || staffMember?.initials || staffMember?.name || null;
-
-		return {
-			badgeLabel: `Stage ${stage.step}: ${stage.label.replace(/^\d+\.\s*/, "")}`,
-			subtext: staffName ? `Assigned: ${staffName}` : "In Progress",
-			badgeStyle: "bg-blue-50 text-blue-900 border-blue-200/90 font-bold shadow-2xs",
-			dotColor: "bg-blue-600",
-			completed,
-			isCompleted: false,
-			activeStage: stage,
-			assignee: staffName,
-		};
 	};
 
 	// Dynamic dimension labels and shape constraints
@@ -744,18 +964,30 @@ function SubplatePageContent() {
 		field: string,
 		userId: number
 	) => {
-		// Non-admin users can only assign to themselves (or unassign)
+		// Non-admin users cannot unassign once assigned
+		if (!isAdmin && userId === 0) {
+			alert("Permission Notice: Once assigned, only Administrators can unassign or reassign a production stage.");
+			return;
+		}
+
+		// Non-admin users can only assign to themselves
 		if (!isAdmin && userId !== 0 && currentUser?.id && Number(userId) !== Number(currentUser.id)) {
 			alert("Permission Notice: Non-admin users can only assign production tasks to themselves.");
 			return;
 		}
 
 		const newUserId = userId === 0 ? null : userId;
+		const stageDef = STAGE_DEFINITIONS.find((s) => s.key === field);
+		const staffMember = activeStaff.find((u) => u.id === userId);
+		const staffName = newUserId ? staffMember?.name || staffMember?.initials || `Staff #${userId}` : null;
+		const nowIso = newUserId ? new Date().toISOString() : null;
+
 		try {
 			await updateSubplateMutation.mutateAsync({
 				id: subplateId,
 				updates: {
 					[field]: newUserId,
+					...(stageDef ? { [stageDef.nameKey]: staffName, [stageDef.atKey]: nowIso } : {}),
 				},
 			});
 		} catch (err: any) {
@@ -816,8 +1048,22 @@ function SubplatePageContent() {
  }
  try {
  await deleteSubplateMutation.mutateAsync(id);
- } catch (err: any) {
- alert("Error: " + err.message);
+		} catch (err: any) {
+			const errMsg = err?.message || "Failed to save subplate";
+			if (errMsg.toLowerCase().includes("permission") || errMsg.toLowerCase().includes("access denied")) {
+				setIsModalOpen(false);
+				setEditingSubplate(null);
+				appStore.addToast({
+					type: "error",
+					message: "Access Denied: Your permission was revoked by administrator.",
+					duration: 5000,
+				});
+			} else {
+				appStore.addToast({
+					type: "error",
+					message: errMsg,
+				});
+			}
  }
  };
 
@@ -878,8 +1124,22 @@ function SubplatePageContent() {
  }
  setIsModalOpen(false);
  setEditingSubplate(null);
- } catch (err: any) {
- alert("Error: " + err.message);
+		} catch (err: any) {
+			const errMsg = err?.message || "Failed to save subplate";
+			if (errMsg.toLowerCase().includes("permission") || errMsg.toLowerCase().includes("access denied")) {
+				setIsModalOpen(false);
+				setEditingSubplate(null);
+				appStore.addToast({
+					type: "error",
+					message: "Access Denied: Your permission was revoked by administrator.",
+					duration: 5000,
+				});
+			} else {
+				appStore.addToast({
+					type: "error",
+					message: errMsg,
+				});
+			}
  } finally {
  setIsSubmitting(false);
  }
@@ -939,20 +1199,24 @@ function SubplatePageContent() {
 					</div>
 
 					<div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-						<button
-							onClick={handleExportCSV}
-							className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-xs text-xs sm:text-sm cursor-pointer"
-						>
-							<FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
-							<span>Export CSV</span>
-						</button>
-						<button
-							onClick={handleOpenAddModal}
-							className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-xs shadow-blue-500/20 text-xs sm:text-sm cursor-pointer"
-						>
-							<Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-							<span>Add Subplate</span>
-						</button>
+						{canExportCSV && (
+							<button
+								onClick={handleExportCSV}
+								className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-xs text-xs sm:text-sm cursor-pointer"
+							>
+								<FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+								<span>Export CSV</span>
+							</button>
+						)}
+						{canCreateSubplate && (
+							<button
+								onClick={handleOpenAddModal}
+								className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-xs shadow-blue-500/20 text-xs sm:text-sm cursor-pointer"
+							>
+								<Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+								<span>Add Subplate</span>
+							</button>
+						)}
 					</div>
 				</div>
 
@@ -1034,92 +1298,58 @@ function SubplatePageContent() {
 						</div>
 
 						{/* Material Selector */}
-						<div className="w-full lg:w-auto min-w-0">
-							<select
+						<div className="w-full lg:w-44 min-w-0">
+							<ERPSelect
 								value={materialFilter}
-								onChange={(e) => setMaterialFilter(e.target.value)}
-								className="w-full lg:w-auto max-w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium truncate"
-							>
-								<option value="ALL">All Materials ({REAL_MATERIALS.length})</option>
-								{REAL_MATERIALS.map((m) => (
-									<option key={m} value={m}>
-										{m}
-									</option>
-								))}
-							</select>
+								onChange={(val) => setMaterialFilter(String(val))}
+								options={materialFilterOptions}
+								placeholder="All Materials"
+								searchPlaceholder="Search materials..."
+							/>
 						</div>
 
-						
 						{/* Category Selector */}
-						<div className="w-full lg:w-auto min-w-0">
-							<select
+						<div className="w-full lg:w-48 min-w-0">
+							<ERPSelect
 								value={categoryFilter}
-								onChange={(e) => setCategoryFilter(e.target.value)}
-								className="w-full lg:w-auto max-w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium truncate"
-							>
-								<option value="ALL">All Categories</option>
-								<option value="Core & Cavity Inserts">Core & Cavity Inserts</option>
-								<option value="Base & Clamping Plates">Base & Clamping Plates</option>
-								<option value="Ejection System">Ejection System</option>
-								<option value="Slides & Lifters">Slides & Lifters</option>
-								<option value="Guiding & Alignment">Guiding & Alignment</option>
-								<option value="General Component">General Component</option>
-							</select>
+								onChange={(val) => setCategoryFilter(String(val))}
+								options={categoryFilterOptions}
+								placeholder="All Categories"
+								showSearch={false}
+							/>
 						</div>
 
 						{/* Location Selector */}
-						<div className="w-full lg:w-auto min-w-0">
-							<select
+						<div className="w-full lg:w-40 min-w-0">
+							<ERPSelect
 								value={locationFilter}
-								onChange={(e) => setLocationFilter(e.target.value)}
-								className="w-full lg:w-auto max-w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium truncate"
-							>
-								<option value="ALL">All Locations</option>
-								<option value="SM">In-House Only (SM)</option>
-								<option value="VENDOR">At Vendor Only</option>
-							</select>
+								onChange={(val) => setLocationFilter(String(val))}
+								options={locationFilterOptions}
+								placeholder="All Locations"
+								showSearch={false}
+							/>
 						</div>
 
-						{/* Project Selector - Truncated option labels to prevent mobile blowout */}
-						<div className="w-full lg:w-auto min-w-0">
-							<select
+						{/* Project Selector */}
+						<div className="w-full lg:w-56 min-w-0">
+							<ERPSelect
 								value={projectFilter}
-								onChange={(e) => setProjectFilter(e.target.value)}
-								className="w-full lg:w-auto max-w-full lg:max-w-[220px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium truncate"
-							>
-								<option value="ALL">All Projects ({scans.length})</option>
-								{scans.map((s) => {
-									const fullLabel = s.projectid ? `${s.projectid} - ${s.description || "Mould"}` : `Project #${s.id}`;
-									const shortLabel = fullLabel.length > 30 ? `${fullLabel.substring(0, 30)}...` : fullLabel;
-									return (
-										<option key={s.id} value={String(s.id)} title={fullLabel}>
-											{shortLabel}
-										</option>
-									);
-								})}
-							</select>
+								onChange={(val) => setProjectFilter(String(val))}
+								options={projectFilterOptions}
+								placeholder="All Projects"
+								searchPlaceholder="Search projects..."
+							/>
 						</div>
 
 						{/* 9-Stage Production Filter */}
-						<div className="w-full lg:w-auto min-w-0">
-							<select
+						<div className="w-full lg:w-52 min-w-0">
+							<ERPSelect
 								value={stageFilter}
-								onChange={(e) => setStageFilter(e.target.value)}
-								className="w-full lg:w-auto max-w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-700 font-medium truncate"
-							>
-								<option value="ALL">All Stages (9/9 Pipeline)</option>
-								<option value="pending">In-Progress (&lt; 9 Stages Done)</option>
-								<option value="completed">Completed (All 9 Stages Done)</option>
-								<option value="design_by">1. Design Assigned</option>
-								<option value="order_by">2. Purchase Assigned</option>
-								<option value="received_workby">3. Mat. Inward Assigned</option>
-								<option value="received_qcby">4. Programming Work Assigned</option>
-								<option value="vmc_workby">5. VMC Machining Assigned</option>
-								<option value="vmc_qcby">6. VMC QC Assigned</option>
-								<option value="drilltap_workby">7. Drill &amp; Tap Assigned</option>
-								<option value="final_qcby">8. Final QC Assigned</option>
-								<option value="packing_workby">9. Packing Assigned</option>
-							</select>
+								onChange={(val) => setStageFilter(String(val))}
+								options={stageFilterOptions}
+								placeholder="All Stages"
+								showSearch={false}
+							/>
 						</div>
 					</div>
 				</div>
@@ -1169,8 +1399,9 @@ function SubplatePageContent() {
 														}
 														toggleRow(row.id);
 													}}
+													onContextMenu={(e) => handleSubplateContextMenu(e, row)}
 													className={`hover:bg-slate-50/90 transition-all duration-150 group cursor-pointer ${getRowHighlightClass(row.id)}`}
-													title="Click to expand/collapse Stage Studio"
+													title="Click to expand Studio • Right-click for 'Assign to Me'"
 												>
 													{/* Row Expand Toggle */}
 													<td className="py-3 px-2 text-center">
@@ -1318,22 +1549,26 @@ function SubplatePageContent() {
 													{/* Actions */}
 													<td className="py-3 px-3 text-right whitespace-nowrap">
 														<div className="flex items-center justify-end gap-1.5">
-															<button
-																type="button"
-																onClick={() => handleOpenEditModal(row)}
-																className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-																title="Edit subplate"
-															>
-																<Pencil className="w-4 h-4" />
-															</button>
-															<button
-																type="button"
-																onClick={() => handleDeleteSubplate(row.id, row.platename)}
-																className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-																title="Delete subplate"
-															>
-																<Trash2 className="w-4 h-4" />
-															</button>
+															{canEditSubplate && (
+																<button
+																	type="button"
+																	onClick={() => handleOpenEditModal(row)}
+																	className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+																	title="Edit subplate"
+																>
+																	<Pencil className="w-4 h-4" />
+																</button>
+															)}
+															{canDeleteSubplate && (
+																<button
+																	type="button"
+																	onClick={() => handleDeleteSubplate(row.id, row.platename)}
+																	className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+																	title="Delete subplate"
+																>
+																	<Trash2 className="w-4 h-4" />
+																</button>
+															)}
 														</div>
 													</td>
 												</tr>
@@ -1508,6 +1743,7 @@ function SubplatePageContent() {
 											}
 											toggleRow(row.id);
 										}}
+										onContextMenu={(e) => handleSubplateContextMenu(e, row)}
 										className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs transition-all duration-200 cursor-pointer ${getRowHighlightClass(row.id)}`}
 									>
 										<div className="flex items-center justify-between">
@@ -1526,22 +1762,26 @@ function SubplatePageContent() {
 													<MapPin className="w-2.5 h-2.5" />
 													{row.location || "SM"}
 												</span>
-												<button
-													type="button"
-													onClick={() => handleOpenEditModal(row)}
-													className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-													title="Edit subplate"
-												>
-													<Pencil className="w-3.5 h-3.5" />
-												</button>
-												<button
-													type="button"
-													onClick={() => handleDeleteSubplate(row.id, row.platename)}
-													className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-													title="Delete subplate"
-												>
-													<Trash2 className="w-3.5 h-3.5" />
-												</button>
+												{canEditSubplate && (
+													<button
+														type="button"
+														onClick={() => handleOpenEditModal(row)}
+														className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
+														title="Edit subplate"
+													>
+														<Pencil className="w-3.5 h-3.5" />
+													</button>
+												)}
+												{canDeleteSubplate && (
+													<button
+														type="button"
+														onClick={() => handleDeleteSubplate(row.id, row.platename)}
+														className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+														title="Delete subplate"
+													>
+														<Trash2 className="w-3.5 h-3.5" />
+													</button>
+												)}
 											</div>
 										</div>
 
@@ -1795,19 +2035,15 @@ function SubplatePageContent() {
 										<Compass className="w-3.5 h-3.5 text-cyan-600" />
 										<span>Shape</span>
 									</label>
-									<select
+									<ERPSelect
 										value={modalForm.shape}
-										onChange={(e) =>
-											handleDimensionChange("shape", e.target.value)
+										onChange={(val) =>
+											handleDimensionChange("shape", String(val))
 										}
-										className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-									>
-										{SHAPES.map((s) => (
-											<option key={s} value={s}>
-												{s}
-											</option>
-										))}
-									</select>
+										options={modalShapeOptions}
+										showSearch={false}
+										placeholder="Shape"
+									/>
 								</div>
 
 								{/* Material (5 cols) */}
@@ -1821,19 +2057,15 @@ function SubplatePageContent() {
 											{MATERIAL_DENSITIES[modalForm.material] || 7.81} g/cm³
 										</span>
 									</label>
-									<select
+									<ERPSelect
 										value={modalForm.material}
-										onChange={(e) =>
-											handleDimensionChange("material", e.target.value)
+										onChange={(val) =>
+											handleDimensionChange("material", String(val))
 										}
-										className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-									>
-										{REAL_MATERIALS.map((m) => (
-											<option key={m} value={m}>
-												{m}
-											</option>
-										))}
-									</select>
+										options={modalMaterialOptions}
+										searchPlaceholder="Search material..."
+										placeholder="Material"
+									/>
 								</div>
 
 								{/* Quantity with Aligned Stepper (3 cols) */}
@@ -2070,19 +2302,15 @@ function SubplatePageContent() {
 										</>
 									)}
 									<div>
-										<select
+										<ERPSelect
 											value={modalForm.unit}
-											onChange={(e) =>
-												handleDimensionChange("unit", e.target.value)
+											onChange={(val) =>
+												handleDimensionChange("unit", String(val))
 											}
-											className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-										>
-											{SUPPORTED_UNITS.map((u) => (
-												<option key={u} value={u}>
-													{u}
-												</option>
-											))}
-										</select>
+											options={modalUnitOptions}
+											showSearch={false}
+											placeholder="Unit"
+										/>
 									</div>
 								</div>
 							</div>
@@ -2140,16 +2368,15 @@ function SubplatePageContent() {
 										<MapPin className="w-3.5 h-3.5 text-emerald-600" />
 										<span>Production Routing</span>
 									</label>
-									<select
+									<ERPSelect
 										value={modalForm.location}
-										onChange={(e) =>
-											setModalForm({ ...modalForm, location: e.target.value })
+										onChange={(val) =>
+											setModalForm((p) => ({ ...p, location: String(val) }))
 										}
-										className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs cursor-pointer"
-									>
-										<option value="SM">SM — In-House Production</option>
-										<option value="Vendor">Vendor — Outward Jobwork</option>
-									</select>
+										options={modalLocationOptions}
+										showSearch={false}
+										placeholder="Routing"
+									/>
 								</div>
 								<div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">
 									<span
@@ -2203,7 +2430,174 @@ function SubplatePageContent() {
 						</div>
 					</form>
 				</Modal>
- </div>
+
+				{/* Right-Click Floating Context Menu on Subplate */}
+				{contextMenu.subplate && (
+					<ContextMenu
+						x={contextMenu.x}
+						y={contextMenu.y}
+						isOpen={contextMenu.isOpen}
+						onClose={() => setContextMenu((prev) => ({ ...prev, isOpen: false, subplate: null }))}
+						title={`${contextMenu.subplate.platename} #${contextMenu.subplate.id} • ${
+							contextMenu.subplate.subprojectid || (contextMenu.subplate as any).mould_project_code || "Subplate"
+						}`}
+						items={(() => {
+							const sp = contextMenu.subplate;
+							if (!sp) return [];
+
+							const targetStage = getTargetStageForUser(sp);
+							const targetVal = (sp as any)[targetStage.key];
+							const isAlreadyAssignedToMe = Boolean(
+								currentUser?.id && Number(targetVal) === Number(currentUser.id)
+							);
+							const isAssignedToOther = Boolean(targetVal && targetVal !== 0 && !isAlreadyAssignedToMe);
+							const currentUserId = Number(currentUser?.id);
+
+							const items: ContextMenuItem[] = [];
+
+							if (isAdmin) {
+								// =====================================================================
+								// ADMIN ACTIONS:
+								// Show all 9 production stages with department-targeted actions:
+								// - If assigned: "Unassign [Staff Name] ([Stage])" (Danger Red)
+								// - If unassigned: "Assign to [Department]" (e.g. "Assign to Designer", "Assign to VMC Work", etc.)
+								// =====================================================================
+								STAGE_DEFINITIONS.forEach((st) => {
+									const val = (sp as any)[st.key];
+									const isDone = Boolean(val && val !== 0);
+									const staffMember = activeStaff.find((u) => u.id === Number(val));
+									const staffName = (sp as any)[st.nameKey] || staffMember?.name || staffMember?.initials || `Staff #${val}`;
+
+									if (isDone) {
+										items.push({
+											label: `Unassign ${staffName} (${st.label.replace(/^\d+\.\s*/, "")})`,
+											subtext: `Stage ${st.step} • Click to unassign staff`,
+											icon: UserX,
+											variant: "danger",
+											onClick: () => handleStageStaffChange(sp.id, st.key, 0),
+										});
+									} else {
+										items.push({
+											label: st.assignTitle,
+											subtext: `Stage ${st.step} • Click to select staff`,
+											icon: UserCheck,
+											variant: "primary",
+											onClick: () => {
+												setAssignStaffModal({
+													isOpen: true,
+													subplate: sp,
+													stage: st,
+												});
+											},
+										});
+									}
+								});
+
+								// Admin Management Utilities
+								items.push({
+									separator: true,
+									label: "Open 9-Stage Studio",
+									icon: Layers,
+									onClick: () => toggleRow(sp.id),
+								});
+								items.push({
+									label: "Edit Subplate Specifications",
+									icon: Pencil,
+									onClick: () => handleOpenEditModal(sp),
+								});
+							} else {
+								// =====================================================================
+								// NON-ADMIN ACTIONS (Strictly single department stage):
+								// =====================================================================
+								const allowedStages = getAllowedStagesForUser(currentUser, false);
+
+								if (!currentUserId) {
+									items.push({
+										label: "Assign to Me",
+										subtext: "Please login to assign tasks to your account",
+										icon: UserCheck,
+										disabled: true,
+										onClick: () => {},
+									});
+								} else if (allowedStages.length === 0) {
+									items.push({
+										label: "No Assigned Department Stages",
+										subtext: "Your role has no production stage assignments",
+										icon: Lock,
+										disabled: true,
+										onClick: () => {},
+									});
+								} else {
+									allowedStages.forEach((st) => {
+										const val = (sp as any)[st.key];
+										const isDone = Boolean(val && val !== 0);
+										const isMine = Boolean(currentUserId && Number(val) === currentUserId);
+										const isOther = isDone && !isMine;
+										const staffMember = activeStaff.find((u) => u.id === Number(val));
+										const name = (sp as any)[st.nameKey] || staffMember?.name || staffMember?.initials;
+
+										if (isMine) {
+											// Locked: non-admins cannot unassign once assigned
+											items.push({
+												label: `${st.label.replace(/^\d+\.\s*/, "")} (Assigned to You)`,
+												subtext: `Assigned to you • Only Admin can unassign`,
+												icon: CheckCircle2,
+												variant: "success",
+												disabled: true,
+												onClick: () => {},
+											});
+										} else if (isOther) {
+											items.push({
+												label: `${st.label.replace(/^\d+\.\s*/, "")} (Assigned)`,
+												subtext: `Assigned to ${name || "staff"} • Only Admin can reassign`,
+												icon: Lock,
+												disabled: true,
+												onClick: () => {},
+											});
+										} else {
+											items.push({
+												label: `Assign to Me (${st.label.replace(/^\d+\.\s*/, "")})`,
+												subtext: `Stage ${st.step} • Click to assign to yourself`,
+												icon: UserCheck,
+												variant: "primary",
+												onClick: () => handleStageStaffChange(sp.id, st.key, currentUserId),
+											});
+										}
+									});
+								}
+
+								// Overview utility for non-admin
+								items.push({
+									separator: true,
+									label: "Open 9-Stage Studio",
+									icon: Layers,
+									onClick: () => toggleRow(sp.id),
+								});
+							}
+
+							return items;
+						})()}
+					/>
+				)}
+
+				{/* Quick Staff Assignment Modal (Admin & Staff) */}
+				<AssignStaffModal
+					isOpen={assignStaffModal.isOpen}
+					onClose={() =>
+						setAssignStaffModal({
+							isOpen: false,
+							subplate: null,
+							stage: null,
+						})
+					}
+					subplate={assignStaffModal.subplate}
+					stage={assignStaffModal.stage}
+					staff={activeStaff}
+					currentUser={currentUser}
+					isAdmin={isAdmin}
+					onAssign={handleStageStaffChange}
+				/>
+			</div>
  </AppLayout>
  );
 }

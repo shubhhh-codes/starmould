@@ -40,28 +40,33 @@ function formatDate(dateStr?: string): string {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req);
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const { searchParams } = new URL(req.url);
     const token = searchParams.get("token");
     let id = searchParams.get("id");
     let type = searchParams.get("type") || "purchase";
+    let isTokenValid = false;
 
     if (token) {
       const decoded = verifySecurePrintToken(token);
       if (decoded) {
         id = decoded.id;
         type = decoded.type;
+        isTokenValid = true;
       }
     } else if (id && id.includes(".")) {
       const decoded = verifySecurePrintToken(id);
       if (decoded) {
         id = decoded.id;
         type = decoded.type;
+        isTokenValid = true;
+      }
+    }
+
+    if (!isTokenValid) {
+      const auth = await authenticateRequest(req);
+      if ("error" in auth) {
+        return NextResponse.json({ error: auth.error }, { status: auth.status });
       }
     }
 

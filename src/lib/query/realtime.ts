@@ -77,6 +77,24 @@ export function useRealtimeManufacturingSync() {
           queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_config",
+        },
+        () => {
+          broadcastQueryInvalidation(["role_permissions"]);
+          if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+            try {
+              const bc = new BroadcastChannel(TAB_CHANNEL_NAME);
+              bc.postMessage({ type: "PERMISSIONS_UPDATED" });
+              bc.close();
+            } catch {}
+          }
+        }
+      )
       .subscribe((status, err) => {
         if (err) {
           console.warn("[RealtimeSync] Channel status:", status, err);

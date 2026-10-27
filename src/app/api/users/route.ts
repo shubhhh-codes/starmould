@@ -160,6 +160,11 @@ export async function POST(req: NextRequest) {
     }
     const finalRoleId = role_id !== undefined ? Number(role_id) : getRoleIdFromUsertype(usertype);
 
+    // Privilege escalation protection: only Admins can create an Admin account
+    if ((finalRoleId === 0 || usertype === "Admin") && auth.user.role_id !== 0) {
+      return NextResponse.json({ error: "Only Administrators can create an Admin user" }, { status: 403 });
+    }
+
     const now = new Date().toISOString();
     const rawPassword = body.password || "password";
     const passwordHash = await bcrypt.hash(rawPassword, 10);
@@ -201,10 +206,14 @@ export async function POST(req: NextRequest) {
         }
         return NextResponse.json({ error: "A user with these details already exists." }, { status: 400 });
       }
+      if (error.code === "23503" || error.message?.includes("foreign key")) {
+        return NextResponse.json({ error: "The selected user role is invalid or does not exist." }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     invalidateCache("shared_users");
+    invalidateCache("auth_user_record_");
     invalidateCache("api_counts_all");
 
     return NextResponse.json({ user: data, message: "User added successfully." }, { status: 201 });
@@ -270,6 +279,11 @@ export async function PUT(req: NextRequest) {
     const newRoleId = usertype ? (role_id !== undefined ? Number(role_id) : getRoleIdFromUsertype(usertype)) : (role_id !== undefined ? Number(role_id) : undefined);
     const newStatus = status !== undefined ? Number(status) : undefined;
 
+    // Privilege escalation protection: only Admins can assign the Admin role
+    if ((newRoleId === 0 || usertype === "Admin") && auth.user.role_id !== 0) {
+      return NextResponse.json({ error: "Only Administrators can assign the Admin role" }, { status: 403 });
+    }
+
     // Self-admin protection: cannot deactivate or demote own Admin account
     if (numId === auth.user.id && Number(targetUser.role_id) === 0) {
       if (newStatus === 0) {
@@ -306,6 +320,12 @@ export async function PUT(req: NextRequest) {
     if (newRoleId !== undefined) updatePayload.role_id = newRoleId;
     if (finalSubtype) updatePayload.usersubtype = finalSubtype;
     if (newStatus !== undefined) updatePayload.status = newStatus;
+    if (body.password && typeof body.password === "string" && body.password.trim().length > 0) {
+      const passwordHash = await bcrypt.hash(body.password.trim(), 10);
+      updatePayload.password_hash = passwordHash;
+      updatePayload.password = passwordHash;
+      updatePayload.must_change_password = false;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("users")
@@ -331,11 +351,15 @@ export async function PUT(req: NextRequest) {
         }
         return NextResponse.json({ error: "A user with these details already exists." }, { status: 400 });
       }
+      if (error.code === "23503" || error.message?.includes("foreign key")) {
+        return NextResponse.json({ error: "The selected user role is invalid or does not exist." }, { status: 400 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     invalidateCache("shared_users");
     invalidateCache("api_counts_all");
+    invalidateCache(`auth_user_record_${id}`);
 
     return NextResponse.json({ user: data, message: "User updated successfully." });
   } catch (err: unknown) {
@@ -368,12 +392,24 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Cannot delete your own active account" }, { status: 400 });
     }
 
-    // Check if user is the last admin
+    // Check if user is Super Admin (permanently locked)
     const { data: targetUser } = await supabaseAdmin
       .from("users")
-      .select("role_id")
+      .select("id, username, email, role_id")
       .eq("id", numId)
       .single();
+
+    if (
+      targetUser &&
+      (numId === 1 ||
+        targetUser.username?.toLowerCase() === "admin" ||
+        targetUser.email?.toLowerCase() === "admin@star.in")
+    ) {
+      return NextResponse.json(
+        { error: "Super Admin account is permanently locked and cannot be deleted." },
+        { status: 403 }
+      );
+    }
 
     if (targetUser && Number(targetUser.role_id) === 0) {
       const { count: adminCount } = await supabaseAdmin
@@ -410,6 +446,9 @@ export async function DELETE(req: NextRequest) {
           return NextResponse.json({ error: "Initials already exist." }, { status: 400 });
         }
         return NextResponse.json({ error: "A user with these details already exists." }, { status: 400 });
+      }
+      if (error.code === "23503" || error.message?.includes("foreign key")) {
+        return NextResponse.json({ error: "The selected user role is invalid or does not exist." }, { status: 400 });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

@@ -25,8 +25,8 @@ export interface QuotationCardListProps {
   onOpenVoucher: (quote: Quotation) => void;
   onDownloadPdf: (id: number, quoteNo?: string) => void;
   downloadingId?: number | null;
-  onEdit: (quote: Quotation) => void;
-  onDelete: (id: number) => void;
+  onEdit?: (quote: Quotation) => void;
+  onDelete?: (id: number) => void;
   onStatusChange?: (id: number, newStatus: string) => void;
   statusConfig: Record<
     string,
@@ -182,24 +182,28 @@ export function QuotationCardList({
                     <span className="hidden sm:inline">PDF</span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => onEdit(q)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition active:scale-95 cursor-pointer"
-                    title="Edit Quotation"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Edit</span>
-                  </button>
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(q)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl transition active:scale-95 cursor-pointer"
+                      title="Edit Quotation"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Edit</span>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => onDelete(q.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition active:scale-95 cursor-pointer"
-                    title="Delete Quotation"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {onDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onDelete(q.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded-xl transition active:scale-95 cursor-pointer"
+                      title="Delete Quotation"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </div>
 

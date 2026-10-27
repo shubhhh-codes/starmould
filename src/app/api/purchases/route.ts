@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/purchases - create new PO with line items (Admin, Manager, Purchase Incharge)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_purchase");
+  const auth = await authenticateRequest(req, [0, 1, 5], "action_create_purchase");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -259,28 +259,51 @@ export async function POST(req: NextRequest) {
 
     const nextPurchaseId = (maxRows?.[0]?.purchaseid ?? 1010) + 1;
 
-    // 1. Insert header
-    const { data: newPO, error: poErr } = await supabaseAdmin
-      .from("purchase")
-      .insert([
-        {
-          purchaseid: nextPurchaseId,
-          srno,
-          odate: odate || new Date().toISOString().slice(0, 10),
-          vname: Number(vname),
-          cname: Number(cname),
-          customer_name: (await supabaseAdmin.from("customers").select("customername").eq("id", Number(cname)).maybeSingle()).data?.customername || null,
-          projectid: String(projectid),
-          status: "1",
-          created_by: auth.user.name || "Admin",
-          created_at: new Date().toISOString(),
-        },
-      ])
-      .select()
-      .single();
+    // 1. Insert header with collision-retry loop (Issue #3)
+    let newPO: any = null;
+    let poErr: any = null;
+    let currentPurchaseId = nextPurchaseId;
+    let currentSrno = srno;
 
-    if (poErr) {
-      return NextResponse.json({ error: poErr.message }, { status: 500 });
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (attempt > 0) {
+        const retrySeq = String((todayCount ?? 0) + 1 + attempt).padStart(3, "0");
+        currentSrno = `${todayPrefix}${retrySeq}`;
+        currentPurchaseId = nextPurchaseId + attempt;
+      }
+
+      const res = await supabaseAdmin
+        .from("purchase")
+        .insert([
+          {
+            purchaseid: currentPurchaseId,
+            srno: currentSrno,
+            odate: odate || new Date().toISOString().slice(0, 10),
+            vname: Number(vname),
+            cname: Number(cname),
+            customer_name: (await supabaseAdmin.from("customers").select("customername").eq("id", Number(cname)).maybeSingle()).data?.customername || null,
+            projectid: String(projectid),
+            status: "1",
+            created_by: auth.user.name || "Admin",
+            created_at: new Date().toISOString(),
+          },
+        ])
+        .select()
+        .single();
+
+      if (!res.error) {
+        newPO = res.data;
+        poErr = null;
+        break;
+      }
+      poErr = res.error;
+      if (res.error.code !== "23505" && !res.error.message?.includes("unique constraint")) {
+        break;
+      }
+    }
+
+    if (poErr || !newPO) {
+      return NextResponse.json({ error: poErr?.message || "Failed to create purchase order" }, { status: 500 });
     }
 
     // 2. Insert line items
@@ -300,8 +323,10 @@ export async function POST(req: NextRequest) {
       .insert(lineItemsToInsert)
       .select();
 
+    // 3. Compensating delete to prevent orphaned purchase record on item failure (Issue #6)
     if (itErr) {
-      return NextResponse.json({ error: itErr.message }, { status: 500 });
+      await supabaseAdmin.from("purchase").delete().eq("id", newPO.id);
+      return NextResponse.json({ error: `Failed to insert purchase items: ${itErr.message}` }, { status: 500 });
     }
 
     // Auto-sync subplates order_by & order_at so pipeline stage transitions cleanly
@@ -336,7 +361,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/purchases - update existing PO and reconcile line items (Admin, Manager, Purchase Incharge)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_purchase");
+  const auth = await authenticateRequest(req, [0, 1, 5], "action_edit_purchase");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -515,7 +540,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/purchases?id=123 - soft delete PO (Admin, Manager, Purchase Incharge)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_purchase");
+  const auth = await authenticateRequest(req, [0, 1, 5], "action_delete_purchase");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
