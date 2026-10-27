@@ -916,6 +916,7 @@ export function MouldProjectsTable({
         header: ({ table }) => (
           <input
             type="checkbox"
+            suppressHydrationWarning
             checked={table.getIsAllPageRowsSelected()}
             onChange={table.getToggleAllPageRowsSelectedHandler()}
             onClick={(e) => e.stopPropagation()}
@@ -925,6 +926,7 @@ export function MouldProjectsTable({
         cell: ({ row }) => (
           <input
             type="checkbox"
+            suppressHydrationWarning
             checked={row.getIsSelected()}
             disabled={!row.getCanSelect()}
             onChange={row.getToggleSelectedHandler()}
@@ -1229,6 +1231,7 @@ export function MouldProjectsTable({
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <input
               type="text"
+              suppressHydrationWarning
               value={globalFilter ?? ""}
               onChange={(e) => setGlobalFilter(e.target.value)}
               placeholder="Search in table..."
@@ -1252,6 +1255,7 @@ export function MouldProjectsTable({
             <div className="relative">
               <select
                 value={selectedCustomer}
+                suppressHydrationWarning
                 onChange={(e) => setSelectedCustomer(e.target.value)}
                 className="w-full sm:w-auto min-w-[130px] pl-2.5 pr-7 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium truncate shadow-2xs appearance-none cursor-pointer"
               >
@@ -1269,6 +1273,7 @@ export function MouldProjectsTable({
             <div className="relative">
               <select
                 value={selectedWorktype}
+                suppressHydrationWarning
                 onChange={(e) => setSelectedWorktype(e.target.value)}
                 className="w-full sm:w-auto min-w-[130px] pl-2.5 pr-7 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 font-medium truncate shadow-2xs appearance-none cursor-pointer"
               >
@@ -1560,6 +1565,7 @@ export function MouldProjectsTable({
           <span>Rows per page:</span>
           <select
             value={table.getState().pagination.pageSize}
+            suppressHydrationWarning
             onChange={(e) => table.setPageSize(Number(e.target.value))}
             className="px-2 py-1 rounded bg-white border border-slate-300 text-xs font-medium focus:outline-none"
           >
