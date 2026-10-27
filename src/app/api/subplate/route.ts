@@ -147,40 +147,18 @@ export async function GET(req: NextRequest) {
     const cacheKey = isDefaultQuery ? `subplate_default_${limit}` : null;
 
     const executeFetch = async () => {
-      // Batch subplates query with cached scans, users, and KPI counts
-      const [subplatesRes, scans, users, kpis] = await Promise.all([
+      // Batch subplates query with cached scans and users
+      const [subplatesRes, scans, users] = await Promise.all([
         subplateQuery,
-        supabaseAdmin
-          .from("scan")
-          .select("id, projectid, description, worktype, cname, status")
-          .order("id", { ascending: false })
-          .limit(1000)
-          .then((res) => res.data || []),
+        getCached("shared_scans_lookup", 30, async () => {
+          const res = await supabaseAdmin
+            .from("scan")
+            .select("id, projectid, description, worktype, cname, status")
+            .order("id", { ascending: false })
+            .limit(1000);
+          return res.data || [];
+        }),
         getCachedUsers(),
-        (async () => {
-          const [totalActiveRes, inHouseRes, vendorRes] = await Promise.all([
-            supabaseAdmin
-              .from("subplate")
-              .select("id", { count: "exact", head: true })
-              .is("deleted_at", null),
-            supabaseAdmin
-              .from("subplate")
-              .select("id", { count: "exact", head: true })
-              .is("deleted_at", null)
-              .or("location.eq.SM,location.is.null"),
-            supabaseAdmin
-              .from("subplate")
-              .select("id", { count: "exact", head: true })
-              .is("deleted_at", null)
-              .neq("location", "SM")
-              .not("location", "is", null),
-          ]);
-          return {
-            totalCount: totalActiveRes.count || 0,
-            inHouseCount: inHouseRes.count || 0,
-            vendorCount: vendorRes.count || 0,
-          };
-        })(),
       ]);
 
       if (subplatesRes.error) {
@@ -190,6 +168,18 @@ export async function GET(req: NextRequest) {
       const subplates = subplatesRes.data || [];
       const scanMap = new Map((scans || []).map((s: any) => [s.id, s]));
       const userMap = new Map((users || []).map((u: any) => [u.id, u]));
+
+      let inHouseCount = 0;
+      let vendorCount = 0;
+      for (const sp of subplates) {
+        if (sp.location === "SM" || !sp.location) inHouseCount++;
+        else vendorCount++;
+      }
+      const kpis = {
+        totalCount: subplatesRes.count ?? subplates.length,
+        inHouseCount,
+        vendorCount,
+      };
 
       const enriched = subplates.map((sp: any) => {
         const scan = scanMap.get(sp.projectid);

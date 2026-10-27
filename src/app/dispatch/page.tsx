@@ -387,6 +387,41 @@ export default function DispatchPage() {
     }
   };
 
+  // Open Voucher directly in new tab with encrypted secure print token
+  const handleOpenPrintTab = async (dispatchId: number) => {
+    const win = typeof window !== "undefined" ? window.open("", "_blank") : null;
+    try {
+      const res = await fetch("/api/print-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "dispatch", id: dispatchId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const targetUrl = data.url || `/print/dispatch/${dispatchId}`;
+        if (win) {
+          win.location.href = targetUrl;
+        } else {
+          window.open(targetUrl, "_blank", "noopener,noreferrer");
+        }
+      } else {
+        const fallbackUrl = `/print/dispatch/${dispatchId}`;
+        if (win) {
+          win.location.href = fallbackUrl;
+        } else {
+          window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        }
+      }
+    } catch {
+      const fallbackUrl = `/print/dispatch/${dispatchId}`;
+      if (win) {
+        win.location.href = fallbackUrl;
+      } else {
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
+    }
+  };
+
   const handleDeleteDispatch = async (id: number) => {
     if (!confirm("Are you sure you want to delete this dispatch challan?")) return;
     try {
@@ -628,15 +663,14 @@ export default function DispatchPage() {
 
                           <td className="px-4 py-3.5 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              <a
-                                href={`/print/dispatch/${d.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => handleOpenPrintTab(d.id)}
                                 className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
                                 title="Print / View Delivery Challan"
                               >
                                 <Printer className="h-4 w-4" />
-                              </a>
+                              </button>
                               <button
                                 onClick={() => handleDeleteDispatch(d.id)}
                                 className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition cursor-pointer"
@@ -760,15 +794,14 @@ export default function DispatchPage() {
                         {(d.items || []).length} items
                       </span>
                       <div className="flex items-center gap-2">
-                        <a
-                          href={`/print/dispatch/${d.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPrintTab(d.id)}
                           className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
                         >
                           <Printer className="w-3.5 h-3.5 text-slate-500" />
                           <span>Print</span>
-                        </a>
+                        </button>
                         <button
                           onClick={() => toggleRow(d.id)}
                           className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition flex items-center justify-center cursor-pointer"

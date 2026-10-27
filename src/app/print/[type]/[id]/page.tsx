@@ -102,13 +102,31 @@ export default function PrintDocumentPage({ params }: PageProps) {
       });
   }, [type, id]);
 
+  // Self-healing URL: If visited with a raw numeric ID (e.g. /print/dispatch/1), mask it with an encrypted secure token
+  useEffect(() => {
+    if (doc && /^\d+$/.test(id)) {
+      fetch("/api/print-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, id }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.token) {
+            window.history.replaceState(null, "", `/print/${type}/${data.token}`);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [doc, type, id]);
+
   // Sheet Height Detection via ResizeObserver
   useEffect(() => {
     const el = sheetRef.current;
     if (!el) return;
 
     const measure = () => {
-      const printableArea = (el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area")) as HTMLElement;
+      const printableArea = (el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area") || el.querySelector("#dispatch-printable-area")) as HTMLElement;
       const h = printableArea?.offsetHeight || el.offsetHeight || el.scrollHeight || 1140;
       if (h > 200) {
         setSheetHeight(Math.max(1140, h));
@@ -652,6 +670,8 @@ export default function PrintDocumentPage({ params }: PageProps) {
       // Fetch pristine vector PDF from server Puppeteer engine
       const downloadUrl = isQuotation
         ? `/api/download-quotation-pdf?id=${encodeURIComponent(doc?.id || doc?.quote?.id || id)}`
+        : isDispatch
+        ? `/api/download-dispatch-pdf?id=${encodeURIComponent(id)}`
         : `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
       const res = await fetch(downloadUrl);
 

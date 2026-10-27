@@ -29,6 +29,8 @@ import {
   useNextProjectIdQuery,
 } from "@/lib/query/hooks";
 import type { Customer } from "@/lib/supabase/types";
+import { GhostDescriptionInput } from "@/components/mould/ghost-description-input";
+import { learnMouldDescription } from "@/lib/mould-autocomplete";
 
 export type WorkType =
   | "Pulp Mould"
@@ -275,6 +277,9 @@ export function NewMouldModal({
         note: form.note.trim(),
       });
 
+      // Register new description for future smart autocomplete
+      learnMouldDescription(form.description.trim(), form.worktype);
+
       const created = res?.scan || res?.project || res?.data || res;
       const assignedCode = created?.projectid || created?.id;
       if (assignedCode) {
@@ -510,21 +515,29 @@ export function NewMouldModal({
           </div>
         </div>
 
-        {/* 4. Part Description */}
+        {/* 4. Part Description with Inline Ghost Text Smart Autocomplete */}
         <div>
-          <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-            Part Description <span className="text-rose-500">*</span>
-          </label>
-          <textarea
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+              Part Description <span className="text-rose-500">*</span>
+            </label>
+            <span className="text-[10px] text-slate-400 font-medium hidden md:inline">
+              Press <kbd className="px-1 py-0.5 rounded bg-slate-100 font-mono text-slate-600 border border-slate-200">Tab</kbd> or <kbd className="px-1 py-0.5 rounded bg-slate-100 font-mono text-slate-600 border border-slate-200">→</kbd> to complete
+            </span>
+          </div>
+          <GhostDescriptionInput
             id="part-description-input"
             required
             rows={2}
             placeholder="e.g. 8 Cavity Cap Mould Top Core Plate, 120 GSM pulp packaging..."
             value={form.description}
-            onChange={(e) =>
-              setForm((prev) => ({ ...prev, description: e.target.value }))
+            worktype={form.worktype}
+            onChange={(val) =>
+              setForm((prev) => ({ ...prev, description: val }))
             }
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400 resize-none text-slate-800"
+            onEnterAdvance={() => {
+              document.getElementById("internal-note-input")?.focus();
+            }}
           />
         </div>
 

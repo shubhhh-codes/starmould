@@ -113,9 +113,9 @@ export function useProjectsQuery(params: ProjectsQueryParams = {}) {
       };
     },
     enabled: params.enabled !== false,
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 
@@ -924,9 +924,9 @@ export function useSubplatesQuery(params: SubplatesQueryParams = {}) {
         },
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 
@@ -1396,9 +1396,9 @@ export function useWorklogsQuery(params: { userid?: string; date?: string; custo
         kpis: data.kpis || {},
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -1456,9 +1456,9 @@ export function usePurchasesQuery(params: { page?: number; limit?: number; inclu
         pagination: data.pagination,
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -1531,9 +1531,9 @@ export function useChallansQuery(params: { status?: string; limit?: number } = {
         kpis: data.kpis || { totalChallans: 0, activeCount: 0 },
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -1605,9 +1605,9 @@ export function useDispatchQuery(params: { limit?: number } = {}) {
         scans: (data.scans || []) as ScanProject[],
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -1663,9 +1663,9 @@ export function useInwardQuery(params: { limit?: number } = {}) {
         kpis: data.kpis || { totalInwards: 0, totalPendingChallanItems: 0 },
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -1732,9 +1732,9 @@ export function useExpensesQuery(params: { customerid?: string; payment_type?: s
         },
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -1800,9 +1800,9 @@ export function usePurchaseInwardQuery() {
         subplates: (data.subplates || []) as Subplate[],
       };
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }
@@ -1885,9 +1885,9 @@ export function useExportCountsQuery() {
       const data = await fetchJson<any>("/api/export?type=counts");
       return data.counts || {};
     },
-    staleTime: 0,
+    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
-    refetchOnMount: "always",
+    refetchOnMount: true,
     refetchOnWindowFocus: true,
   });
 }

@@ -80,6 +80,26 @@ export class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    const isChunkError =
+      error.name === "ChunkLoadError" ||
+      error.message?.includes("ChunkLoadError") ||
+      error.message?.includes("Failed to load chunk") ||
+      error.message?.includes("Loading chunk");
+
+    if (isChunkError && typeof window !== "undefined") {
+      try {
+        const lastReload = sessionStorage.getItem("last_chunk_reload");
+        const now = Date.now();
+        if (!lastReload || now - Number(lastReload) > 10_000) {
+          sessionStorage.setItem("last_chunk_reload", String(now));
+          window.location.reload();
+          return;
+        }
+      } catch {
+        // sessionStorage might fail in private browsing
+      }
+    }
+
     sendErrorReport({
       type: "react_error",
       message: error.message || "React component crashed",
@@ -147,6 +167,26 @@ export function ClientErrorListener() {
       if (!event.message && !event.error) return;
       if (isPageUnloading) return;
 
+      const isChunkError =
+        event.error?.name === "ChunkLoadError" ||
+        event.message?.includes("ChunkLoadError") ||
+        event.message?.includes("Failed to load chunk") ||
+        event.message?.includes("Loading chunk");
+
+      if (isChunkError && typeof window !== "undefined") {
+        try {
+          const lastReload = sessionStorage.getItem("last_chunk_reload");
+          const now = Date.now();
+          if (!lastReload || now - Number(lastReload) > 10_000) {
+            sessionStorage.setItem("last_chunk_reload", String(now));
+            window.location.reload();
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       sendErrorReport({
         type: "uncaught_error",
         message: event.message || "Unknown runtime error",
@@ -165,6 +205,24 @@ export function ClientErrorListener() {
         (reason instanceof Error && (reason.name === "AbortError" || reason.message.toLowerCase().includes("abort")))
       ) {
         return;
+      }
+
+      const isChunkError =
+        (reason instanceof Error && (reason.name === "ChunkLoadError" || reason.message?.includes("ChunkLoadError") || reason.message?.includes("Failed to load chunk"))) ||
+        (typeof reason === "string" && (reason.includes("ChunkLoadError") || reason.includes("Failed to load chunk")));
+
+      if (isChunkError && typeof window !== "undefined") {
+        try {
+          const lastReload = sessionStorage.getItem("last_chunk_reload");
+          const now = Date.now();
+          if (!lastReload || now - Number(lastReload) > 10_000) {
+            sessionStorage.setItem("last_chunk_reload", String(now));
+            window.location.reload();
+            return;
+          }
+        } catch {
+          // ignore
+        }
       }
 
       const message =
@@ -296,11 +354,15 @@ export function ClientErrorListener() {
 
         const fullMessage = messageParts.join(" ");
 
-        // Ignore benign React warnings (e.g. hydration suppressions)
+        // Ignore benign React warnings (e.g. hydration suppressions, realtime channel reconnects, stale chunk loads)
         const isBenign =
           fullMessage.includes("Extra attributes from the server") ||
           fullMessage.includes("client-error") ||
-          fullMessage.includes("Warning: An error occurred during hydration");
+          fullMessage.includes("Warning: An error occurred during hydration") ||
+          fullMessage.includes("transport failure") ||
+          fullMessage.includes("CHANNEL_ERROR") ||
+          fullMessage.includes("Failed to load chunk") ||
+          fullMessage.includes("ChunkLoadError");
 
         if (!isBenign) {
           sendErrorReport({

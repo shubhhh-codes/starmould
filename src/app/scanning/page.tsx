@@ -400,7 +400,7 @@ function ScanningPageContent() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
-            <table className="w-full min-w-[1260px] text-left border-collapse text-sm">
+            <table className="w-full min-w-[960px] text-left border-collapse text-sm">
               <thead>
                 <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="w-10 py-3.5 px-2 text-center"></th>
@@ -410,19 +410,16 @@ function ScanningPageContent() {
                   <th className="py-3.5 px-3.5">Description</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">Rec. Date</th>
                   <th className="py-3.5 px-3 whitespace-nowrap">Target Date</th>
-                  <th className="py-3.5 px-3 whitespace-nowrap">Scanner</th>
-                  <th className="py-3.5 px-3 whitespace-nowrap">Designer</th>
-                  <th className="py-3.5 px-3 whitespace-nowrap">QC Officer</th>
                   <th className="py-3.5 px-3 text-center whitespace-nowrap">Subplates / Progress</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {isLoading ? (
-                  <TableSkeletonRows rows={8} columns={11} />
+                  <TableSkeletonRows rows={8} columns={8} />
                 ) : paginatedScans.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={11}
+                      colSpan={8}
                       className="py-12 text-center text-slate-400 text-sm"
                     >
                       No scanning projects found.
@@ -508,45 +505,6 @@ function ScanningPageContent() {
                             {row.cdate || "—"}
                           </td>
 
-                          {/* Staff Assign: Scanner */}
-                          <td className="py-3 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <StaffSelect
-                              value={row.scan_by}
-                              onChange={(val) =>
-                                handleStaffChange(row.id, "scan_by", val)
-                              }
-                              staff={activeStaff}
-                              color="blue"
-                              placeholder="Select"
-                            />
-                          </td>
-
-                          {/* Staff Assign: Designer */}
-                          <td className="py-3 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <StaffSelect
-                              value={row.modeldesign_by}
-                              onChange={(val) =>
-                                handleStaffChange(row.id, "modeldesign_by", val)
-                              }
-                              staff={activeStaff}
-                              color="blue"
-                              placeholder="Select"
-                            />
-                          </td>
-
-                          {/* Staff Assign: QC Officer */}
-                          <td className="py-3 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                            <StaffSelect
-                              value={row.qc_by}
-                              onChange={(val) =>
-                                handleStaffChange(row.id, "qc_by", val)
-                              }
-                              staff={activeStaff}
-                              color="blue"
-                              placeholder="Select"
-                            />
-                          </td>
-
                           {/* Subplates Progress & Actions */}
                           <td className="py-3 px-3.5">
                             <div className="flex items-center justify-between gap-3">
@@ -609,7 +567,7 @@ function ScanningPageContent() {
                         {/* Inline Expandable Subplates Accordion */}
                         {isExpanded && (
                           <tr key={`subplates-${row.id}`} className="bg-slate-50/70 border-b border-slate-200">
-                            <td colSpan={11} className="p-0">
+                            <td colSpan={8} className="p-0">
                               <MoldSubplatesInline
                                 project={row}
                                 subplates={row.subplates || []}

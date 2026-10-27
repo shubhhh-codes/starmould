@@ -6,8 +6,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_MENU_ORDERS } from "@/lib/permissions/defaults";
 import { RolePermissionsMatrix, RoleMenuOrders } from "@/lib/permissions/types";
 import {
-  loadEffectivePermissions,
-  loadEffectiveMenuOrders,
+  loadEffectiveConfig,
   saveConfigToSupabase,
 } from "@/lib/permissions/loader";
 import { serverLogger } from "@/lib/server-logger";
@@ -20,8 +19,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const permissions = await loadEffectivePermissions();
-    const menu_orders = await loadEffectiveMenuOrders();
+    const { permissions, menu_orders } = await loadEffectiveConfig();
 
     const response = NextResponse.json({
       success: true,
@@ -63,8 +61,7 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { roleId, permissions, menuOrder, matrix, menuOrders } = body;
 
-    const current_permissions = await loadEffectivePermissions();
-    const current_orders = await loadEffectiveMenuOrders();
+    const { permissions: current_permissions, menu_orders: current_orders } = await loadEffectiveConfig();
 
     const updatedPerms: RolePermissionsMatrix = { ...current_permissions };
     const updatedOrders: RoleMenuOrders = { ...current_orders };
@@ -176,8 +173,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const { roleId } = body;
 
-    const current_permissions = await loadEffectivePermissions();
-    const current_orders = await loadEffectiveMenuOrders();
+    const { permissions: current_permissions, menu_orders: current_orders } = await loadEffectiveConfig();
 
     const updatedPerms: RolePermissionsMatrix = { ...current_permissions };
     const updatedOrders: RoleMenuOrders = { ...current_orders };

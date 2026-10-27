@@ -593,16 +593,21 @@ function SubplatePageContent() {
 
 	const isRestoring = useIsRestoring();
 	const { data, isLoading: queryLoading, error: fetchQueryError } = useSubplatesQuery();
-	const projectsQuery = useProjectsQuery({ pageSize: 500 });
+	// Modal State for Add / Edit Subplate (declared early for on-demand query gating)
+	const [isModalOpen, setIsModalOpen] = useState(false);
+	const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
+
+	// On-Demand Projects Query: Only fetched when opening Add/Edit modal, not on initial page load
+	const projectsQuery = useProjectsQuery({ pageSize: 500, enabled: isModalOpen });
 	const createSubplateMutation = useCreateSubplateMutation();
 	const updateSubplateMutation = useUpdateSubplateMutation();
 	const deleteSubplateMutation = useDeleteSubplateMutation();
 
 	const subplates = data?.subplates || [];
-	const scans = (projectsQuery.data?.scans && projectsQuery.data.scans.length > 0)
-		? projectsQuery.data.scans
-		: (data?.scans || []);
-	const isProjectsLoading = projectsQuery.isLoading && scans.length === 0;
+	const scans = (data?.scans && data.scans.length > 0)
+		? data.scans
+		: (projectsQuery.data?.scans || []);
+	const isProjectsLoading = isModalOpen && projectsQuery.isLoading && scans.length === 0;
 	const users = data?.users || [];
 	const kpis = data?.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 };
 	const hasLoadedData = subplates.length > 0 || (!!data && !queryLoading);
@@ -627,10 +632,6 @@ function SubplatePageContent() {
 	const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 	const [pageSize, setPageSize] = useState<number>(50);
 	const [currentPage, setCurrentPage] = useState<number>(1);
-
-	// Modal State for Add / Edit Subplate
-	const [isModalOpen, setIsModalOpen] = useState(false);
-	const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
 
 	// Real-time permission revocation guard: auto-close modal if permission revoked
 	useEffect(() => {
@@ -806,12 +807,12 @@ function SubplatePageContent() {
 		plate_category: "General Component",
 	});
 
-	const handleOpenAddModal = () => {
+	const handleOpenAddModal = (defaultProjectId?: string | React.MouseEvent) => {
 		setEditingSubplate(null);
-		const defaultProjectId = projectFilter && projectFilter !== "ALL" ? projectFilter : "";
+		const targetProjectId = typeof defaultProjectId === "string" ? defaultProjectId : (projectFilter && projectFilter !== "ALL" ? projectFilter : "");
 		setModalForm({
 			platename: "",
-			projectid: defaultProjectId,
+			projectid: targetProjectId,
 			subprojectid: "",
 			shape: "Plate",
 			width: "",
@@ -822,7 +823,7 @@ function SubplatePageContent() {
 			material: "MS-Bright",
 			sqty: "1",
 			location: "SM",
-		plate_category: "General Component",
+			plate_category: "General Component",
 		});
 		setIsModalOpen(true);
 		// Actively guarantee fresh project list when modal is invoked
@@ -995,51 +996,237 @@ function SubplatePageContent() {
 		}
 	};
 
- // Filter subplates
- const filteredSubplates = useMemo(() => {
- return subplates.filter((sp) => {
- const q = searchQuery.toLowerCase();
- const matchQuery =
- !searchQuery ||
- sp.platename?.toLowerCase().includes(q) ||
- sp.subprojectid?.toLowerCase().includes(q) ||
- String(sp.projectid)?.toLowerCase().includes(q);
+	// Interface for Subplates grouped by Mould Project
+	interface MouldGroup {
+		id: string;
+		project?: ScanProject | null;
+		mouldCode: string;
+		mouldName: string;
+		customerName: string;
+		worktype: string;
+		status: string;
+		plates: Subplate[];
+		totalPlates: number;
+		completedPlates: number;
+		totalWeight: number;
+	}
 
- const matchMaterial =
- materialFilter === "ALL" || sp.material === materialFilter;
+	// State for expanded Mould project groups
+	const [expandedMoulds, setExpandedMoulds] = useState<Record<string, boolean>>({});
 
- const matchLocation =
- locationFilter === "ALL" ||
- (locationFilter === "SM"
- ? sp.location === "SM" || !sp.location
- : sp.location !== "SM" && sp.location);
+	// Filter subplates with deep universal search matching
+	const filteredSubplates = useMemo(() => {
+		const scanMap = new Map<string, ScanProject>();
+		scans.forEach((s) => {
+			scanMap.set(String(s.id), s);
+			if (s.projectid) {
+				scanMap.set(s.projectid.toLowerCase(), s);
+			}
+		});
 
- const matchProject =
- projectFilter === "ALL" || String(sp.projectid) === projectFilter;
+		const q = searchQuery.toLowerCase().trim();
+		const tokens = q ? q.split(/\s+/).filter(Boolean) : [];
 
- let matchStage = true;
- if (stageFilter === "completed") {
- matchStage = countCompletedStages(sp) === 9;
- } else if (stageFilter === "pending") {
- matchStage = countCompletedStages(sp) < 9;
- } else if (stageFilter !== "ALL") {
- matchStage = Boolean((sp as any)[stageFilter]);
- }
+		return subplates.filter((sp) => {
+			const project =
+				(sp.projectid ? scanMap.get(String(sp.projectid)) : null) ||
+				(sp.mold_id ? scanMap.get(String(sp.mold_id)) : null) ||
+				(sp.subprojectid ? scanMap.get(sp.subprojectid.toLowerCase().split("_").slice(0, 3).join("_")) : null);
 
- const matchCategory = categoryFilter === "ALL" || sp.plate_category === categoryFilter;
+			// 1. Universal Search (Matches plate name, subproject id, material, dimensions, shape, location, category, mould code, mould name, customer, and staff)
+			if (tokens.length > 0) {
+				const matchesAllTokens = tokens.every((token) => {
+					// Subplate direct properties
+					if (sp.platename && sp.platename.toLowerCase().includes(token)) return true;
+					if (sp.subprojectid && sp.subprojectid.toLowerCase().includes(token)) return true;
+					if (String(sp.id).includes(token)) return true;
+					if (sp.material && sp.material.toLowerCase().includes(token)) return true;
+					if (sp.shape && sp.shape.toLowerCase().includes(token)) return true;
+					if (sp.location && sp.location.toLowerCase().includes(token)) return true;
+					if (sp.plate_category && sp.plate_category.toLowerCase().includes(token)) return true;
+					if (sp.unit && sp.unit.toLowerCase().includes(token)) return true;
 
- return matchQuery && matchMaterial && matchLocation && matchProject && matchStage && matchCategory;
- });
- }, [subplates, searchQuery, materialFilter, locationFilter, projectFilter, stageFilter, categoryFilter]);
+					// Dimensions (length, width, height, thickness, formatted text)
+					if (String(sp.length ?? "").includes(token)) return true;
+					if (String(sp.width ?? "").includes(token)) return true;
+					if (String(sp.height ?? "").includes(token)) return true;
+					if (formatSubplateDimensions(sp).toLowerCase().includes(token)) return true;
 
- const totalPages = Math.ceil(filteredSubplates.length / pageSize) || 1;
- const paginatedSubplates = useMemo(() => {
- const start = (currentPage - 1) * pageSize;
- return filteredSubplates.slice(start, start + pageSize);
- }, [filteredSubplates, currentPage, pageSize]);
+					// Parent Mould properties
+					if (project) {
+						if (project.projectid && project.projectid.toLowerCase().includes(token)) return true;
+						if (project.description && project.description.toLowerCase().includes(token)) return true;
+						if ((project.cname || project.customername) && (project.cname || project.customername)?.toLowerCase().includes(token)) return true;
+						if (project.worktype && project.worktype.toLowerCase().includes(token)) return true;
+						if (String(project.id).includes(token)) return true;
+					}
+					if ((sp as any).mould_project_code && (sp as any).mould_project_code.toLowerCase().includes(token)) return true;
+					if ((sp as any).mould_description && (sp as any).mould_description.toLowerCase().includes(token)) return true;
+					if ((sp as any).mould_customer_name && (sp as any).mould_customer_name.toLowerCase().includes(token)) return true;
 
- // Auto-scroll and highlight matching search row
- const { getRowHighlightClass } = useTableHighlight(filteredSubplates, pageSize, setCurrentPage);
+					// 9-Stage Assigned Staff (Names or Initials)
+					for (const st of STAGE_DEFINITIONS) {
+						const staffName = (sp as any)[st.nameKey];
+						if (staffName && typeof staffName === "string" && staffName.toLowerCase().includes(token)) return true;
+						const staffId = (sp as any)[st.key];
+						if (staffId) {
+							const u = activeStaff.find((usr) => usr.id === Number(staffId));
+							if (u && (u.name?.toLowerCase().includes(token) || u.initials?.toLowerCase().includes(token))) return true;
+						}
+					}
+
+					return false;
+				});
+
+				if (!matchesAllTokens) return false;
+			}
+
+			// 2. Material Filter
+			const matchMaterial = materialFilter === "ALL" || sp.material === materialFilter;
+			if (!matchMaterial) return false;
+
+			// 3. Location Filter
+			const isSM = sp.location === "SM" || !sp.location;
+			const matchLocation =
+				locationFilter === "ALL" ||
+				(locationFilter === "SM" ? isSM : !isSM);
+			if (!matchLocation) return false;
+
+			// 4. Project Filter
+			const matchProject =
+				projectFilter === "ALL" ||
+				String(sp.projectid) === projectFilter ||
+				String(sp.mold_id) === projectFilter ||
+				(project && String(project.id) === projectFilter);
+			if (!matchProject) return false;
+
+			// 5. Stage Filter
+			let matchStage = true;
+			const completedCount = countCompletedStages(sp);
+			if (stageFilter === "completed") {
+				matchStage = completedCount === 9;
+			} else if (stageFilter === "pending") {
+				matchStage = completedCount < 9;
+			} else if (stageFilter !== "ALL") {
+				matchStage = Boolean((sp as any)[stageFilter]);
+			}
+			if (!matchStage) return false;
+
+			// 6. Category Filter
+			const matchCategory = categoryFilter === "ALL" || sp.plate_category === categoryFilter;
+			if (!matchCategory) return false;
+
+			return true;
+		});
+	}, [subplates, scans, searchQuery, materialFilter, locationFilter, projectFilter, stageFilter, categoryFilter, activeStaff]);
+
+	// Group filtered subplates by their parent Mould Project
+	const mouldGroups = useMemo<MouldGroup[]>(() => {
+		const scanMap = new Map<string, ScanProject>();
+		scans.forEach((s) => {
+			scanMap.set(String(s.id), s);
+			if (s.projectid) {
+				scanMap.set(s.projectid.toLowerCase(), s);
+			}
+		});
+
+		const groupMap = new Map<string, MouldGroup>();
+
+		filteredSubplates.forEach((sp) => {
+			const project =
+				(sp.projectid ? scanMap.get(String(sp.projectid)) : null) ||
+				(sp.mold_id ? scanMap.get(String(sp.mold_id)) : null) ||
+				(sp.subprojectid ? scanMap.get(sp.subprojectid.toLowerCase().split("_").slice(0, 3).join("_")) : null);
+
+			const mouldId = project
+				? String(project.id)
+				: sp.projectid
+				? `proj_${sp.projectid}`
+				: "unassigned";
+
+			if (!groupMap.has(mouldId)) {
+				groupMap.set(mouldId, {
+					id: mouldId,
+					project,
+					mouldCode:
+						project?.projectid ||
+						(sp as any).mould_project_code ||
+						(sp.projectid ? `Project #${sp.projectid}` : "Unassigned Mould"),
+					mouldName:
+						project?.description ||
+						(sp as any).mould_description ||
+						"General Subplates",
+					customerName:
+						project?.cname ||
+						project?.customername ||
+						(sp as any).mould_customer_name ||
+						"",
+					worktype: project?.worktype || (sp as any).mould_worktype || "",
+					status: project?.status || (sp as any).mould_status || "",
+					plates: [],
+					totalPlates: 0,
+					completedPlates: 0,
+					totalWeight: 0,
+				});
+			}
+
+			const grp = groupMap.get(mouldId)!;
+			grp.plates.push(sp);
+			grp.totalPlates++;
+			if (countCompletedStages(sp) === 9) {
+				grp.completedPlates++;
+			}
+			const wt = parseFloat(String(sp.weight || 0));
+			if (!isNaN(wt) && wt > 0) {
+				grp.totalWeight += wt;
+			}
+		});
+
+		return Array.from(groupMap.values()).sort((a, b) => {
+			if (a.id === "unassigned") return 1;
+			if (b.id === "unassigned") return -1;
+			return a.mouldCode.localeCompare(b.mouldCode);
+		});
+	}, [filteredSubplates, scans]);
+
+	// Auto-expand on active search, default expand all mould groups
+	const isMouldExpanded = useCallback(
+		(mouldId: string) => {
+			if (searchQuery.trim().length > 0) return true;
+			return expandedMoulds[mouldId] ?? true;
+		},
+		[searchQuery, expandedMoulds]
+	);
+
+	const toggleMould = useCallback(
+		(mouldId: string) => {
+			setExpandedMoulds((prev) => ({
+				...prev,
+				[mouldId]: !isMouldExpanded(mouldId),
+			}));
+		},
+		[isMouldExpanded]
+	);
+
+	const handleToggleAllMoulds = useCallback(
+		(expand: boolean) => {
+			const next: Record<string, boolean> = {};
+			mouldGroups.forEach((g) => {
+				next[g.id] = expand;
+			});
+			setExpandedMoulds(next);
+		},
+		[mouldGroups]
+	);
+
+	const totalPages = Math.ceil(mouldGroups.length / pageSize) || 1;
+	const paginatedMouldGroups = useMemo(() => {
+		const start = (currentPage - 1) * pageSize;
+		return mouldGroups.slice(start, start + pageSize);
+	}, [mouldGroups, currentPage, pageSize]);
+
+	// Auto-scroll and highlight matching search row
+	const { getRowHighlightClass } = useTableHighlight(filteredSubplates, pageSize, setCurrentPage);
 
  // Handle Delete Subplate (Permanent DB Deletion)
  const handleDeleteSubplate = async (id: number, platename: string) => {
@@ -1145,39 +1332,45 @@ function SubplatePageContent() {
  }
  };
 
- const handleExportCSV = () => {
- const headers = [
- "ID",
- "Plate Name",
- "Project ID",
- "Subproject ID",
- "Shape",
- "Dimensions (LxWxH)",
- "Material",
- "Qty",
- "Location",
- ];
- const rows = filteredSubplates.map((sp) => [
- sp.id,
- `"${sp.platename}"`,
- sp.projectid,
- sp.subprojectid || "",
- sp.shape || "Plate",
- `"${sp.length}x${sp.width}x${sp.height} ${sp.unit || "mm"}"`,
- sp.material || "",
- sp.sqty || 1,
- sp.location || "SM",
- ]);
- const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
- const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
- const url = URL.createObjectURL(blob);
- const link = document.createElement("a");
- link.href = url;
- link.setAttribute("download", `Subplates_${new Date().toISOString().split("T")[0]}.csv`);
- document.body.appendChild(link);
- link.click();
- document.body.removeChild(link);
- };
+	const handleExportCSV = () => {
+		const headers = [
+			"ID",
+			"Plate Name",
+			"Mould Project Code",
+			"Customer",
+			"Subproject ID",
+			"Shape",
+			"Dimensions (LxWxH)",
+			"Material",
+			"Weight (kg)",
+			"Qty",
+			"Location",
+			"Completed Stages (out of 9)",
+		];
+		const rows = filteredSubplates.map((sp) => [
+			sp.id,
+			`"${sp.platename}"`,
+			`"${(sp as any).mould_project_code || sp.projectid || ""}"`,
+			`"${(sp as any).mould_customer_name || ""}"`,
+			sp.subprojectid || "",
+			sp.shape || "Plate",
+			`"${sp.length}x${sp.width}x${sp.height} ${sp.unit || "mm"}"`,
+			sp.material || "",
+			sp.weight || "",
+			sp.sqty || 1,
+			sp.location || "SM",
+			countCompletedStages(sp),
+		]);
+		const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+		const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.setAttribute("download", `Subplates_${new Date().toISOString().split("T")[0]}.csv`);
+		document.body.appendChild(link);
+		link.click();
+		document.body.removeChild(link);
+	};
 
  return (
  <AppLayout>
@@ -1283,25 +1476,45 @@ function SubplatePageContent() {
  </div>
  )}
 
- {/* Filter Controls */}
-				<div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4 w-full max-w-full min-w-0">
+ {/* Filter Controls & Universal Search */}
+				<div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3 w-full max-w-full min-w-0">
 					<div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-center gap-2.5 w-full min-w-0">
-						<div className="relative w-full sm:col-span-2 lg:col-span-1 lg:w-auto lg:min-w-[260px] min-w-0">
+						{/* Universal Search Input */}
+						<div className="relative w-full sm:col-span-2 lg:col-span-1 lg:w-auto lg:min-w-[320px] min-w-0">
 							<Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
 							<input
 								type="text"
-								placeholder="Search by plate name, subproject ID, project..."
+								placeholder="Universal Search (mould, plate, customer, specs, staff)..."
 								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition"
+								onChange={(e) => {
+									setSearchQuery(e.target.value);
+									setCurrentPage(1);
+								}}
+								className="w-full pl-10 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
 							/>
+							{searchQuery && (
+								<button
+									type="button"
+									onClick={() => {
+										setSearchQuery("");
+										setCurrentPage(1);
+									}}
+									className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+									title="Clear search"
+								>
+									<X className="w-3.5 h-3.5" />
+								</button>
+							)}
 						</div>
 
 						{/* Material Selector */}
 						<div className="w-full lg:w-44 min-w-0">
 							<ERPSelect
 								value={materialFilter}
-								onChange={(val) => setMaterialFilter(String(val))}
+								onChange={(val) => {
+									setMaterialFilter(String(val));
+									setCurrentPage(1);
+								}}
 								options={materialFilterOptions}
 								placeholder="All Materials"
 								searchPlaceholder="Search materials..."
@@ -1312,7 +1525,10 @@ function SubplatePageContent() {
 						<div className="w-full lg:w-48 min-w-0">
 							<ERPSelect
 								value={categoryFilter}
-								onChange={(val) => setCategoryFilter(String(val))}
+								onChange={(val) => {
+									setCategoryFilter(String(val));
+									setCurrentPage(1);
+								}}
 								options={categoryFilterOptions}
 								placeholder="All Categories"
 								showSearch={false}
@@ -1323,7 +1539,10 @@ function SubplatePageContent() {
 						<div className="w-full lg:w-40 min-w-0">
 							<ERPSelect
 								value={locationFilter}
-								onChange={(val) => setLocationFilter(String(val))}
+								onChange={(val) => {
+									setLocationFilter(String(val));
+									setCurrentPage(1);
+								}}
 								options={locationFilterOptions}
 								placeholder="All Locations"
 								showSearch={false}
@@ -1334,7 +1553,10 @@ function SubplatePageContent() {
 						<div className="w-full lg:w-56 min-w-0">
 							<ERPSelect
 								value={projectFilter}
-								onChange={(val) => setProjectFilter(String(val))}
+								onChange={(val) => {
+									setProjectFilter(String(val));
+									setCurrentPage(1);
+								}}
 								options={projectFilterOptions}
 								placeholder="All Projects"
 								searchPlaceholder="Search projects..."
@@ -1345,274 +1567,715 @@ function SubplatePageContent() {
 						<div className="w-full lg:w-52 min-w-0">
 							<ERPSelect
 								value={stageFilter}
-								onChange={(val) => setStageFilter(String(val))}
+								onChange={(val) => {
+									setStageFilter(String(val));
+									setCurrentPage(1);
+								}}
 								options={stageFilterOptions}
 								placeholder="All Stages"
 								showSearch={false}
 							/>
 						</div>
 					</div>
+
+					{/* Toolbar Sub-Bar: Counts and Expand/Collapse Controls */}
+					<div className="flex items-center justify-between gap-3 pt-2.5 border-t border-slate-100 flex-wrap text-xs">
+						<div className="flex items-center gap-2 text-slate-500">
+							<span className="font-bold text-slate-800">
+								{mouldGroups.length} {mouldGroups.length === 1 ? "Mould Project" : "Mould Projects"}
+							</span>
+							<span className="text-slate-300">•</span>
+							<span className="font-medium text-slate-600">
+								{filteredSubplates.length} {filteredSubplates.length === 1 ? "Subplate" : "Subplates"} Total
+							</span>
+							{searchQuery && (
+								<span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-semibold text-[11px] border border-blue-200">
+									Search: &quot;{searchQuery}&quot;
+								</span>
+							)}
+							{(materialFilter !== "ALL" || locationFilter !== "ALL" || projectFilter !== "ALL" || stageFilter !== "ALL" || categoryFilter !== "ALL") && (
+								<button
+									type="button"
+									onClick={() => {
+										setSearchQuery("");
+										setMaterialFilter("ALL");
+										setLocationFilter("ALL");
+										setProjectFilter("ALL");
+										setStageFilter("ALL");
+										setCategoryFilter("ALL");
+										setCurrentPage(1);
+									}}
+									className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold underline cursor-pointer ml-1"
+								>
+									Clear all filters
+								</button>
+							)}
+						</div>
+
+						<div className="flex items-center gap-2">
+							<button
+								type="button"
+								onClick={() => handleToggleAllMoulds(true)}
+								className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-blue-700 bg-slate-100 hover:bg-blue-50 rounded-lg transition border border-slate-200 cursor-pointer"
+								title="Expand all mould cards"
+							>
+								Expand All
+							</button>
+							<button
+								type="button"
+								onClick={() => handleToggleAllMoulds(false)}
+								className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-lg transition border border-slate-200 cursor-pointer"
+								title="Collapse all mould cards"
+							>
+								Collapse All
+							</button>
+						</div>
+					</div>
 				</div>
 
-				{/* Subplates Table */}
-				<div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden w-full max-w-full min-w-0">
-					{/* Desktop Table View - Single-Screen Fit (No Horizontal Scroll Needed) */}
-					<div className="hidden md:block w-full overflow-x-auto custom-scrollbar">
-						<table className="w-full text-left border-collapse text-sm">
-							<thead>
-								<tr className="bg-slate-50/80 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-									<th className="py-3.5 px-2 w-8 text-center"></th>
-									<th className="py-3.5 px-4 min-w-[230px]">Subplate &amp; Mould</th>
-									<th className="py-3.5 px-4 min-w-[210px]">Specs &amp; Material</th>
-									<th className="py-3.5 px-2 text-center w-24">Location</th>
-									<th className="py-3.5 px-4 min-w-[320px] w-full">Production Pipeline &amp; Status</th>
-									<th className="py-3.5 px-3 text-right w-20">Actions</th>
-								</tr>
-							</thead>
-							<tbody className="divide-y divide-slate-100">
-								{isLoading ? (
-									<TableSkeletonRows rows={8} columns={6} />
-								) : filteredSubplates.length === 0 ? (
-									<tr>
-										<td
-											colSpan={6}
-											className="py-12 text-center text-slate-400 text-sm"
-										>
-											No subplates found matching your filter criteria.
-										</td>
-									</tr>
-								) : (
-									paginatedSubplates.map((row) => {
-										const isExpanded = Boolean(expandedRows[row.id]);
-										const completedCount = countCompletedStages(row);
+				{/* Mould Groups Container */}
+				{isLoading ? (
+					<div className="space-y-4">
+						{[1, 2].map((idx) => (
+							<div key={idx} className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 space-y-3.5 animate-pulse">
+								<div className="flex items-center justify-between pb-3 border-b border-slate-100">
+									<div className="flex items-center gap-3">
+										<div className="w-9 h-9 rounded-xl bg-slate-200" />
+										<div className="space-y-2">
+											<div className="h-4 w-40 bg-slate-200 rounded" />
+											<div className="h-3 w-56 bg-slate-100 rounded" />
+										</div>
+									</div>
+									<div className="h-7 w-24 bg-slate-200 rounded-lg" />
+								</div>
+								<div className="overflow-x-auto rounded-xl border border-slate-100">
+									<table className="w-full text-left border-collapse">
+										<tbody className="divide-y divide-slate-100">
+											<TableSkeletonRows rows={3} columns={6} />
+										</tbody>
+									</table>
+								</div>
+							</div>
+						))}
+					</div>
+				) : mouldGroups.length === 0 ? (
+					/* Empty State */
+					<div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
+						<div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+							<Search className="w-6 h-6" />
+						</div>
+						<div className="space-y-1">
+							<h3 className="font-bold text-slate-900 text-sm">No Moulds or Subplates Found</h3>
+							<p className="text-xs text-slate-500 max-w-md mx-auto">
+								{searchQuery
+									? `No subplates or mould projects matched "${searchQuery}". Try a different search term or reset your filters.`
+									: "No subplates found matching your selected filters."}
+							</p>
+						</div>
+						{(searchQuery || materialFilter !== "ALL" || locationFilter !== "ALL" || projectFilter !== "ALL" || stageFilter !== "ALL" || categoryFilter !== "ALL") && (
+							<button
+								type="button"
+								onClick={() => {
+									setSearchQuery("");
+									setMaterialFilter("ALL");
+									setLocationFilter("ALL");
+									setProjectFilter("ALL");
+									setStageFilter("ALL");
+									setCategoryFilter("ALL");
+									setCurrentPage(1);
+								}}
+								className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold border border-blue-200 transition cursor-pointer"
+							>
+								<X className="w-3.5 h-3.5" />
+								<span>Reset All Filters</span>
+							</button>
+						)}
+					</div>
+				) : (
+					/* Grouped Mould Projects List */
+					<div className="space-y-4">
+						{paginatedMouldGroups.map((group) => {
+							const isExpanded = isMouldExpanded(group.id);
+							const percent = Math.round((group.completedPlates / Math.max(1, group.totalPlates)) * 100);
 
-										return (
-											<React.Fragment key={row.id}>
-												{/* Main Subplate Row */}
-												<tr
-													id={`row-${row.id}`}
-													onClick={(e) => {
-														const target = e.target as HTMLElement;
-														// Do not trigger toggle if user clicked on interactive elements
-														if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
-															return;
-														}
-														toggleRow(row.id);
-													}}
-													onContextMenu={(e) => handleSubplateContextMenu(e, row)}
-													className={`hover:bg-slate-50/90 transition-all duration-150 group cursor-pointer ${getRowHighlightClass(row.id)}`}
-													title="Click to expand Studio • Right-click for 'Assign to Me'"
-												>
-													{/* Row Expand Toggle */}
-													<td className="py-3 px-2 text-center">
-														<button
-															type="button"
-															onClick={() => toggleRow(row.id)}
-															className="p-1 rounded text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition cursor-pointer"
-															title={isExpanded ? "Hide stage studio" : "Expand stage studio"}
-														>
-															{isExpanded ? (
-																<ChevronDown className="w-4 h-4 text-cyan-600" />
-															) : (
-																<ChevronRight className="w-4 h-4 text-slate-400" />
-															)}
-														</button>
-													</td>
+							return (
+								<div
+									key={group.id}
+									className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden transition-all duration-150"
+								>
+									{/* Mould Header Bar */}
+									<div
+										onClick={() => toggleMould(group.id)}
+										className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-gradient-to-r from-slate-50/90 via-slate-50/70 to-white hover:bg-slate-100/70 border-b border-slate-200 cursor-pointer select-none transition-colors"
+									>
+										{/* Left: Chevron + Mould Identification */}
+										<div className="flex items-center gap-3 min-w-0 flex-1">
+											<button
+												type="button"
+												onClick={(e) => {
+													e.stopPropagation();
+													toggleMould(group.id);
+												}}
+												className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer shrink-0"
+												title={isExpanded ? "Collapse mould group" : "Expand mould group"}
+											>
+												<ChevronDown
+													className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${
+														isExpanded ? "rotate-0 text-blue-600" : "-rotate-90"
+													}`}
+												/>
+											</button>
 
-													{/* Subplate & Mould Identification */}
-													<td className="py-3 px-4">
-														<div className="flex items-center gap-2">
-															<span className="font-bold text-slate-900 text-[15px] leading-tight">
-																{row.platename}
-															</span>
-															<span className="font-mono text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
-																#{row.id}
-															</span>
-														</div>
-														<div className="flex items-center gap-2 mt-1.5 flex-wrap">
-															<span className="inline-flex items-center gap-1 font-mono text-xs text-indigo-700 font-bold px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-200 whitespace-nowrap">
-																<Layers className="w-3 h-3 text-indigo-500 shrink-0" />
-																<span>{(row as any).mould_project_code || `Project #${row.projectid || "—"}`}</span>
-															</span>
-															{row.subprojectid && (
-																<span className="font-mono text-xs font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/80 whitespace-nowrap">
-																	{row.subprojectid}
-																</span>
-															)}
-														</div>
-													</td>
+											<div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-200/60 shrink-0">
+												<Layers className="w-4 h-4 text-blue-600" />
+											</div>
 
-													{/* Specs, Dimensions & Material */}
-													<td className="py-3 px-4">
-														<div className="font-mono text-[14px] font-bold text-slate-900 whitespace-nowrap tracking-tight">
-															{formatSubplateDimensions(row)}
-														</div>
-														<div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs">
-															<span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200/90 whitespace-nowrap">
-																{row.material || "MS-Bright"}
-															</span>
-															<span className="text-slate-700 font-semibold whitespace-nowrap">
-																{row.sqty || 1} {Number(row.sqty) === 1 ? "pc" : "pcs"}
-															</span>
-															{row.shape && (
-																<span className="text-slate-400 text-xs whitespace-nowrap font-medium">
-																	({row.shape})
-																</span>
-															)}
-														</div>
-													</td>
-
-													{/* Location Badge */}
-													<td className="py-3 px-2 text-center whitespace-nowrap">
-														<span
-															className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-																row.location === "SM" || !row.location
-																	? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-																	: "bg-amber-50 text-amber-700 border border-amber-200"
-															}`}
-														>
-															<MapPin className="w-3 h-3" />
-															<span>{row.location || "SM"}</span>
+											<div className="min-w-0 flex-1">
+												<div className="flex items-center gap-2 flex-wrap">
+													<span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/90 shrink-0">
+														{group.mouldCode}
+													</span>
+													<h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
+														{group.mouldName || "Mould Project"}
+													</h3>
+													{group.worktype && (
+														<span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0">
+															{group.worktype}
 														</span>
-													</td>
+													)}
+												</div>
 
-													{/* Production Pipeline & Clean Status */}
-													<td className="py-3 px-4">
-														{(() => {
-															const progress = getSubplateProgressInfo(row, activeStaff);
+												<div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
+													{group.customerName && (
+														<span className="inline-flex items-center gap-1 font-medium text-slate-700">
+															<Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+															<span className="truncate max-w-[200px] sm:max-w-none">{group.customerName}</span>
+														</span>
+													)}
+													{group.customerName && <span className="text-slate-300">•</span>}
+													<span className="font-semibold text-slate-700">
+														{group.plates.length} {group.plates.length === 1 ? "Subplate" : "Subplates"}
+													</span>
+													{group.totalWeight > 0 && (
+														<>
+															<span className="text-slate-300">•</span>
+															<span className="font-mono text-slate-600 font-medium">
+																Total Wt: {group.totalWeight.toFixed(2)} kg
+															</span>
+														</>
+													)}
+												</div>
+											</div>
+										</div>
+
+										{/* Right: Progress Summary & Quick Add Subplate Action */}
+										<div className="flex items-center gap-3 shrink-0 ml-auto sm:ml-0">
+											<div className="flex items-center gap-2.5">
+												<div className="text-right hidden sm:block">
+													<div className="font-bold text-slate-800 text-[11px]">
+														{group.completedPlates}/{group.totalPlates} Ready
+													</div>
+													<div className="text-[10px] text-slate-400">
+														{percent}% Complete
+													</div>
+												</div>
+												<div className="w-20 sm:w-24 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60 hidden sm:block">
+													<div
+														className={`h-full rounded-full transition-all duration-300 ${
+															group.completedPlates === group.totalPlates && group.totalPlates > 0
+																? "bg-emerald-500"
+																: "bg-blue-600"
+														}`}
+														style={{ width: `${percent}%` }}
+													/>
+												</div>
+												<span
+													className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
+														group.completedPlates === group.totalPlates && group.totalPlates > 0
+															? "bg-emerald-50 text-emerald-700 border-emerald-200"
+															: group.completedPlates > 0
+															? "bg-blue-50 text-blue-700 border-blue-200"
+															: "bg-slate-100 text-slate-600 border-slate-200"
+													}`}
+												>
+													{group.completedPlates === group.totalPlates && group.totalPlates > 0
+														? "All Ready ✓"
+														: `${group.completedPlates}/${group.totalPlates} Ready`}
+												</span>
+											</div>
+
+											{canCreateSubplate && (
+												<button
+													type="button"
+													onClick={(e) => {
+														e.stopPropagation();
+														const targetId = group.project?.id ? String(group.project.id) : (group.id !== "unassigned" ? group.id.replace("proj_", "") : "");
+														handleOpenAddModal(targetId);
+													}}
+													className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
+													title="Add a new subplate to this mould"
+												>
+													<Plus className="w-3.5 h-3.5" />
+													<span className="hidden sm:inline">Add Plate</span>
+												</button>
+											)}
+										</div>
+									</div>
+
+									{/* Expanded Mould Subplates */}
+									{isExpanded && (
+										<div>
+											{/* Desktop Subplates Table View */}
+											<div className="hidden md:block w-full overflow-x-auto custom-scrollbar">
+												<table className="w-full text-left border-collapse text-sm">
+													<thead>
+														<tr className="bg-slate-50/60 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+															<th className="py-3 px-2 w-8 text-center"></th>
+															<th className="py-3 px-4 min-w-[210px]">Subplate Name</th>
+															<th className="py-3 px-4 min-w-[200px]">Specs &amp; Material</th>
+															<th className="py-3 px-2 text-center w-24">Location</th>
+															<th className="py-3 px-4 min-w-[320px] w-full">Production Pipeline &amp; Status</th>
+															<th className="py-3 px-3 text-right w-20">Actions</th>
+														</tr>
+													</thead>
+													<tbody className="divide-y divide-slate-100">
+														{group.plates.map((row) => {
+															const isRowExpanded = Boolean(expandedRows[row.id]);
+															const completedCount = countCompletedStages(row);
+
 															return (
-																<div className="space-y-2">
-																	{/* Status Header: Badge + Step count + Open Studio button */}
-																	<div className="flex items-center justify-between gap-2.5">
-																		<div className="flex items-center gap-2 flex-wrap">
-																			<span
-																				className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${progress.badgeStyle}`}
+																<React.Fragment key={row.id}>
+																	{/* Main Subplate Row */}
+																	<tr
+																		id={`row-${row.id}`}
+																		onClick={(e) => {
+																			const target = e.target as HTMLElement;
+																			if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
+																				return;
+																			}
+																			toggleRow(row.id);
+																		}}
+																		onContextMenu={(e) => handleSubplateContextMenu(e, row)}
+																		className={`hover:bg-slate-50/90 transition-all duration-150 group cursor-pointer ${getRowHighlightClass(row.id)}`}
+																		title="Click to expand Studio • Right-click for 'Assign to Me'"
+																	>
+																		{/* Row Expand Toggle */}
+																		<td className="py-3 px-2 text-center">
+																			<button
+																				type="button"
+																				onClick={() => toggleRow(row.id)}
+																				className="p-1 rounded text-slate-400 hover:text-cyan-600 hover:bg-cyan-50 transition cursor-pointer"
+																				title={isRowExpanded ? "Hide stage studio" : "Expand stage studio"}
 																			>
-																				<span className={`w-1.5 h-1.5 rounded-full ${progress.dotColor}`} />
-																				<span>{progress.badgeLabel}</span>
-																				{progress.assignee && (
-																					<span className="font-mono text-[10px] opacity-75 font-normal ml-0.5">
-																						({progress.assignee})
+																				{isRowExpanded ? (
+																					<ChevronDown className="w-4 h-4 text-cyan-600" />
+																				) : (
+																					<ChevronRight className="w-4 h-4 text-slate-400" />
+																				)}
+																			</button>
+																		</td>
+
+																		{/* Subplate Identification */}
+																		<td className="py-3 px-4">
+																			<div className="flex items-center gap-2">
+																				<span className="font-bold text-slate-900 text-[15px] leading-tight">
+																					{row.platename}
+																				</span>
+																				<span className="font-mono text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
+																					#{row.id}
+																				</span>
+																			</div>
+																			<div className="flex items-center gap-2 mt-1.5 flex-wrap">
+																				{row.subprojectid ? (
+																					<span className="font-mono text-xs font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded border border-slate-200/80 whitespace-nowrap">
+																						{row.subprojectid}
+																					</span>
+																				) : null}
+																				{row.plate_category && (
+																					<span className="text-[10px] font-medium text-slate-500 bg-slate-100/80 px-1.5 py-0.5 rounded border border-slate-200/60 whitespace-nowrap">
+																						{row.plate_category}
 																					</span>
 																				)}
-																			</span>
-																			<span className="text-[11px] font-semibold text-slate-500">
-																				{progress.completed}/9 Steps
-																			</span>
-																		</div>
+																			</div>
+																		</td>
 
+																		{/* Specs, Dimensions & Material */}
+																		<td className="py-3 px-4">
+																			<div className="font-mono text-[14px] font-bold text-slate-900 whitespace-nowrap tracking-tight">
+																				{formatSubplateDimensions(row)}
+																			</div>
+																			<div className="flex items-center gap-2 mt-1.5 flex-wrap text-xs">
+																				<span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200/90 whitespace-nowrap">
+																					{row.material || "MS-Bright"}
+																				</span>
+																				<span className="text-slate-700 font-semibold whitespace-nowrap">
+																					{row.sqty || 1} {Number(row.sqty) === 1 ? "pc" : "pcs"}
+																				</span>
+																				{row.shape && (
+																					<span className="text-slate-400 text-xs whitespace-nowrap font-medium">
+																						({row.shape})
+																					</span>
+																				)}
+																			</div>
+																		</td>
+
+																		{/* Location Badge */}
+																		<td className="py-3 px-2 text-center whitespace-nowrap">
+																			<span
+																				className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+																					row.location === "SM" || !row.location
+																						? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+																						: "bg-amber-50 text-amber-700 border border-amber-200"
+																				}`}
+																			>
+																				<MapPin className="w-3 h-3" />
+																				<span>{row.location || "SM"}</span>
+																			</span>
+																		</td>
+
+																		{/* Production Pipeline & Clean Status */}
+																		<td className="py-3 px-4">
+																			{(() => {
+																				const progress = getSubplateProgressInfo(row, activeStaff);
+																				return (
+																					<div className="space-y-2">
+																						{/* Status Header: Badge + Step count + Open Studio button */}
+																						<div className="flex items-center justify-between gap-2.5">
+																							<div className="flex items-center gap-2 flex-wrap">
+																								<span
+																									className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${progress.badgeStyle}`}
+																								>
+																									<span className={`w-1.5 h-1.5 rounded-full ${progress.dotColor}`} />
+																									<span>{progress.badgeLabel}</span>
+																									{progress.assignee && (
+																										<span className="font-mono text-[10px] opacity-75 font-normal ml-0.5">
+																											({progress.assignee})
+																										</span>
+																									)}
+																								</span>
+																								<span className="text-[11px] font-semibold text-slate-500">
+																									{progress.completed}/9 Steps
+																								</span>
+																							</div>
+
+																							<button
+																								type="button"
+																								onClick={() => toggleRow(row.id)}
+																								className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
+																									isRowExpanded
+																										? "bg-slate-200 text-slate-800 hover:bg-slate-300"
+																										: "text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200/90 font-bold"
+																								}`}
+																								title={isRowExpanded ? "Close stage studio" : "Open 9-stage management studio"}
+																							>
+																								<span>{isRowExpanded ? "Hide Studio" : "Open Studio"}</span>
+																								{isRowExpanded ? (
+																									<ChevronDown className="w-3.5 h-3.5 text-slate-700" />
+																								) : (
+																									<ChevronRight className="w-3.5 h-3.5 text-blue-700" />
+																								)}
+																							</button>
+																						</div>
+
+																						{/* Sleek 9-Segment Micro-Stepper */}
+																						<div className="flex items-center gap-1 w-full" title="Hover over a segment to see stage name">
+																							{STAGE_DEFINITIONS.map((stage, idx) => {
+																								const val = (row as any)[stage.key];
+																								const isDone = Boolean(val && val !== 0);
+																								const staffMember = activeStaff.find((u) => u.id === Number(val));
+																								const name = (row as any)[stage.nameKey] || staffMember?.initials || staffMember?.name || "";
+																								return (
+																									<div
+																										key={stage.key}
+																										title={`Stage ${idx + 1}: ${stage.label.replace(/^\d+\.\s*/, "")}${isDone ? ` (Done: ${name || "Assigned"})` : " (Pending)"}`}
+																										className={`h-2 flex-1 rounded-sm transition-all cursor-pointer ${
+																											isDone
+																												? "bg-blue-600 hover:bg-blue-700 shadow-2xs"
+																												: "bg-slate-200 hover:bg-slate-300"
+																										}`}
+																										onClick={() => toggleRow(row.id)}
+																									/>
+																								);
+																							})}
+																						</div>
+																					</div>
+																				);
+																			})()}
+																		</td>
+
+																		{/* Actions */}
+																		<td className="py-3 px-3 text-right whitespace-nowrap">
+																			<div className="flex items-center justify-end gap-1.5">
+																				{canEditSubplate && (
+																					<button
+																						type="button"
+																						onClick={() => handleOpenEditModal(row)}
+																						className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+																						title="Edit subplate"
+																					>
+																						<Pencil className="w-4 h-4" />
+																					</button>
+																				)}
+																				{canDeleteSubplate && (
+																					<button
+																						type="button"
+																						onClick={() => handleDeleteSubplate(row.id, row.platename)}
+																						className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+																						title="Delete subplate"
+																					>
+																						<Trash2 className="w-4 h-4" />
+																					</button>
+																				)}
+																			</div>
+																		</td>
+																	</tr>
+
+																	{/* Expanded 9-Stage Timeline Studio */}
+																	{isRowExpanded && (
+																		<tr className="bg-slate-50/90">
+																			<td colSpan={6} className="p-3 sm:p-4 border-y border-slate-200">
+																				<div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
+																					<div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+																						<div className="flex items-center gap-2">
+																							<div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
+																								<Layers className="w-4 h-4" />
+																							</div>
+																							<div>
+																								<h4 className="text-sm font-bold text-slate-900">
+																									9-Stage Production Tracking Studio for &quot;{row.platename}&quot;
+																								</h4>
+																								<p className="text-xs text-slate-500">
+																									{isAdmin
+																										? "Click any stage to assign or change staff. Timestamp is recorded automatically."
+																										: "Assign yourself to pending stages or manage your active assignments."}
+																								</p>
+																							</div>
+																						</div>
+
+																						<div className="flex items-center gap-2.5 text-xs">
+																							<span className="font-bold text-slate-800">
+																								Progress: {completedCount}/9 Completed
+																							</span>
+																							<div className="w-28 h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60">
+																								<div
+																									className="h-full bg-blue-600 rounded-full transition-all duration-300"
+																									style={{ width: `${(completedCount / 9) * 100}%` }}
+																								/>
+																							</div>
+																						</div>
+																					</div>
+
+																					{/* 9-Stage Cards Grid */}
+																					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2.5">
+																						{STAGE_DEFINITIONS.map((stage) => {
+																							const val = (row as any)[stage.key];
+																							const timestamp = (row as any)[stage.atKey];
+																							const isAssigned = Boolean(val && val !== 0);
+																							const isAssignedToMe = Boolean(currentUser?.id && Number(val) === Number(currentUser.id));
+																							const isAssignedToOther = isAssigned && !isAssignedToMe;
+
+																							return (
+																								<div
+																									key={stage.key}
+																									className={`p-3 rounded-xl border transition-all space-y-2.5 flex flex-col justify-between ${
+																										isAssigned
+																											? "bg-white border-blue-200 shadow-xs ring-1 ring-blue-500/10"
+																											: "bg-white/80 border-slate-200 hover:border-slate-300"
+																									}`}
+																								>
+																									<div>
+																										{/* Step Header */}
+																										<div className="flex items-center justify-between gap-1 mb-1.5">
+																											<span
+																												className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded font-mono ${
+																													isAssigned
+																														? "bg-blue-50 text-blue-700 border border-blue-200/60"
+																														: "bg-slate-100 text-slate-500 border border-slate-200/60"
+																												}`}
+																											>
+																												Stage {stage.step}
+																											</span>
+																											{isAssigned ? (
+																												<CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+																											) : (
+																												<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+																											)}
+																										</div>
+																										<div className="text-xs font-bold text-slate-900 leading-snug">
+																											{stage.label.replace(/^\d+\.\s*/, "")}
+																										</div>
+																									</div>
+
+																									{/* Staff Dropdown */}
+																									<div className="space-y-1">
+																										<label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
+																											Assigned Staff
+																										</label>
+																										<StaffSelect
+																											value={val}
+																											onChange={(userId) =>
+																												handleStageStaffChange(
+																													row.id,
+																													stage.key,
+																													userId
+																												)
+																											}
+																											staff={
+																												isAdmin
+																													? activeStaff
+																													: currentUser
+																													? [
+																															{
+																																id: Number(currentUser.id),
+																																name: currentUser.name || "Me",
+																																initials:
+																																	currentUser.initials ||
+																																	currentUser.name?.slice(0, 2).toUpperCase() ||
+																																	"ME",
+																															} as any,
+																													  ]
+																													: []
+																											}
+																											disabled={!isAdmin && isAssignedToOther}
+																											color="blue"
+																											className="w-full"
+																											placeholder="Unassigned"
+																										/>
+																									</div>
+
+																									{/* Timestamp Display */}
+																									<div className="pt-2 border-t border-slate-100 text-[10px]">
+																										{isAssigned && timestamp ? (
+																											<div className="flex items-center gap-1.5 text-slate-600 font-mono text-[10px] font-medium">
+																												<Clock className="w-3 h-3 text-slate-400 shrink-0" />
+																												<span>{formatTimestamp(timestamp)}</span>
+																											</div>
+																										) : isAssigned ? (
+																											<span className="text-blue-700 font-semibold text-[10px]">Assigned</span>
+																										) : (
+																											<span className="text-slate-400 font-medium text-[10px]">Pending</span>
+																										)}
+																									</div>
+																								</div>
+																							);
+																						})}
+																					</div>
+																				</div>
+																			</td>
+																		</tr>
+																	)}
+																</React.Fragment>
+															);
+														})}
+													</tbody>
+												</table>
+											</div>
+
+											{/* Mobile Subplates Card View */}
+											<div className="block md:hidden p-3 space-y-2.5">
+												{group.plates.map((row) => {
+													const isRowExpanded = Boolean(expandedRows[row.id]);
+													const completedCount = countCompletedStages(row);
+
+													return (
+														<div
+															key={row.id}
+															id={`m-row-${row.id}`}
+															onClick={(e) => {
+																const target = e.target as HTMLElement;
+																if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
+																	return;
+																}
+																toggleRow(row.id);
+															}}
+															onContextMenu={(e) => handleSubplateContextMenu(e, row)}
+															className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs transition-all duration-200 cursor-pointer ${getRowHighlightClass(row.id)}`}
+														>
+															<div className="flex items-center justify-between">
+																<div className="flex items-center gap-1.5">
+																	<span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
+																	<span className="font-bold text-slate-900">{row.platename}</span>
+																</div>
+																<div className="flex items-center gap-2">
+																	<span
+																		className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+																			row.location === "SM" || !row.location
+																				? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+																				: "bg-amber-50 text-amber-700 border border-amber-200"
+																		}`}
+																	>
+																		<MapPin className="w-2.5 h-2.5" />
+																		{row.location || "SM"}
+																	</span>
+																	{canEditSubplate && (
 																		<button
 																			type="button"
-																			onClick={() => toggleRow(row.id)}
-																			className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer shrink-0 ${
-																				isExpanded
-																					? "bg-slate-200 text-slate-800 hover:bg-slate-300"
-																					: "text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200/90 font-bold"
-																			}`}
-																			title={isExpanded ? "Close stage studio" : "Open 9-stage management studio"}
+																			onClick={() => handleOpenEditModal(row)}
+																			className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+																			title="Edit subplate"
 																		>
-																			<span>{isExpanded ? "Hide Studio" : "Open Studio"}</span>
-																			{isExpanded ? (
-																				<ChevronDown className="w-3.5 h-3.5 text-slate-700" />
-																			) : (
-																				<ChevronRight className="w-3.5 h-3.5 text-blue-700" />
-																			)}
+																			<Pencil className="w-3.5 h-3.5" />
 																		</button>
-																	</div>
-
-																	{/* Sleek 9-Segment Micro-Stepper */}
-																	<div className="flex items-center gap-1 w-full" title="Hover over a segment to see stage name">
-																		{STAGE_DEFINITIONS.map((stage, idx) => {
-																			const val = (row as any)[stage.key];
-																			const isDone = Boolean(val && val !== 0);
-																			const staffMember = activeStaff.find((u) => u.id === Number(val));
-																			const name = (row as any)[stage.nameKey] || staffMember?.initials || staffMember?.name || "";
-																			return (
-																				<div
-																					key={stage.key}
-																					title={`Stage ${idx + 1}: ${stage.label.replace(/^\d+\.\s*/, "")}${isDone ? ` (Done: ${name || "Assigned"})` : " (Pending)"}`}
-																					className={`h-2 flex-1 rounded-sm transition-all cursor-pointer ${
-																						isDone
-																							? "bg-blue-600 hover:bg-blue-700 shadow-2xs"
-																							: "bg-slate-200 hover:bg-slate-300"
-																					}`}
-																					onClick={() => toggleRow(row.id)}
-																				/>
-																			);
-																		})}
-																	</div>
+																	)}
+																	{canDeleteSubplate && (
+																		<button
+																			type="button"
+																			onClick={() => handleDeleteSubplate(row.id, row.platename)}
+																			className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+																			title="Delete subplate"
+																		>
+																			<Trash2 className="w-3.5 h-3.5" />
+																		</button>
+																	)}
 																</div>
-															);
-														})()}
-													</td>
+															</div>
 
-													{/* Actions */}
-													<td className="py-3 px-3 text-right whitespace-nowrap">
-														<div className="flex items-center justify-end gap-1.5">
-															{canEditSubplate && (
+															<div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+																<div>
+																	<span className="text-slate-400">Subproject: </span>
+																	<span className="font-mono font-medium text-slate-700 truncate block">
+																		{row.subprojectid || "—"}
+																	</span>
+																</div>
+																<div>
+																	<span className="text-slate-400">Material: </span>
+																	<span className="font-medium text-slate-700 block">
+																		{row.material || "MS-Bright"}
+																	</span>
+																</div>
+																<div>
+																	<span className="text-slate-400">Dimensions: </span>
+																	<span className="font-mono font-medium text-slate-700 block">
+																		{formatSubplateDimensions(row)}
+																	</span>
+																</div>
+																<div>
+																	<span className="text-slate-400">Qty / Shape: </span>
+																	<span className="font-medium text-slate-700 block">
+																		{row.sqty || 1} ({row.shape || "Plate"})
+																	</span>
+																</div>
+															</div>
+
+															{/* Mobile 9-Stage Progress Bar & Trigger */}
+															<div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+																<span className="text-[11px] font-semibold text-slate-700">
+																	{completedCount}/9 Stages Done
+																</span>
 																<button
 																	type="button"
-																	onClick={() => handleOpenEditModal(row)}
-																	className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-																	title="Edit subplate"
+																	onClick={() => toggleRow(row.id)}
+																	className="px-2.5 py-1 text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition cursor-pointer"
 																>
-																	<Pencil className="w-4 h-4" />
+																	{isRowExpanded ? "Hide Studio" : "Open Studio"}
 																</button>
-															)}
-															{canDeleteSubplate && (
-																<button
-																	type="button"
-																	onClick={() => handleDeleteSubplate(row.id, row.platename)}
-																	className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-																	title="Delete subplate"
-																>
-																	<Trash2 className="w-4 h-4" />
-																</button>
-															)}
-														</div>
-													</td>
-												</tr>
+															</div>
 
-												{/* Expanded 9-Stage Timeline Studio */}
-												{isExpanded && (
-													<tr className="bg-slate-50/90">
-														<td colSpan={6} className="p-3 sm:p-4 border-y border-slate-200">
-															<div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
-																<div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-																	<div className="flex items-center gap-2">
-																		<div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
-																			<Layers className="w-4 h-4" />
-																		</div>
-																		<div>
-																			<h4 className="text-sm font-bold text-slate-900">
-																				9-Stage Production Tracking Studio for &quot;{row.platename}&quot;
-																			</h4>
-																			<p className="text-xs text-slate-500">
-																				{isAdmin
-																					? "Click any stage to assign or change staff. Timestamp is recorded automatically."
-																					: "Assign yourself to pending stages or manage your active assignments."}
-																			</p>
-																		</div>
-																	</div>
-
-																	<div className="flex items-center gap-2.5 text-xs">
-																		<span className="font-bold text-slate-800">
-																			Progress: {completedCount}/9 Completed
-																		</span>
-																		<div className="w-28 h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60">
-																			<div
-																				className="h-full bg-blue-600 rounded-full transition-all duration-300"
-																				style={{ width: `${(completedCount / 9) * 100}%` }}
-																			/>
-																		</div>
-																	</div>
-																</div>
-
-																{/* 9-Stage Cards Grid */}
-																<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2.5">
+															{/* Mobile Expanded Stepper */}
+															{isRowExpanded && (
+																<div className="mt-2 pt-2 border-t border-slate-200 space-y-2">
 																	{STAGE_DEFINITIONS.map((stage) => {
 																		const val = (row as any)[stage.key];
-																		const name = (row as any)[stage.nameKey];
 																		const timestamp = (row as any)[stage.atKey];
 																		const isAssigned = Boolean(val && val !== 0);
 																		const isAssignedToMe = Boolean(currentUser?.id && Number(val) === Number(currentUser.id));
@@ -1621,329 +2284,125 @@ function SubplatePageContent() {
 																		return (
 																			<div
 																				key={stage.key}
-																				className={`p-3 rounded-xl border transition-all space-y-2.5 flex flex-col justify-between ${
-																					isAssigned
-																						? "bg-white border-blue-200 shadow-xs ring-1 ring-blue-500/10"
-																						: "bg-white/80 border-slate-200 hover:border-slate-300"
-																				}`}
+																				className="p-2 rounded-lg bg-white border border-slate-200 flex items-center justify-between gap-2"
 																			>
-																				<div>
-																					{/* Step Header */}
-																					<div className="flex items-center justify-between gap-1 mb-1.5">
-																						<span
-																							className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded font-mono ${
-																								isAssigned
-																									? "bg-blue-50 text-blue-700 border border-blue-200/60"
-																									: "bg-slate-100 text-slate-500 border border-slate-200/60"
-																							}`}
-																						>
-																							Stage {stage.step}
-																						</span>
-																						{isAssigned ? (
-																							<CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-																						) : (
-																							<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
-																						)}
+																				<div className="flex-1 min-w-0">
+																					<div className="text-[11px] font-bold text-slate-800 truncate">
+																						{stage.label}
 																					</div>
-																					<div className="text-xs font-bold text-slate-900 leading-snug">
-																						{stage.label.replace(/^\d+\.\s*/, "")}
-																					</div>
-																				</div>
-
-																				{/* Staff Dropdown */}
-																				<div className="space-y-1">
-																					<label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
-																						Assigned Staff
-																					</label>
-																					<StaffSelect
-																						value={val}
-																						onChange={(userId) =>
-																							handleStageStaffChange(
-																								row.id,
-																								stage.key,
-																								userId
-																							)
-																						}
-																						staff={
-																							isAdmin
-																								? activeStaff
-																								: currentUser
-																								? [
-																										{
-																											id: Number(currentUser.id),
-																											name: currentUser.name || "Me",
-																											initials:
-																												currentUser.initials ||
-																												currentUser.name?.slice(0, 2).toUpperCase() ||
-																												"ME",
-																										} as any,
-																								  ]
-																								: []
-																						}
-																						disabled={!isAdmin && isAssignedToOther}
-																						color="blue"
-																						className="w-full"
-																						placeholder="Unassigned"
-																					/>
-																				</div>
-
-																				{/* Timestamp Display */}
-																				<div className="pt-2 border-t border-slate-100 text-[10px]">
-																					{isAssigned && timestamp ? (
-																						<div className="flex items-center gap-1.5 text-slate-600 font-mono text-[10px] font-medium">
-																							<Clock className="w-3 h-3 text-slate-400 shrink-0" />
-																							<span>{formatTimestamp(timestamp)}</span>
+																					{isAssigned && timestamp && (
+																						<div className="text-[10px] text-slate-600 font-mono">
+																							{formatTimestamp(timestamp)}
 																						</div>
-																					) : isAssigned ? (
-																						<span className="text-blue-700 font-semibold text-[10px]">Assigned</span>
-																					) : (
-																						<span className="text-slate-400 font-medium text-[10px]">Pending</span>
 																					)}
 																				</div>
+																				<StaffSelect
+																					value={val}
+																					onChange={(userId) =>
+																						handleStageStaffChange(
+																							row.id,
+																							stage.key,
+																							userId
+																						)
+																					}
+																					staff={
+																						isAdmin
+																							? activeStaff
+																							: currentUser
+																							? [
+																									{
+																										id: Number(currentUser.id),
+																										name: currentUser.name || "Me",
+																										initials: currentUser.initials || currentUser.name?.slice(0, 2).toUpperCase() || "ME",
+																									} as any,
+																							  ]
+																							: []
+																					}
+																					disabled={!isAdmin && isAssignedToOther}
+																					color="blue"
+																					placeholder="Unassigned"
+																				/>
 																			</div>
 																		);
 																	})}
 																</div>
-															</div>
-														</td>
-													</tr>
-												)}
-											</React.Fragment>
-										);
-									})
-								)}
-							</tbody>
-						</table>
-					</div>
-
-					{/* Mobile Card-List Fallback (< md) */}
-					<div className="block md:hidden p-3 space-y-3">
-						{isLoading ? (
-							<div className="py-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center gap-2">
-								<Loader2 className="w-6 h-6 animate-spin text-cyan-600" />
-								<span>Loading subplates...</span>
-							</div>
-						) : filteredSubplates.length === 0 ? (
-							<div className="py-8 text-center text-slate-400 text-xs">
-								No subplates found matching your filter criteria.
-							</div>
-						) : (
-							paginatedSubplates.map((row) => {
-								const isExpanded = Boolean(expandedRows[row.id]);
-								const completedCount = countCompletedStages(row);
-
-								return (
-									<div
-										key={row.id}
-										id={`m-row-${row.id}`}
-										onClick={(e) => {
-											const target = e.target as HTMLElement;
-											if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
-												return;
-											}
-											toggleRow(row.id);
-										}}
-										onContextMenu={(e) => handleSubplateContextMenu(e, row)}
-										className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs transition-all duration-200 cursor-pointer ${getRowHighlightClass(row.id)}`}
-									>
-										<div className="flex items-center justify-between">
-											<div className="flex items-center gap-1.5">
-												<span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
-												<span className="font-bold text-slate-900">{row.platename}</span>
-											</div>
-											<div className="flex items-center gap-2">
-												<span
-													className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-														row.location === "SM" || !row.location
-															? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-															: "bg-amber-50 text-amber-700 border border-amber-200"
-													}`}
-												>
-													<MapPin className="w-2.5 h-2.5" />
-													{row.location || "SM"}
-												</span>
-												{canEditSubplate && (
-													<button
-														type="button"
-														onClick={() => handleOpenEditModal(row)}
-														className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"
-														title="Edit subplate"
-													>
-														<Pencil className="w-3.5 h-3.5" />
-													</button>
-												)}
-												{canDeleteSubplate && (
-													<button
-														type="button"
-														onClick={() => handleDeleteSubplate(row.id, row.platename)}
-														className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
-														title="Delete subplate"
-													>
-														<Trash2 className="w-3.5 h-3.5" />
-													</button>
-												)}
-											</div>
-										</div>
-
-										<div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
-											<div>
-												<span className="text-slate-400">Project: </span>
-												<span className="font-mono font-medium text-indigo-600 truncate block">
-													{(row as any).mould_project_code || row.projectid || "—"}
-												</span>
-											</div>
-											<div>
-												<span className="text-slate-400">Material: </span>
-												<span className="font-medium text-slate-700 block">
-													{row.material || "MS-Bright"}
-												</span>
-											</div>
-											<div>
-												<span className="text-slate-400">Dims: </span>
-												<span className="font-mono font-medium text-slate-700 block">
-													{formatSubplateDimensions(row)}
-												</span>
-											</div>
-											<div>
-												<span className="text-slate-400">Qty / Shape: </span>
-												<span className="font-medium text-slate-700 block">
-													{row.sqty || 1} ({row.shape || "Plate"})
-												</span>
-											</div>
-										</div>
-
-										{/* Mobile 9-Stage Progress Bar & Trigger */}
-										<div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
-											<span className="text-[11px] font-semibold text-slate-700">
-												{completedCount}/9 Stages Done
-											</span>
-											<button
-												type="button"
-												onClick={() => toggleRow(row.id)}
-												className="px-2.5 py-1 text-xs font-semibold text-cyan-600 bg-cyan-50 border border-cyan-200 rounded-lg hover:bg-cyan-100 transition"
-											>
-												{isExpanded ? "Hide Stages" : "Edit 9 Stages"}
-											</button>
-										</div>
-
-										{/* Mobile Expanded Stepper */}
-										{isExpanded && (
-											<div className="mt-2 pt-2 border-t border-slate-200 space-y-2">
-												{STAGE_DEFINITIONS.map((stage) => {
-													const val = (row as any)[stage.key];
-													const timestamp = (row as any)[stage.atKey];
-													const isAssigned = Boolean(val && val !== 0);
-													const isAssignedToMe = Boolean(currentUser?.id && Number(val) === Number(currentUser.id));
-													const isAssignedToOther = isAssigned && !isAssignedToMe;
-
-													return (
-														<div
-															key={stage.key}
-															className="p-2 rounded-lg bg-white border border-slate-200 flex items-center justify-between gap-2"
-														>
-															<div className="flex-1 min-w-0">
-																<div className="text-[11px] font-bold text-slate-800 truncate">
-																	{stage.label}
-																</div>
-																{isAssigned && timestamp && (
-																	<div className="text-[10px] text-slate-600 font-mono">
-																		{formatTimestamp(timestamp)}
-																	</div>
-																)}
-															</div>
-															<StaffSelect
-																value={val}
-																onChange={(userId) =>
-																	handleStageStaffChange(
-																		row.id,
-																		stage.key,
-																		userId
-																	)
-																}
-																staff={
-																	isAdmin
-																		? activeStaff
-																		: currentUser
-																		? [
-																				{
-																					id: Number(currentUser.id),
-																					name: currentUser.name || "Me",
-																					initials: currentUser.initials || currentUser.name?.slice(0, 2).toUpperCase() || "ME",
-																				} as any,
-																		  ]
-																		: []
-																}
-																disabled={!isAdmin && isAssignedToOther}
-																color="blue"
-																placeholder="Unassigned"
-															/>
+															)}
 														</div>
 													);
 												})}
 											</div>
-										)}
-									</div>
-								);
-							})
-						)}
+										</div>
+									)}
+								</div>
+							);
+						})}
 					</div>
+				)}
 
- {/* Pagination Controls */}
- {!isLoading && filteredSubplates.length > 0 && (
- <div className="px-4 py-3 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 bg-slate-50/50">
- <div className="flex items-center gap-2">
- <span>Show</span>
- <select
- value={pageSize}
- onChange={(e) => {
- setPageSize(Number(e.target.value));
- setCurrentPage(1);
- }}
- className="px-2 py-1 bg-white border border-slate-200 rounded text-xs text-slate-700 font-medium focus:ring-1 focus:ring-cyan-500"
- >
- <option value={25}>25</option>
- <option value={50}>50</option>
- <option value={100}>100</option>
- </select>
- <span>
- per page • Showing {((currentPage - 1) * pageSize) + 1} to{" "}
- {Math.min(currentPage * pageSize, filteredSubplates.length)} of {filteredSubplates.length} subplates
- </span>
- </div>
+				{/* Pagination Controls */}
+				{!isLoading && mouldGroups.length > 0 && (
+					<div className="px-4 py-3 bg-white rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+						<div className="flex items-center gap-2">
+							<span>Show</span>
+							<div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+								{[10, 25, 50, 100].map((size) => (
+									<button
+										key={size}
+										type="button"
+										onClick={() => {
+											setPageSize(size);
+											setCurrentPage(1);
+										}}
+										className={`px-2 py-0.5 rounded text-xs font-semibold transition cursor-pointer ${
+											pageSize === size
+												? "bg-white text-blue-700 shadow-2xs font-bold"
+												: "text-slate-600 hover:text-slate-900"
+										}`}
+									>
+										{size}
+									</button>
+								))}
+							</div>
+							<span>
+								per page • Showing {((currentPage - 1) * pageSize) + 1} to{" "}
+								{Math.min(currentPage * pageSize, mouldGroups.length)} of {mouldGroups.length} Mould Projects ({filteredSubplates.length} Subplates)
+							</span>
+						</div>
 
- <div className="flex items-center gap-1.5">
- <button
- onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
- disabled={currentPage === 1}
- className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
- title="Previous page"
- >
- <ChevronLeft className="w-4 h-4" />
- </button>
+						<div className="flex items-center gap-1">
+							<button
+								type="button"
+								onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+								disabled={currentPage === 1}
+								className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+								title="Previous page"
+							>
+								<ChevronLeft className="w-4 h-4" />
+							</button>
+							<span className="px-2.5 py-1 font-semibold text-slate-700">
+								Page {currentPage} of {totalPages}
+							</span>
+							<button
+								type="button"
+								onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+								disabled={currentPage >= totalPages}
+								className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+								title="Next page"
+							>
+								<ChevronRight className="w-4 h-4" />
+							</button>
+						</div>
+					</div>
+				)}
 
- <span className="px-3 py-1 font-semibold text-slate-700">
- Page {currentPage} of {totalPages}
- </span>
+				<div className="py-2.5 px-4 bg-slate-50/80 rounded-xl border border-slate-200/80 flex items-center justify-between text-xs text-slate-500">
+					<span>
+						Showing {filteredSubplates.length} subplates grouped across {mouldGroups.length} mould projects
+					</span>
+					<span>All dimensions and material grades derived from factory inventory</span>
+				</div>
 
- <button
- onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
- disabled={currentPage === totalPages}
- className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
- title="Next page"
- >
- <ChevronRight className="w-4 h-4" />
- </button>
- </div>
- </div>
- )}
-
- <div className="py-3 px-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
- <span>Showing {filteredSubplates.length} subplates</span>
- <span>All dimensions and material grades derived from factory inventory</span>
- </div>
- </div>
-
- {/* Modal: Add Subplate (Physics-based Spring Modal) */}
+				{/* Modal: Add Subplate (Physics-based Spring Modal) */}
 				<Modal
 					isOpen={isModalOpen}
 					onClose={() => {
