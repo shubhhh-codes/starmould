@@ -194,6 +194,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Vendor code is required" }, { status: 400 });
     }
 
+    const cleanMobile = mobile ? String(mobile).replace(/\D/g, "").slice(0, 10) : null;
+    const cleanMobile1 = mobile1 ? String(mobile1).replace(/\D/g, "").slice(0, 10) : null;
+    if (cleanMobile && cleanMobile.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 1 must be exactly 10 numeric digits." }, { status: 400 });
+    }
+    if (cleanMobile1 && cleanMobile1.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 2 must be exactly 10 numeric digits." }, { status: 400 });
+    }
+
     // Check duplicate initials against active vendors
     const { data: existingInitials } = await supabaseAdmin
       .from("vendors")
@@ -249,8 +258,8 @@ export async function POST(req: NextRequest) {
           ifsc_code: ifsc_code?.trim()?.toUpperCase() || null,
           contact_person: contact_person?.trim() || null,
           status_of_beneficiary: status_of_beneficiary?.trim() || null,
-          mobile: mobile?.trim() || null,
-          mobile1: mobile1?.trim() || null,
+          mobile: cleanMobile || null,
+          mobile1: cleanMobile1 || null,
           email: email?.trim() || null,
           address: address?.trim() || null,
           created_at: now,
@@ -367,6 +376,15 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    const cleanMobile = mobile !== undefined ? (mobile ? String(mobile).replace(/\D/g, "").slice(0, 10) : null) : undefined;
+    const cleanMobile1 = mobile1 !== undefined ? (mobile1 ? String(mobile1).replace(/\D/g, "").slice(0, 10) : null) : undefined;
+    if (cleanMobile && cleanMobile.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 1 must be exactly 10 numeric digits." }, { status: 400 });
+    }
+    if (cleanMobile1 && cleanMobile1.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 2 must be exactly 10 numeric digits." }, { status: 400 });
+    }
+
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {
       vendor_name: cleanName,
@@ -379,8 +397,8 @@ export async function PUT(req: NextRequest) {
       ifsc_code: ifsc_code !== undefined ? (ifsc_code?.trim()?.toUpperCase() || null) : undefined,
       contact_person: contact_person !== undefined ? (contact_person?.trim() || null) : undefined,
       status_of_beneficiary: status_of_beneficiary !== undefined ? (status_of_beneficiary?.trim() || null) : undefined,
-      mobile: mobile !== undefined ? (mobile?.trim() || null) : undefined,
-      mobile1: mobile1 !== undefined ? (mobile1?.trim() || null) : undefined,
+      mobile: cleanMobile,
+      mobile1: cleanMobile1,
       email: email !== undefined ? (email?.trim() || null) : undefined,
       address: address !== undefined ? (address?.trim() || null) : undefined,
       updated_at: now,

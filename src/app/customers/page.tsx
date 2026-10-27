@@ -287,6 +287,18 @@ function CustomerPageContent() {
 
         if (!isNameValid || !isInitialValid) return;
 
+        // Mobile 1 & 2 validation (if provided, must be exactly 10 digits)
+        const cleanMobile = formData.mobile ? formData.mobile.replace(/\D/g, "").slice(0, 10) : "";
+        if (formData.mobile && cleanMobile.length !== 10) {
+            showNotification("error", "Mobile No. 1 must be exactly 10 numeric digits.");
+            return;
+        }
+        const cleanMobile1 = formData.mobile1 ? formData.mobile1.replace(/\D/g, "").slice(0, 10) : "";
+        if (formData.mobile1 && cleanMobile1.length !== 10) {
+            showNotification("error", "Mobile No. 2 must be exactly 10 numeric digits.");
+            return;
+        }
+
         // RBAC client-side guard
         if (!isAdmin && formData.usertype === "Customer") {
             showNotification(
@@ -1017,35 +1029,39 @@ function CustomerPageContent() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label className="block font-medium text-slate-700 mb-1">
-                                    Mobile No. 1
+                                    Mobile No. 1 <span className="text-[11px] text-slate-400 font-normal">(10 digits)</span>
                                 </label>
                                 <input
-                                    type="text"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={10}
                                     value={formData.mobile}
                                     onChange={(e) =>
                                         setFormData((p) => ({
                                             ...p,
-                                            mobile: e.target.value,
+                                            mobile: e.target.value.replace(/\D/g, "").slice(0, 10),
                                         }))
                                     }
-                                    placeholder="Primary contact phone"
+                                    placeholder="10-digit primary mobile"
                                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 />
                             </div>
                             <div>
                                 <label className="block font-medium text-slate-700 mb-1">
-                                    Mobile No. 2
+                                    Mobile No. 2 <span className="text-[11px] text-slate-400 font-normal">(10 digits)</span>
                                 </label>
                                 <input
-                                    type="text"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={10}
                                     value={formData.mobile1}
                                     onChange={(e) =>
                                         setFormData((p) => ({
                                             ...p,
-                                            mobile1: e.target.value,
+                                            mobile1: e.target.value.replace(/\D/g, "").slice(0, 10),
                                         }))
                                     }
-                                    placeholder="Secondary contact phone"
+                                    placeholder="10-digit secondary mobile"
                                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 />
                             </div>

@@ -171,12 +171,20 @@ export async function POST(req: NextRequest) {
 
     const cleanName = customername?.trim();
     const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
+    const cleanMobile = mobile ? String(mobile).replace(/\D/g, "").slice(0, 10) : null;
+    const cleanMobile1 = mobile1 ? String(mobile1).replace(/\D/g, "").slice(0, 10) : null;
 
     if (!cleanName) {
       return NextResponse.json({ error: "Customer name is required" }, { status: 400 });
     }
     if (!cleanInitials) {
       return NextResponse.json({ error: "Initials are required (max 5 letters)" }, { status: 400 });
+    }
+    if (cleanMobile && cleanMobile.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 1 must be exactly 10 numeric digits." }, { status: 400 });
+    }
+    if (cleanMobile1 && cleanMobile1.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 2 must be exactly 10 numeric digits." }, { status: 400 });
     }
     if (!usertype) {
       return NextResponse.json({ error: "Usertype is required" }, { status: 400 });
@@ -229,8 +237,8 @@ export async function POST(req: NextRequest) {
           customername: cleanName,
           initials: cleanInitials,
           customer_code: body.customer_code?.trim() || cleanInitials,
-          mobile: mobile?.trim() || null,
-          mobile1: mobile1?.trim() || null,
+          mobile: cleanMobile || null,
+          mobile1: cleanMobile1 || null,
           email: email?.trim() || null,
           address: address?.trim() || null,
           usertype,
@@ -351,13 +359,23 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    const cleanMobile = mobile !== undefined ? (mobile ? String(mobile).replace(/\D/g, "").slice(0, 10) : null) : undefined;
+    const cleanMobile1 = mobile1 !== undefined ? (mobile1 ? String(mobile1).replace(/\D/g, "").slice(0, 10) : null) : undefined;
+
+    if (cleanMobile && cleanMobile.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 1 must be exactly 10 numeric digits." }, { status: 400 });
+    }
+    if (cleanMobile1 && cleanMobile1.length !== 10) {
+      return NextResponse.json({ error: "Mobile No. 2 must be exactly 10 numeric digits." }, { status: 400 });
+    }
+
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {
       customername: cleanName,
-      mobile: mobile?.trim() || null,
-      mobile1: mobile1?.trim() || null,
-      email: email?.trim() || null,
-      address: address?.trim() || null,
+      mobile: cleanMobile,
+      mobile1: cleanMobile1,
+      email: email !== undefined ? (email?.trim() || null) : undefined,
+      address: address !== undefined ? (address?.trim() || null) : undefined,
       customer_code: body.customer_code !== undefined ? (body.customer_code?.trim() || null) : undefined,
       vendor_code: vendor_code !== undefined ? (vendor_code?.trim() || null) : undefined,
       city: city !== undefined ? (city?.trim() || null) : undefined,
