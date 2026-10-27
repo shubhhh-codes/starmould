@@ -248,8 +248,8 @@ export const TermsPresetModal: React.FC<TermsPresetModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-5 animate-in fade-in duration-200">
-      <div className="bg-white rounded-none sm:rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border-0 sm:border border-slate-200 h-full sm:h-[88vh] sm:max-h-[750px] flex flex-col">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-xs p-2 sm:p-4 md:p-5 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-slate-200 h-[90dvh] max-h-[calc(100dvh-2rem)] sm:max-h-[750px] flex flex-col">
         {/* Modal Top Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-slate-100 bg-slate-50/80 shrink-0">
           <div className="min-w-0 pr-2">

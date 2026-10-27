@@ -484,7 +484,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   return (
     <>
       <div
-        className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 backdrop-blur-xs flex sm:items-center sm:justify-center p-0 sm:p-3 md:p-6"
+        className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/70 backdrop-blur-xs overflow-hidden"
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             onClose();
@@ -492,11 +492,11 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         }}
       >
         <div
-          className="bg-white sm:rounded-2xl shadow-2xl border-0 sm:border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col h-full sm:h-auto sm:max-h-[92vh]"
+          className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl flex flex-col h-[94dvh] sm:h-[90dvh] max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden animate-in fade-in zoom-in-95 duration-150"
           onClick={(e) => e.stopPropagation()}
         >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50/70 shrink-0">
+            <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 shrink-0">
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-slate-800">
                   {isEdit ? `Edit Quotation (${quotationNo})` : "Create Quotation"}
@@ -514,8 +514,12 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 md:p-6 space-y-5 sm:space-y-6">
+            {/* Form Scroll Area */}
+            <form
+              id="quotation-form"
+              onSubmit={handleSubmit}
+              className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 p-3 sm:p-5 md:p-6 space-y-5 sm:space-y-6"
+            >
             {errorMsg && (
               <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-200">
                 {errorMsg}
@@ -523,8 +527,8 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
             )}
 
             {/* TOP BAR: Quotation No, Date, Status */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200">
-              <div className="min-w-0">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 bg-slate-50 p-3 sm:p-4 rounded-xl border border-slate-200">
+              <div className="col-span-1 sm:col-span-1 md:col-span-4 min-w-0">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Quotation No
                 </label>
@@ -533,31 +537,31 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                     type="text"
                     readOnly
                     value={quotationNo}
-                    className="w-full min-w-0 max-w-full h-[38px] pl-3 pr-8 py-2 text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-300 rounded-lg cursor-not-allowed select-all focus:outline-hidden shadow-2xs"
+                    className="w-full min-w-0 max-w-full h-9 pl-3 pr-8 text-xs font-mono font-bold bg-slate-100 text-slate-800 border border-slate-300 rounded-lg cursor-not-allowed select-all focus:outline-hidden shadow-2xs"
                     placeholder="Generating..."
                   />
                   <Lock className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
               </div>
 
-              <div className="min-w-0">
+              <div className="col-span-1 sm:col-span-1 md:col-span-4 min-w-0">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Quotation Date</label>
                 <input
                   type="date"
                   required
                   value={quotationDate}
                   onChange={(e) => setQuotationDate(e.target.value)}
-                  className="w-full min-w-0 max-w-full h-[38px] px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 shadow-2xs text-slate-800"
+                  className="w-full min-w-0 max-w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500 shadow-2xs text-slate-800 [appearance:none] [-webkit-appearance:none]"
                 />
               </div>
 
-              <div className="min-w-0">
+              <div className="col-span-1 sm:col-span-2 md:col-span-4 min-w-0">
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Status</label>
                 <div className="relative">
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as any)}
-                    className={`w-full min-w-0 max-w-full h-[38px] pl-3 pr-8 py-2 text-xs font-semibold rounded-lg border appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-blue-500 shadow-2xs transition-colors ${
+                    className={`w-full min-w-0 max-w-full h-9 pl-3 pr-8 text-xs font-semibold rounded-lg border cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-blue-500 shadow-2xs transition-colors [appearance:none] [-webkit-appearance:none] ${
                       status === "Draft"
                         ? "bg-slate-50 border-slate-300 text-slate-700"
                         : status === "Sent"
@@ -1482,24 +1486,26 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
               )}
             </div>
 
-            {/* Footer Buttons */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 shrink-0">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                {isSaving ? "Saving Quotation..." : isEdit ? "Update Quotation" : "Create Quotation"}
-              </button>
-            </div>
           </form>
+
+          {/* Footer Buttons (Pinned at bottom, always visible, never cropped) */}
+          <div className="flex items-center justify-end gap-3 px-4 sm:px-6 py-3 border-t border-slate-200 bg-slate-50/90 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-200/70 rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="quotation-form"
+              disabled={isSaving}
+              className="px-6 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors shadow-xs cursor-pointer disabled:opacity-50"
+            >
+              {isSaving ? "Saving Quotation..." : isEdit ? "Update Quotation" : "Create Quotation"}
+            </button>
+          </div>
         </div>
       </div>
 
