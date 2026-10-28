@@ -32,6 +32,7 @@ import type { Customer, Vendor } from "@/lib/supabase/types";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
+import { motion, AnimatePresence } from "motion/react";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useIsRestoring } from "@tanstack/react-query";
 import {
@@ -643,26 +644,40 @@ function CustomerPageContent() {
                 {/* Module Header */}
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
-                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-                            {isCustomerMode ? (
-                                <>
-                                    <Building2 className="h-3.5 w-3.5 text-blue-600" />
-                                    <span>Master Data</span>
-                                    <span>/</span>
-                                    <span className="text-slate-600">Customer Creator</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Truck className="h-3.5 w-3.5 text-blue-600" />
-                                    <span>Master Data</span>
-                                    <span>/</span>
-                                    <span className="text-slate-600">Vendor / Transport</span>
-                                </>
-                            )}
+                        <div className="overflow-hidden">
+                            <motion.div
+                                initial={{ opacity: 0, y: 8 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                                className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1"
+                            >
+                                {isCustomerMode ? (
+                                    <>
+                                        <Building2 className="h-3.5 w-3.5 text-blue-600" />
+                                        <span>Master Data</span>
+                                        <span>/</span>
+                                        <span className="text-slate-600">Customer Creator</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Truck className="h-3.5 w-3.5 text-blue-600" />
+                                        <span>Master Data</span>
+                                        <span>/</span>
+                                        <span className="text-slate-600">Vendor / Transport</span>
+                                    </>
+                                )}
+                            </motion.div>
                         </div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                            {isCustomerMode ? "Customer Creator" : "Vendor & Transport Management"}
-                        </h1>
+                        <div className="overflow-hidden">
+                            <motion.h1
+                                initial={{ opacity: 0, y: "100%" }}
+                                animate={{ opacity: 1, y: "0%" }}
+                                transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                                className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2"
+                            >
+                                {isCustomerMode ? "Customer Creator" : "Vendor & Transport Management"}
+                            </motion.h1>
+                        </div>
                         <p className="text-xs text-slate-500 mt-0.5">
                             {isCustomerMode
                                 ? "Central directory for client customers and workpiece mould owners (Admin restricted)"
@@ -673,8 +688,8 @@ function CustomerPageContent() {
 
                 {/* Top Action Bar & Stat Tabs */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                    {/* Filter Category Tabs */}
-                    <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 border border-slate-200 rounded-xl">
+                    {/* Filter Category Tabs with Fluid Sliding Pill */}
+                    <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-100 border border-slate-200 rounded-xl relative select-none">
                         {(["All", "Vendor", "Transport", "Other"] as const).map((tab) => {
                             const isActive = activeTab === tab;
                             const count = tab === "All"
@@ -688,15 +703,25 @@ function CustomerPageContent() {
                                         setCurrentPage(1);
                                         router.replace(tab === "All" ? "/vendors" : `/vendors?tab=${tab}`, { scroll: false });
                                     }}
-                                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                                    className={`relative flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer ${
                                         isActive
-                                            ? "bg-white text-slate-900 shadow-xs font-semibold border border-slate-200/80"
+                                            ? "text-slate-900 font-semibold"
                                             : "text-slate-600 hover:text-slate-900"
                                     }`}
                                 >
-                                    <span>{tab}</span>
+                                    {isActive && (
+                                        <motion.div
+                                            layoutId="vendor-filter-pill"
+                                            transition={{
+                                                duration: 0.18,
+                                                ease: [0.16, 1, 0.3, 1],
+                                            }}
+                                            className="absolute inset-0 bg-white rounded-lg shadow-xs border border-slate-200/80 z-0 pointer-events-none"
+                                        />
+                                    )}
+                                    <span className="relative z-10">{tab}</span>
                                     <span
-                                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
+                                        className={`relative z-10 px-1.5 py-0.5 rounded-md text-[10px] font-mono transition-colors duration-150 ${
                                             isActive
                                                 ? "bg-slate-100 text-slate-800"
                                                 : "bg-slate-200/60 text-slate-500"
@@ -858,7 +883,13 @@ function CustomerPageContent() {
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100">
+                            <motion.tbody
+                                key={`${activeTab}-${currentPage}-${searchQuery ? "q" : ""}`}
+                                initial={{ opacity: 0.4 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
+                                className="divide-y divide-slate-100"
+                            >
                                 {isLoading ? (
                                     <TableSkeletonRows columns={8} rows={8} />
                                 ) : paginatedCustomers.length === 0 ? (
@@ -1023,7 +1054,7 @@ function CustomerPageContent() {
                                         );
                                     })
                                 )}
-                            </tbody>
+                            </motion.tbody>
                         </table>
                     </div>
 

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Modal } from "@/components/ui/dialog";
+import { motion, AnimatePresence } from "motion/react";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useAuth, getCachedSession, type UserSession } from "@/components/providers/auth-provider";
 
@@ -214,20 +215,51 @@ export function Topbar({
             <Menu className="h-4.5 w-4.5" />
           </button>
 
-          {/* Current Page Context Badge */}
+          {/* Current Page Context Badge with Corbel Text Roll Animation */}
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
-              <PageIcon className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0 overflow-hidden">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={pathname}
+                  initial={{ opacity: 0, scale: 0.75 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.75 }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex items-center justify-center"
+                >
+                  <PageIcon className="w-4 h-4" />
+                </motion.div>
+              </AnimatePresence>
             </div>
             <div className="min-w-0">
-              <div className="hidden sm:flex items-center gap-1.5 leading-none">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                  {currentPage.category}
-                </span>
+              <div className="hidden sm:block h-3.5 overflow-hidden">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={currentPage.category}
+                    initial={{ opacity: 0, y: "100%" }}
+                    animate={{ opacity: 1, y: "0%" }}
+                    exit={{ opacity: 0, y: "-100%" }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block leading-none"
+                  >
+                    {currentPage.category}
+                  </motion.span>
+                </AnimatePresence>
               </div>
-              <h2 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate max-w-[120px] xs:max-w-[150px] sm:max-w-[180px] md:max-w-[240px]">
-                {currentPage.title}
-              </h2>
+              <div className="h-5 overflow-hidden flex items-center">
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.h2
+                    key={currentPage.title}
+                    initial={{ opacity: 0, y: "100%" }}
+                    animate={{ opacity: 1, y: "0%" }}
+                    exit={{ opacity: 0, y: "-100%" }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                    className="text-xs sm:text-sm font-bold text-white tracking-tight truncate max-w-[120px] xs:max-w-[150px] sm:max-w-[180px] md:max-w-[240px] block leading-none"
+                  >
+                    {currentPage.title}
+                  </motion.h2>
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </div>
@@ -237,7 +269,7 @@ export function Topbar({
           <button
             type="button"
             onClick={() => setShowCommandPalette(true)}
-            className="w-full group flex items-center justify-between pl-3 sm:pl-3.5 pr-2.5 py-1.5 sm:py-2 text-xs rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-400 hover:text-slate-200 transition-all cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            className="w-full group flex items-center justify-between pl-3 sm:pl-3.5 pr-2.5 py-1.5 sm:py-2 text-xs rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-400 hover:text-slate-200 transition-all active:scale-[0.98] cursor-pointer shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 truncate">
               <Search className="h-3.5 sm:h-4 w-3.5 sm:w-4 text-slate-400 group-hover:text-blue-400 transition-colors shrink-0" />
@@ -258,7 +290,7 @@ export function Topbar({
             type="button"
             title="Quick Search"
             onClick={() => setShowCommandPalette(true)}
-            className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-700 cursor-pointer shrink-0"
+            className="sm:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all active:scale-90 border border-transparent hover:border-slate-700 cursor-pointer shrink-0"
           >
             <Search className="h-4 w-4" />
           </button>

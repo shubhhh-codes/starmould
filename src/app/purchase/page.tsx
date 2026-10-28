@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback, useRef, Suspense } fr
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
+import { motion } from "motion/react";
 import {
     ShoppingCart,
     Plus,
@@ -1189,9 +1190,16 @@ function PurchasePageContent() {
                                 Purchase Orders
                             </span>
                         </div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                            Purchase Management
-                        </h1>
+                        <div className="overflow-hidden">
+                            <motion.h1
+                                initial={{ opacity: 0, y: "100%" }}
+                                animate={{ opacity: 1, y: "0%" }}
+                                transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+                                className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2"
+                            >
+                                Purchase Management
+                            </motion.h1>
+                        </div>
                         <p className="text-xs text-slate-500 mt-0.5">
                             Raw material procurement, multi-item plate orders &
                             pending vendor pipeline

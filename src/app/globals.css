@@ -433,6 +433,57 @@ aside ::-webkit-scrollbar-thumb:hover,
   animation: spin-clockwise 0.75s linear infinite !important;
 }
 
+
+/* =========================================================================
+   CORBEL FLUID TEXT & SECTION REVEAL SYSTEM
+   ========================================================================= */
+
+@keyframes corbel-text-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.corbel-view-container h1 {
+  animation: corbel-text-reveal 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.corbel-view-container h2 {
+  animation: corbel-text-reveal 230ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 20ms;
+}
+
+.corbel-view-container h3 {
+  animation: corbel-text-reveal 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 30ms;
+}
+
+.corbel-view-container p {
+  animation: corbel-text-reveal 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 40ms;
+}
+
+.corbel-view-container table thead th {
+  animation: corbel-text-reveal 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 40ms;
+}
+
+.corbel-view-container table tbody tr:nth-child(1) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 45ms; }
+.corbel-view-container table tbody tr:nth-child(2) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 65ms; }
+.corbel-view-container table tbody tr:nth-child(3) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 85ms; }
+.corbel-view-container table tbody tr:nth-child(4) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 105ms; }
+.corbel-view-container table tbody tr:nth-child(5) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 125ms; }
+.corbel-view-container table tbody tr:nth-child(6) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 145ms; }
+.corbel-view-container table tbody tr:nth-child(7) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 165ms; }
+.corbel-view-container table tbody tr:nth-child(8) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 185ms; }
+.corbel-view-container table tbody tr:nth-child(9) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 205ms; }
+.corbel-view-container table tbody tr:nth-child(10) { animation: corbel-text-reveal 200ms cubic-bezier(0.16, 1, 0.3, 1) both; animation-delay: 225ms; }
+
 /* =========================================================================
    REDUCED MOTION ACCESSIBILITY
    ========================================================================= */

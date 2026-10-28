@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
+import { motion } from "motion/react";
 import { PipelineStatGrid } from "@/components/dashboard/pipeline-stat-card";
 import { MouldProjectsTable } from "@/components/dashboard/mould-projects-table";
 import {
@@ -369,18 +370,32 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      {/* Breadcrumb & Action Header */}
+      {/* Breadcrumb & Action Header with Corbel Text Roll */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-            <FolderKanban className="h-3.5 w-3.5 text-blue-600" />
-            <span>Manufacturing Execution</span>
-            <span>/</span>
-            <span className="text-slate-600">Production Dashboard</span>
+          <div className="overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+              className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1"
+            >
+              <FolderKanban className="h-3.5 w-3.5 text-blue-600" />
+              <span>Manufacturing Execution</span>
+              <span>/</span>
+              <span className="text-slate-600">Production Dashboard</span>
+            </motion.div>
           </div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            Mould & Workpiece Pipeline
-          </h1>
+          <div className="overflow-hidden">
+            <motion.h1
+              initial={{ opacity: 0, y: "100%" }}
+              animate={{ opacity: 1, y: "0%" }}
+              transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+              className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2"
+            >
+              Mould & Workpiece Pipeline
+            </motion.h1>
+          </div>
         </div>
 
         {/* Quick Action Controls */}

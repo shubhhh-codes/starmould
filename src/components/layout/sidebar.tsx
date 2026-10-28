@@ -4,6 +4,7 @@ import Image from "next/image";
 
 import React from "react";
 import Link from "next/link";
+import { motion } from "motion/react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   LayoutDashboard,
@@ -193,7 +194,7 @@ export function Sidebar({
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
   const { prefetchRoute } = useSmartPrefetch();
   useBackgroundPrefetchWarmup();
-  const [isMounted, setIsMounted] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(() => typeof window !== "undefined");
   React.useEffect(() => {
     setIsMounted(true);
   }, []);
@@ -388,22 +389,32 @@ export function Sidebar({
                 onMouseEnter={() => handlePrefetch(item.href)}
                 onFocus={() => handlePrefetch(item.href)}
                 title={collapsed && !mobileOpen ? item.title : undefined}
-                className={`btn-interactive group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 relative ${
+                className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium relative select-none ${
                   isActive
-                    ? "bg-blue-600 text-white shadow-xs shadow-blue-600/30"
-                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/70"
+                    ? "text-white"
+                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors duration-100"
                 }`}
               >
+                {isActive && (
+                  <motion.div
+                    layoutId="active-sidebar-pill"
+                    transition={{
+                      duration: 0.18,
+                      ease: [0.16, 1, 0.3, 1],
+                    }}
+                    className="absolute inset-0 bg-blue-600 rounded-lg shadow-sm shadow-blue-600/30 z-0 pointer-events-none"
+                  />
+                )}
                 <Icon
-                  className={`h-4 w-4 flex-shrink-0 transition-transform group-hover:scale-110 ${
+                  className={`h-4 w-4 flex-shrink-0 relative z-10 transition-colors duration-100 ${
                     isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
                   }`}
                 />
                 {(!collapsed || mobileOpen) && (
-                  <span className="truncate flex-1">{item.title}</span>
+                  <span className="truncate flex-1 relative z-10">{item.title}</span>
                 )}
                 {(!collapsed || mobileOpen) && isActive && (
-                  <ChevronRight className="h-3 w-3 text-white/70 animate-in slide-in-from-left-1 duration-150" />
+                  <ChevronRight className="h-3 w-3 text-white/80 relative z-10 shrink-0" />
                 )}
               </Link>
             );

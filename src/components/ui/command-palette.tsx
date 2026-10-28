@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
 import {
   Search,
   Layers,
@@ -22,7 +23,7 @@ import {
   Compass,
   Building2,
 } from "lucide-react";
-import { Modal } from "./dialog";
+import { overlayStack } from "@/lib/overlay-stack";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 
 interface CommandItem {
@@ -221,9 +222,10 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       return;
     }
 
+    setIsLoading(true);
     debounceTimerRef.current = setTimeout(() => {
       searchDatabase(query);
-    }, 150);
+    }, 200);
 
     return () => {
       if (debounceTimerRef.current) {
@@ -273,16 +275,26 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
     setSelectedIndex(0);
   }, [displayedItems]);
 
-  // Focus input when modal opens
+  // Focus input & register overlayStack when modal opens
   useEffect(() => {
     if (isOpen) {
+      const modalId = "cmd-palette-" + Math.random().toString(36).slice(2);
+      overlayStack.push(modalId, () => {
+        onClose();
+      });
+
       setQuery("");
       setLiveResults([]);
       setIsLoading(false);
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const timer = setTimeout(() => inputRef.current?.focus(), 60);
+
+      return () => {
+        clearTimeout(timer);
+        overlayStack.pop(modalId);
+      };
     }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   const handleSelect = (cmd: CommandItem) => {
     onClose();
@@ -306,6 +318,9 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
       if (current) {
         handleSelect(current);
       }
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
     }
   };
 
@@ -321,8 +336,6 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
         return "bg-amber-50 text-amber-700 border-amber-200";
       case "Challans":
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "3D Printing":
-        return "bg-teal-50 text-teal-700 border-teal-200";
       case "Quick Actions":
         return "bg-indigo-50 text-indigo-700 border-indigo-200";
       default:
@@ -331,136 +344,158 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      maxWidth="2xl"
-      showCloseButton={false}
-      className="p-0! overflow-hidden rounded-2xl border-slate-200 shadow-2xl bg-white"
-    >
-      {/* Search Input Bar */}
-      <div className="flex items-center px-4 py-3.5 border-b border-slate-100 gap-3 bg-slate-50/50">
-        {isLoading ? (
-          <Loader2 className="w-5 h-5 text-blue-600 animate-spin shrink-0" />
-        ) : (
-          <Search className="w-5 h-5 text-slate-400 shrink-0" />
-        )}
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Search Order ID, Project Code, Subplate, Customer, PO, Challan…"
-          className="flex-1 text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900 font-medium"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery("")}
-            className="text-slate-400 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded cursor-pointer"
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 overflow-y-auto">
+          {/* Frosted Backdrop with In & Out Animation */}
+          <motion.div
+            key="cmd-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16, ease: "easeOut" }}
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
+          />
+
+          {/* Modal Surface with Spring Morph In & Out */}
+          <motion.div
+            key="cmd-dialog"
+            initial={{ opacity: 0, scale: 0.96, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -8 }}
+            transition={{
+              duration: 0.16,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+            className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden z-10 my-auto"
           >
-            Clear
-          </button>
-        )}
-        <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-medium text-slate-400 bg-white rounded border border-slate-200 shadow-2xs">
-          ESC to close
-        </kbd>
-      </div>
+            {/* Search Input Bar */}
+            <div className="flex items-center px-4 py-3.5 border-b border-slate-100 gap-3 bg-slate-50/50">
+              {isLoading ? (
+                <Loader2 className="w-5 h-5 text-blue-600 animate-spin shrink-0" />
+              ) : (
+                <Search className="w-5 h-5 text-slate-400 shrink-0" />
+              )}
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Search Order ID, Project Code, Subplate, Customer, PO, Challan…"
+                className="flex-1 text-sm bg-transparent outline-none placeholder:text-slate-400 text-slate-900 font-medium"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="text-slate-400 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded cursor-pointer"
+                >
+                  Clear
+                </button>
+              )}
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-medium text-slate-400 bg-white rounded border border-slate-200 shadow-2xs">
+                ESC to close
+              </kbd>
+            </div>
 
-      {/* Results List */}
-      <div className="max-h-96 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-        {isLoading && displayedItems.length === 0 ? (
-          <div className="py-14 flex flex-col items-center justify-center gap-2.5 text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-            <span className="text-xs font-medium text-slate-500">Searching orders, subplates, parties…</span>
-          </div>
-        ) : displayedItems.length === 0 ? (
-          <div className="py-14 text-center text-xs text-slate-400 space-y-1">
-            <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="font-semibold text-slate-600 text-sm">No results found</p>
-            <p>No matching orders, plates, parties, or commands for &ldquo;{query}&rdquo;</p>
-          </div>
-        ) : (
-          displayedItems.map((cmd, idx) => {
-            const isSelected = idx === selectedIndex;
-            const Icon = cmd.icon || Search;
-            const badgeClass = getCategoryBadgeClass(cmd.category);
+            {/* Results List */}
+            <div className="max-h-96 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+              {isLoading && displayedItems.length === 0 ? (
+                <div className="py-14 flex flex-col items-center justify-center gap-2.5 text-slate-400">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="text-xs font-medium text-slate-500">Searching orders, subplates, parties…</span>
+                </div>
+              ) : displayedItems.length === 0 ? (
+                <div className="py-14 text-center text-xs text-slate-400 space-y-1">
+                  <Search className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="font-semibold text-slate-600 text-sm">No results found</p>
+                  <p>No matching orders, plates, parties, or commands for &ldquo;{query}&rdquo;</p>
+                </div>
+              ) : (
+                displayedItems.map((cmd, idx) => {
+                  const isSelected = idx === selectedIndex;
+                  const Icon = cmd.icon || Search;
+                  const badgeClass = getCategoryBadgeClass(cmd.category);
 
-            return (
-              <button
-                key={cmd.id}
-                type="button"
-                onClick={() => handleSelect(cmd)}
-                onMouseEnter={() => setSelectedIndex(idx)}
-                className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-left transition-all duration-100 cursor-pointer ${
-                  isSelected
-                    ? "bg-blue-50/90 text-blue-950 border border-blue-200/80 shadow-xs"
-                    : "text-slate-700 hover:bg-slate-50 border border-transparent"
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div
-                    className={`p-2 rounded-xl shrink-0 transition-colors ${
-                      isSelected
-                        ? "bg-blue-600 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-900 truncate">
-                        {cmd.title}
-                      </span>
-                      {cmd.meta && (
-                        <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">
-                          {cmd.meta}
+                  return (
+                    <button
+                      key={cmd.id}
+                      type="button"
+                      onClick={() => handleSelect(cmd)}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl text-left transition-all duration-100 cursor-pointer ${
+                        isSelected
+                          ? "bg-blue-50/90 text-blue-950 border border-blue-200/80 shadow-xs"
+                          : "text-slate-700 hover:bg-slate-50 border border-transparent"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div
+                          className={`p-2 rounded-xl shrink-0 transition-colors ${
+                            isSelected
+                              ? "bg-blue-600 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          <Icon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-900 truncate">
+                              {cmd.title}
+                            </span>
+                            {cmd.meta && (
+                              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold border border-slate-200">
+                                {cmd.meta}
+                              </span>
+                            )}
+                          </div>
+                          {cmd.subtitle && (
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {cmd.subtitle}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border ${badgeClass}`}>
+                          {cmd.category}
                         </span>
-                      )}
-                    </div>
-                    {cmd.subtitle && (
-                      <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                        {cmd.subtitle}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                        {isSelected ? (
+                          <ArrowRight className="w-3.5 h-3.5 text-blue-600 shrink-0 animate-in slide-in-from-left-1 duration-150" />
+                        ) : (
+                          <ExternalLink className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-md border ${badgeClass}`}>
-                    {cmd.category}
-                  </span>
-                  {isSelected ? (
-                    <ArrowRight className="w-3.5 h-3.5 text-blue-600 shrink-0 animate-in slide-in-from-left-1 duration-150" />
-                  ) : (
-                    <ExternalLink className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 shrink-0" />
-                  )}
-                </div>
-              </button>
-            );
-          })
-        )}
-      </div>
-
-      {/* Footer Helper */}
-      <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-        <div className="flex items-center gap-3">
-          <span>
-            <kbd className="font-mono font-semibold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">↑↓</kbd> Navigate
-          </span>
-          <span>
-            <kbd className="font-mono font-semibold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">↵</kbd> Select
-          </span>
-          <span>
-            <kbd className="font-mono font-semibold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">ESC</kbd> Close
-          </span>
+            {/* Footer Helper */}
+            <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="flex items-center gap-3">
+                <span>
+                  <kbd className="font-mono font-semibold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">↑↓</kbd> Navigate
+                </span>
+                <span>
+                  <kbd className="font-mono font-semibold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">↵</kbd> Select
+                </span>
+                <span>
+                  <kbd className="font-mono font-semibold text-slate-700 bg-white px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">ESC</kbd> Close
+                </span>
+              </div>
+              <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
+                <Command className="w-3 h-3 text-slate-400" /> StarMould Global Search
+              </span>
+            </div>
+          </motion.div>
         </div>
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
-          <Command className="w-3 h-3 text-slate-400" /> StarMould Global Search
-        </span>
-      </div>
-    </Modal>
+      )}
+    </AnimatePresence>
   );
 }
