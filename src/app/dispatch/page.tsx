@@ -127,11 +127,12 @@ export default function DispatchPage() {
 
   // Mould projects for selected customer
   const availableProjects = useMemo(() => {
-    if (!modalForm.customerid) return [];
+    if (!modalForm.customerid) return scans;
     const custId = String(modalForm.customerid);
     const selectedCustName = selectedCustomer?.customername?.toLowerCase().trim();
+    const selectedCustInitials = selectedCustomer?.initials?.toLowerCase().trim();
 
-    return scans.filter((s: ScanProject) => {
+    const matched = scans.filter((s: ScanProject) => {
       // 1. Direct customer_id match
       if (s.customer_id && String(s.customer_id) === custId) return true;
       // 2. Numeric cname match
@@ -140,10 +141,15 @@ export default function DispatchPage() {
       if (selectedCustName && s.cname && String(s.cname).toLowerCase().trim() === selectedCustName) return true;
       // 4. Customer name match against scan customername
       if (selectedCustName && (s as any).customername && String((s as any).customername).toLowerCase().trim() === selectedCustName) return true;
-      // 5. In-house / unassigned project
+      // 5. Match by Customer Initials / Code in projectid (e.g. 0001_TESTC_001 matches TESTC!)
+      if (selectedCustInitials && s.projectid && s.projectid.toLowerCase().includes(selectedCustInitials)) return true;
+      // 6. In-house / unassigned project
       if (String(s.cname) === "0" || !s.cname) return true;
       return false;
     });
+
+    // If no project strictly matched this customer, fallback to showing all active scans so the operator is NEVER blocked!
+    return matched.length > 0 ? matched : scans;
   }, [scans, modalForm.customerid, selectedCustomer]);
 
   // Selected scan record for subplate resolution

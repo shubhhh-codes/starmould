@@ -25,6 +25,9 @@ import {
   PackagePlus,
   Compass,
   Building2,
+  ArrowDownLeft,
+  FileText,
+  Briefcase,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { Modal } from "@/components/ui/dialog";
@@ -50,8 +53,11 @@ const PAGE_INFO: Record<string, { title: string; category?: string; icon: React.
   "/scanning": { title: "Scanning & Moulds", category: "Operations", icon: Scan },
   "/purchase": { title: "Purchase Orders", category: "Procurement", icon: ShoppingCart },
   "/purchase-inward": { title: "Purchase Inward", category: "Procurement", icon: PackagePlus },
+  "/quotation": { title: "Quotations", category: "Procurement", icon: FileText },
   "/challan": { title: "Outward Challans", category: "Logistics", icon: ArrowUpRight },
+  "/inward": { title: "Inward Movement (Job Work Return)", category: "Logistics", icon: ArrowDownLeft },
   "/dispatch": { title: "Goods Dispatch", category: "Logistics", icon: Truck },
+  "/work": { title: "Work & Machining Log", category: "Manufacturing", icon: Briefcase },
   "/customers": { title: "Customer Creator", category: "Master Data", icon: Building2 },
   "/vendors": { title: "Vendor & Transport Management", category: "Master Data", icon: Truck },
   "/user": { title: "Staff & User Management", category: "Admin", icon: Shield },
