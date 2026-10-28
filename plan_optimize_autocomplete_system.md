@@ -122,6 +122,31 @@ High-performance in-memory recommendation module ($<1\text{ms}$ query latency):
 
 ---
 
+### 4. Continuous Online Self-Learning Engine (Real-Time Incremental Training Loop)
+
+To guarantee that the system **automatically and perpetually trains itself** as future moulds and subplates are created:
+
+1. **Mould Description Auto-Learning:**
+   - Whenever any operator creates or edits a mould in `src/components/mould/new-mould-modal.tsx`:
+   - `learnMouldDescription(description, worktype)` immediately registers the new description in memory.
+   - Frequency count increments, and newly entered terms (e.g. a new container design or packaging size) become instantly available for autocomplete across all subsequent mould creations without needing any manual re-training or deployment.
+
+2. **Subplate & Co-Occurrence Graph Incremental Auto-Learning:**
+   - Whenever subplates are saved in a mould basket:
+     - The engine inspects newly added pairs $\{P_{\text{new}}, P_{\text{existing}}\}$.
+     - It dynamically increments edge weights in the runtime Co-Occurrence graph:
+       $$\text{Count}(P_i \cap P_j) \mathrel{+}= 1$$
+     - Recalculates dynamic Lift scores in-memory.
+     - Brand new custom plate names entered by operators are automatically added to the canonical vocabulary index with initial frequency $N=1$.
+
+3. **Database-Backed Persistent Sync:**
+   - On server startup / boot, `src/lib/mould-autocomplete.ts` and `src/lib/plate-recommender.ts` execute a lightweight delta reconciliation against PostgreSQL:
+     - Queries `SELECT DISTINCT description, worktype FROM public.scan WHERE created_at > LAST_SYNC`.
+     - Queries recent plate combinations from `public.subplate`.
+   - This ensures that 100% of newly created descriptions and subplate combos persist across server restarts, deployments, and edge instances permanently.
+
+---
+
 ## Verification Plan
 
 ### Automated Tests

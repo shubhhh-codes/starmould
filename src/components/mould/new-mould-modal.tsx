@@ -27,6 +27,7 @@ import {
   useCreateProjectMutation,
   useCustomerDropdownQuery,
   useNextProjectIdQuery,
+  useProjectsQuery,
 } from "@/lib/query/hooks";
 import type { Customer } from "@/lib/supabase/types";
 import { GhostDescriptionInput } from "@/components/mould/ghost-description-input";
@@ -147,6 +148,14 @@ export function NewMouldModal({
     selectedCustomer?.initials,
     isOpen
   );
+
+  // Fetch existing projects for live dynamic description suggestions
+  const projectsQuery = useProjectsQuery({ enabled: isOpen, pageSize: 200 });
+  const liveDescriptions = useMemo(() => {
+    return (projectsQuery.data?.scans || [])
+      .map((s) => s.description?.trim())
+      .filter((d): d is string => Boolean(d));
+  }, [projectsQuery.data?.scans]);
 
   const cidStr = nextIdQuery.data?.cidStr || "----";
   const isComplete = Boolean(
@@ -532,6 +541,7 @@ export function NewMouldModal({
             placeholder="e.g. 8 Cavity Cap Mould Top Core Plate, 120 GSM pulp packaging..."
             value={form.description}
             worktype={form.worktype}
+            liveDescriptions={liveDescriptions}
             onChange={(val) =>
               setForm((prev) => ({ ...prev, description: val }))
             }

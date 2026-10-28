@@ -1,0 +1,2677 @@
+[
+  {
+    "name": "MS",
+    "count": 270,
+    "category": "General Component"
+  },
+  {
+    "name": "Hotpress Bottom",
+    "count": 260,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Top",
+    "count": 220,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Injector",
+    "count": 158,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Bottom",
+    "count": 135,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Punch",
+    "count": 133,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "KVT",
+    "count": 129,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Top Plate",
+    "count": 128,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Bottom Plate",
+    "count": 125,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Insert",
+    "count": 125,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Top",
+    "count": 89,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Plate",
+    "count": 79,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Ring",
+    "count": 69,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Transfer Plate",
+    "count": 68,
+    "category": "General Component"
+  },
+  {
+    "name": "Base Plate",
+    "count": 63,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Trimming Mold",
+    "count": 62,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Plug",
+    "count": 59,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "F-dowel",
+    "count": 58,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Wooden Box",
+    "count": 54,
+    "category": "General Component"
+  },
+  {
+    "name": "Cutting Plate",
+    "count": 53,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "M-dowel",
+    "count": 51,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Plug Plate",
+    "count": 47,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Blade Plate",
+    "count": 43,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Hotpress Bottom Frame",
+    "count": 39,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Mounting Plate",
+    "count": 38,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Trimming Mold Top Plate",
+    "count": 38,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Dowel",
+    "count": 37,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Trimming Mold Bottom Plate",
+    "count": 37,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "MS Plate",
+    "count": 35,
+    "category": "General Component"
+  },
+  {
+    "name": "Frame",
+    "count": 34,
+    "category": "General Component"
+  },
+  {
+    "name": "Lock Patti",
+    "count": 34,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Wooden Peti",
+    "count": 33,
+    "category": "General Component"
+  },
+  {
+    "name": "KVT Block",
+    "count": 32,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Frame",
+    "count": 31,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Top Punch",
+    "count": 31,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "SS Frame",
+    "count": 30,
+    "category": "General Component"
+  },
+  {
+    "name": "Hotpress Top Punch",
+    "count": 29,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Sample",
+    "count": 29,
+    "category": "General Component"
+  },
+  {
+    "name": "Bottom Punch",
+    "count": 28,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Block",
+    "count": 28,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Punch",
+    "count": 28,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Alu",
+    "count": 27,
+    "category": "General Component"
+  },
+  {
+    "name": "Hot Press Top",
+    "count": 27,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Wooden Box",
+    "count": 27,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Pressure Plate",
+    "count": 27,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Wooden Peti 2",
+    "count": 27,
+    "category": "General Component"
+  },
+  {
+    "name": "Oring",
+    "count": 26,
+    "category": "General Component"
+  },
+  {
+    "name": "Forming Wooden Box",
+    "count": 25,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Safting",
+    "count": 24,
+    "category": "General Component"
+  },
+  {
+    "name": "Heater Plate",
+    "count": 23,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Pressure Ring",
+    "count": 23,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Punch 2",
+    "count": 23,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Shafting",
+    "count": 23,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Injector Rod",
+    "count": 22,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Spring",
+    "count": 22,
+    "category": "General Component"
+  },
+  {
+    "name": "Hotpress Top Punch Plate",
+    "count": 21,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Kayda",
+    "count": 21,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Alu Plate",
+    "count": 20,
+    "category": "General Component"
+  },
+  {
+    "name": "Hotpress Bottom Base Plate",
+    "count": 20,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "KVT Plate",
+    "count": 20,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Dagra",
+    "count": 19,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "SS",
+    "count": 19,
+    "category": "General Component"
+  },
+  {
+    "name": "Transfer Base Plate",
+    "count": 19,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Mesh Mold",
+    "count": 18,
+    "category": "General Component"
+  },
+  {
+    "name": "Pnc",
+    "count": 18,
+    "category": "General Component"
+  },
+  {
+    "name": "Pressur Plate",
+    "count": 18,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Punch 1",
+    "count": 18,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Hot Press Bottom",
+    "count": 17,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Injector Plate",
+    "count": 17,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Punch Base Plate",
+    "count": 17,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Base Plate",
+    "count": 17,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Blade Clamp",
+    "count": 16,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming",
+    "count": 16,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Pawala",
+    "count": 16,
+    "category": "General Component"
+  },
+  {
+    "name": "Robotic Plate",
+    "count": 16,
+    "category": "General Component"
+  },
+  {
+    "name": "Water Slive",
+    "count": 16,
+    "category": "General Component"
+  },
+  {
+    "name": "Wooden Peti 1",
+    "count": 16,
+    "category": "General Component"
+  },
+  {
+    "name": "Blade",
+    "count": 15,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Hotpress Bottom Plate",
+    "count": 15,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "SS Sheet",
+    "count": 15,
+    "category": "General Component"
+  },
+  {
+    "name": "Cutting Blade",
+    "count": 14,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Plug Road",
+    "count": 14,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Slive",
+    "count": 14,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Pata",
+    "count": 14,
+    "category": "General Component"
+  },
+  {
+    "name": "Trimming Mould Bottom Plate",
+    "count": 14,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Hotpress Top Plate",
+    "count": 13,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Pata",
+    "count": 13,
+    "category": "General Component"
+  },
+  {
+    "name": "Plug Rod",
+    "count": 13,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mould Top Plate",
+    "count": 13,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Plate Frame",
+    "count": 12,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Formming Bottom Plate",
+    "count": 12,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Full Trimming Mold",
+    "count": 12,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Pipe",
+    "count": 12,
+    "category": "General Component"
+  },
+  {
+    "name": "Pressur Ring",
+    "count": 12,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Robotic Punch",
+    "count": 12,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Dagra",
+    "count": 11,
+    "category": "General Component"
+  },
+  {
+    "name": "Forming Bottom Frame",
+    "count": 11,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Formming Top Plate",
+    "count": 11,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress",
+    "count": 11,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Set",
+    "count": 11,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Top ( Old )",
+    "count": 11,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Injector Road",
+    "count": 11,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Mesh Plate",
+    "count": 11,
+    "category": "General Component"
+  },
+  {
+    "name": "Pluge",
+    "count": 11,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Robotic",
+    "count": 11,
+    "category": "General Component"
+  },
+  {
+    "name": "Bottom Plate ( Old )",
+    "count": 10,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Buss",
+    "count": 10,
+    "category": "General Component"
+  },
+  {
+    "name": "Cavity",
+    "count": 10,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cavity Lock Patti",
+    "count": 10,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Mould",
+    "count": 10,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "En-8",
+    "count": 10,
+    "category": "General Component"
+  },
+  {
+    "name": "EN8",
+    "count": 10,
+    "category": "General Component"
+  },
+  {
+    "name": "Top Plate ( Old )",
+    "count": 10,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Bottom Part ( Old )",
+    "count": 9,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Fully Trimming Mold",
+    "count": 9,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "KVT Punch",
+    "count": 9,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "O-ring",
+    "count": 9,
+    "category": "General Component"
+  },
+  {
+    "name": "Plate",
+    "count": 9,
+    "category": "General Component"
+  },
+  {
+    "name": "Plate 1",
+    "count": 9,
+    "category": "General Component"
+  },
+  {
+    "name": "Plate 2",
+    "count": 9,
+    "category": "General Component"
+  },
+  {
+    "name": "Silvar Bar",
+    "count": 9,
+    "category": "General Component"
+  },
+  {
+    "name": "Top Bush",
+    "count": 9,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Angle",
+    "count": 8,
+    "category": "General Component"
+  },
+  {
+    "name": "Cutting Mould Bottom Punch Plate",
+    "count": 8,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Dowell (m8 - Fm12)",
+    "count": 8,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Forming Set",
+    "count": 8,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Glass Sample",
+    "count": 8,
+    "category": "General Component"
+  },
+  {
+    "name": "Hotpress Bottom ( Old )",
+    "count": 8,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Injector(old)",
+    "count": 8,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "New Base Plate",
+    "count": 8,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "New KVT",
+    "count": 8,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Plate 3",
+    "count": 8,
+    "category": "General Component"
+  },
+  {
+    "name": "Spenar",
+    "count": 8,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Pata",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Bearing",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Body",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Bottom Plate Trimming Mold",
+    "count": 7,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "D-2",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Ejector Plate",
+    "count": 7,
+    "category": "Ejection System"
+  },
+  {
+    "name": "Formming Plate",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Heater",
+    "count": 7,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hp Bottom",
+    "count": 7,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "MS Black",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Pata",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Punch Plate",
+    "count": 7,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Top Part ( Old )",
+    "count": 7,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Transfer",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Trimming Mold Pnc",
+    "count": 7,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Top Plate",
+    "count": 7,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "U-seal",
+    "count": 7,
+    "category": "General Component"
+  },
+  {
+    "name": "Anod",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Ballcage 40x48x150",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Bush",
+    "count": 6,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Clamp",
+    "count": 6,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Frame",
+    "count": 6,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Punch (new)",
+    "count": 6,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "KVT + Insert+ Injector Set",
+    "count": 6,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Mounting Bottom Plate",
+    "count": 6,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Mounting Top Plate",
+    "count": 6,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Moving Plate",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Oring Set",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Pillar",
+    "count": 6,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Piller Shaft",
+    "count": 6,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Plate 4",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Pluge Plate",
+    "count": 6,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Ro",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Rod",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Plate",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Top Plate Trimming Mold",
+    "count": 6,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Useal",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Water Sleeve",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Wooden Peti 3",
+    "count": 6,
+    "category": "General Component"
+  },
+  {
+    "name": "Cut. Mould",
+    "count": 5,
+    "category": "General Component"
+  },
+  {
+    "name": "D-2 Cutting Plate",
+    "count": 5,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Bottom Plate",
+    "count": 5,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Gun Metal Bush",
+    "count": 5,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Hot Bot Frame",
+    "count": 5,
+    "category": "General Component"
+  },
+  {
+    "name": "Hotpress Top/bottom",
+    "count": 5,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "KVT (old)",
+    "count": 5,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "MS Pato",
+    "count": 5,
+    "category": "General Component"
+  },
+  {
+    "name": "Nylon",
+    "count": 5,
+    "category": "General Component"
+  },
+  {
+    "name": "Pillar Buss",
+    "count": 5,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Plug Top Plate",
+    "count": 5,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Pluge Rod",
+    "count": 5,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Proxy",
+    "count": 5,
+    "category": "General Component"
+  },
+  {
+    "name": "Sheet",
+    "count": 5,
+    "category": "General Component"
+  },
+  {
+    "name": "Top - Bottom Plate",
+    "count": 5,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Trimming Mold Punch Base Plate",
+    "count": 5,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Wiser",
+    "count": 5,
+    "category": "General Component"
+  },
+  {
+    "name": "Acrolic Sheet",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Frame",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Aluminium Pata",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Ballcage",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Bot Punch",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Bottom Base Plate",
+    "count": 4,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Brass Ring",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Cutting Mould Top Plate",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Ring (old)",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "D2 Cutting Plate",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Dowel ( Old )",
+    "count": 4,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Forming Bottom Dowel",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Punch",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming/hotpress Dowel",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Formming Bottom",
+    "count": 4,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hight Maintant Pata",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Hight Maintat Pata",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Hp Top",
+    "count": 4,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Injector Base Plate",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Insert(old)",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Kfc KVT",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "MS Bright",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Ring Trimming Mold",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "MS Round",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Pillar Bosh",
+    "count": 4,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Pin",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Proxy Stand",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Receving Plate",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Robotic Dagra",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Robotic Wooden Box",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Rubber Sheet",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Sleeve",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Pato",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Steel Plate",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Top Plate SS Frame",
+    "count": 4,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Tower KVT",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Transfer Mold Dagra",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Trimming Device Punch Kayda",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Punch Plate",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold SS Plate",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Top/bottom Plate",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Ventilation Pin",
+    "count": 4,
+    "category": "General Component"
+  },
+  {
+    "name": "Wooden Box Hotpress",
+    "count": 4,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Wooden Trimming Mold",
+    "count": 4,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "(new) Punch",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "(ss410) Plate",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Anod (big)",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Anod (small)",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Big Anod",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Big Insert",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Boss",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Bottom Dowel",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Bottom Part",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Bottom Plate (old)",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Capsul",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Chex KVT",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Clamp Kayda",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Cut. Mould Mounting Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Cutting Mould Bottom Plate",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Mould Bottom Punch",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cylinder Buss",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Cylinder Clamp",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Extra Plate",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Extra Punch",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "F- Dowel",
+    "count": 3,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Forming Bottom ( Old )",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Bottom (old)",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Bottom Plate Frame",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Bottom Punch",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Formming Bottom Punch",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Formming Plate Frame",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Formming Top",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Gun Metal",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Heater Holl Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Heater Rod (1200w)",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Heater Rod (1500w)",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Height Maintain Pata",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Hight Maintan Pata",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Hot Top",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Bottom SS Frame",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress SS Frame",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Ht Frame",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Injector (old)",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Insirt",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Isolation Sheet",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Kayda Plate",
+    "count": 3,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "KVT ( Old )",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "KVT Sample",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Lage",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Mesh Mould Top Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Mirror Sheet",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Oil Heating Plate",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Pawala O-ring",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Piker",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Pillar Saft",
+    "count": 3,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Plug Rod (old)",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Presur Plate",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Pulp Levling Plate",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Punch2",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Robotic Arm",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Robotic Punch 1",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Robotic Punch 2",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Rubber",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Sample KVT",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Silver Bar",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Small Anod",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "SS 4mm Cut",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Datti",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Dowel",
+    "count": 3,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "SS Dowel Female",
+    "count": 3,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "SS Dowel Male",
+    "count": 3,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "SS Frame ( Old )",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Frame 4mm",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Plate 410",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Top & Bottom Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Buss",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Mounting Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Part",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Plate (old)",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top-bottom SS Frame",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top/bottom/moving Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Transer Base Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Transer Plate",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Transfer Plate Base Plate",
+    "count": 3,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Triming Mold",
+    "count": 3,
+    "category": "General Component"
+  },
+  {
+    "name": "Trimming Bot Plate",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Bottom Plate",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Alu Plate",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Pnc Plate",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mould Punch 1",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mould Punch 2",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mould Punch Plate",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Wooden Box Forming",
+    "count": 3,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "(bottom Part)",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "(old) KVT",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "10mm Road",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "250ml Injector",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "250ml Insert",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "300ml Injector",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "300ml Insert",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "4mm Road",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "5cp Pnc Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "6mm Road",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "70ml Forming Bottom Punch",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "80 Dia Mesh Mold",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "8mm Road",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Acralic",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Acrelic",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Acrelic Sheet",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Aenod",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Plate Type 1",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Plate Type 2",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Round Type 1",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Round Type 2",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Sheet",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Alu Trimming Mold",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Alu. Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Aluminium",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Aluminium Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Base Plate Punch Trimming Mold",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Big Injector",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Blade Clamp(small)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Blade Plate ( Old )",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Blade Plate (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Blade(small)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Bosh",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Bottom",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Bottom Mounting Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Bottom Part Dowel",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Bottom Punch Trimming",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Brass",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Brass Dowel",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Broo KVT",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Buss Clamp",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Casting Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Cavity (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Chex Cavity",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Chex KVT 1",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Coupling",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Cup KVT",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Mould 2",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Mould Top Punch",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Plate (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Ring ( Old )",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cutting Ring (old) Sample",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Cylinder Bush",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Cylinder Coupling",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Cylinder Support",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "D-2 Cutting Blade",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "D-2 Dagra",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "D2 Cutting Ring",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "D2 Dagra Type 1",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "D2 Dagra Type 2",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "D2 Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Delrin",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Derline",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Device",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Female Dowel",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Female Dowel ( Old )",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Female Dowel (old)",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Flang MS",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Flower Cavity",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Flower KVT",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "For Stock",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Forming Bottom Dagra",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Bottom Punch(new)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Mesh Frame",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Pata (new)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Punch (new)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Rubber Sheet",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Top (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Forming Top Plate",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Formming Block",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Formming Bottom Material Expand",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Formming Dagra",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Full Mold",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "H.p-b.t Dowel",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Handal",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Heat Sink",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Heater Rod(1200w)",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Heater Rod(1500w)",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hendal",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Hex Nut MS",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Hight Maintain Pata",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Hight Maintane Pata",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Hightmaintain Pata",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Hot Press Bottom Frame",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hot Top Pnc Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Base Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Pnc Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Top (old)",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Hotpress Top Base Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Injector ( Old )",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Injector (sample)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Injector Rod (cooling)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Injector Set 2",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Injector With Rod (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Injector(250ml)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Injector(300ml)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Insert (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Insert Set 2",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Insert(250ml)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Insert(300ml)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Insirt Sample",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Kayda 2",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "KVT 3cp",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "KVT New Made",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "KVT Old Sample",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Lining KVT",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Linning KVT (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Lock Pati",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Lock Pato",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "M- Dowel",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Male Dowel",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Male Dowel ( Old )",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Master Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Mesh Mold MS",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Mesh Mould Bottom Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Mesh Mould Punch",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Meshe",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Mounting Bottom",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Mounting Top",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Mounting Top/bottom",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Moving Plate Stoper",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Moving Plate Stopper",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "MS Frame",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Frame Raw",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Kayda",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "MS Patti",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Plate Itc",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Plate Raw Material",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Plate Type 1",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Plate Type 2",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Plate Type 3 Square",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Plate Type 4",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "MS Ring",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "New Wooden Peti",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "O Ring",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Oring 1",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Part",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Pato",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Pawala (new)",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Piller",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Piller Bosh",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Piller Shaft 2",
+    "count": 2,
+    "category": "Guiding & Alignment"
+  },
+  {
+    "name": "Plastic Sample",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Plug ( Old )",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Plug (old)",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Plug Base Plate",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Plug Road + Injector Road",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Pluge Top Plate",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Pnc Base Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Pressur Buss",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Presure Ring",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Pu",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Punch Trimming Mold",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Punch1",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Rbd KVT",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Robortic Arm",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Robotic Packing",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Robotic Punch 3",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Safting Forming",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Safting Nut",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Sample Cutting Plate",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Small Injector",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Small Insert",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "SS Cut",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Frame 2mm",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Frame 5mm",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "SS Plate Frame",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Stoper",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Stud",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Syndhanio",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Top / Bottom Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Bush O-ring",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Bush Oring",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Dowel",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Dowel Pin",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top Plate Trimming",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Top Punch Trimming",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Top-bottom Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top/ Bottom/moving Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Top/bottom Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Tranfer Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Trimming Mold Alu",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold MS",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold MS Plate",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Pata",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Plate",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Ring MS",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Top Pnc",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mold Top Punch",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mould Punch",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trimming Mould Top Kayda",
+    "count": 2,
+    "category": "Core & Cavity Inserts"
+  },
+  {
+    "name": "Trm Bottom Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "Trm Pnc Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Trm Top Plate",
+    "count": 2,
+    "category": "Base & Clamping Plates"
+  },
+  {
+    "name": "U1 Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "U2 Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "U3 Plate",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Water Slive Oring",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Windos",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Windows Sheet",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "Wooden Sheet",
+    "count": 2,
+    "category": "General Component"
+  },
+  {
+    "name": "WPS",
+    "count": 2,
+    "category": "General Component"
+  }
+]

@@ -48,6 +48,12 @@ import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu"
 import { AssignStaffModal } from "@/components/subplate/assign-staff-modal";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
+	getRecommendedCompanionPlates,
+	learnSubplatePair,
+	type CompanionRecommendation,
+} from "@/lib/plate-recommender";
+import { GhostPlateInput } from "@/components/subplate/ghost-plate-input";
+import {
 	calculateSubplateWeight,
 	isHeightDisabled,
 	getDimensionLabels,
@@ -907,6 +913,55 @@ function SubplatePageContent() {
 		return calculated > 0 ? calculated.toFixed(3) : "";
 	};
 
+	// Sibling plates for the target mould (used for contextual autocomplete and companion recommendations)
+	const modalTargetMouldPlates = useMemo(() => {
+		if (!modalForm.projectid) return [];
+		const targetId = String(modalForm.projectid);
+		return subplates.filter(
+			(sp) => String(sp.projectid) === targetId || (sp.mold_id && String(sp.mold_id) === targetId)
+		);
+	}, [subplates, modalForm.projectid]);
+
+	// Plate names in target mould for ghost autocomplete boost
+	const modalTargetPlateNames = useMemo(() => {
+		return modalTargetMouldPlates
+			.map((sp) => sp.platename?.trim())
+			.filter((name): name is string => Boolean(name));
+	}, [modalTargetMouldPlates]);
+
+	// 1-Click companion recommendations for current mould workpiece set
+	const companionRecommendations = useMemo(() => {
+		if (!modalTargetMouldPlates.length) return [];
+		return getRecommendedCompanionPlates(modalTargetMouldPlates, 4);
+	}, [modalTargetMouldPlates]);
+
+	// Handler to apply recommended companion plate and mirror specs
+	const handleApplyCompanion = (rec: CompanionRecommendation) => {
+		const updated = {
+			...modalForm,
+			platename: rec.name,
+			plate_category: rec.category || modalForm.plate_category,
+		};
+
+		if (rec.mirroredSpecs) {
+			if (rec.mirroredSpecs.length !== undefined && rec.mirroredSpecs.length !== null) {
+				updated.length = String(rec.mirroredSpecs.length);
+			}
+			if (rec.mirroredSpecs.width !== undefined && rec.mirroredSpecs.width !== null) {
+				updated.width = String(rec.mirroredSpecs.width);
+			}
+			if (rec.mirroredSpecs.material) {
+				updated.material = String(rec.mirroredSpecs.material);
+			}
+			if (rec.mirroredSpecs.shape) {
+				updated.shape = String(rec.mirroredSpecs.shape);
+			}
+		}
+
+		updated.weight = recalculateWeight(updated);
+		setModalForm(updated);
+	};
+
 	// Strict numeric validation and keyboard filters
 	const handleStepQty = (delta: number) => {
 		const current = parseInt(modalForm.sqty || '1', 10) || 1;
@@ -1150,6 +1205,8 @@ function SubplatePageContent() {
 					project,
 					mouldCode:
 						project?.projectid ||
+						sp.mold_code ||
+						(sp.subprojectid ? sp.subprojectid.split("_").slice(0, 3).join("_") : "") ||
 						(sp as any).mould_project_code ||
 						(sp.projectid ? `Project #${sp.projectid}` : "Unassigned Mould"),
 					mouldName:
@@ -1309,6 +1366,22 @@ function SubplatePageContent() {
  sqty: Number(modalForm.sqty || "1"),
  });
  }
+
+		// Continuous online self-learning: learn co-occurrence pairs for this mould workpiece basket
+		if (modalForm.projectid && modalForm.platename?.trim()) {
+			const newName = modalForm.platename.trim();
+			const targetId = String(modalForm.projectid);
+			for (const sib of subplates) {
+				if (
+					(String(sib.projectid) === targetId || (sib.mold_id && String(sib.mold_id) === targetId)) &&
+					sib.platename &&
+					sib.platename.trim().toLowerCase() !== newName.toLowerCase()
+				) {
+					learnSubplatePair(sib.platename, newName);
+				}
+			}
+		}
+
  setIsModalOpen(false);
  setEditingSubplate(null);
 		} catch (err: any) {
@@ -2435,24 +2508,75 @@ function SubplatePageContent() {
 					<form onSubmit={handleSubmitModal} className="space-y-4">
 						{/* Group 1: Workpiece Identification & Mould Assignment */}
 						<div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+							{/* 1-Click Companion Quick-Pills (if target mould has sibling plates) */}
+							{companionRecommendations.length > 0 && !editingSubplate && (
+								<div className="sm:col-span-2 p-2.5 rounded-xl bg-gradient-to-r from-blue-50/80 via-indigo-50/60 to-cyan-50/50 border border-blue-200/70 shadow-2xs space-y-1.5 animate-in fade-in duration-200">
+									<div className="flex items-center justify-between">
+										<span className="text-[10px] font-bold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+											<Sparkles className="w-3.5 h-3.5 text-blue-600 animate-pulse" />
+											<span>Suggested Companion Plates</span>
+											<span className="text-[9px] font-medium text-blue-600 bg-blue-100/80 px-1.5 py-0.2 rounded-full border border-blue-200/60">
+												Co-Occurrence
+											</span>
+										</span>
+										<span className="text-[10px] text-slate-500 font-medium hidden xs:inline">
+											1-Click Auto-Fill
+										</span>
+									</div>
+									<div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-0.5 pb-0.5">
+										{companionRecommendations.map((rec) => (
+											<button
+												key={rec.name}
+												type="button"
+												tabIndex={-1}
+												onClick={() => handleApplyCompanion(rec)}
+												className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border border-blue-200/90 bg-white text-slate-800 hover:text-blue-700 hover:bg-blue-50/90 hover:border-blue-300 active:scale-95 transition-all shadow-2xs shrink-0 cursor-pointer group"
+												title={
+													rec.mirroredSpecs
+														? `Auto-mirrors specs: ${rec.mirroredSpecs.length}×${rec.mirroredSpecs.width} ${rec.mirroredSpecs.material}`
+														: undefined
+												}
+											>
+												<span className="group-hover:text-blue-600 transition-colors">
+													{rec.name}
+												</span>
+												<span className="text-[9px] font-mono px-1 py-0.2 rounded bg-blue-50 text-blue-700 border border-blue-100 group-hover:bg-blue-100/80">
+													{rec.confidence}%
+												</span>
+												{rec.mirroredSpecs && (
+													<span className="text-[9px] text-emerald-600 font-medium hidden sm:inline">
+														(Auto-specs)
+													</span>
+												)}
+											</button>
+										))}
+									</div>
+								</div>
+							)}
+
 							<div>
-								<label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-									<Tag className="w-3.5 h-3.5 text-blue-600" />
-									<span>Plate Name</span>
-									<span className="text-rose-500 font-bold">*</span>
+								<label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+									<span className="flex items-center gap-1.5">
+										<Tag className="w-3.5 h-3.5 text-blue-600" />
+										<span>Plate Name</span>
+										<span className="text-rose-500 font-bold">*</span>
+									</span>
+									<span className="text-[10px] text-slate-400 font-medium hidden md:inline">
+										Press <kbd className="px-1 py-0.5 rounded bg-slate-100 font-mono text-slate-600 border border-slate-200">Tab</kbd> or <kbd className="px-1 py-0.5 rounded bg-slate-100 font-mono text-slate-600 border border-slate-200">→</kbd> to complete
+									</span>
 								</label>
-								<input
-									type="text"
+								<GhostPlateInput
+									id="subplate-modal-platename"
 									required
 									placeholder="e.g. Cavity Plate A-Side"
 									value={modalForm.platename}
-									onChange={(e) =>
-										setModalForm({
-											...modalForm,
-											platename: e.target.value,
-										})
+									existingPlateNames={modalTargetPlateNames}
+									onChange={(val) =>
+										setModalForm((prev) => ({
+											...prev,
+											platename: val,
+										}))
 									}
-									className="w-full h-10 px-3.5 bg-slate-50/70 hover:bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 focus:bg-white transition-all shadow-xs"
 								/>
 							</div>
 
