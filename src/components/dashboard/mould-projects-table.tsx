@@ -13,6 +13,9 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import {
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Search,
   Filter,
   FileSpreadsheet,
@@ -1174,25 +1177,29 @@ export function MouldProjectsTable({
       columnHelper.display({
         id: "select",
         header: ({ table }) => (
-          <input
-            type="checkbox"
-            suppressHydrationWarning
-            checked={table.getIsAllPageRowsSelected()}
-            onChange={table.getToggleAllPageRowsSelectedHandler()}
-            onClick={(e) => e.stopPropagation()}
-            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
-          />
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              suppressHydrationWarning
+              checked={table.getIsAllPageRowsSelected()}
+              onChange={table.getToggleAllPageRowsSelectedHandler()}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 h-4 w-4 cursor-pointer accent-blue-600 transition"
+            />
+          </div>
         ),
         cell: ({ row }) => (
-          <input
-            type="checkbox"
-            suppressHydrationWarning
-            checked={row.getIsSelected()}
-            disabled={!row.getCanSelect()}
-            onChange={row.getToggleSelectedHandler()}
-            onClick={(e) => e.stopPropagation()}
-            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5 cursor-pointer"
-          />
+          <div className="flex items-center justify-center">
+            <input
+              type="checkbox"
+              suppressHydrationWarning
+              checked={row.getIsSelected()}
+              disabled={!row.getCanSelect()}
+              onChange={row.getToggleSelectedHandler()}
+              onClick={(e) => e.stopPropagation()}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 h-4 w-4 cursor-pointer accent-blue-600 transition"
+            />
+          </div>
         ),
       }),
       // Project Code / ID
@@ -1201,27 +1208,27 @@ export function MouldProjectsTable({
         cell: (info) => {
           const isExpanded = expandedRowId !== null && String(expandedRowId) === String(info.row.original.id);
           return (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   toggleRowExpand(info.row.original);
                 }}
-                className={`p-1 rounded-md transition-colors cursor-pointer ${
+                className={`p-1 rounded-md transition cursor-pointer ${
                   isExpanded
-                    ? "bg-blue-100 text-blue-700 font-bold"
-                    : "hover:bg-slate-200/60 text-slate-400 hover:text-slate-700"
+                    ? "bg-blue-100 text-blue-700"
+                    : "hover:bg-slate-200/70 text-slate-400 hover:text-slate-700"
                 }`}
                 title={isExpanded ? "Collapse Subplates" : "Expand Subplates Inline"}
               >
                 <ChevronDown
                   className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                    isExpanded ? "rotate-180" : "-rotate-90"
+                    isExpanded ? "rotate-180 text-blue-600" : "-rotate-90"
                   }`}
                 />
               </button>
-              <span className="font-mono font-semibold text-slate-800 text-[11px]">
+              <span className="font-mono font-bold text-blue-600 text-xs">
                 {info.getValue() || `P-${info.row.original.id}`}
               </span>
             </div>
@@ -1232,18 +1239,20 @@ export function MouldProjectsTable({
       columnHelper.accessor("rdate", {
         header: "Received Dt",
         cell: (info) => (
-          <span className="text-slate-600 text-xs font-medium">
-            {formatDate(info.getValue())}
-          </span>
+          <div className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
+            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>{formatDate(info.getValue())}</span>
+          </div>
         ),
       }),
       // Committed Date
       columnHelper.accessor("cdate", {
         header: "Committed Dt",
         cell: (info) => (
-          <span className="text-slate-600 text-xs font-medium">
-            {formatDate(info.getValue())}
-          </span>
+          <div className="flex items-center gap-1.5 text-xs text-slate-600 whitespace-nowrap">
+            <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>{formatDate(info.getValue())}</span>
+          </div>
         ),
       }),
       // Customer Name
@@ -1251,8 +1260,9 @@ export function MouldProjectsTable({
         id: "customer",
         header: "Customer",
         cell: (info) => (
-          <div className="flex flex-col max-w-[180px]">
-            <span className="font-semibold text-slate-900 text-xs truncate">
+          <div className="flex items-center gap-1.5 min-w-[140px] max-w-[200px]">
+            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="font-semibold text-slate-900 text-xs truncate" title={info.getValue()}>
               {info.getValue() || "Unknown"}
             </span>
           </div>
@@ -1264,7 +1274,7 @@ export function MouldProjectsTable({
         cell: (info) => {
           const val = info.getValue() || "Standard";
           return (
-            <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 border border-slate-200">
               {val}
             </span>
           );
@@ -1274,8 +1284,8 @@ export function MouldProjectsTable({
       columnHelper.accessor("description", {
         header: "Mould / Part Name",
         cell: (info) => (
-          <span className="font-medium text-slate-800 text-xs truncate max-w-[220px] block" title={info.getValue()}>
-            {info.getValue()}
+          <span className="font-medium text-slate-800 text-xs truncate max-w-[240px] block" title={info.getValue()}>
+            {info.getValue() || "—"}
           </span>
         ),
       }),
@@ -1287,18 +1297,19 @@ export function MouldProjectsTable({
           const completed = row.original.completed_plates || 0;
           const total = row.original.total_plates || 5;
           const percent = Math.min(100, Math.round((completed / (total || 1)) * 100));
+          const isDone = percent === 100 && total > 0;
 
           return (
-            <div className="flex items-center gap-2 min-w-[120px]">
-              <div className="flex-1 bg-slate-200 rounded-full h-1.5 overflow-hidden">
+            <div className="flex items-center gap-2.5 min-w-[130px]">
+              <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                 <div
-                  className={`h-full rounded-full ${
-                    percent === 100 ? "bg-emerald-500" : "bg-blue-600"
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    isDone ? "bg-emerald-500" : "bg-blue-600"
                   }`}
                   style={{ width: `${percent}%` }}
                 />
               </div>
-              <span className="text-[11px] font-medium text-slate-600 min-w-[34px]">
+              <span className="text-[11px] font-semibold font-mono text-slate-700 min-w-[34px]">
                 {completed}/{total}
               </span>
             </div>
@@ -1310,39 +1321,43 @@ export function MouldProjectsTable({
         id: "actions",
         header: "Actions",
         cell: ({ row }) => (
-          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
             <button
+              type="button"
               onClick={() => handleOpenView(row.original)}
-              title="View Subplates"
-              className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-blue-600 transition-colors cursor-pointer"
+              title="View Subplates & Stages"
+              className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-400 hover:text-blue-600 transition-colors cursor-pointer"
             >
-              <Eye className="h-3.5 w-3.5" />
+              <Eye className="h-4 w-4" />
             </button>
             {canCreateSubplate && (
               <button
+                type="button"
                 onClick={() => handleOpenAddPlate(row.original)}
                 title="Add Subplate"
-                className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 hover:text-emerald-600 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-colors cursor-pointer"
               >
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-4 w-4" />
               </button>
             )}
             {canCreatePurchase && (
               <button
+                type="button"
                 onClick={() => handleCreatePO(row.original)}
-                title="Create PO"
-                className="p-1.5 rounded-md hover:bg-amber-50 text-slate-500 hover:text-amber-600 transition-colors cursor-pointer"
+                title="Create Purchase Order"
+                className="p-1.5 rounded-lg hover:bg-amber-50 text-slate-400 hover:text-amber-600 transition-colors cursor-pointer"
               >
-                <ShoppingCart className="h-3.5 w-3.5" />
+                <ShoppingCart className="h-4 w-4" />
               </button>
             )}
             {canDeleteMould && (
               <button
+                type="button"
                 onClick={() => handleDeleteSingleProject(row.original)}
                 title="Delete Mould"
-                className="p-1.5 rounded-md hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Trash2 className="h-4 w-4" />
               </button>
             )}
           </div>
@@ -1624,35 +1639,46 @@ export function MouldProjectsTable({
       </div>
 
       {/* Main Table Grid (Desktop: hidden below md) */}
-      <div className="hidden md:block overflow-x-auto">
-        <table className="erp-table">
+      <div className="hidden md:block overflow-x-auto w-full">
+        <table className="w-full text-left border-collapse text-xs">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    onClick={header.column.getToggleSortingHandler()}
-                    className={
-                      header.column.getCanSort() ? "cursor-pointer select-none" : ""
-                    }
-                  >
-                    <div className="flex items-center gap-1">
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                      {{
-                        asc: " 🔼",
-                        desc: " 🔽",
-                      }[header.column.getIsSorted() as string] ?? null}
-                    </div>
-                  </th>
-                ))}
+              <tr key={headerGroup.id} className="bg-slate-50/90 border-b border-slate-200">
+                {headerGroup.headers.map((header) => {
+                  const isSorted = header.column.getIsSorted();
+                  const canSort = header.column.getCanSort();
+                  const isSelect = header.id === "select";
+                  const isActions = header.id === "actions";
+
+                  return (
+                    <th
+                      key={header.id}
+                      onClick={header.column.getToggleSortingHandler()}
+                      className={`py-3.5 px-3 text-[11px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap transition-colors ${
+                        canSort ? "cursor-pointer select-none hover:bg-slate-100/90 hover:text-slate-900 group" : ""
+                      } ${isSelect ? "w-10 text-center px-3" : ""} ${isActions ? "text-right pr-4" : ""}`}
+                    >
+                      <div className={`flex items-center gap-1.5 ${isActions ? "justify-end" : isSelect ? "justify-center" : ""}`}>
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {canSort && (
+                          <span className="inline-flex items-center">
+                            {isSorted === "asc" ? (
+                              <ArrowUp className="w-3.5 h-3.5 text-blue-600" />
+                            ) : isSorted === "desc" ? (
+                              <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                            ) : (
+                              <ArrowUpDown className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             ))}
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-slate-100 bg-white">
             {showSkeleton ? (
               <TableSkeletonRows rows={8} columns={columns.length} />
             ) : table.getRowModel().rows.length === 0 ? (
@@ -1675,9 +1701,9 @@ export function MouldProjectsTable({
                       onClick={() => toggleRowExpand(project)}
                       onContextMenu={(e) => handleRowContextMenu(e, project)}
                       {...longPress.getHandlers(project)}
-                      className={`transition-colors hover:bg-blue-50/50 cursor-pointer select-none ${
+                      className={`transition-colors hover:bg-blue-50/40 cursor-pointer select-none ${
                         row.getIsSelected() ? "bg-blue-50/50" : ""
-                      } ${isExpanded ? "bg-blue-50/30 border-b-transparent font-medium" : ""}`}
+                      } ${isExpanded ? "bg-blue-50/20 font-medium" : ""}`}
                     >
                       {row.getVisibleCells().map((cell) => {
                         const isInteractive = cell.column.id === "select" || cell.column.id === "actions";
@@ -1688,7 +1714,9 @@ export function MouldProjectsTable({
                               e.stopPropagation();
                               toggleRowExpand(project);
                             }}
-                            className={isInteractive ? "" : "cursor-pointer"}
+                            className={`py-2.5 px-3 align-middle text-slate-700 text-xs ${isInteractive ? "" : "cursor-pointer"} ${
+                              cell.column.id === "select" ? "text-center" : ""
+                            } ${cell.column.id === "actions" ? "text-right pr-4" : ""}`}
                           >
                             {flexRender(
                               cell.column.columnDef.cell,
