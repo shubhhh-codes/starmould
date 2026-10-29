@@ -697,16 +697,27 @@ function ChallanPageContent() {
                         <React.Fragment key={c.id}>
                           <tr
                             id={`row-${c.id}`}
-                            className={`hover:bg-slate-50 transition-colors ${getRowHighlightClass(c.id)}`}
+                            onClick={(e) => {
+                              const target = e.target as HTMLElement;
+                              if (target.closest("button") || target.closest("a") || target.closest("input")) {
+                                return;
+                              }
+                              toggleRow(c.id);
+                            }}
+                            className={`hover:bg-slate-50 transition-colors cursor-pointer select-none ${getRowHighlightClass(c.id)}`}
                           >
                             <td className="px-4 py-3.5 text-center">
                               <button
-                                onClick={() => toggleRow(c.id)}
-                                className="p-1 hover:bg-slate-200 rounded transition text-slate-400 hover:text-slate-700"
-                                title="Expand line items"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleRow(c.id);
+                                }}
+                                className="p-1 hover:bg-slate-200 rounded transition text-slate-400 hover:text-slate-700 cursor-pointer"
+                                title={isExpanded ? "Collapse line items" : "Expand line items"}
                               >
                                 {isExpanded ? (
-                                  <ChevronDown className="h-4 w-4" />
+                                  <ChevronDown className="h-4 w-4 text-blue-600" />
                                 ) : (
                                   <ChevronRight className="h-4 w-4" />
                                 )}
@@ -762,7 +773,10 @@ function ChallanPageContent() {
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => handlePrintChallan(c.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePrintChallan(c.id);
+                                  }}
                                   className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                                   title="Print Outward Challan / Job Work Voucher"
                                 >
@@ -770,7 +784,10 @@ function ChallanPageContent() {
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleCancelChallan(c.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCancelChallan(c.id);
+                                  }}
                                   className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                                   title="Cancel / Delete Challan"
                                 >
@@ -853,7 +870,14 @@ function ChallanPageContent() {
                     <div
                       key={c.id}
                       id={`row-mob-${c.id}`}
-                      className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs ${getRowHighlightClass(c.id)}`}
+                      onClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (target.closest("button") || target.closest("a") || target.closest("input")) {
+                          return;
+                        }
+                        toggleRow(c.id);
+                      }}
+                      className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition select-none ${getRowHighlightClass(c.id)}`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
@@ -870,7 +894,10 @@ function ChallanPageContent() {
                           </span>
                           <button
                             type="button"
-                            onClick={() => handlePrintChallan(c.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePrintChallan(c.id);
+                            }}
                             className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
                             title="Print Outward Challan"
                           >
@@ -878,7 +905,10 @@ function ChallanPageContent() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleCancelChallan(c.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelChallan(c.id);
+                            }}
                             className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                             title="Cancel / Delete Challan"
                           >

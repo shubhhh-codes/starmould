@@ -530,14 +530,23 @@ export function InwardPage() {
                                         const isExpanded = !!expandedRows[i.id];
                                         return (
                                             <React.Fragment key={i.id}>
-                                                <tr className="hover:bg-slate-50 transition-colors">
+                                                <tr
+                                                    onClick={(e) => {
+                                                        const target = e.target as HTMLElement;
+                                                        if (target.closest("button") || target.closest("a") || target.closest("input")) return;
+                                                        toggleRow(i.id);
+                                                    }}
+                                                    className="hover:bg-slate-50 transition-colors cursor-pointer select-none"
+                                                >
                                                     <td className="px-4 py-3.5 text-center">
                                                         <button
-                                                            onClick={() =>
-                                                                toggleRow(i.id)
-                                                            }
-                                                            className="p-1 hover:bg-slate-200 rounded transition text-slate-400 hover:text-slate-700"
-                                                            title="Expand line items"
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleRow(i.id);
+                                                            }}
+                                                            className="p-1 hover:bg-slate-200 rounded transition text-slate-400 hover:text-slate-700 cursor-pointer"
+                                                            title={isExpanded ? "Collapse line items" : "Expand line items"}
                                                         >
                                                             {isExpanded ? (
                                                                 <ChevronDown className="h-4 w-4" />
