@@ -148,13 +148,27 @@ function ChallanPageContent() {
   }, [customersList, modalForm.customerid]);
 
   // Mould projects for selected customer (Source: challan/index.blade.php getproject())
+  // Rule: "ek mould ka ek hi bar banna chahiye" - exclude moulds that already have an active outward challan
   const availableProjects = useMemo(() => {
-    if (!modalForm.customerid) return scans;
+    const activeChallanProjectIds = new Set<string>();
+    challans.forEach((c) => {
+      if (String(c.status) === "1" || (c as any).status === 1) {
+        if (c.projectid) activeChallanProjectIds.add(String(c.projectid).trim().toLowerCase());
+      }
+    });
+
+    const eligibleScans = scans.filter((s: ScanProject) => {
+      const code = String(s.projectid || "").trim().toLowerCase();
+      const idStr = String(s.id);
+      return !activeChallanProjectIds.has(code) && !activeChallanProjectIds.has(idStr);
+    });
+
+    if (!modalForm.customerid) return eligibleScans;
     const custId = String(modalForm.customerid);
     const selectedCustName = selectedCustomer?.customername?.toLowerCase().trim();
     const selectedCustInitials = selectedCustomer?.initials?.toLowerCase().trim();
 
-    const matched = scans.filter((s: ScanProject) => {
+    const matched = eligibleScans.filter((s: ScanProject) => {
       // 1. Direct customer_id match
       if (s.customer_id && String(s.customer_id) === custId) return true;
       // 2. Numeric cname match
@@ -170,9 +184,8 @@ function ChallanPageContent() {
       return false;
     });
 
-    // If no project strictly matched this customer, fallback to showing all active scans so the operator is NEVER blocked!
-    return matched.length > 0 ? matched : scans;
-  }, [scans, modalForm.customerid, selectedCustomer]);
+    return matched;
+  }, [scans, challans, modalForm.customerid, selectedCustomer]);
 
   // Selected scan record for subplate resolution
   const selectedScan = useMemo(() => {
@@ -398,6 +411,18 @@ function ChallanPageContent() {
     }
     if (!modalForm.projectid) {
       setFormError("Mould Name is required.");
+      return;
+    }
+
+    const alreadyChallaned = challans.find(
+      (c) =>
+        (String(c.status) === "1" || (c as any).status === 1) &&
+        String(c.projectid).trim().toLowerCase() === String(modalForm.projectid).trim().toLowerCase()
+    );
+    if (alreadyChallaned) {
+      setFormError(
+        `Challan already exists for mould "${modalForm.projectid}" (${alreadyChallaned.challanno}). Ek mould ka ek hi challan ban sakta hai.`
+      );
       return;
     }
     if (modalForm.items.length === 0) {
@@ -1142,6 +1167,8 @@ function ChallanPageContent() {
                 placeholder={
                   !modalForm.customerid
                     ? "First select Customer above"
+                    : availableProjects.length === 0
+                    ? "All moulds for this customer already have a challan"
                     : "Select Mould Project"
                 }
                 required

@@ -126,13 +126,27 @@ export function DispatchPage() {
   }, [customers, modalForm.customerid]);
 
   // Mould projects for selected customer
+  // Rule: "ek mould ka ek hi bar banna chahiye" - exclude moulds that already have an active dispatch
   const availableProjects = useMemo(() => {
-    if (!modalForm.customerid) return scans;
+    const activeDispatchProjectIds = new Set<string>();
+    dispatches.forEach((d) => {
+      if (String(d.status) === "1" || (d as any).status === 1) {
+        if (d.projectid) activeDispatchProjectIds.add(String(d.projectid).trim().toLowerCase());
+      }
+    });
+
+    const eligibleScans = scans.filter((s: ScanProject) => {
+      const code = String(s.projectid || "").trim().toLowerCase();
+      const idStr = String(s.id);
+      return !activeDispatchProjectIds.has(code) && !activeDispatchProjectIds.has(idStr);
+    });
+
+    if (!modalForm.customerid) return eligibleScans;
     const custId = String(modalForm.customerid);
     const selectedCustName = selectedCustomer?.customername?.toLowerCase().trim();
     const selectedCustInitials = selectedCustomer?.initials?.toLowerCase().trim();
 
-    const matched = scans.filter((s: ScanProject) => {
+    const matched = eligibleScans.filter((s: ScanProject) => {
       // 1. Direct customer_id match
       if (s.customer_id && String(s.customer_id) === custId) return true;
       // 2. Numeric cname match
@@ -148,9 +162,8 @@ export function DispatchPage() {
       return false;
     });
 
-    // If no project strictly matched this customer, fallback to showing all active scans so the operator is NEVER blocked!
-    return matched.length > 0 ? matched : scans;
-  }, [scans, modalForm.customerid, selectedCustomer]);
+    return matched;
+  }, [scans, dispatches, modalForm.customerid, selectedCustomer]);
 
   // Selected scan record for subplate resolution
   const selectedScan = useMemo(() => {
@@ -323,6 +336,18 @@ export function DispatchPage() {
     }
     if (!modalForm.projectid) {
       setFormError("Mould Name is required.");
+      return;
+    }
+
+    const alreadyDispatched = dispatches.find(
+      (d) =>
+        (String(d.status) === "1" || (d as any).status === 1) &&
+        String(d.projectid).trim().toLowerCase() === String(modalForm.projectid).trim().toLowerCase()
+    );
+    if (alreadyDispatched) {
+      setFormError(
+        `Delivery challan already exists for mould "${modalForm.projectid}" (${alreadyDispatched.challanno}). Ek mould ka ek hi dispatch ban sakta hai.`
+      );
       return;
     }
     if (!modalForm.invoiceno.trim()) {

@@ -140,6 +140,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // Enforce rule: Ek mould ka ek hi bar delivery challan (dispatch) banna chahiye
+    if (projectid) {
+      const trimmedProject = String(projectid).trim();
+      const { data: existingDispatch } = await supabaseAdmin
+        .from("dispatch")
+        .select("id, challanno")
+        .eq("status", "1")
+        .eq("projectid", trimmedProject)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingDispatch) {
+        return NextResponse.json(
+          {
+            error: `Delivery challan already exists for mould "${trimmedProject}" (${existingDispatch.challanno}). Ek mould ka ek hi dispatch ban sakta hai.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // ── Delivery Challan Number: SMDC{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
     const nowIST = new Date(
       new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })

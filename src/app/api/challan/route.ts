@@ -181,6 +181,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Enforce rule: Ek mould ka ek hi bar outward challan banna chahiye
+    if (projectid) {
+      const trimmedProject = String(projectid).trim();
+      const { data: existingChallan } = await supabaseAdmin
+        .from("challan")
+        .select("id, challanno")
+        .eq("status", "1")
+        .eq("projectid", trimmedProject)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingChallan) {
+        return NextResponse.json(
+          {
+            error: `Challan already exists for mould "${trimmedProject}" (${existingChallan.challanno}). Ek mould ka ek hi challan ban sakta hai.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const now = new Date().toISOString();
 
     // 1. Insert parent Challan with collision retry loop
