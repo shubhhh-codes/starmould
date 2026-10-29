@@ -1,0 +1,1330 @@
+"use client";
+
+import React, { useState, useMemo } from "react";
+import { AppLayout } from "@/components/layout/app-layout";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
+import {
+    Wallet,
+    ArrowUpRight,
+    ArrowDownLeft,
+    Calendar,
+    Building2,
+    Plus,
+    Search,
+    FileSpreadsheet,
+    DollarSign,
+    TrendingUp,
+    CreditCard,
+    X,
+    AlertCircle,
+    Filter,
+    Edit2,
+    Trash2,
+    ShieldAlert,
+} from "lucide-react";
+import type { Expense, Customer } from "@/lib/supabase/types";
+import {
+    KpiCardSkeleton,
+    TableSkeletonRows,
+    CardGridSkeleton,
+} from "@/components/ui/skeleton";
+import { Modal } from "@/components/ui/dialog";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
+import { MotionButton } from "@/components/ui/motion-button";
+import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query/keys";
+import {
+    useExpensesQuery,
+    useCreateExpenseMutation,
+    useUpdateExpenseMutation,
+    useDeleteExpenseMutation,
+} from "@/lib/query/hooks";
+
+export function ExpensePage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canManageExpenses = hasPermission("action_manage_expenses");
+    const isRestoring = useIsRestoring();
+
+
+    const [searchQuery, setSearchQuery] = useState("");
+    const [accountFilter, setAccountFilter] = useState("ALL");
+    const [typeFilter, setTypeFilter] = useState("ALL");
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
+
+    const {
+        data,
+        isLoading: queryLoading,
+        error: fetchQueryError,
+    } = useExpensesQuery({
+        customerid: accountFilter,
+        payment_type: typeFilter,
+        startDate,
+        endDate,
+    });
+
+    const createExpenseMutation = useCreateExpenseMutation();
+    const updateExpenseMutation = useUpdateExpenseMutation();
+    const deleteExpenseMutation = useDeleteExpenseMutation();
+
+    const expenses = data?.expenses || [];
+    const customers = data?.accounts || [];
+    const hasLoadedData = expenses.length > 0 || (!!data && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && queryLoading);
+    const kpis = data?.kpis || {
+        totalCredit: 0,
+        totalDebit: 0,
+        totalOutstanding: 0,
+        currentBalance: 0,
+        totalCount: 0,
+    };
+    const fetchError = fetchQueryError
+        ? (fetchQueryError as Error).message
+        : null;
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const queryClient = useQueryClient();
+    // Modal State - Add Account
+    const [isAddAccountOpen, setIsAddAccountOpen] = useState(false);
+    const [newAccountName, setNewAccountName] = useState("");
+    const [newAccountInitials, setNewAccountInitials] = useState("");
+    const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+    const [accountCreateError, setAccountCreateError] = useState<string | null>(null);
+
+    const handleCreateAccount = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setAccountCreateError(null);
+        setIsCreatingAccount(true);
+        try {
+            const res = await fetch("/api/customers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    customername: newAccountName.trim(),
+                    initials: newAccountInitials.trim().toUpperCase().slice(0, 5),
+                    usertype: "Other",
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to create account");
+            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all() });
+            queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
+            if (data.customer?.id) {
+                setModalForm((p) => ({ ...p, customerid: String(data.customer.id) }));
+            }
+            setNewAccountName("");
+            setNewAccountInitials("");
+            setIsAddAccountOpen(false);
+        } catch (err: any) {
+            setAccountCreateError(err.message || "An error occurred");
+        } finally {
+            setIsCreatingAccount(false);
+        }
+    };
+
+    // Modal State - Add
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalForm, setModalForm] = useState({
+        rdate: new Date().toISOString().split("T")[0],
+        customerid: "",
+        description: "",
+        payment_type: "Debit" as "Credit" | "Debit",
+        payment_mode: "Cash" as "Cash" | "Gpay" | "Check" | "NEFT",
+        amount: "",
+    });
+
+    // Modal State - Edit
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+    const [editForm, setEditForm] = useState({
+        id: 0,
+        rdate: "",
+        customerid: "",
+        description: "",
+        payment_type: "Debit" as "Credit" | "Debit",
+        payment_mode: "Cash" as "Cash" | "Gpay" | "Check" | "NEFT",
+        amount: "",
+        isLatest: false,
+    });
+
+    // Filter accounts where usertype = 'Other' (Source: ExpenseController.php:38)
+    const accountOptions = useMemo(() => {
+        return customers.filter((c) => c.usertype === "Other" || !c.usertype);
+    }, [customers]);
+
+    const accountFilterOptions: ERPSelectOption[] = useMemo(() => [
+        { value: "ALL", label: `All Accounts (${accountOptions.length})` },
+        ...accountOptions.map((acc) => ({
+            value: String(acc.id),
+            label: acc.customername,
+            subtitle: acc.usertype || undefined,
+        })),
+    ], [accountOptions]);
+
+    const typeFilterOptions: ERPSelectOption[] = [
+        { value: "ALL", label: "All Types" },
+        { value: "Credit", label: "Credit Only" },
+        { value: "Debit", label: "Debit Only" },
+    ];
+
+    const erpAccountOptions: ERPSelectOption[] = useMemo(() => {
+        return accountOptions.map((acc: any) => ({
+            value: String(acc.id),
+            label: acc.customername,
+            subtitle: acc.initials ? `Code: ${acc.initials}` : undefined,
+        }));
+    }, [accountOptions]);
+
+    const paymentModeOptions: ERPSelectOption[] = useMemo(
+        () => [
+            { value: "Cash", label: "Cash" },
+            { value: "Gpay", label: "Gpay" },
+            { value: "Cheque", label: "Cheque" },
+            { value: "NEFT", label: "NEFT" },
+            { value: "RTGS", label: "RTGS" },
+        ],
+        []
+    );
+
+    // Filtered expenses
+    const filteredExpenses = useMemo(() => {
+        return expenses.filter((e) => {
+            // Search
+            const q = searchQuery.toLowerCase();
+            const matchQuery =
+                !searchQuery ||
+                e.description?.toLowerCase().includes(q) ||
+                e.customername?.toLowerCase().includes(q) ||
+                e.payment_mode?.toLowerCase().includes(q) ||
+                String(e.amount).includes(q);
+
+            // Account filter
+            const matchAccount =
+                accountFilter === "ALL" ||
+                String(e.customerid) === accountFilter;
+
+            // Type filter
+            const matchType =
+                typeFilter === "ALL" || e.payment_type === typeFilter;
+
+            // Date range filter
+            let matchDate = true;
+            if (startDate && e.rdate)
+                matchDate = matchDate && e.rdate >= startDate;
+            if (endDate && e.rdate) matchDate = matchDate && e.rdate <= endDate;
+
+            return matchQuery && matchAccount && matchType && matchDate;
+        });
+    }, [expenses, searchQuery, accountFilter, typeFilter, startDate, endDate]);
+
+    // KPI Calculations (Live DB & Filter-aware)
+    const totalCredit = useMemo(() => {
+        if (
+            searchQuery ||
+            accountFilter !== "ALL" ||
+            typeFilter !== "ALL" ||
+            startDate ||
+            endDate
+        ) {
+            return filteredExpenses
+                .filter((e) => e.payment_type === "Credit")
+                .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+        }
+        return kpis.totalCredit;
+    }, [
+        filteredExpenses,
+        kpis.totalCredit,
+        searchQuery,
+        accountFilter,
+        typeFilter,
+        startDate,
+        endDate,
+    ]);
+
+    const totalDebit = useMemo(() => {
+        if (
+            searchQuery ||
+            accountFilter !== "ALL" ||
+            typeFilter !== "ALL" ||
+            startDate ||
+            endDate
+        ) {
+            return filteredExpenses
+                .filter((e) => e.payment_type === "Debit")
+                .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+        }
+        return kpis.totalDebit;
+    }, [
+        filteredExpenses,
+        kpis.totalDebit,
+        searchQuery,
+        accountFilter,
+        typeFilter,
+        startDate,
+        endDate,
+    ]);
+
+    const currentBalance = useMemo(() => {
+        if (
+            searchQuery ||
+            accountFilter !== "ALL" ||
+            typeFilter !== "ALL" ||
+            startDate ||
+            endDate
+        ) {
+            return filteredExpenses[0]?.balance ?? totalCredit - totalDebit;
+        }
+        return kpis.currentBalance;
+    }, [
+        filteredExpenses,
+        kpis.currentBalance,
+        totalCredit,
+        totalDebit,
+        searchQuery,
+        accountFilter,
+        typeFilter,
+        startDate,
+        endDate,
+    ]);
+
+    const latestExpenseId = useMemo(() => {
+        return expenses.length > 0 ? Math.max(...expenses.map((x) => x.id)) : 0;
+    }, [expenses]);
+
+    // Handle Add Expense Submit (Live API)
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!modalForm.amount || !modalForm.customerid) return;
+
+        try {
+            setIsSubmitting(true);
+            await createExpenseMutation.mutateAsync(modalForm);
+            setIsModalOpen(false);
+            setModalForm({
+                rdate: new Date().toISOString().split("T")[0],
+                customerid: "",
+                description: "",
+                payment_type: "Debit",
+                payment_mode: "Cash",
+                amount: "",
+            });
+        } catch (err: any) {
+            alert("Error: " + err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const openEditModal = (expense: Expense) => {
+        const isLatest = expense.id === latestExpenseId;
+        setEditingExpense(expense);
+        setEditForm({
+            id: expense.id,
+            rdate: expense.rdate,
+            customerid: String(expense.customerid),
+            description: expense.description || "",
+            payment_type: expense.payment_type as "Credit" | "Debit",
+            payment_mode: expense.payment_mode as any,
+            amount: String(expense.amount),
+            isLatest,
+        });
+        setIsEditModalOpen(true);
+    };
+
+    const handleEditSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingExpense) return;
+
+        try {
+            setIsSubmitting(true);
+            await updateExpenseMutation.mutateAsync(editForm);
+            setIsEditModalOpen(false);
+        } catch (err: any) {
+            alert("Error: " + err.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id: number) => {
+        if (id !== latestExpenseId) {
+            alert(
+                "Only the latest expense entry can be deleted to maintain balance integrity.",
+            );
+            return;
+        }
+        if (
+            window.confirm(
+                "Do you really want to delete this latest expense entry?",
+            )
+        ) {
+            try {
+                await deleteExpenseMutation.mutateAsync(id);
+            } catch (err: any) {
+                alert("Error: " + err.message);
+            }
+        }
+    };
+
+    const handleExportCSV = () => {
+        const headers = [
+            "ID",
+            "Date",
+            "Account Name",
+            "Description",
+            "Mode",
+            "Type",
+            "Amount",
+            "Balance",
+        ];
+        const rows = filteredExpenses.map((e) => [
+            e.id,
+            e.rdate,
+            `"${e.customername || "General"}"`,
+            `"${e.description || ""}"`,
+            e.payment_mode,
+            e.payment_type,
+            e.amount,
+            e.balance,
+        ]);
+        const csvContent = [
+            headers.join(","),
+            ...rows.map((r) => r.join(",")),
+        ].join("\n");
+        const blob = new Blob([csvContent], {
+            type: "text/csv;charset=utf-8;",
+        });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute(
+            "download",
+            `Expenses_${new Date().toISOString().split("T")[0]}.csv`,
+        );
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    return (
+        <AppLayout>
+            <div className="space-y-6 w-full">
+                {/* Header */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-4">
+                        <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                            <Wallet className="w-7 h-7" />
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+                                Expense & Financial Register
+                            </h1>
+                            <p className="text-sm text-slate-500 ">
+                                Track credits, debits, cash drawer balances, and
+                                party accounts
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={handleExportCSV}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                            Export CSV
+                        </button>
+                        <button
+                            onClick={() => setIsAddAccountOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm"
+                        >
+                            <Building2 className="w-4 h-4 text-blue-600" />
+                            + New Account
+                        </button>
+                        {canManageExpenses && (<button
+                            onClick={() => setIsModalOpen(true)}
+                            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-sm shadow-blue-500/20 text-sm"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Add Expense / Entry
+                        </button>)}
+                    </div>
+                </div>
+
+                {/* KPI Cards */}
+                {isLoading ? (
+                    <KpiCardSkeleton count={4} />
+                ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                                <DollarSign className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    Closing Balance
+                                </p>
+                                <p
+                                    className={`text-2xl font-black ${
+                                        currentBalance >= 0
+                                            ? "text-slate-900 "
+                                            : "text-rose-600 "
+                                    }`}
+                                >
+                                    ₹{currentBalance.toLocaleString("en-IN")}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                                <ArrowDownLeft className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    Total Credit (Inflow)
+                                </p>
+                                <p className="text-2xl font-black text-emerald-600 ">
+                                    ₹{totalCredit.toLocaleString("en-IN")}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                            <div className="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                                <ArrowUpRight className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    Total Debit (Outflow)
+                                </p>
+                                <p className="text-2xl font-black text-rose-600 ">
+                                    ₹{totalDebit.toLocaleString("en-IN")}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
+                            <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                                <TrendingUp className="w-6 h-6" />
+                            </div>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    Entries Recorded
+                                </p>
+                                <p className="text-2xl font-black text-slate-900 ">
+                                    {expenses.length.toLocaleString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Filter Controls */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[320px]">
+                        {/* Search Input */}
+                        <div className="relative flex-1 w-full sm:w-auto sm:min-w-[240px]">
+                            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search description, account, mode, amount..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition"
+                            />
+                        </div>
+
+                        {/* Account Selector */}
+                        <div className="w-full sm:w-60 min-w-0">
+                            <ERPSelect
+                                value={accountFilter}
+                                onChange={(val) => setAccountFilter(String(val))}
+                                options={accountFilterOptions}
+                                placeholder="Select Account"
+                                searchPlaceholder="Search accounts..."
+                            />
+                        </div>
+
+                        {/* Type Filter */}
+                        <div className="w-full sm:w-40 min-w-0">
+                            <ERPSelect
+                                value={typeFilter}
+                                onChange={(val) => setTypeFilter(String(val))}
+                                options={typeFilterOptions}
+                                placeholder="Filter by type"
+                                showSearch={false}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Date Range Picker */}
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <span className="text-xs font-semibold text-slate-400 uppercase">
+                            Date:
+                        </span>
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        />
+                        <span className="text-slate-400">to</span>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs"
+                        />
+                        {(startDate || endDate) && (
+                            <button
+                                onClick={() => {
+                                    setStartDate("");
+                                    setEndDate("");
+                                }}
+                                className="text-xs text-blue-600 hover:underline ml-1"
+                            >
+                                Clear
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Expenses Table */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto w-full">
+                        <table className="w-full min-w-[1000px] text-left border-collapse text-sm">
+                            <thead>
+                                <tr className="bg-slate-50/75 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                    <th className="py-3.5 px-4"># ID</th>
+                                    <th className="py-3.5 px-4">Date</th>
+                                    <th className="py-3.5 px-4">
+                                        Account / Party
+                                    </th>
+                                    <th className="py-3.5 px-4">Description</th>
+                                    <th className="py-3.5 px-4">
+                                        Payment Mode
+                                    </th>
+                                    <th className="py-3.5 px-4 text-center">
+                                        Type
+                                    </th>
+                                    <th className="py-3.5 px-4 text-right">
+                                        Credit (₹)
+                                    </th>
+                                    <th className="py-3.5 px-4 text-right">
+                                        Debit (₹)
+                                    </th>
+                                    <th className="py-3.5 px-4 text-right">
+                                        Balance (₹)
+                                    </th>
+                                    <th className="py-3.5 px-4 text-center">
+                                        Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 ">
+                                {isLoading ? (
+                                    <TableSkeletonRows columns={10} rows={8} />
+                                ) : filteredExpenses.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={10}
+                                            className="py-12 text-center text-slate-400 text-sm"
+                                        >
+                                            No expense records found matching
+                                            your filters.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    filteredExpenses.map((row) => (
+                                        <tr
+                                            key={row.id}
+                                            className="hover:bg-slate-50/60 transition group"
+                                        >
+                                            <td className="py-3 px-4 font-mono text-xs text-slate-400">
+                                                #{row.id}
+                                            </td>
+                                            <td className="py-3 px-4 font-medium text-slate-700 whitespace-nowrap">
+                                                {row.rdate || "—"}
+                                            </td>
+                                            <td className="py-3 px-4 font-semibold text-slate-800">
+                                                {row.customername ||
+                                                    "Other / Miscellaneous"}
+                                            </td>
+                                            <td className="py-3 px-4 text-slate-600 max-w-xs truncate">
+                                                {row.description || "—"}
+                                            </td>
+                                            <td className="py-3 px-4">
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-700">
+                                                    {row.payment_mode || "Cash"}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-4 text-center">
+                                                <span
+                                                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                                                        row.payment_type ===
+                                                        "Credit"
+                                                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200/50"
+                                                            : "bg-rose-50 text-rose-700 border border-rose-200/50"
+                                                    }`}
+                                                >
+                                                    {row.payment_type}
+                                                </span>
+                                            </td>
+                                            <td className="py-3 px-4 text-right font-mono text-emerald-600 font-semibold">
+                                                {row.payment_type === "Credit"
+                                                    ? `₹${Number(row.amount).toLocaleString("en-IN")}`
+                                                    : "—"}
+                                            </td>
+                                            <td className="py-3 px-4 text-right font-mono text-rose-600 font-semibold">
+                                                {row.payment_type === "Debit"
+                                                    ? `₹${Number(row.amount).toLocaleString("en-IN")}`
+                                                    : "—"}
+                                            </td>
+                                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-800">
+                                                ₹
+                                                {Number(
+                                                    row.balance || 0,
+                                                ).toLocaleString("en-IN")}
+                                            </td>
+                                            <td className="py-3 px-4 text-center">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <button
+                                                        onClick={() =>
+                                                            openEditModal(row)
+                                                        }
+                                                        title={
+                                                            row.id ===
+                                                            latestExpenseId
+                                                                ? "Edit full entry"
+                                                                : "Edit description only (historical)"
+                                                        }
+                                                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    {row.id ===
+                                                    latestExpenseId ? (
+                                                        <button
+                                                            onClick={() =>
+                                                                handleDelete(
+                                                                    row.id,
+                                                                )
+                                                            }
+                                                            title="Delete latest entry"
+                                                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    ) : (
+                                                        <span
+                                                            title="Historical entry cannot be deleted"
+                                                            className="p-1.5 text-slate-200 cursor-not-allowed"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile Card-List Fallback (< md) */}
+                    <div className="block md:hidden p-3 space-y-3">
+                        {isLoading ? (
+                            <CardGridSkeleton count={4} />
+                        ) : filteredExpenses.length === 0 ? (
+                            <div className="py-8 text-center text-slate-400 text-xs">
+                                No expense records found matching your filters.
+                            </div>
+                        ) : (
+                            filteredExpenses.map((row) => {
+                                const isCredit = row.payment_type === "Credit";
+                                return (
+                                    <div
+                                        key={row.id}
+                                        className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono text-slate-400 text-[11px]">
+                                                    #{row.id}
+                                                </span>
+                                                <span className="font-medium text-slate-600">
+                                                    {row.rdate || "—"}
+                                                </span>
+                                            </div>
+                                            <span
+                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                                    isCredit
+                                                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                        : "bg-rose-50 text-rose-700 border-rose-200"
+                                                }`}
+                                            >
+                                                {row.payment_type}
+                                            </span>
+                                        </div>
+
+                                        <div>
+                                            <span className="font-bold text-slate-900 block">
+                                                {row.customername ||
+                                                    "Other / Miscellaneous"}
+                                            </span>
+                                            <p className="text-[11px] text-slate-600 line-clamp-1">
+                                                {row.description || "—"}
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-2 text-[11px] pt-1.5 border-t border-slate-200/60">
+                                            <div>
+                                                <span className="text-slate-400 block text-[10px]">
+                                                    Credit:
+                                                </span>
+                                                <span className="font-mono font-medium text-emerald-600">
+                                                    {isCredit
+                                                        ? `₹${Number(row.amount).toLocaleString("en-IN")}`
+                                                        : "—"}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block text-[10px]">
+                                                    Debit:
+                                                </span>
+                                                <span className="font-mono font-medium text-rose-600">
+                                                    {!isCredit
+                                                        ? `₹${Number(row.amount).toLocaleString("en-IN")}`
+                                                        : "—"}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block text-[10px]">
+                                                    Balance:
+                                                </span>
+                                                <span className="font-mono font-bold text-slate-900">
+                                                    ₹
+                                                    {Number(
+                                                        row.balance || 0,
+                                                    ).toLocaleString("en-IN")}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                                            <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                                {row.payment_mode || "Cash"}
+                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() =>
+                                                        openEditModal(row)
+                                                    }
+                                                    className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
+                                                >
+                                                    Edit
+                                                </button>
+                                                {row.id === latestExpenseId && (
+                                                    <button
+                                                        onClick={() =>
+                                                            handleDelete(row.id)
+                                                        }
+                                                        className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-rose-600 border border-rose-200 rounded-lg hover:bg-rose-50 transition flex items-center justify-center cursor-pointer"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    <div className="py-3 px-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                        <span>Showing {filteredExpenses.length} entries</span>
+                        <span>All amounts formatted in INR (₹)</span>
+                    </div>
+                </div>
+
+                {/* Modal: Add Expense */}
+                <Modal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    title="Add Financial Entry"
+                    description="Record an expense debit or cash credit"
+                    size="lg"
+                >
+                    <form
+                        onSubmit={handleSubmit}
+                        className="space-y-4"
+                    >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Entry Date
+                                </label>
+                                <input
+                                    type="date"
+                                    required
+                                    value={modalForm.rdate}
+                                    onChange={(e) =>
+                                        setModalForm({
+                                            ...modalForm,
+                                            rdate: e.target.value,
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                    <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                                        Account Name
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsAddAccountOpen(true)}
+                                        className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 cursor-pointer"
+                                    >
+                                        <Plus className="w-3 h-3" />
+                                        New Account
+                                    </button>
+                                </div>
+                                <ERPSelect
+                                    value={modalForm.customerid}
+                                    onChange={(val) =>
+                                        setModalForm((p) => ({
+                                            ...p,
+                                            customerid: String(val),
+                                        }))
+                                    }
+                                    options={erpAccountOptions}
+                                    placeholder="Select Account"
+                                    searchPlaceholder="Search account name..."
+                                    showSearch={erpAccountOptions.length > 5}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Description
+                            </label>
+                            <textarea
+                                required
+                                rows={2}
+                                placeholder="Enter reason, item purchased, or purpose..."
+                                value={modalForm.description}
+                                onChange={(e) =>
+                                    setModalForm({
+                                        ...modalForm,
+                                        description: e.target.value,
+                                    })
+                                }
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Entry Type
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setModalForm({
+                                                ...modalForm,
+                                                payment_type: "Debit",
+                                            })
+                                        }
+                                        className={`py-2 text-xs font-bold rounded-lg border transition ${
+                                            modalForm.payment_type ===
+                                            "Debit"
+                                                ? "bg-rose-50 border-rose-300 text-rose-700 shadow-sm"
+                                                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                        }`}
+                                    >
+                                        Debit (Outflow)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setModalForm({
+                                                ...modalForm,
+                                                payment_type: "Credit",
+                                            })
+                                        }
+                                        className={`py-2 text-xs font-bold rounded-lg border transition ${
+                                            modalForm.payment_type ===
+                                            "Credit"
+                                                ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm"
+                                                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                        }`}
+                                    >
+                                        Credit (Inflow)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Payment Mode
+                                </label>
+                                <ERPSelect
+                                    value={modalForm.payment_mode}
+                                    onChange={(val) =>
+                                        setModalForm((p) => ({
+                                            ...p,
+                                            payment_mode: val as any,
+                                        }))
+                                    }
+                                    options={paymentModeOptions}
+                                    placeholder="Select Payment Mode"
+                                    showSearch={false}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Amount (₹)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
+                                    ₹
+                                </span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    required
+                                    placeholder="0.00"
+                                    value={modalForm.amount}
+                                    onChange={(e) =>
+                                        setModalForm({
+                                            ...modalForm,
+                                            amount: e.target.value,
+                                        })
+                                    }
+                                    className="w-full pl-8 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                            <MotionButton
+                                type="button"
+                                variant="outline"
+                                onClick={() => setIsModalOpen(false)}
+                            >
+                                Cancel
+                            </MotionButton>
+                            <MotionButton
+                                type="submit"
+                                variant="primary"
+                                loading={isSubmitting}
+                            >
+                                Save Entry
+                            </MotionButton>
+                        </div>
+                    </form>
+                </Modal>
+
+                {/* Modal: Edit Expense (Strict rule from ExpenseController.php / index.blade.php) */}
+                <Modal
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    title={`Edit Expense Entry #${editForm.id}`}
+                    description={
+                        editForm.isLatest
+                            ? "Latest entry — full edit with balance reconciliation"
+                            : "Historical entry — description edit only"
+                    }
+                    size="lg"
+                >
+                    {!editForm.isLatest ? (
+                        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-800">
+                            <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <p>
+                                <strong>
+                                    Balance Protection Rule:
+                                </strong>{" "}
+                                Because this is an earlier historical
+                                record, only the{" "}
+                                <strong>Description</strong> can be
+                                modified. Amount and payment types are
+                                locked to maintain running balance
+                                continuity.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2.5 text-xs text-blue-800">
+                            <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                            <p>
+                                <strong>Latest Entry:</strong> Changing
+                                the amount or type will automatically
+                                adjust the live closing balance.
+                            </p>
+                        </div>
+                    )}
+
+                    <form
+                        onSubmit={handleEditSubmit}
+                        className="space-y-4"
+                    >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Entry Date
+                                </label>
+                                <input
+                                    type="date"
+                                    disabled={!editForm.isLatest}
+                                    required
+                                    value={editForm.rdate}
+                                    onChange={(e) =>
+                                        setEditForm({
+                                            ...editForm,
+                                            rdate: e.target.value,
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Account Name
+                                </label>
+                                <ERPSelect
+                                    value={editForm.customerid}
+                                    onChange={(val) =>
+                                        setEditForm((p) => ({
+                                            ...p,
+                                            customerid: String(val),
+                                        }))
+                                    }
+                                    options={erpAccountOptions}
+                                    placeholder="Select Account"
+                                    searchPlaceholder="Search account name..."
+                                    showSearch={erpAccountOptions.length > 5}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Description{" "}
+                                <span className="text-blue-600">*</span>
+                            </label>
+                            <textarea
+                                required
+                                rows={2}
+                                placeholder="Enter updated description..."
+                                value={editForm.description}
+                                onChange={(e) =>
+                                    setEditForm({
+                                        ...editForm,
+                                        description: e.target.value,
+                                    })
+                                }
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Entry Type
+                                </label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        disabled={!editForm.isLatest}
+                                        onClick={() =>
+                                            setEditForm({
+                                                ...editForm,
+                                                payment_type: "Debit",
+                                            })
+                                        }
+                                        className={`py-2 text-xs font-bold rounded-lg border transition ${
+                                            editForm.payment_type ===
+                                            "Debit"
+                                                ? "bg-rose-50 border-rose-300 text-rose-700 shadow-sm"
+                                                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        Debit (Outflow)
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={!editForm.isLatest}
+                                        onClick={() =>
+                                            setEditForm({
+                                                ...editForm,
+                                                payment_type: "Credit",
+                                            })
+                                        }
+                                        className={`py-2 text-xs font-bold rounded-lg border transition ${
+                                            editForm.payment_type ===
+                                            "Credit"
+                                                ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm"
+                                                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        Credit (Inflow)
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                    Payment Mode
+                                </label>
+                                <ERPSelect
+                                    value={editForm.payment_mode}
+                                    onChange={(val) =>
+                                        setEditForm((p) => ({
+                                            ...p,
+                                            payment_mode: val as any,
+                                        }))
+                                    }
+                                    options={paymentModeOptions}
+                                    placeholder="Select Payment Mode"
+                                    showSearch={false}
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Amount (₹)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
+                                    ₹
+                                </span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    disabled={!editForm.isLatest}
+                                    required
+                                    placeholder="0.00"
+                                    value={editForm.amount}
+                                    onChange={(e) =>
+                                        setEditForm({
+                                            ...editForm,
+                                            amount: e.target.value,
+                                        })
+                                    }
+                                    className="w-full pl-8 pr-4 py-2.5 bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                            <MotionButton
+                                type="button"
+                                variant="outline"
+                                onClick={() =>
+                                    setIsEditModalOpen(false)
+                                }
+                            >
+                                Cancel
+                            </MotionButton>
+                            <MotionButton
+                                type="submit"
+                                variant="primary"
+                                className="bg-amber-600 hover:bg-amber-700 text-white"
+                                loading={isSubmitting}
+                            >
+                                Update Entry
+                            </MotionButton>
+                        </div>
+                    </form>
+                </Modal>
+                {/* ========================================================================= */}
+                {/* ADD LEDGER ACCOUNT MODAL */}
+                {/* ========================================================================= */}
+                <Modal
+                    isOpen={isAddAccountOpen}
+                    onClose={() => setIsAddAccountOpen(false)}
+                    title="Add New Ledger Account"
+                    description="Create an internal ledger account (usertype = Other) for expenses, utilities, or vendor settlements"
+                >
+                    <form onSubmit={handleCreateAccount} className="space-y-4">
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Account / Ledger Name *
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                placeholder="e.g. Office Stationery, Factory Maintenance"
+                                value={newAccountName}
+                                onChange={(e) => {
+                                    setNewAccountName(e.target.value);
+                                    if (!newAccountInitials) {
+                                        const autoInit = e.target.value.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase();
+                                        setNewAccountInitials(autoInit);
+                                    }
+                                }}
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                                Account Initials / Short Code * (Max 5 letters)
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                maxLength={5}
+                                placeholder="e.g. OFSTN"
+                                value={newAccountInitials}
+                                onChange={(e) => setNewAccountInitials(e.target.value.toUpperCase())}
+                                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+                        {accountCreateError && (
+                            <p className="text-xs text-rose-600 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                                {accountCreateError}
+                            </p>
+                        )}
+                        <div className="flex justify-end gap-3 pt-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsAddAccountOpen(false)}
+                                className="px-4 py-2 border border-slate-200 text-slate-600 rounded-xl text-sm hover:bg-slate-50 cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isCreatingAccount}
+                                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 cursor-pointer"
+                            >
+                                {isCreatingAccount ? "Creating..." : "Create Account"}
+                            </button>
+                        </div>
+                    </form>
+                </Modal>
+            </div>
+        </AppLayout>
+    );
+}

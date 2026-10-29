@@ -20,7 +20,7 @@ function AppLayoutContent({ children }: AppLayoutProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(() => typeof window !== "undefined");
+  const [isMounted, setIsMounted] = useState(false);
   const { currentUser, isSessionLoaded } = useAuth();
   const { canAccessRoute } = useRolePermissions();
 

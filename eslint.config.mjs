@@ -11,6 +11,7 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
       "react-hooks/set-state-in-effect": "off",
       "react-hooks/incompatible-library": "off",
+      "react-hooks/preserve-manual-memoization": "off",
     },
   },
   // Override default ignores of eslint-config-next.
@@ -23,6 +24,7 @@ const eslintConfig = defineConfig([
     "scripts/**",
     "refrence/**",
     "docs/**",
+    ".agents/**",
   ]),
 ]);
 
