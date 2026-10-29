@@ -437,8 +437,12 @@ function ScanningPageContent() {
                       <React.Fragment key={row.id}>
                         <tr
                           id={`row-${row.id}`}
-                          onClick={() => toggleExpandMold(row.id)}
-                          className={`hover:bg-slate-50/60 transition-all duration-300 group cursor-pointer ${
+                          onClick={(e) => {
+                            const target = e.target as HTMLElement;
+                            if (target.closest("button, a, input, select")) return;
+                            toggleExpandMold(row.id);
+                          }}
+                          className={`hover:bg-slate-50/60 transition-all duration-300 group cursor-pointer select-none ${
                             isExpanded ? "bg-slate-50/80" : ""
                           } ${getRowHighlightClass(row.id)}`}
                         >

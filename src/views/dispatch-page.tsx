@@ -773,7 +773,12 @@ export function DispatchPage() {
                 return (
                   <div
                     key={d.id}
-                    className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs"
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (target.closest("button") || target.closest("a") || target.closest("input")) return;
+                      toggleRow(d.id);
+                    }}
+                    className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2 text-xs shadow-2xs cursor-pointer hover:border-slate-300 transition select-none"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-indigo-600 font-mono">

@@ -855,7 +855,14 @@ export function PurchaseInwardPage() {
                                                 className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs transition-all hover:border-slate-300"
                                             >
                                                 {/* Mould Card Header */}
-                                                <div className="p-3.5 sm:p-4 bg-slate-50/90 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                                                <div
+                                                    onClick={(e) => {
+                                                        const target = e.target as HTMLElement;
+                                                        if (target.closest("button, a, input, select")) return;
+                                                        toggleCollapseMould(group.mouldCode);
+                                                    }}
+                                                    className="p-3.5 sm:p-4 bg-slate-50/90 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-100/70 transition-colors"
+                                                >
                                                     {/* Left: Mould Identification & Customer */}
                                                     <div className="flex items-center gap-3 min-w-0">
                                                         {/* Mould Code Badge */}
