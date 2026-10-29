@@ -194,7 +194,7 @@ export function Sidebar({
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
   const { prefetchRoute } = useSmartPrefetch();
   useBackgroundPrefetchWarmup();
-  const [isMounted, setIsMounted] = React.useState(() => typeof window !== "undefined");
+  const [isMounted, setIsMounted] = React.useState(false);
   React.useEffect(() => {
     setIsMounted(true);
   }, []);

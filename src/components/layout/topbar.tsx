@@ -92,7 +92,11 @@ export function Topbar({
   const pathname = usePathname();
   const router = useRouter();
   const { logout, currentUser: authUser } = useAuth();
-  const cachedUser = typeof window !== "undefined" ? getCachedSession() : null;
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+  const cachedUser = isMounted && typeof window !== "undefined" ? getCachedSession() : null;
   const activeUser = currentUser || authUser || cachedUser;
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);

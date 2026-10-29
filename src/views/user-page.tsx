@@ -1,0 +1,1416 @@
+"use client";
+
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { AppLayout } from "@/components/layout/app-layout";
+import { useAuth } from "@/components/providers/auth-provider";
+import { useRolePermissions } from "@/components/providers/permissions-provider";
+import {
+    ShieldCheck,
+    Plus,
+    Search,
+    User,
+    Key,
+    Mail,
+    Hash,
+    Pencil,
+    Trash2,
+    X,
+    AlertCircle,
+    CheckCircle2,
+    FileSpreadsheet,
+    Printer,
+    Shield,
+    Briefcase,
+    ToggleLeft,
+    ToggleRight,
+    Eye,
+    EyeOff,
+    Lock,
+    RefreshCw,
+    Loader2,
+} from "lucide-react";
+import {
+    ROLES_TABLE,
+    ALL_ROLES,
+    USER_TYPES,
+    USER_SUBTYPES,
+    getRoleForUserType,
+    getRoleById,
+    getAutoUserSubtype,
+    type RoleDefinition,
+    type UserType,
+    type UserSubtype,
+} from "@/lib/roles";
+import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
+import { Modal } from "@/components/ui/dialog";
+import { MotionButton } from "@/components/ui/motion-button";
+import { useIsRestoring } from "@tanstack/react-query";
+import {
+    useUsersQuery,
+    useCreateUserMutation,
+    useUpdateUserMutation,
+    useDeleteUserMutation,
+} from "@/lib/query/hooks";
+
+export interface UserRecord {
+    id: number;
+    name: string;
+    username: string;
+    initials: string;
+    email: string;
+    usertype: UserType | string;
+    usersubtype: UserSubtype | string;
+    role_id: number; // Foreign key referencing public.roles(id)
+    status: number; // 1: Active, 0: Inactive
+    created_at?: string;
+    updated_at?: string;
+}
+
+export function UserPage() {
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const { hasPermission } = useRolePermissions();
+  const canManageUsers = hasPermission("action_manage_users");
+    const isRestoring = useIsRestoring();
+    const { data, isLoading: queryLoading, isPending, refetch } = useUsersQuery();
+    const createUserMutation = useCreateUserMutation();
+    const updateUserMutation = useUpdateUserMutation();
+    const deleteUserMutation = useDeleteUserMutation();
+
+    const users = (data?.users || []) as UserRecord[];
+    const hasLoadedData = users.length > 0 || (!!data && !queryLoading);
+    const isLoading = isRestoring || (!hasLoadedData && (queryLoading || isPending));
+
+    const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("All");
+    const [statusFilter, setStatusFilter] = useState<
+        "All" | "Active" | "Inactive"
+    >("All");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [pageSize, setPageSize] = useState(25);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [notification, setNotification] = useState<{
+        type: "success" | "error";
+        message: string;
+    } | null>(null);
+
+    const showNotification = (type: "success" | "error", message: string) => {
+        setNotification({ type, message });
+        setTimeout(() => {
+            setNotification((curr) =>
+                curr?.message === message ? null : curr,
+            );
+        }, 4000);
+    };
+
+    // Modal states
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalMode, setModalMode] = useState<"add" | "edit">("add");
+    const [selectedUser, setSelectedUser] = useState<UserRecord | null>(null);
+
+    // Form states
+    const [formData, setFormData] = useState<{
+        id?: number;
+        name: string;
+        username: string;
+        initials: string;
+        email: string;
+        password: string; // Strictly write-only!
+        usertype: UserType;
+        usersubtype: UserSubtype;
+        status: number;
+    }>({
+        name: "",
+        username: "",
+        initials: "",
+        email: "",
+        password: "",
+        usertype: "User",
+        usersubtype: "Skilled MP",
+        status: 1,
+    });
+
+    const [showPassword, setShowPassword] = useState(false);
+    const [initialError, setInitialError] = useState<string | null>(null);
+    const [usernameError, setUsernameError] = useState<string | null>(null);
+    const [modalError, setModalError] = useState<string | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<UserRecord | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    // Filter and search
+    const filteredUsers = useMemo(() => {
+        return users.filter((u) => {
+            // Role filter
+            if (
+                selectedRoleFilter !== "All" &&
+                u.usertype !== selectedRoleFilter
+            ) {
+                return false;
+            }
+            // Status filter
+            if (statusFilter === "Active" && u.status !== 1) return false;
+            if (statusFilter === "Inactive" && u.status !== 0) return false;
+
+            // Search query
+            if (!searchQuery.trim()) return true;
+            const q = searchQuery.toLowerCase();
+            return (
+                (u.name && u.name.toLowerCase().includes(q)) ||
+                (u.username && u.username.toLowerCase().includes(q)) ||
+                (u.initials && u.initials.toLowerCase().includes(q)) ||
+                (u.email && u.email.toLowerCase().includes(q))
+            );
+        });
+    }, [users, selectedRoleFilter, statusFilter, searchQuery]);
+
+    // Counts by Role
+    const roleCounts = useMemo(() => {
+        const counts: Record<string, number> = { All: users.length };
+        USER_TYPES.forEach((t) => (counts[t] = 0));
+        users.forEach((u) => {
+            if (counts[u.usertype] !== undefined) {
+                counts[u.usertype]++;
+            }
+        });
+        return counts;
+    }, [users]);
+
+    // Pagination slice
+    const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
+    const paginatedUsers = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return filteredUsers.slice(start, start + pageSize);
+    }, [filteredUsers, currentPage, pageSize]);
+
+    // Open Add modal
+    const handleOpenAdd = () => {
+        setModalMode("add");
+        setSelectedUser(null);
+        setFormData({
+            name: "",
+            username: "",
+            initials: "",
+            email: "",
+            password: "",
+            usertype: "User",
+            usersubtype: "Skilled MP",
+            status: 1,
+        });
+        setShowPassword(false);
+        setInitialError(null);
+        setUsernameError(null);
+        setModalError(null);
+        setIsModalOpen(true);
+    };
+
+    // Open Edit modal (Notice: password is empty string, never pre-populated or shown!)
+    const handleOpenEdit = (user: UserRecord) => {
+        setModalMode("edit");
+        setSelectedUser(user);
+        setFormData({
+            id: user.id,
+            name: user.name,
+            username: user.username?.toLowerCase() || "",
+            initials: user.initials,
+            email: user.email,
+            password: "", // Write-only! Never populated from db or password2
+            usertype: (user.usertype as UserType) || "User",
+            usersubtype: (user.usersubtype as UserSubtype) || "Skilled MP",
+            status: user.status,
+        });
+        setShowPassword(false);
+        setInitialError(null);
+        setUsernameError(null);
+        setModalError(null);
+        setIsModalOpen(true);
+    };
+
+    // Legacy validation: checkinitial
+    // Source: UserController.php lines 256-262: UserModel::where('initials', $initials)->exists()
+    const validateInitials = (val: string) => {
+        const clean = val.replace(/\s+/g, "").toUpperCase().slice(0, 5);
+        setFormData((prev) => ({ ...prev, initials: clean }));
+        if (!clean) {
+            setInitialError("Initials are required (max 5 letters).");
+            return false;
+        }
+        const currentId = selectedUser?.id;
+        const exists = users.some(
+            (u) =>
+                u.initials &&
+                u.initials.toUpperCase() === clean &&
+                u.id !== currentId,
+        );
+        if (exists) {
+            setInitialError("Initial already exists!");
+            return false;
+        }
+        setInitialError(null);
+        return true;
+    };
+
+    // Validation: username uniqueness
+    const validateUsername = (val: string) => {
+        const clean = val.trim().toLowerCase().replace(/\s+/g, "");
+        setFormData((prev) => ({ ...prev, username: clean }));
+        if (!clean) {
+            setUsernameError("Username is required.");
+            return false;
+        }
+        const currentId = selectedUser?.id;
+        const exists = users.some(
+            (u) =>
+                u.username &&
+                u.username.trim().toLowerCase() === clean &&
+                u.id !== currentId,
+        );
+        if (exists) {
+            setUsernameError("Username already exists.");
+            return false;
+        }
+        setUsernameError(null);
+        return true;
+    };
+
+    // Usertype change handler with auto-subtype rule
+    // Source: UserController.php lines 75-80
+    const handleUsertypeChange = (newUsertype: UserType) => {
+        const autoSubtype = getAutoUserSubtype(newUsertype);
+        setFormData((prev) => ({
+            ...prev,
+            usertype: newUsertype,
+            usersubtype: autoSubtype || prev.usersubtype,
+        }));
+    };
+
+    // Toggle user status (Active/Inactive) via live API
+    const handleToggleStatus = async (user: UserRecord) => {
+        const newStatus = Number(user.status) === 1 ? 0 : 1;
+        try {
+            await updateUserMutation.mutateAsync({
+                id: user.id,
+                status: newStatus,
+            });
+            showNotification(
+                "success",
+                `User "${user.name}" status set to ${Number(newStatus) === 1 ? "Active" : "Inactive"}.`,
+            );
+        } catch (err: unknown) {
+            const msg =
+                err instanceof Error ? err.message : "Failed to toggle status";
+            showNotification("error", msg);
+        }
+    };
+
+    // Submit form to live API
+    const handleSubmitForm = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+        if (!validateInitials(formData.initials)) return;
+        if (!validateUsername(formData.username)) return;
+
+        try {
+            setIsSubmitting(true);
+            setModalError(null);
+            if (modalMode === "add") {
+                const result = await createUserMutation.mutateAsync(formData);
+                showNotification(
+                    "success",
+                    `User "${result?.user?.name || formData.name}" created successfully.`,
+                );
+                setIsModalOpen(false);
+            } else if (modalMode === "edit" && selectedUser) {
+                const result = await updateUserMutation.mutateAsync(formData);
+                showNotification(
+                    "success",
+                    `User "${result?.user?.name || formData.name}" updated successfully.`,
+                );
+                setIsModalOpen(false);
+            }
+        } catch (err: unknown) {
+            const msg =
+                err instanceof Error ? err.message : "Error saving user";
+            setModalError(msg);
+            showNotification("error", msg);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // Soft delete user via live API
+    const handleConfirmDelete = async () => {
+        if (!deleteTarget) return;
+        try {
+            setIsDeleting(true);
+            await deleteUserMutation.mutateAsync(deleteTarget.id);
+            showNotification(
+                "success",
+                `User "${deleteTarget.name}" deleted successfully.`,
+            );
+            setDeleteTarget(null);
+        } catch (err: unknown) {
+            const msg =
+                err instanceof Error ? err.message : "Error deleting user";
+            showNotification("error", msg);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    // Export CSV (Never includes passwords!)
+    const handleExportCSV = () => {
+        const headers = [
+            "ID",
+            "Name",
+            "Username",
+            "Initials",
+            "User Type",
+            "User Subtype",
+            "Email",
+            "Role (Roles Table)",
+            "Status",
+        ];
+        const rows = filteredUsers.map((u) => {
+            const roleDef = getRoleById(u.role_id);
+            return [
+                u.id,
+                `"${(u.name || "").replace(/"/g, '""')}"`,
+                `"${(u.username || "").replace(/"/g, '""')}"`,
+                `"${u.initials || ""}"`,
+                `"${u.usertype || ""}"`,
+                `"${u.usersubtype || ""}"`,
+                `"${u.email || ""}"`,
+                `"${roleDef.display_name} (id:${roleDef.id})"`,
+                Number(u.status) === 1 ? "Active" : "Inactive",
+            ];
+        });
+        const csvContent =
+            "data:text/csv;charset=utf-8," +
+            [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute(
+            "download",
+            `starmould_users_${new Date().toISOString().slice(0, 10)}.csv`,
+        );
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const isAutoSubtypeLocked = Boolean(getAutoUserSubtype(formData.usertype));
+
+    return (
+        <AppLayout>
+            <div className="space-y-6 w-full">
+                {/* Toast Notification */}
+                {notification && (
+                    <div
+                        className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-sm font-semibold max-w-md ${
+                            notification.type === "success"
+                                ? "bg-emerald-600 border-emerald-700 text-white"
+                                : "bg-rose-600 border-rose-700 text-white"
+                        }`}
+                    >
+                        {notification.type === "success" ? (
+                            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
+                        ) : (
+                            <AlertCircle className="w-5 h-5 text-white shrink-0" />
+                        )}
+                        <span className="flex-1 leading-snug">{notification.message}</span>
+                        <button
+                            onClick={() => setNotification(null)}
+                            className="ml-2 text-white/80 hover:text-white"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+
+                {/* Module Header */}
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
+                            <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                            <span>Administration</span>
+                            <span>/</span>
+                            <span className="text-slate-600 ">
+                                Staff & Access Control
+                            </span>
+                        </div>
+                        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+                            User Management
+                        </h1>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            Role-based access control, operator profiles & credentials.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Top Control Bar */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    {/* User Type / Role Filter Pills */}
+                    <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 border border-slate-200 rounded-xl">
+                        {(["All", ...USER_TYPES] as const).map((tab) => {
+                            const isActive = selectedRoleFilter === tab;
+                            const count = roleCounts[tab] || 0;
+                            return (
+                                <button
+                                    key={tab}
+                                    onClick={() => {
+                                        setSelectedRoleFilter(tab);
+                                        setCurrentPage(1);
+                                    }}
+                                    className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                        isActive
+                                            ? "bg-white text-slate-900 shadow-sm font-semibold border border-slate-200/80 "
+                                            : "text-slate-600 hover:text-slate-900 "
+                                    }`}
+                                >
+                                    <span>{tab}</span>
+                                    <span
+                                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono ${
+                                            isActive
+                                                ? "bg-slate-100 text-slate-800 "
+                                                : "bg-slate-200/60 text-slate-500"
+                                        }`}
+                                    >
+                                        {count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => refetch()}
+                            disabled={isLoading}
+                            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm disabled:opacity-50"
+                            title="Refresh users list from database"
+                        >
+                            <RefreshCw
+                                className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? "animate-spin" : ""}`}
+                            />
+                            <span className="hidden sm:inline">Refresh</span>
+                        </button>
+                        <button
+                            onClick={handleExportCSV}
+                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm"
+                            title="Export filtered users (strictly without credentials)"
+                        >
+                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                            <span>Export CSV</span>
+                        </button>
+                        <button
+                            onClick={() => window.print()}
+                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm"
+                        >
+                            <Printer className="w-4 h-4 text-slate-500" />
+                            <span>Print</span>
+                        </button>
+                        {canManageUsers && (<button
+                            onClick={handleOpenAdd}
+                            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition active:scale-95"
+                        >
+                            <Plus className="w-4 h-4" />
+                            <span>Add User</span>
+                        </button>)}
+                    </div>
+                </div>
+
+                {/* Toolbar: Search, Status Filter & Page Size */}
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="relative flex-1 max-w-md">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                placeholder="Search by name, username, initials, email..."
+                                className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
+                            />
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery("")}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            {/* Status Filter */}
+                            <div className="flex items-center gap-1.5 text-xs">
+                                <span className="text-slate-500 ">Status:</span>
+                                {(["All", "Active", "Inactive"] as const).map(
+                                    (st) => (
+                                        <button
+                                            key={st}
+                                            onClick={() => {
+                                                setStatusFilter(st);
+                                                setCurrentPage(1);
+                                            }}
+                                            className={`px-2.5 py-1 rounded text-xs transition ${
+                                                statusFilter === st
+                                                    ? "bg-slate-800 text-white font-medium"
+                                                    : "text-slate-600 hover:bg-slate-100 "
+                                            }`}
+                                        >
+                                            {st}
+                                        </button>
+                                    ),
+                                )}
+                            </div>
+
+                            {/* Rows Per Page */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-slate-500 ">
+                                    Rows:
+                                </span>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        setPageSize(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                    className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none "
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* User Table */}
+                <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    {/* Desktop Table View */}
+                    <div className="hidden md:block overflow-x-auto w-full custom-scrollbar">
+                        <table className="w-full min-w-[1000px] text-left text-xs">
+                            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                                <tr>
+                                    <th className="py-3 px-4 w-[22%]">Name</th>
+                                    <th className="py-3 px-3 w-[14%]">
+                                        User Name
+                                    </th>
+                                    <th className="py-3 px-3 w-[8%] text-center">
+                                        Initials
+                                    </th>
+                                    <th className="py-3 px-3 w-[12%]">
+                                        User Type
+                                    </th>
+                                    <th className="py-3 px-3 w-[12%]">
+                                        User Subtype
+                                    </th>
+                                    <th className="py-3 px-4 w-[16%]">Email</th>
+                                    <th className="py-3 px-3 w-[10%] text-center">
+                                        Status
+                                    </th>
+                                    <th className="py-3 px-4 w-[10%] text-right">
+                                        Action
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 ">
+                                {isLoading ? (
+                                    <TableSkeletonRows columns={8} rows={8} />
+                                ) : paginatedUsers.length === 0 ? (
+                                    <tr>
+                                        <td
+                                            colSpan={8}
+                                            className="py-12 text-center text-slate-400"
+                                        >
+                                            <User className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                                            <p>
+                                                No user records found matching
+                                                criteria.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    paginatedUsers.map((u) => {
+                                        const roleDef = getRoleById(u.role_id);
+                                        const isActive = Number(u.status) === 1;
+
+                                        return (
+                                            <tr
+                                                key={u.id}
+                                                className={`transition-colors ${
+                                                    isActive
+                                                        ? "bg-emerald-50/25 hover:bg-emerald-50/50 "
+                                                        : "hover:bg-slate-50 opacity-75"
+                                                }`}
+                                            >
+                                                {/* Name & Role Badge from roles table */}
+                                                <td className="py-3 px-4">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[11px] shrink-0 border border-blue-200/60 ">
+                                                            {(
+                                                                u.initials ||
+                                                                "U"
+                                                            ).slice(0, 2)}
+                                                        </div>
+                                                        <div>
+                                                            <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                                                                <span>
+                                                                    {u.name}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                                <span
+                                                                    className={`inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium border ${roleDef.badge_color}`}
+                                                                    title={`Roles table id:${roleDef.id} - ${roleDef.description}`}
+                                                                >
+                                                                    {
+                                                                        roleDef.display_name
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+
+                                                {/* Username */}
+                                                <td className="py-3 px-3 font-mono text-[11px] text-slate-700 lowercase">
+                                                    @{u.username?.toLowerCase()}
+                                                </td>
+
+                                                {/* Initials */}
+                                                <td className="py-3 px-3 text-center">
+                                                    <span className="px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-slate-100 text-slate-700 border border-slate-200 ">
+                                                        {u.initials || "—"}
+                                                    </span>
+                                                </td>
+
+                                                {/* Usertype */}
+                                                <td className="py-3 px-3">
+                                                    <span className="font-medium text-slate-800 ">
+                                                        {u.usertype}
+                                                    </span>
+                                                </td>
+
+                                                {/* Usersubtype */}
+                                                <td className="py-3 px-3">
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-slate-100 text-slate-600 border border-slate-200 font-medium">
+                                                        {u.usersubtype}
+                                                    </span>
+                                                </td>
+
+                                                {/* Email */}
+                                                <td className="py-3 px-4 text-slate-600 truncate max-w-[190px]">
+                                                    <div
+                                                        className="flex items-center gap-1.5"
+                                                        title={u.email}
+                                                    >
+                                                        <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                        <span className="truncate">
+                                                            {u.email}
+                                                        </span>
+                                                    </div>
+                                                </td>
+
+                                                {/* Status (Toggle switch replicating legacy on/off status) */}
+                                                <td className="py-3 px-3 text-center">
+                                                    <button
+                                                        onClick={() =>
+                                                            handleToggleStatus(
+                                                                u,
+                                                            )
+                                                        }
+                                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium transition cursor-pointer border ${
+                                                            isActive
+                                                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 "
+                                                                : "bg-slate-100 text-slate-500 border-slate-200 "
+                                                        }`}
+                                                        title="Click to toggle Active / Inactive status"
+                                                    >
+                                                        <span
+                                                            className={`w-1.5 h-1.5 rounded-full ${
+                                                                isActive
+                                                                    ? "bg-emerald-500"
+                                                                    : "bg-slate-400"
+                                                            }`}
+                                                        />
+                                                        <span>
+                                                            {isActive
+                                                                ? "Active"
+                                                                : "Inactive"}
+                                                        </span>
+                                                    </button>
+                                                </td>
+
+                                                {/* Action buttons */}
+                                                <td className="py-3 px-4 text-right whitespace-nowrap">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        <button
+                                                            onClick={() =>
+                                                                handleOpenEdit(
+                                                                    u,
+                                                                )
+                                                            }
+                                                            className="px-2.5 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition"
+                                                        >
+                                                            Edit
+                                                        </button>
+                                                        {u.username?.toLowerCase() === "admin" ||
+                                                        u.email?.toLowerCase() === "admin@star.in" ||
+                                                        Number(u.id) === 1 ? (
+                                                            <span
+                                                                title="Super Admin account is permanently locked and cannot be deleted"
+                                                                className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-50 border border-slate-200 rounded cursor-not-allowed select-none"
+                                                            >
+                                                                <Lock className="w-3 h-3 text-slate-400" />
+                                                                Locked
+                                                            </span>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() =>
+                                                                    setDeleteTarget(
+                                                                        u,
+                                                                    )
+                                                                }
+                                                                className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition"
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Mobile Card-List Fallback (< md) */}
+                    <div className="block md:hidden p-3 space-y-3">
+                        {isLoading ? (
+                            <CardGridSkeleton count={4} />
+                        ) : paginatedUsers.length === 0 ? (
+                            <div className="py-8 text-center text-slate-400 text-xs">
+                                No user records found matching criteria.
+                            </div>
+                        ) : (
+                            paginatedUsers.map((u) => {
+                                const roleDef = getRoleById(u.role_id);
+                                const isActive = Number(u.status) === 1;
+
+                                return (
+                                    <div
+                                        key={u.id}
+                                        className={`p-3.5 rounded-xl border space-y-2 text-xs shadow-2xs ${
+                                            isActive
+                                                ? "bg-slate-50/80 border-slate-200 "
+                                                : "bg-slate-100/50 border-slate-200 opacity-75"
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-[11px] shrink-0 border border-blue-200/60 ">
+                                                    {(u.initials || "U").slice(
+                                                        0,
+                                                        2,
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <span className="font-semibold text-slate-900 block">
+                                                        {u.name}
+                                                    </span>
+                                                    <span className="font-mono text-[10px] text-slate-400 lowercase">
+                                                        @{u.username?.toLowerCase()}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <span
+                                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                                    isActive
+                                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                                        : "bg-slate-100 text-slate-500 border border-slate-200"
+                                                }`}
+                                            >
+                                                {isActive
+                                                    ? "Active"
+                                                    : "Inactive"}
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60 ">
+                                            <div>
+                                                <span className="text-slate-400 block text-[10px]">
+                                                    Role:
+                                                </span>
+                                                <span className="font-medium text-slate-800 truncate block">
+                                                    {roleDef.display_name}
+                                                </span>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-400 block text-[10px]">
+                                                    Type / Subtype:
+                                                </span>
+                                                <span className="font-medium text-slate-800 truncate block">
+                                                    {u.usertype || "User"}{" "}
+                                                    {u.usersubtype
+                                                        ? `(${u.usersubtype})`
+                                                        : ""}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        {u.email && (
+                                            <div className="text-[11px] text-slate-600 truncate">
+                                                <span className="text-slate-400 text-[10px]">
+                                                    Email:{" "}
+                                                </span>
+                                                {u.email}
+                                            </div>
+                                        )}
+
+                                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60 ">
+                                            <button
+                                                onClick={() =>
+                                                    handleOpenEdit(u)
+                                                }
+                                                className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() =>
+                                                    handleToggleStatus(u)
+                                                }
+                                                className={`min-h-[40px] px-3.5 py-2 text-xs font-semibold border rounded-lg transition flex items-center justify-center cursor-pointer ${
+                                                    isActive
+                                                        ? "text-amber-600 border-amber-200 hover:bg-amber-50"
+                                                        : "text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                                                }`}
+                                            >
+                                                {isActive
+                                                    ? "Deactivate"
+                                                    : "Activate"}
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* Table Footer */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 border-t border-slate-200 text-xs text-slate-500 ">
+                        <div>
+                            Showing{" "}
+                            <span className="font-semibold text-slate-800 ">
+                                {filteredUsers.length === 0
+                                    ? 0
+                                    : (currentPage - 1) * pageSize + 1}
+                            </span>{" "}
+                            to{" "}
+                            <span className="font-semibold text-slate-800 ">
+                                {Math.min(
+                                    currentPage * pageSize,
+                                    filteredUsers.length,
+                                )}
+                            </span>{" "}
+                            of{" "}
+                            <span className="font-semibold text-slate-800 ">
+                                {filteredUsers.length}
+                            </span>{" "}
+                            users
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() =>
+                                    setCurrentPage((p) => Math.max(1, p - 1))
+                                }
+                                disabled={currentPage === 1}
+                                className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-slate-700 "
+                            >
+                                Previous
+                            </button>
+                            <span className="px-3 py-1 font-mono text-xs">
+                                {currentPage} / {totalPages}
+                            </span>
+                            <button
+                                onClick={() =>
+                                    setCurrentPage((p) =>
+                                        Math.min(totalPages, p + 1),
+                                    )
+                                }
+                                disabled={currentPage === totalPages}
+                                className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-slate-700 "
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ========================================================================= */}
+                {/* ADD / EDIT USER MODAL (Strictly NO password2 column; write-only password) */}
+                {/* ========================================================================= */}
+                <Modal
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    title={
+                        modalMode === "add"
+                            ? "Add New User"
+                            : "Edit User Profile"
+                    }
+                    description="Configure employee credentials, department role, and system access"
+                    size="xl"
+                >
+                    <form
+                        onSubmit={handleSubmitForm}
+                        className="space-y-4 text-xs"
+                    >
+                        {modalError && (
+                            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-sm font-medium">
+                                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                                <span className="flex-1 leading-snug">{modalError}</span>
+                            </div>
+                        )}
+                        {/* Full Name */}
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        Name{" "}
+                                        <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={formData.name}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                name: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="Full legal or employee name"
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
+                                    />
+                                </div>
+
+                                {/* User Name & Initials */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block font-medium text-slate-700 mb-1">
+                                            User Name{" "}
+                                            <span className="text-rose-500">
+                                                *
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={formData.username}
+                                            onChange={(e) => {
+                                                const clean = e.target.value.toLowerCase().replace(/\s+/g, "");
+                                                setFormData((p) => ({
+                                                    ...p,
+                                                    username: clean,
+                                                }));
+                                                if (usernameError)
+                                                    validateUsername(
+                                                        clean,
+                                                    );
+                                            }}
+                                            onBlur={(e) =>
+                                                validateUsername(e.target.value)
+                                            }
+                                            placeholder="username"
+                                            className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 lowercase ${
+                                                usernameError
+                                                    ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"
+                                                    : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
+                                            }`}
+                                        />
+                                        {usernameError && (
+                                            <p className="flex items-center gap-1 text-[11px] text-rose-500 mt-1 font-medium">
+                                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{usernameError}</span>
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="block font-medium text-slate-700 mb-1">
+                                            Initials{" "}
+                                            <span className="text-rose-500">
+                                                *
+                                            </span>{" "}
+                                            <span className="text-[11px] text-slate-400 font-normal">
+                                                (Max 5 letters)
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            maxLength={5}
+                                            value={formData.initials}
+                                            onChange={(e) => {
+                                                const clean = e.target.value
+                                                    .replace(/\s+/g, "")
+                                                    .toUpperCase()
+                                                    .slice(0, 5);
+                                                setFormData((p) => ({
+                                                    ...p,
+                                                    initials: clean,
+                                                }));
+                                                if (initialError)
+                                                    validateInitials(clean);
+                                            }}
+                                            onBlur={(e) =>
+                                                validateInitials(e.target.value)
+                                            }
+                                            placeholder="e.g. ABCD1"
+                                            className={`w-full px-3 py-2 font-mono uppercase bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 ${
+                                                initialError
+                                                    ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"
+                                                    : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
+                                            }`}
+                                        />
+                                        {initialError && (
+                                            <p className="flex items-center gap-1 text-[11px] text-rose-500 mt-1 font-medium">
+                                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                                <span>{initialError}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Email */}
+                                <div>
+                                    <label className="block font-medium text-slate-700 mb-1">
+                                        Email{" "}
+                                        <span className="text-rose-500">*</span>
+                                    </label>
+                                    <input
+                                        type="email"
+                                        required
+                                        value={formData.email}
+                                        onChange={(e) =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                email: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="operator@star.in"
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
+                                    />
+                                </div>
+
+                                {/* Password: WRITE-ONLY */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="font-medium text-slate-700 flex items-center gap-1.5">
+                                            <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                            <span>
+                                                {modalMode === "add"
+                                                    ? "Password"
+                                                    : "New Password"}
+                                            </span>
+                                            {modalMode === "add" ? (
+                                                <span className="text-rose-500">
+                                                    *
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-400 font-normal">
+                                                    (Leave blank to keep
+                                                    existing password)
+                                                </span>
+                                            )}
+                                        </label>
+                                        <span className="text-[10px] text-emerald-600 font-medium">
+                                            Write-only / Supabase Auth Hashed
+                                        </span>
+                                    </div>
+                                    <div className="relative">
+                                        <input
+                                            type={
+                                                showPassword
+                                                    ? "text"
+                                                    : "password"
+                                            }
+                                            required={modalMode === "add"}
+                                            value={formData.password}
+                                            onChange={(e) =>
+                                                setFormData((p) => ({
+                                                    ...p,
+                                                    password: e.target.value,
+                                                }))
+                                            }
+                                            placeholder={
+                                                modalMode === "add"
+                                                    ? "Enter secure password for operator"
+                                                    : "••••••••••••"
+                                            }
+                                            className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowPassword(!showPassword)
+                                            }
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff className="w-4 h-4" />
+                                            ) : (
+                                                <Eye className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* User Type & Assigned Roles Table Role */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="font-medium text-slate-700 ">
+                                            User Type{" "}
+                                            <span className="text-rose-500">
+                                                *
+                                            </span>
+                                        </label>
+                                        {(() => {
+                                            const assigned = getRoleForUserType(
+                                                formData.usertype,
+                                            );
+                                            return (
+                                                <span
+                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${assigned.badge_color}`}
+                                                >
+                                                    <Shield className="w-3 h-3" />
+                                                    <span>
+                                                        Mapped to Roles Table:{" "}
+                                                        {assigned.display_name}{" "}
+                                                        (id: {assigned.id})
+                                                    </span>
+                                                </span>
+                                            );
+                                        })()}
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                                        {USER_TYPES.map((t) => {
+                                            const isChecked =
+                                                formData.usertype === t;
+                                            return (
+                                                <label
+                                                    key={t}
+                                                    className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition text-xs ${
+                                                        isChecked
+                                                            ? "bg-blue-50 border-blue-500 text-blue-800 font-semibold"
+                                                            : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100"
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="usertype"
+                                                        value={t}
+                                                        checked={isChecked}
+                                                        onChange={() =>
+                                                            handleUsertypeChange(
+                                                                t,
+                                                            )
+                                                        }
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>{t}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* User Subtype */}
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="font-medium text-slate-700 ">
+                                            User Subtype{" "}
+                                            <span className="text-rose-500">
+                                                *
+                                            </span>
+                                        </label>
+                                        {isAutoSubtypeLocked && (
+                                            <span className="text-[10px] text-amber-600 font-medium">
+                                                Auto-forced to &quot;Skilled
+                                                MP&quot; for {formData.usertype}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        {USER_SUBTYPES.map((sub) => {
+                                            const isChecked =
+                                                formData.usersubtype === sub;
+                                            const isDisabled =
+                                                isAutoSubtypeLocked &&
+                                                sub !== "Skilled MP";
+                                            return (
+                                                <label
+                                                    key={sub}
+                                                    className={`flex items-center gap-2 p-2.5 rounded-lg border transition text-xs ${
+                                                        isDisabled
+                                                            ? "opacity-30 cursor-not-allowed bg-slate-100 border-slate-200 "
+                                                            : isChecked
+                                                              ? "bg-blue-50 border-blue-500 text-blue-800 font-semibold cursor-pointer"
+                                                              : "bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100 cursor-pointer"
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="usersubtype"
+                                                        value={sub}
+                                                        disabled={isDisabled}
+                                                        checked={isChecked}
+                                                        onChange={() =>
+                                                            setFormData(
+                                                                (p) => ({
+                                                                    ...p,
+                                                                    usersubtype:
+                                                                        sub,
+                                                                }),
+                                                            )
+                                                        }
+                                                        className="text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span>{sub}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Status Switch (Active / Inactive) */}
+                                <div className="flex items-center justify-between pt-2 pb-1 border-t border-slate-200 ">
+                                    <div>
+                                        <label className="font-medium text-slate-700 block">
+                                            Account Status
+                                        </label>
+                                        <span className="text-[11px] text-slate-400">
+                                            Inactive accounts cannot
+                                            authenticate into ERP modules
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setFormData((p) => ({
+                                                ...p,
+                                                status:
+                                                    Number(p.status) === 1
+                                                        ? 0
+                                                        : 1,
+                                            }))
+                                        }
+                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition ${
+                                            Number(formData.status) === 1
+                                                ? "bg-emerald-50 text-emerald-700 border-emerald-300 "
+                                                : "bg-slate-100 text-slate-600 border-slate-300 "
+                                        }`}
+                                    >
+                                        {Number(formData.status) === 1 ? (
+                                            <>
+                                                <ToggleRight className="w-4 h-4 text-emerald-600" />
+                                                <span>Active (1)</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <ToggleLeft className="w-4 h-4 text-slate-400" />
+                                                <span>Inactive (0)</span>
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsModalOpen(false)}
+                                        className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition btn-interactive"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <MotionButton
+                                        type="submit"
+                                        loading={isSubmitting}
+                                        variant="primary"
+                                        size="sm"
+                                    >
+                                        {modalMode === "add"
+                                            ? "Create User"
+                                            : "Update Profile"}
+                                    </MotionButton>
+                                </div>
+                            </form>
+                </Modal>
+                <Modal
+                    isOpen={!!deleteTarget}
+                    onClose={() => setDeleteTarget(null)}
+                    title="Confirm Soft Deletion"
+                    description="Source: UserController.php destroy()"
+                    size="sm"
+                >
+                    {deleteTarget && (
+                        <div className="text-xs space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+                                    <Trash2 className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <h4 className="text-sm font-bold text-slate-900">
+                                        Confirm Soft Deletion
+                                    </h4>
+                                    <p className="text-slate-500">
+                                        This action will soft-delete the user
+                                    </p>
+                                </div>
+                            </div>
+                            <p className="text-slate-600 leading-relaxed">
+                                Do you really want to delete user{" "}
+                                <span className="font-semibold text-slate-900">
+                                    &quot;{deleteTarget.name}&quot;
+                                </span>{" "}
+                                (@{deleteTarget.username})? This user will be
+                                soft deleted and marked with a timestamp.
+                            </p>
+                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(null)}
+                                    className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition btn-interactive"
+                                >
+                                    Cancel
+                                </button>
+                                <MotionButton
+                                    type="button"
+                                    onClick={handleConfirmDelete}
+                                    loading={isDeleting}
+                                    variant="danger"
+                                    size="sm"
+                                >
+                                    Yes, Delete User
+                                </MotionButton>
+                            </div>
+                        </div>
+                    )}
+                </Modal>
+            </div>
+        </AppLayout>
+    );
+}
+
+export { UserPage as UserManagementPage };
