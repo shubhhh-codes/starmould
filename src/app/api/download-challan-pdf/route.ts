@@ -157,12 +157,10 @@ export async function GET(req: NextRequest) {
     const totalQty = items.reduce((sum: number, it: any) => sum + (Number(it.qty) || 0), 0);
 
     const itemsRowsHtml = items.length === 0
-      ? `<tr><td colspan="6" style="height: 46px; text-align: center; color: #94a3b8; font-style: italic;">No subplates or items specified in this outward challan.</td></tr>`
+      ? `<tr><td colspan="4" style="height: 46px; text-align: center; color: #94a3b8; font-style: italic;">No subplates or items specified in this outward challan.</td></tr>`
       : items.map((it: any, idx: number) => {
           const sp = it.plateid ? plateMap.get(it.plateid) : null;
           const plateName = escapeHtml(sp?.platename || "Mould Plate");
-          const mat = escapeHtml(sp?.material || "—");
-          const dims = sp ? `${sp.width}x${sp.height}x${sp.length}` : "—";
           const particulars = escapeHtml(it.particulars || "Standard Machining / Job Work");
           const qty = Number(it.qty) || 1;
           const bg = idx % 2 === 0 ? "#f3f9fb" : "#ffffff";
@@ -174,16 +172,9 @@ export async function GET(req: NextRequest) {
               </td>
               <td style="height: 44px; padding: 0 14px; text-align: left; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0;">
                 <div style="font-weight: 600; font-size: 10.5px; color: #1f2a30;">${plateName}</div>
-                <div style="font-size: 8.5px; color: #64748b; font-family: monospace; margin-top: 1px;">Subplate Ref: #${idx + 1}</div>
               </td>
               <td style="height: 44px; padding: 0 10px; text-align: left; font-weight: 500; font-size: 9.5px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #1f2a30;">
                 ${particulars}
-              </td>
-              <td style="height: 44px; padding: 0 8px; text-align: center; font-size: 9px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
-                ${mat}
-              </td>
-              <td style="height: 44px; padding: 0 8px; text-align: center; font-family: monospace; font-size: 9px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
-                ${dims}
               </td>
               <td style="height: 44px; padding: 0 12px; text-align: center; font-weight: 700; border-top: 1px solid #bcd8e0; font-size: 11px; color: #006181;">
                 ${qty}
@@ -247,7 +238,7 @@ export async function GET(req: NextRequest) {
           .info-val { font-size: 12px; font-weight: 500; color: #33414a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
           .quick-bar {
-            width: 710px; border-radius: 10px; border: 1px solid #bcd8e0; padding: 8px 16px; margin-bottom: 20px;
+            width: 710px; border-radius: 8px; border: 1px solid #bcd8e0; padding: 9px 18px; margin-bottom: 18px;
             display: flex; align-items: center; justify-content: space-between; font-size: 10px; background-color: #ffffff;
           }
           .quick-label { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #006181; }
@@ -356,19 +347,11 @@ export async function GET(req: NextRequest) {
               <div class="quick-bar">
                 <div>
                   <span class="quick-label">Transporter:&nbsp;</span>
-                  <span style="font-weight: 500; color: #1f2a30;">${transporterName}</span>
+                  <span style="font-weight: 600; font-size: 11px; color: #1f2a30;">${transporterName}</span>
                 </div>
                 <div>
                   <span class="quick-label">Movement Purpose:&nbsp;</span>
                   <span style="font-weight: 500; color: #1f2a30;">Job Work / Subplate Processing</span>
-                </div>
-                <div>
-                  <span class="quick-label">GST Category:&nbsp;</span>
-                  <span style="font-weight: 700; padding: 2px 6px; border-radius: 4px; font-size: 9px; background-color: #ecfdf5; color: #047857;">Sec. 143 Non-Taxable Outward</span>
-                </div>
-                <div>
-                  <span class="quick-label">Project Code:&nbsp;</span>
-                  <span style="font-family: monospace; font-weight: 700; font-size: 9.5px; color: #006181;">${projectCode}</span>
                 </div>
               </div>
 
@@ -416,12 +399,10 @@ export async function GET(req: NextRequest) {
                 <table>
                   <thead>
                     <tr>
-                      <th style="width: 38px;">#</th>
-                      <th style="width: 240px; text-align: left; padding-left: 14px;">Component / Plate Description</th>
-                      <th style="width: 170px; text-align: left; padding-left: 10px;">Job Work Particulars</th>
-                      <th style="width: 90px;">Material</th>
-                      <th style="width: 110px;">Dimensions (WxHxL)</th>
-                      <th style="width: 62px;">Qty</th>
+                      <th style="width: 40px;">#</th>
+                      <th style="width: 360px; text-align: left; padding-left: 14px;">Component / Plate Description</th>
+                      <th style="width: 230px; text-align: left; padding-left: 10px;">Job Work Particulars</th>
+                      <th style="width: 80px;">Qty</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -429,7 +410,7 @@ export async function GET(req: NextRequest) {
                   </tbody>
                   <tfoot>
                     <tr class="total-row">
-                      <td colspan="5" style="text-align: right; padding-right: 16px; text-transform: uppercase; font-size: 9.5px;">
+                      <td colspan="3" style="text-align: right; padding-right: 16px; text-transform: uppercase; font-size: 9.5px;">
                         Total Dispatched Quantity:
                       </td>
                       <td style="text-align: center; font-size: 12px; font-weight: 700;">

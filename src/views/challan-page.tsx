@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, Suspense } from "react";
+import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
@@ -25,6 +25,9 @@ import {
   CheckCircle2,
   Box,
   FileText,
+  List,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import type {
   Challan,
@@ -92,6 +95,7 @@ function ChallanPageContent() {
   });
   const [inwardError, setInwardError] = useState<string | null>(null);
   const [isInwardSubmitting, setIsInwardSubmitting] = useState(false);
+  const [notification, setNotification] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const handleOpenInwardModal = (c: Challan) => {
     setInwardModalChallan(c);
@@ -137,7 +141,7 @@ function ChallanPageContent() {
 
     try {
       setIsInwardSubmitting(true);
-      await createInwardMutation.mutateAsync({
+      const res = await createInwardMutation.mutateAsync({
         challanid: inwardModalChallan.id,
         inchallanno: inwardForm.inchallanno.trim() || undefined,
         customerid: inwardModalChallan.customerid,
@@ -156,6 +160,11 @@ function ChallanPageContent() {
       });
 
       setInwardModalChallan(null);
+      setNotification({
+        type: "success",
+        message: `Inward receipt ${res?.inward?.inchallanno || ""} recorded successfully.`,
+      });
+      setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {
       setInwardError(err.message || "Failed to record inward receipt");
     } finally {
@@ -191,6 +200,17 @@ function ChallanPageContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 
+  // Pending Outward View Mode: Grouped by Challan vs Flat List
+  const [pendingViewMode, setPendingViewMode] = useState<"grouped" | "flat">("grouped");
+  const [collapsedPendingGroups, setCollapsedPendingGroups] = useState<Record<string, boolean>>({});
+
+  const toggleCollapsePendingGroup = (challanno: string) => {
+    setCollapsedPendingGroups((prev) => ({
+      ...prev,
+      [challanno]: !prev[challanno],
+    }));
+  };
+
   // Add Challan Modal State (Source: challan/index.blade.php lines 74-165)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalForm, setModalForm] = useState<{
@@ -218,6 +238,7 @@ function ChallanPageContent() {
   });
 
   const [formError, setFormError] = useState<string | null>(null);
+  const lastLoadedMouldRef = useRef<string | null>(null);
 
   // Explicitly separate vendors, transporters, and customers by table
   const vendors = useMemo(() => (supplierLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })), [supplierLookup]);
@@ -305,9 +326,40 @@ function ChallanPageContent() {
       (sp: Subplate) =>
         String(sp.projectid) === String(modalForm.projectid) ||
         (scanIdStr && String(sp.projectid) === scanIdStr) ||
+        (sp.mold_id && selectedScan?.id && Number(sp.mold_id) === Number(selectedScan.id)) ||
+        (sp.mold_code && modalForm.projectid && sp.mold_code === modalForm.projectid) ||
         (sp.subprojectid && sp.subprojectid.includes(modalForm.projectid))
     );
   }, [allSubplates, modalForm.projectid, selectedScan]);
+
+  // Automatically populate all subplates of the mould into Challan Items
+  useEffect(() => {
+    if (!modalForm.projectid) {
+      lastLoadedMouldRef.current = null;
+      return;
+    }
+
+    if (availablePlates.length > 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
+      lastLoadedMouldRef.current = modalForm.projectid;
+      const cust = customers.find((c) => c.id === Number(modalForm.customerid));
+      const customerName = cust?.customername || selectedCustomer?.customername || "";
+
+      const autoPopulatedItems = availablePlates.map((plate) => ({
+        plateid: String(plate.id),
+        platename: plate.platename || `Plate #${plate.id}`,
+        customer: customerName,
+        project: modalForm.projectid,
+        particulars: "",
+        qty: plate.sqty || 1,
+        sqty: plate.sqty || 1,
+      }));
+
+      setModalForm((prev) => ({
+        ...prev,
+        items: autoPopulatedItems,
+      }));
+    }
+  }, [availablePlates, modalForm.projectid, modalForm.customerid, customers, selectedCustomer]);
 
   const vendorOptions: ERPSelectOption[] = useMemo(() => {
     return vendors.map((v: any) => ({
@@ -326,13 +378,21 @@ function ChallanPageContent() {
   }, [transporters]);
 
   const subplateOptions: ERPSelectOption[] = useMemo(() => {
-    return availablePlates.map((p) => ({
-      value: String(p.id),
-      label: p.platename,
-      subtitle: p.material ? `Material: ${p.material}` : undefined,
-      badge: p.subprojectid || undefined,
-      badgeVariant: "blue" as const,
-    }));
+    return availablePlates.map((p) => {
+      const seq = p.subprojectid ? p.subprojectid.split("_").pop() : "";
+      return {
+        value: String(p.id),
+        label: p.platename,
+        subtitle: [
+          p.subprojectid ? `Code: ${p.subprojectid}` : "",
+          p.material ? `Material: ${p.material}` : "",
+        ]
+          .filter(Boolean)
+          .join(" • ") || undefined,
+        badge: seq ? `#${seq}` : undefined,
+        badgeVariant: "blue" as const,
+      };
+    });
   }, [availablePlates]);
 
   const customerFilterOptions: ERPSelectOption[] = useMemo(() => {
@@ -423,10 +483,109 @@ function ChallanPageContent() {
         it.vendorname.toLowerCase().includes(q) ||
         it.customername.toLowerCase().includes(q) ||
         it.platename.toLowerCase().includes(q) ||
-        it.particulars.toLowerCase().includes(q)
+        it.particulars.toLowerCase().includes(q) ||
+        it.projectid.toLowerCase().includes(q)
       );
     });
   }, [challans, searchQuery]);
+
+  // Grouped by Challan for Pending Outward Plates
+  const pendingGroupsByChallan = useMemo(() => {
+    const groupsMap: Record<
+      string,
+      {
+        challanid: number;
+        challanno: string;
+        chdate: string;
+        vendorname: string;
+        customername: string;
+        transportername: string;
+        projectid: string;
+        rawChallan?: Challan;
+        totalQty: number;
+        items: Array<{
+          plateid?: string | number;
+          platename: string;
+          particulars: string;
+          qty: number;
+        }>;
+      }
+    > = {};
+
+    challans.forEach((c) => {
+      (c.items || []).forEach((it) => {
+        const itemObj = {
+          plateid: it.plateid,
+          platename: it.platename || `Plate #${it.plateid}`,
+          particulars: it.particulars || "",
+          qty: Number(it.qty) || 1,
+        };
+
+        if (!groupsMap[c.challanno]) {
+          groupsMap[c.challanno] = {
+            challanid: c.id,
+            challanno: c.challanno,
+            chdate: c.chdate,
+            vendorname: c.vendorname || `Vendor #${c.vendorid}`,
+            customername: c.customername || `Customer #${c.customerid}`,
+            transportername: c.transportername || `Transporter #${c.vendortid}`,
+            projectid: c.projectid,
+            rawChallan: c,
+            totalQty: 0,
+            items: [],
+          };
+        }
+
+        groupsMap[c.challanno].items.push(itemObj);
+        groupsMap[c.challanno].totalQty += itemObj.qty;
+      });
+    });
+
+    const q = searchQuery.toLowerCase().trim();
+    const allGroups = Object.values(groupsMap);
+    if (!q) return allGroups;
+
+    return allGroups
+      .map((g) => {
+        const groupMatch =
+          g.challanno.toLowerCase().includes(q) ||
+          g.vendorname.toLowerCase().includes(q) ||
+          g.customername.toLowerCase().includes(q) ||
+          g.projectid.toLowerCase().includes(q) ||
+          g.transportername.toLowerCase().includes(q);
+
+        if (groupMatch) return g;
+
+        const matchingItems = g.items.filter(
+          (it) =>
+            it.platename.toLowerCase().includes(q) ||
+            it.particulars.toLowerCase().includes(q)
+        );
+
+        if (matchingItems.length > 0) {
+          return {
+            ...g,
+            items: matchingItems,
+            totalQty: matchingItems.reduce((acc, it) => acc + it.qty, 0),
+          };
+        }
+
+        return null;
+      })
+      .filter(Boolean) as typeof allGroups;
+  }, [challans, searchQuery]);
+
+  const handleExpandAllPending = () => {
+    setCollapsedPendingGroups({});
+  };
+
+  const handleCollapseAllPending = () => {
+    const allCollapsed: Record<string, boolean> = {};
+    pendingGroupsByChallan.forEach((g) => {
+      allCollapsed[g.challanno] = true;
+    });
+    setCollapsedPendingGroups(allCollapsed);
+  };
 
   // Modal Handlers
   const handleAddItemRow = () => {
@@ -469,7 +628,7 @@ function ChallanPageContent() {
     setModalForm((prev) => {
       const updated = [...prev.items];
       if (field === "plateid") {
-        const foundPlate = subplates.find((p) => String(p.id) === String(value));
+        const foundPlate = allSubplates.find((p) => String(p.id) === String(value));
         updated[index] = {
           ...updated[index],
           plateid: value,
@@ -606,6 +765,30 @@ function ChallanPageContent() {
   return (
     <AppLayout>
       <div className="space-y-6 w-full">
+        {/* Toast Notification */}
+        {notification && (
+          <div
+            className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
+              notification.type === "success"
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : "bg-rose-50 border-rose-200 text-rose-800"
+            }`}
+          >
+            {notification.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{notification.message}</span>
+            <button
+              onClick={() => setNotification(null)}
+              className="ml-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {fetchError && (
           <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -777,6 +960,63 @@ function ChallanPageContent() {
                   </option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {activeTab === "pending_outward" && (
+            <div className="flex items-center gap-2.5 w-full sm:w-auto flex-wrap">
+              {/* View Mode Toggle: Grouped vs Flat */}
+              <div className="flex items-center p-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setPendingViewMode("grouped")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md transition cursor-pointer ${
+                    pendingViewMode === "grouped"
+                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                  title="Group plates by Challan"
+                >
+                  <Layers className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Grouped</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingViewMode("flat")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md transition cursor-pointer ${
+                    pendingViewMode === "flat"
+                      ? "bg-white text-slate-900 shadow-xs font-bold"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                  title="Flat table view"
+                >
+                  <List className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Flat List</span>
+                </button>
+              </div>
+
+              {pendingViewMode === "grouped" && pendingGroupsByChallan.length > 0 && (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={handleExpandAllPending}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition shadow-2xs font-medium cursor-pointer"
+                    title="Expand all challan groups"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5 inline mr-1 text-slate-500" />
+                    <span>Expand All</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCollapseAllPending}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition shadow-2xs font-medium cursor-pointer"
+                    title="Collapse all challan groups"
+                  >
+                    <Minimize2 className="w-3.5 h-3.5 inline mr-1 text-slate-500" />
+                    <span>Collapse All</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1123,61 +1363,206 @@ function ChallanPageContent() {
 
         {/* TAB 2: Pending Outward Plates Table */}
         {activeTab === "pending_outward" && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3.5">Challan No</th>
-                    <th className="px-4 py-3.5">Date</th>
-                    <th className="px-4 py-3.5">Vendor Name</th>
-                    <th className="px-4 py-3.5">Customer Name</th>
-                    <th className="px-4 py-3.5">Mould</th>
-                    <th className="px-4 py-3.5">Plate Name</th>
-                    <th className="px-4 py-3.5">Particulars</th>
-                    <th className="px-4 py-3.5 text-right">Jobwork Qty</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {pendingOutwardItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="text-center py-12 text-slate-400">
-                        No pending outward jobwork records found.
-                      </td>
-                    </tr>
-                  ) : (
-                    pendingOutwardItems.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3.5 font-semibold text-blue-600">
-                          {row.challanno}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap">
-                          {row.chdate}
-                        </td>
-                        <td className="px-4 py-3.5 font-medium text-slate-900">
-                          {row.vendorname}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-600">
-                          {row.customername}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-500 font-mono text-xs">
-                          {row.projectid}
-                        </td>
-                        <td className="px-4 py-3.5 font-medium text-slate-900">
-                          {row.platename}
-                        </td>
-                        <td className="px-4 py-3.5 text-slate-700">
-                          {row.particulars}
-                        </td>
-                        <td className="px-4 py-3.5 text-right font-bold text-amber-600">
-                          {row.qty}
-                        </td>
+          <div className="space-y-4">
+            {pendingViewMode === "grouped" ? (
+              pendingGroupsByChallan.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-12 text-center text-slate-400">
+                  <CheckCircle2 className="w-10 h-10 mx-auto mb-3 text-emerald-500 opacity-60" />
+                  <h3 className="text-sm font-semibold text-slate-800 mb-1">
+                    No Pending Outward Plates
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    {searchQuery
+                      ? "No pending outward records match your search query."
+                      : "All plates sent out on job work have been received back into inventory!"}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {pendingGroupsByChallan.map((group) => {
+                    const isCollapsed = Boolean(collapsedPendingGroups[group.challanno]);
+
+                    return (
+                      <div
+                        key={group.challanno}
+                        className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition-all hover:border-slate-300"
+                      >
+                        {/* Group Header Card */}
+                        <div
+                          onClick={(e) => {
+                            const target = e.target as HTMLElement;
+                            if (target.closest("button, a, input, select")) return;
+                            toggleCollapsePendingGroup(group.challanno);
+                          }}
+                          className="p-3.5 sm:p-4 bg-slate-50/90 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-100/70 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCollapsePendingGroup(group.challanno);
+                              }}
+                              className="p-1 hover:bg-slate-200 rounded transition text-slate-400 hover:text-slate-700 cursor-pointer"
+                              title={isCollapsed ? "Expand group" : "Collapse group"}
+                            >
+                              {isCollapsed ? (
+                                <ChevronRight className="h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-amber-600" />
+                              )}
+                            </button>
+
+                            {/* Challan No Badge */}
+                            <span className="font-mono font-bold text-xs sm:text-sm text-blue-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                              {group.challanno}
+                            </span>
+
+                            {/* Date */}
+                            <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                              <span>{group.chdate}</span>
+                            </div>
+
+                            {/* Vendor */}
+                            <div className="flex items-center gap-1 text-xs text-slate-900 bg-slate-100 px-2.5 py-1 rounded-md font-medium">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold">Vendor:</span>
+                              <span className="font-semibold">{group.vendorname}</span>
+                            </div>
+
+                            {/* Customer */}
+                            <div className="flex items-center gap-1 text-xs text-slate-700">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold">Customer:</span>
+                              <span>{group.customername}</span>
+                            </div>
+
+                            {/* Mould */}
+                            <div className="flex items-center gap-1 text-xs font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                              <span className="text-[10px] text-slate-400 uppercase font-bold font-sans">Mould:</span>
+                              <span className="font-semibold">{group.projectid}</span>
+                            </div>
+                          </div>
+
+                          {/* Right: Badge counts + Inward Action */}
+                          <div className="flex items-center gap-2.5 shrink-0">
+                            <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              {group.items.length} {group.items.length === 1 ? "Plate" : "Plates"} ({group.totalQty} pcs)
+                            </span>
+
+                            {group.rawChallan && (String(group.rawChallan.status) === "1" || (group.rawChallan as any).status === 1) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenInwardModal(group.rawChallan!);
+                                }}
+                                className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition shadow-2xs cursor-pointer"
+                                title={`Take Inward for ${group.challanno}`}
+                              >
+                                <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" />
+                                <span>Inward</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Group Items Table (when expanded) */}
+                        {!isCollapsed && (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs text-slate-600">
+                              <thead className="bg-slate-50/70 text-slate-600 text-[11px] font-semibold uppercase tracking-wider border-b border-slate-200">
+                                <tr>
+                                  <th className="px-4 py-2.5 w-12 text-center">#</th>
+                                  <th className="px-4 py-2.5">Plate Name</th>
+                                  <th className="px-4 py-2.5">Particulars / Jobwork Operation</th>
+                                  <th className="px-4 py-2.5 text-right w-32">Jobwork Qty</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100">
+                                {group.items.map((it, pIdx) => (
+                                  <tr key={pIdx} className="hover:bg-slate-50/70 transition-colors">
+                                    <td className="px-4 py-3 text-center text-slate-400 font-bold">
+                                      {pIdx + 1}
+                                    </td>
+                                    <td className="px-4 py-3 font-semibold text-slate-900">
+                                      {it.platename}
+                                    </td>
+                                    <td className="px-4 py-3 text-slate-600 font-medium">
+                                      {it.particulars || "—"}
+                                    </td>
+                                    <td className="px-4 py-3 text-right font-bold text-amber-700">
+                                      {it.qty}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              /* Flat View fallback (standard table) */
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-slate-50 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-3.5">Challan No</th>
+                        <th className="px-4 py-3.5">Date</th>
+                        <th className="px-4 py-3.5">Vendor Name</th>
+                        <th className="px-4 py-3.5">Customer Name</th>
+                        <th className="px-4 py-3.5">Mould</th>
+                        <th className="px-4 py-3.5">Plate Name</th>
+                        <th className="px-4 py-3.5">Particulars</th>
+                        <th className="px-4 py-3.5 text-right">Jobwork Qty</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {pendingOutwardItems.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center py-12 text-slate-400">
+                            No pending outward jobwork records found.
+                          </td>
+                        </tr>
+                      ) : (
+                        pendingOutwardItems.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3.5 font-semibold text-blue-600">
+                              {row.challanno}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-600 whitespace-nowrap">
+                              {row.chdate}
+                            </td>
+                            <td className="px-4 py-3.5 font-medium text-slate-900">
+                              {row.vendorname}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-600">
+                              {row.customername}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-500 font-mono text-xs">
+                              {row.projectid}
+                            </td>
+                            <td className="px-4 py-3.5 font-medium text-slate-900">
+                              {row.platename}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-700">
+                              {row.particulars}
+                            </td>
+                            <td className="px-4 py-3.5 text-right font-bold text-amber-600">
+                              {row.qty}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1255,14 +1640,15 @@ function ChallanPageContent() {
                 <CustomerSelect
                   customers={customersList as Customer[]}
                   value={modalForm.customerid}
-                  onChange={(val) =>
+                  onChange={(val) => {
+                    lastLoadedMouldRef.current = null;
                     setModalForm((prev) => ({
                       ...prev,
                       customerid: val,
                       projectid: "",
                       items: [],
-                    }))
-                  }
+                    }));
+                  }}
                   filterUserType="Customer"
                   placeholder="Select Customer Name"
                   required
@@ -1278,13 +1664,43 @@ function ChallanPageContent() {
               <ProjectSelect
                 projects={availableProjects}
                 value={modalForm.projectid}
-                onChange={(val, project) =>
+                onChange={(val, project) => {
+                  lastLoadedMouldRef.current = null;
+                  const newProjectId = project?.projectid || val;
+                  const scanId = project?.id ? String(project.id) : "";
+
+                  const matchingPlates = allSubplates.filter(
+                    (sp: Subplate) =>
+                      String(sp.projectid) === String(newProjectId) ||
+                      (scanId && String(sp.projectid) === scanId) ||
+                      (sp.mold_id && project?.id && Number(sp.mold_id) === Number(project.id)) ||
+                      (sp.mold_code && sp.mold_code === newProjectId) ||
+                      (sp.subprojectid && sp.subprojectid.includes(newProjectId))
+                  );
+
+                  const cust = customers.find((c) => c.id === Number(modalForm.customerid));
+                  const customerName = cust?.customername || selectedCustomer?.customername || "";
+
+                  const autoItems = matchingPlates.map((plate) => ({
+                    plateid: String(plate.id),
+                    platename: plate.platename || `Plate #${plate.id}`,
+                    customer: customerName,
+                    project: newProjectId,
+                    particulars: "",
+                    qty: plate.sqty || 1,
+                    sqty: plate.sqty || 1,
+                  }));
+
+                  if (matchingPlates.length > 0) {
+                    lastLoadedMouldRef.current = newProjectId;
+                  }
+
                   setModalForm((prev) => ({
                     ...prev,
-                    projectid: project?.projectid || val,
-                    items: [],
-                  }))
-                }
+                    projectid: newProjectId,
+                    items: autoItems,
+                  }));
+                }}
                 disabled={!modalForm.customerid}
                 placeholder={
                   !modalForm.customerid
@@ -1316,101 +1732,106 @@ function ChallanPageContent() {
 
               {modalForm.items.length === 0 ? (
                 <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                  No plates added yet. Click &quot;Add Plate&quot; to append jobwork items.
+                  {modalForm.projectid
+                    ? "No subplates found for this mould project. Click 'Add Plate' to append manual items."
+                    : "Select Customer and Mould Name above to automatically load all subplates."}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {modalForm.items.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="p-4 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 md:grid-cols-12 gap-3 items-end"
-                    >
-                      <div className="md:col-span-3">
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Subplate *
-                        </label>
-                        <ERPSelect
-                          value={item.plateid}
-                          onChange={(val) =>
-                            handleItemChange(idx, "plateid", String(val))
-                          }
-                          options={subplateOptions}
-                          placeholder="Select Subplate"
-                          searchPlaceholder="Filter subplate..."
-                          showSearch={subplateOptions.length > 5}
-                          required
-                        />
-                      </div>
+                  {modalForm.items.map((item, idx) => {
+                    const selectedPlate = allSubplates.find(
+                      (p) => String(p.id) === String(item.plateid)
+                    );
+                    const plateCode = selectedPlate?.subprojectid || "";
 
-                      <div className="md:col-span-2">
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Customer
-                        </label>
-                        <input
-                          type="text"
-                          value={item.customer}
-                          readOnly
-                          className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500"
-                        />
-                      </div>
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3.5 bg-slate-50/90 rounded-xl border border-slate-200 space-y-2.5 transition hover:border-slate-300"
+                      >
+                        {/* Top Micro-bar: Index + Full Subplate ID + Material badge + Remove button */}
+                        <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/70">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                              {idx + 1}
+                            </span>
+                            {plateCode && (
+                              <span className="text-[11px] font-mono font-medium text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-2xs">
+                                {plateCode}
+                              </span>
+                            )}
+                            {selectedPlate?.material && (
+                              <span className="text-[10px] text-slate-500 bg-slate-200/60 px-1.5 py-0.5 rounded font-medium">
+                                Mat: {selectedPlate.material}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemRow(idx)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Remove row"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="text-[11px] font-medium">Remove</span>
+                          </button>
+                        </div>
 
-                      <div className="md:col-span-2">
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Mould
-                        </label>
-                        <input
-                          type="text"
-                          value={item.project}
-                          readOnly
-                          className="w-full px-2.5 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-500 font-mono"
-                        />
-                      </div>
+                        {/* Fields Grid: Subplate (6 cols), Particulars (4 cols), Qty (2 cols) */}
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                          <div className="md:col-span-6">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Subplate *
+                            </label>
+                            <ERPSelect
+                              value={item.plateid}
+                              onChange={(val) =>
+                                handleItemChange(idx, "plateid", String(val))
+                              }
+                              options={subplateOptions}
+                              placeholder="Select Subplate"
+                              searchPlaceholder="Filter subplate..."
+                              showSearch={subplateOptions.length > 5}
+                              required
+                            />
+                          </div>
 
-                      <div className="md:col-span-3">
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Particulars *
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. Rough Milling, Hardening"
-                          value={item.particulars}
-                          onChange={(e) =>
-                            handleItemChange(idx, "particulars", e.target.value)
-                          }
-                          required
-                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
+                          <div className="md:col-span-4">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Particulars / Operation *
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Rough Milling, Hardening"
+                              value={item.particulars}
+                              onChange={(e) =>
+                                handleItemChange(idx, "particulars", e.target.value)
+                              }
+                              required
+                              className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-500"
+                            />
+                          </div>
 
-                      <div className="md:col-span-1">
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Qty *
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max={item.sqty > 0 ? item.sqty : undefined}
-                          value={item.qty}
-                          onChange={(e) =>
-                            handleItemChange(idx, "qty", Number(e.target.value))
-                          }
-                          required
-                          className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500"
-                        />
+                          <div className="md:col-span-2">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1 text-center">
+                              Qty *
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max={item.sqty > 0 ? item.sqty : undefined}
+                              value={item.qty}
+                              onChange={(e) =>
+                                handleItemChange(idx, "qty", Number(e.target.value))
+                              }
+                              required
+                              className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 text-center"
+                            />
+                          </div>
+                        </div>
                       </div>
-
-                      <div className="md:col-span-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItemRow(idx)}
-                          className="p-2 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg transition cursor-pointer"
-                          title="Delete row"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

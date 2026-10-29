@@ -12,6 +12,7 @@ import {
   PackageCheck,
   Tag,
   Boxes,
+  Plus,
 } from "lucide-react";
 import type { Subplate, ScanProject } from "@/lib/supabase/types";
 import { formatSubplateDimensions, calculateSubplateWeight } from "@/lib/weight-calculator";
@@ -20,6 +21,7 @@ interface MoldSubplatesInlineProps {
   project: ScanProject;
   subplates: Subplate[];
   onOpenDrawer?: () => void;
+  onAddSubplate?: (project: ScanProject) => void;
 }
 
 const CATEGORY_STYLES: Record<string, { bg: string; text: string; border: string }> = {
@@ -134,6 +136,7 @@ export function MoldSubplatesInline({
   project,
   subplates = [],
   onOpenDrawer,
+  onAddSubplate,
 }: MoldSubplatesInlineProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [subSearch, setSubSearch] = useState<string>("");
@@ -243,6 +246,18 @@ export function MoldSubplatesInline({
             </span>
           )}
 
+          {onAddSubplate && (
+            <button
+              type="button"
+              onClick={() => onAddSubplate(project)}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+              title="Add new subplate to this mould"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Subplate</span>
+            </button>
+          )}
+
           {onOpenDrawer && (
             <button
               type="button"
@@ -320,7 +335,26 @@ export function MoldSubplatesInline({
       </div>
 
       {/* Subplates Table */}
-      {filteredSubplates.length === 0 ? (
+      {subplates.length === 0 ? (
+        <div className="py-8 px-4 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-2.5 shadow-2xs">
+          <Layers className="w-7 h-7 mx-auto text-slate-300 mb-1" />
+          <p className="text-xs text-slate-600 font-medium">
+            No subplates have been defined for this mould project yet.
+          </p>
+          {onAddSubplate && (
+            <div>
+              <button
+                type="button"
+                onClick={() => onAddSubplate(project)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add First Subplate</span>
+              </button>
+            </div>
+          )}
+        </div>
+      ) : filteredSubplates.length === 0 ? (
         <div className="py-8 bg-white rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
           <Layers className="w-6 h-6 mx-auto text-slate-300 mb-1.5" />
           <p className="font-medium">No subplates match the selected filter</p>

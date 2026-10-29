@@ -69,6 +69,9 @@ async function main() {
     { name: '20261020114500_project_code_rpc.sql', path: 'supabase/migrations/20261020114500_project_code_rpc.sql' },
     { name: '20261021110000_fix_unrestricted_tables_and_views.sql', path: 'supabase/migrations/20261021110000_fix_unrestricted_tables_and_views.sql' },
     { name: '013_mold_subplate_database_reorganization.sql', path: 'src/data/migrations/013_mold_subplate_database_reorganization.sql' },
+    { name: '20261029161500_fix_mould_project_code_initials_matching.sql', path: 'supabase/migrations/20261029161500_fix_mould_project_code_initials_matching.sql' },
+    { name: '20261029171000_add_customer_code_and_pan_code.sql', path: 'supabase/migrations/20261029171000_add_customer_code_and_pan_code.sql' },
+    { name: '20261029172000_fix_inward_items_qty_status_filter.sql', path: 'supabase/migrations/20261029172000_fix_inward_items_qty_status_filter.sql' },
   ];
 
   console.log(`=== RUNNING ALL MIGRATIONS (${migrationManifest.length} total) ===\n`);

@@ -43,6 +43,7 @@ import {
 import { formatSubplateDimensions } from "@/lib/weight-calculator";
 import { NewMouldModal } from "@/components/mould/new-mould-modal";
 import { MoldSubplatesInline } from "@/components/mould/mold-subplates-inline";
+import { CreateSubplateModal } from "@/components/subplate/create-subplate-modal";
 
 export function getWorkTypeBadgeStyle(worktype?: string | null): string {
   switch (worktype) {
@@ -68,12 +69,14 @@ function ScanningPageContent() {
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
   const { hasPermission } = useRolePermissions();
   const canCreateProject = hasPermission("action_create_scanning_project");
+  const canCreateSubplate = hasPermission("action_create_subplate");
   const canEditMould = hasPermission("action_edit_mould");
   const canDeleteMould = hasPermission("action_delete_mould");
   const canAdvanceStage = hasPermission("action_advance_pipeline");
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
+  const [addSubplateProject, setAddSubplateProject] = useState<ScanProject | null>(null);
   const [searchQuery, setSearchQuery] = useState(urlSearch);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [customerFilter, setCustomerFilter] = useState("ALL");
@@ -546,6 +549,16 @@ function ScanningPageContent() {
                                 >
                                   <Layers className="w-4 h-4" />
                                 </button>
+                                {canCreateSubplate && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setAddSubplateProject(row)}
+                                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                                    title="Add Subplate to this mould"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </button>
+                                )}
                                 {canDeleteMould && (
                                   <button
                                     type="button"
@@ -576,6 +589,7 @@ function ScanningPageContent() {
                                 project={row}
                                 subplates={row.subplates || []}
                                 onOpenDrawer={() => setSelectedProject(row)}
+                                onAddSubplate={canCreateSubplate ? (proj) => setAddSubplateProject(proj) : undefined}
                               />
                             </td>
                           </tr>
@@ -755,6 +769,7 @@ function ScanningPageContent() {
                           project={row}
                           subplates={row.subplates || []}
                           onOpenDrawer={() => setSelectedProject(row)}
+                          onAddSubplate={canCreateSubplate ? (proj) => setAddSubplateProject(proj) : undefined}
                         />
                       </div>
                     )}
@@ -772,13 +787,25 @@ function ScanningPageContent() {
           width="xl"
           title={
             selectedProject ? (
-              <div>
-                <h3 className="text-base font-bold text-slate-900 font-mono">
-                  {selectedProject.projectid} Subplates
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {selectedProject.description}
-                </p>
+              <div className="flex items-center justify-between w-full pr-8">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 font-mono">
+                    {selectedProject.projectid} Subplates
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {selectedProject.description}
+                  </p>
+                </div>
+                {canCreateSubplate && (
+                  <button
+                    type="button"
+                    onClick={() => setAddSubplateProject(selectedProject)}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Subplate</span>
+                  </button>
+                )}
               </div>
             ) : undefined
           }
@@ -786,12 +813,24 @@ function ScanningPageContent() {
           {selectedProject && (
             <div className="space-y-3">
               {projectSubplates.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-xs">
+                <div className="py-12 text-center text-slate-400 text-xs space-y-2">
                   <Layers className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                   <p className="font-medium text-slate-600">No subplates linked yet</p>
-                  <p className="text-slate-400 mt-1">
-                    Plates will appear here once attached to this project.
+                  <p className="text-slate-400">
+                    No subplates have been defined for this mould project yet.
                   </p>
+                  {canCreateSubplate && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setAddSubplateProject(selectedProject)}
+                        className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>+ Add First Subplate</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 projectSubplates.map((sp) => {
@@ -847,9 +886,20 @@ function ScanningPageContent() {
           <NewMouldModal
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
+            onSuccess={() => setIsModalOpen(false)}
             customers={customers}
           />
         )}
+
+        {/* Add Subplate Modal */}
+        <CreateSubplateModal
+          isOpen={Boolean(addSubplateProject)}
+          project={addSubplateProject}
+          onClose={() => setAddSubplateProject(null)}
+          onSuccess={() => {
+            projectsQuery.refetch();
+          }}
+        />
       </div>
     </AppLayout>
   );

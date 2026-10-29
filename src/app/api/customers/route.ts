@@ -75,6 +75,27 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ exists: (count ?? 0) > 0 });
     }
 
+    // 2b. Customer code existence check (mirrors vendor_code validation)
+    const checkCustomerCode = searchParams.get("checkCustomerCode") || searchParams.get("checkCode") || searchParams.get("checkPanCode");
+    if (checkCustomerCode) {
+      const clean = checkCustomerCode.trim().toUpperCase();
+      let query = supabaseAdmin
+        .from("customers")
+        .select("id", { count: "exact", head: true })
+        .is("deleted_at", null)
+        .or(`customer_code.ilike.${clean},pan_code.ilike.${clean}`);
+
+      if (excludeId) {
+        query = query.neq("id", excludeId);
+      }
+
+      const { count, error } = await query;
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json({ exists: (count ?? 0) > 0 });
+    }
+
     // 3. Main listing query with explicit columns and server-side filtering
     const isDefaultQuery = !search && (!usertype || usertype === "All" || usertype === "ALL") && (!page || page === 1);
     const cacheKey = isDefaultQuery ? `customers_default_${limit}` : null;
@@ -82,7 +103,7 @@ export async function GET(req: NextRequest) {
     const executeFetch = async () => {
       let query = supabaseAdmin
         .from("customers")
-        .select("id, customername, initials, customer_code, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, contact_person, status_of_beneficiary, created_at, updated_at", { count: "exact" })
+        .select("id, customername, initials, customer_code, pan_code, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, contact_person, status_of_beneficiary, created_at, updated_at", { count: "exact" })
         .is("deleted_at", null)
         .order("id", { ascending: false });
 
@@ -92,7 +113,7 @@ export async function GET(req: NextRequest) {
       if (search) {
         const cleanSearch = search.replace(/[^a-zA-Z0-9\-_ ]/g, "").trim();
         if (cleanSearch) {
-          query = query.or(`customername.ilike.%${cleanSearch}%,initials.ilike.%${cleanSearch}%,customer_code.ilike.%${cleanSearch}%,vendor_code.ilike.%${cleanSearch}%,city.ilike.%${cleanSearch}%,gstin.ilike.%${cleanSearch}%,contact_person.ilike.%${cleanSearch}%,mobile.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`);
+          query = query.or(`customername.ilike.%${cleanSearch}%,initials.ilike.%${cleanSearch}%,customer_code.ilike.%${cleanSearch}%,pan_code.ilike.%${cleanSearch}%,vendor_code.ilike.%${cleanSearch}%,city.ilike.%${cleanSearch}%,gstin.ilike.%${cleanSearch}%,contact_person.ilike.%${cleanSearch}%,mobile.ilike.%${cleanSearch}%,email.ilike.%${cleanSearch}%`);
         }
       }
 
@@ -174,6 +195,7 @@ export async function POST(req: NextRequest) {
 
     const cleanName = customername?.trim();
     const cleanInitials = initials?.replace(/\s+/g, "").toUpperCase().slice(0, 5);
+    const cleanCustomerCode = (body.customer_code || body.pan_code)?.trim()?.toUpperCase() || cleanInitials;
     const cleanMobile = mobile ? String(mobile).replace(/\D/g, "").slice(0, 10) : null;
     const cleanMobile1 = mobile1 ? String(mobile1).replace(/\D/g, "").slice(0, 10) : null;
 
@@ -182,6 +204,9 @@ export async function POST(req: NextRequest) {
     }
     if (!cleanInitials) {
       return NextResponse.json({ error: "Initials are required (max 5 letters)" }, { status: 400 });
+    }
+    if (!cleanCustomerCode) {
+      return NextResponse.json({ error: "Customer code is required" }, { status: 400 });
     }
     if (cleanMobile && cleanMobile.length !== 10) {
       return NextResponse.json({ error: "Mobile No. 1 must be exactly 10 numeric digits." }, { status: 400 });
@@ -214,6 +239,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Initial already exists!" }, { status: 400 });
     }
 
+    // Check duplicate customer_code against active records
+    const { data: existingCode } = await supabaseAdmin
+      .from("customers")
+      .select("id")
+      .is("deleted_at", null)
+      .or(`customer_code.ilike.${cleanCustomerCode},pan_code.ilike.${cleanCustomerCode}`)
+      .limit(1);
+
+    if (existingCode && existingCode.length > 0) {
+      return NextResponse.json({ error: "Customer code already exists." }, { status: 400 });
+    }
+
     // Check duplicate name against active records
     const { data: existingName } = await supabaseAdmin
       .from("customers")
@@ -233,7 +270,8 @@ export async function POST(req: NextRequest) {
         {
           customername: cleanName,
           initials: cleanInitials,
-          customer_code: body.customer_code?.trim() || cleanInitials,
+          customer_code: cleanCustomerCode,
+          pan_code: cleanCustomerCode,
           mobile: cleanMobile || null,
           mobile1: cleanMobile1 || null,
           email: email?.trim() || null,
@@ -263,6 +301,13 @@ export async function POST(req: NextRequest) {
         error.message?.includes("unique constraint") ||
         error.message?.includes("duplicate key")
       ) {
+        if (
+          error.message?.includes("customer_code") ||
+          error.message?.includes("idx_customers_customer_code_unique") ||
+          error.message?.includes("pan_code")
+        ) {
+          return NextResponse.json({ error: "Customer code already exists." }, { status: 400 });
+        }
         if (error.message?.includes("initials")) {
           return NextResponse.json({ error: "Initial already exists!" }, { status: 400 });
         }
@@ -347,6 +392,22 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Mobile No. 2 must be exactly 10 numeric digits." }, { status: 400 });
     }
 
+    // Check duplicate customer_code if updated
+    const cleanCustomerCode = (body.customer_code !== undefined ? body.customer_code : body.pan_code)?.trim()?.toUpperCase();
+    if (cleanCustomerCode) {
+      const { data: existingCode } = await supabaseAdmin
+        .from("customers")
+        .select("id")
+        .is("deleted_at", null)
+        .neq("id", id)
+        .or(`customer_code.ilike.${cleanCustomerCode},pan_code.ilike.${cleanCustomerCode}`)
+        .limit(1);
+
+      if (existingCode && existingCode.length > 0) {
+        return NextResponse.json({ error: "Customer code already exists." }, { status: 400 });
+      }
+    }
+
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {
       customername: cleanName,
@@ -354,7 +415,8 @@ export async function PUT(req: NextRequest) {
       mobile1: cleanMobile1,
       email: email !== undefined ? (email?.trim() || null) : undefined,
       address: address !== undefined ? (address?.trim() || null) : undefined,
-      customer_code: body.customer_code !== undefined ? (body.customer_code?.trim() || null) : undefined,
+      customer_code: cleanCustomerCode !== undefined ? (cleanCustomerCode || null) : undefined,
+      pan_code: cleanCustomerCode !== undefined ? (cleanCustomerCode || null) : undefined,
       vendor_code: vendor_code !== undefined ? (vendor_code?.trim() || null) : undefined,
       city: city !== undefined ? (city?.trim() || null) : undefined,
       gstin: gstin !== undefined ? (gstin?.trim()?.toUpperCase() || null) : undefined,
@@ -388,6 +450,13 @@ export async function PUT(req: NextRequest) {
         error.message?.includes("unique constraint") ||
         error.message?.includes("duplicate key")
       ) {
+        if (
+          error.message?.includes("customer_code") ||
+          error.message?.includes("idx_customers_customer_code_unique") ||
+          error.message?.includes("pan_code")
+        ) {
+          return NextResponse.json({ error: "Customer code already exists." }, { status: 400 });
+        }
         if (error.message?.includes("initials")) {
           return NextResponse.json({ error: "Initial already exists!" }, { status: 400 });
         }

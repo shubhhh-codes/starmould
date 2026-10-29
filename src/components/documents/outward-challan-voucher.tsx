@@ -299,48 +299,26 @@ export function OutwardChallanVoucher({
                 3. JOB WORK QUICK LOGISTICS BAR
                 ────────────────────────────────────────────────────────────────── */}
             <div
-              className="w-[710px] rounded-[10px] border px-[16px] py-[8px] mb-[20px] flex items-center justify-between text-[10px]"
+              className="w-[710px] rounded-[8px] border px-[18px] py-[9px] mb-[18px] flex items-center justify-between text-[10px]"
               style={{
                 borderColor: TEAL_BORDER,
                 backgroundColor: "#ffffff",
               }}
             >
-              <div>
+              <div className="flex items-center gap-1.5">
                 <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
                   Transporter:&nbsp;
                 </span>
-                <span className="font-medium" style={{ color: TEXT_DARK }}>
+                <span className="font-semibold text-[11px]" style={{ color: TEXT_DARK }}>
                   {challan.transporter || "Self / Hand to Hand"}
                 </span>
               </div>
-              <div>
+              <div className="flex items-center gap-1.5">
                 <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
                   Movement Purpose:&nbsp;
                 </span>
                 <span className="font-medium" style={{ color: TEXT_DARK }}>
                   Job Work / Subplate Processing
-                </span>
-              </div>
-              <div>
-                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
-                  GST Category:&nbsp;
-                </span>
-                <span
-                  className="font-bold px-1.5 py-0.5 rounded text-[9px]"
-                  style={{
-                    backgroundColor: "#ecfdf5",
-                    color: "#047857",
-                  }}
-                >
-                  Sec. 143 Non-Taxable Outward
-                </span>
-              </div>
-              <div>
-                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
-                  Project Code:&nbsp;
-                </span>
-                <span className="font-bold font-mono text-[9.5px]" style={{ color: TEAL_PRIMARY }}>
-                  {challan.projectCode || "—"}
                 </span>
               </div>
             </div>
@@ -433,22 +411,16 @@ export function OutwardChallanVoucher({
                 <table className="w-full border-collapse text-[9.5px]">
                   <thead>
                     <tr className="text-white" style={{ backgroundColor: TEAL_PRIMARY }}>
-                      <th className="h-[36px] px-[8px] text-center w-[38px] border-r border-white/40 font-semibold text-[9.5px]">
+                      <th className="h-[36px] px-[8px] text-center w-[40px] border-r border-white/40 font-semibold text-[9.5px]">
                         #
                       </th>
-                      <th className="h-[36px] px-[12px] text-left w-[240px] border-r border-white/40 font-semibold text-[9.5px]">
+                      <th className="h-[36px] px-[14px] text-left w-[360px] border-r border-white/40 font-semibold text-[9.5px]">
                         Component / Plate Description
                       </th>
-                      <th className="h-[36px] px-[10px] text-left w-[170px] border-r border-white/40 font-semibold text-[9.5px]">
+                      <th className="h-[36px] px-[10px] text-left w-[230px] border-r border-white/40 font-semibold text-[9.5px]">
                         Job Work Particulars
                       </th>
-                      <th className="h-[36px] px-[8px] text-center w-[90px] border-r border-white/40 font-semibold text-[9.5px]">
-                        Material
-                      </th>
-                      <th className="h-[36px] px-[8px] text-center w-[110px] border-r border-white/40 font-semibold text-[9.5px]">
-                        Dimensions (WxHxL)
-                      </th>
-                      <th className="h-[36px] px-[12px] text-center w-[62px] font-semibold text-[9.5px]">
+                      <th className="h-[36px] px-[12px] text-center w-[80px] font-semibold text-[9.5px]">
                         Qty
                       </th>
                     </tr>
@@ -456,7 +428,7 @@ export function OutwardChallanVoucher({
                   <tbody>
                     {items.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="h-[46px] text-center text-slate-400 italic">
+                        <td colSpan={4} className="h-[46px] text-center text-slate-400 italic">
                           No subplates or items specified in this outward challan.
                         </td>
                       </tr>
@@ -465,8 +437,6 @@ export function OutwardChallanVoucher({
                         const qty = Number(it.qty) || 1;
                         const plateName = it.platename || "Mould Plate";
                         const particulars = it.particulars || "Standard Machining / Job Work";
-                        const mat = it.material || "—";
-                        const dims = it.dimensions || "—";
 
                         return (
                           <tr
@@ -488,27 +458,12 @@ export function OutwardChallanVoucher({
                               <div className="font-semibold text-[10.5px]" style={{ color: TEXT_DARK }}>
                                 {plateName}
                               </div>
-                              <div className="text-[8.5px] mt-[1px] text-slate-500 font-mono">
-                                Subplate Ref: #{idx + 1}
-                              </div>
                             </td>
                             <td
                               className="h-[44px] px-[10px] text-left font-medium border-t border-r text-[9.5px]"
                               style={{ borderColor: TEAL_BORDER, color: TEXT_DARK }}
                             >
                               {particulars}
-                            </td>
-                            <td
-                              className="h-[44px] px-[8px] text-center border-t border-r font-medium text-[9px]"
-                              style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
-                            >
-                              {mat}
-                            </td>
-                            <td
-                              className="h-[44px] px-[8px] text-center font-mono font-medium border-t border-r text-[9px]"
-                              style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
-                            >
-                              {dims}
                             </td>
                             <td
                               className="h-[44px] px-[12px] text-center font-bold border-t text-[11px]"
@@ -523,7 +478,7 @@ export function OutwardChallanVoucher({
                     {/* Total Row */}
                     <tr style={{ backgroundColor: "#e6f2f6", fontWeight: 700 }}>
                       <td
-                        colSpan={5}
+                        colSpan={3}
                         className="h-[34px] px-[16px] text-right uppercase tracking-wider text-[9.5px] border-t"
                         style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
                       >

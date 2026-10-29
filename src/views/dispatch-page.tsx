@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -114,6 +114,7 @@ export function DispatchPage() {
   // Add Dispatch Challan Modal State (Source: dispatch/index.blade.php lines 96-280)
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const lastLoadedMouldRef = useRef<string | null>(null);
 
   // Filtered dropdown lists strictly based on legacy usertype
   const customersList = useMemo(() => customers.filter((c) => c.usertype === "Customer"), [customers]);
@@ -186,6 +187,38 @@ export function DispatchPage() {
     );
   }, [subplates, modalForm.projectid, selectedScan]);
 
+  // Automatically populate all subplates of the mould into Dispatch Items
+  useEffect(() => {
+    if (!modalForm.projectid) {
+      lastLoadedMouldRef.current = null;
+      return;
+    }
+
+    if (availablePlates.length > 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
+      lastLoadedMouldRef.current = modalForm.projectid;
+      const cust = customers.find((c) => c.id === Number(modalForm.customerid));
+      const customerVal = cust?.id ? String(cust.id) : (modalForm.customerid || "");
+
+      const autoPopulatedItems = availablePlates.map((plate) => ({
+        itemType: "regular" as const,
+        plateid: String(plate.id),
+        custom_plate_name: "",
+        customer: customerVal,
+        project: modalForm.projectid,
+        particulars: "",
+        condition: "NEW",
+        work: "NEW MADE",
+        qty: plate.sqty || 1,
+        sqty: plate.sqty || 1,
+      }));
+
+      setModalForm((prev) => ({
+        ...prev,
+        items: autoPopulatedItems,
+      }));
+    }
+  }, [availablePlates, modalForm.projectid, modalForm.customerid, customers]);
+
   const transporterOptions: ERPSelectOption[] = useMemo(() => {
     return transporters.map((t) => ({
       value: String(t.id),
@@ -213,13 +246,21 @@ export function DispatchPage() {
   );
 
   const subplateOptions: ERPSelectOption[] = useMemo(() => {
-    return availablePlates.map((p) => ({
-      value: String(p.id),
-      label: p.platename,
-      subtitle: p.material ? `Material: ${p.material}` : undefined,
-      badge: p.subprojectid || undefined,
-      badgeVariant: "blue" as const,
-    }));
+    return availablePlates.map((p) => {
+      const seq = p.subprojectid ? p.subprojectid.split("_").pop() : "";
+      return {
+        value: String(p.id),
+        label: p.platename,
+        subtitle: [
+          p.subprojectid ? `Code: ${p.subprojectid}` : "",
+          p.material ? `Material: ${p.material}` : "",
+        ]
+          .filter(Boolean)
+          .join(" • ") || undefined,
+        badge: seq ? `#${seq}` : undefined,
+        badgeVariant: "blue" as const,
+      };
+    });
   }, [availablePlates]);
 
   const customerFilterOptions: ERPSelectOption[] = useMemo(() => {
@@ -1053,14 +1094,15 @@ export function DispatchPage() {
                   <CustomerSelect
                     customers={customers as Customer[]}
                     value={modalForm.customerid}
-                    onChange={(val) =>
+                    onChange={(val) => {
+                      lastLoadedMouldRef.current = null;
                       setModalForm((prev) => ({
                         ...prev,
                         customerid: val,
                         projectid: "",
                         items: [],
-                      }))
-                    }
+                      }));
+                    }}
                     filterUserType="Customer"
                     placeholder="Search or pick customer..."
                     required
@@ -1091,13 +1133,46 @@ export function DispatchPage() {
                   <ProjectSelect
                     projects={availableProjects}
                     value={modalForm.projectid}
-                    onChange={(val, project) =>
+                    onChange={(val, project) => {
+                      lastLoadedMouldRef.current = null;
+                      const newProjectId = project?.projectid || val;
+                      const targetId = project ? String(project.id) : null;
+
+                      const matchingPlates = subplates.filter(
+                        (sp) =>
+                          (targetId && String(sp.projectid) === targetId) ||
+                          (targetId && String((sp as any).mold_id) === targetId) ||
+                          String(sp.projectid) === newProjectId ||
+                          (sp as any).mold_code === newProjectId ||
+                          (sp.subprojectid && newProjectId && sp.subprojectid.includes(newProjectId))
+                      );
+
+                      const cust = customers.find((c) => c.id === Number(modalForm.customerid));
+                      const customerVal = cust?.id ? String(cust.id) : (modalForm.customerid || "");
+
+                      const autoItems = matchingPlates.map((plate) => ({
+                        itemType: "regular" as const,
+                        plateid: String(plate.id),
+                        custom_plate_name: "",
+                        customer: customerVal,
+                        project: newProjectId,
+                        particulars: "",
+                        condition: "NEW",
+                        work: "NEW MADE",
+                        qty: plate.sqty || 1,
+                        sqty: plate.sqty || 1,
+                      }));
+
+                      if (matchingPlates.length > 0) {
+                        lastLoadedMouldRef.current = newProjectId;
+                      }
+
                       setModalForm((prev) => ({
                         ...prev,
-                        projectid: project?.projectid || val,
-                        items: [],
-                      }))
-                    }
+                        projectid: newProjectId,
+                        items: autoItems,
+                      }));
+                    }}
                     disabled={!modalForm.customerid}
                     placeholder={
                       !modalForm.customerid

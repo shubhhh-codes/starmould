@@ -1438,8 +1438,6 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               <tr className="border-b-2 border-slate-900 bg-slate-100 text-slate-900 font-bold uppercase">
                 <th className="py-2.5 px-3 w-12 text-center">#</th>
                 <th className="py-2.5 px-3">Particulars / Specifications</th>
-                {type === "challan" && <th className="py-2.5 px-3">Material</th>}
-                {type === "challan" && <th className="py-2.5 px-3">Dimensions</th>}
                 {type === "dispatch" && <th className="py-2.5 px-3">Condition</th>}
                 {type === "dispatch" && <th className="py-2.5 px-3">Work Nature</th>}
                 {type === "inward" && <th className="py-2.5 px-3 text-right">Ordered Qty</th>}
@@ -1454,12 +1452,6 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
                     {it.srNo || idx + 1}
                   </td>
                   <td className="py-2 px-3 font-semibold text-slate-900">{it.particulars}</td>
-                  {type === "challan" && (
-                    <td className="py-2 px-3 text-slate-700">{it.material || "—"}</td>
-                  )}
-                  {type === "challan" && (
-                    <td className="py-2 px-3 text-slate-700 font-mono">{it.dimensions || "—"}</td>
-                  )}
                   {type === "dispatch" && (
                     <td className="py-2 px-3 font-medium text-blue-700">{it.condition}</td>
                   )}
