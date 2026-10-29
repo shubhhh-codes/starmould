@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { verifySecurePrintToken } from "@/lib/print-token";
+import { escapeHtml } from "@/lib/utils";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
@@ -204,17 +205,20 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    const consigneeName = quote.consignee_name || "—";
-    const consigneeAddress = quote.consignee_address || "—";
-    const consigneeGstin = quote.consignee_gstin || "—";
-    const consigneePan = quote.consignee_pan || "—";
-    const consigneePhone = quote.consignee_phone || "—";
-    const consigneeEmail = quote.consignee_email || "—";
+    const consigneeName = escapeHtml(quote.consignee_name || "—");
+    const consigneeAddress = escapeHtml(quote.consignee_address || "—");
+    const consigneeGstin = escapeHtml(quote.consignee_gstin || "—");
+    const consigneePan = escapeHtml(quote.consignee_pan || "—");
+    const consigneePhone = escapeHtml(quote.consignee_phone || "—");
+    const consigneeEmail = escapeHtml(quote.consignee_email || "—");
+    customerCode = escapeHtml(customerCode);
+    const quotationNo = escapeHtml(quote.quotation_no || "—");
+    const quotationDate = escapeHtml(formatDate(quote.quotation_date));
 
-    const bankName = quote.bank_name || "Central Bank Of India";
-    const bankAccountNo = quote.bank_account_no || "5875819245";
-    const bankIfsc = quote.bank_ifsc || "CBIN0281313";
-    const bankBranch = quote.bank_branch || "Saurashtra University Branch";
+    const bankName = escapeHtml(quote.bank_name || "Central Bank Of India");
+    const bankAccountNo = escapeHtml(quote.bank_account_no || "5875819245");
+    const bankIfsc = escapeHtml(quote.bank_ifsc || "CBIN0281313");
+    const bankBranch = escapeHtml(quote.bank_branch || "Saurashtra University Branch");
 
     const activeTerms = [
       { label: "Price & GST", content: quote.price_terms },
@@ -225,7 +229,9 @@ export async function GET(req: NextRequest) {
       { label: "Warranty", content: quote.warranty_terms },
       { label: "Jurisdiction", content: quote.jurisdiction_terms },
       { label: "Force Majeure", content: quote.force_majeure },
-    ].filter((t) => Boolean(t.content && t.content.trim()));
+    ]
+      .filter((t) => Boolean(t.content && t.content.trim()))
+      .map((t) => ({ label: escapeHtml(t.label), content: escapeHtml(t.content) }));
 
     // ── Annexure Detailed Manufacturer Terms (23 Clauses Split Across 2 Pages) ──
     const ANNEXURE_TERMS_PART1 = [
@@ -426,15 +432,15 @@ export async function GET(req: NextRequest) {
           <tr class="${rowClass}">
             <td class="td-center" style="color: #4a575e;">${itemNumber}</td>
             <td class="td-left" style="padding: 6px 12px;">
-              <div style="color: #1f2a30; font-weight: 700; font-size: 10px;">${it.product_name || it.product_description}</div>
+              <div style="color: #1f2a30; font-weight: 700; font-size: 10px;">${escapeHtml(it.product_name || it.product_description || "—")}</div>
               ${it.description ? `
                 <div style="color: #64748b; font-size: 8.5px; font-weight: 400; white-space: pre-line; line-height: 1.35; margin-top: 2px;">
-                  ${it.description}
+                  ${escapeHtml(it.description)}
                 </div>
               ` : ""}
             </td>
             <td class="td-center" style="font-variant-numeric: tabular-nums; color: #3d4a52;">${qty}</td>
-            <td class="td-center" style="color: #3d4a52;">${unit}</td>
+            <td class="td-center" style="color: #3d4a52;">${escapeHtml(unit)}</td>
             <td class="td-right" style="font-variant-numeric: tabular-nums; color: #3d4a52;">₹ ${formatINRTwoDecimals(price)}</td>
             <td class="td-right" style="font-variant-numeric: tabular-nums; font-weight: 600; color: #006181;">₹ ${formatINRTwoDecimals(total)}</td>
           </tr>
@@ -476,7 +482,7 @@ export async function GET(req: NextRequest) {
                 Special Note / Remarks
               </div>
               <div style="font-size: 8.5px; font-weight: 400; color: #3d4a52; line-height: 1.35; white-space: pre-line; word-break: break-word;">
-                ${quote.notes.slice(0, 240)}
+                ${escapeHtml(quote.notes.slice(0, 240))}
               </div>
             </div>
           ` : ""}
@@ -1162,11 +1168,11 @@ export async function GET(req: NextRequest) {
               <div class="info-box">
                 <div class="info-col">
                   <div class="info-label">QUOTATION NO.</div>
-                  <div class="info-val">${quote.quotation_no || "—"}</div>
+                  <div class="info-val">${quotationNo}</div>
                 </div>
                 <div class="info-col">
                   <div class="info-label">QUOTATION DATE</div>
-                  <div class="info-val">${formatDate(quote.quotation_date)}</div>
+                  <div class="info-val">${quotationDate}</div>
                 </div>
                 <div class="info-col">
                   <div class="info-label">CUSTOMER CODE</div>
@@ -1250,7 +1256,7 @@ export async function GET(req: NextRequest) {
                       <div class="title-text" style="font-size: 22px;">QUOTATION (CONTINUED)</div>
                       <div class="title-underline" style="width: 270px; margin-bottom: 6px;"></div>
                       <div style="font-size: 9.5px; color: #64748b; font-weight: 500; text-align: right;">
-                        Quotation No: <strong>${quote.quotation_no || "—"}</strong> &bull; Customer: <strong>${consigneeName}</strong>
+                        Quotation No: <strong>${quotationNo}</strong> &bull; Customer: <strong>${consigneeName}</strong>
                       </div>
                     </div>
                   </div>
@@ -1299,7 +1305,7 @@ export async function GET(req: NextRequest) {
                   <div class="title-box">
                     <div class="title-text" style="font-size: 22px;">TERMS &amp; AUTHORIZATION</div>
                     <div class="title-underline" style="margin-bottom: 6px;"></div>
-                    <div style="font-size: 9.5px; color: #475569; font-weight: 500; text-align: right;">Annexure to Quotation No: <strong>${quote.quotation_no || "—"}</strong></div>
+                    <div style="font-size: 9.5px; color: #475569; font-weight: 500; text-align: right;">Annexure to Quotation No: <strong>${quotationNo}</strong></div>
                   </div>
                 </div>
 
@@ -1403,7 +1409,7 @@ export async function GET(req: NextRequest) {
                   <div class="title-text">ANNEXURE - I</div>
                   <div class="title-underline"></div>
                   <div style="font-size: 9.5px; color: #64748b; font-weight: 500; text-align: right; margin-top: 4px;">
-                    Terms &amp; Conditions &bull; Quotation: <strong>${quote.quotation_no || "—"}</strong>
+                    Terms &amp; Conditions &bull; Quotation: <strong>${quotationNo}</strong>
                   </div>
                 </div>
               </div>
@@ -1442,7 +1448,7 @@ export async function GET(req: NextRequest) {
                   <div class="title-text">ANNEXURE - I</div>
                   <div class="title-underline"></div>
                   <div style="font-size: 9.5px; color: #64748b; font-weight: 500; text-align: right; margin-top: 4px;">
-                    Terms &amp; Conditions &bull; Quotation: <strong>${quote.quotation_no || "—"}</strong>
+                    Terms &amp; Conditions &bull; Quotation: <strong>${quotationNo}</strong>
                   </div>
                 </div>
               </div>

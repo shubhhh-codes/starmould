@@ -52,3 +52,16 @@ export function formatCurrency(amount: number | string | null | undefined): stri
     maximumFractionDigits: 2,
   }).format(num);
 }
+
+/**
+ * Escapes characters with special meaning in HTML to prevent XSS and HTML injection.
+ */
+export function escapeHtml(str: unknown): string {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

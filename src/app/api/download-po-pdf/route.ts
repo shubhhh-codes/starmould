@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { verifySecurePrintToken } from "@/lib/print-token";
+import { escapeHtml } from "@/lib/utils";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
@@ -129,9 +130,9 @@ export async function GET(req: NextRequest) {
       const sp = plateMap.get(it.plateid);
       return {
         srNo: idx + 1,
-        name: sp?.platename || `Subplate #${it.plateid}`,
-        dimensions: it.material || (sp ? `${sp.width} x ${sp.height} x ${sp.length} ${sp.unit || "mm"}` : ""),
-        materialtype: it.materialtype || sp?.material || "—",
+        name: escapeHtml(sp?.platename || `Subplate #${it.plateid}`),
+        dimensions: escapeHtml(it.material || (sp ? `${sp.width} x ${sp.height} x ${sp.length} ${sp.unit || "mm"}` : "")),
+        materialtype: escapeHtml(it.materialtype || sp?.material || "—"),
         qty: it.qty || 1,
         rate: it.rate !== null && it.rate !== undefined && it.rate !== "" ? Number(it.rate) : null,
       };
@@ -147,13 +148,16 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    const vendorName    = vendor?.vendor_name || vendor?.customername || "—";
-    const vendorAddress = vendor?.address || (vendor?.city ? `${vendor.city}, Gujarat, India` : "—");
-    const vendorGst     = vendor?.gstin  || "—";
-    const vendorPan     = vendor?.pan    || "—";
-    const vendorMobile  = vendor?.mobile || vendor?.mobile1 || "—";
-    const vendorEmail   = vendor?.email  || "—";
-    const vendorCode    = (vendor as any)?.vendor_code || "—";
+    const vendorName    = escapeHtml(vendor?.vendor_name || vendor?.customername || "—");
+    const vendorAddress = escapeHtml(vendor?.address || (vendor?.city ? `${vendor.city}, Gujarat, India` : "—"));
+    const vendorGst     = escapeHtml(vendor?.gstin  || "—");
+    const vendorPan     = escapeHtml(vendor?.pan    || "—");
+    const vendorMobile  = escapeHtml(vendor?.mobile || vendor?.mobile1 || "—");
+    const vendorEmail   = escapeHtml(vendor?.email  || "—");
+    const vendorCode    = escapeHtml((vendor as any)?.vendor_code || "—");
+    const poNumber      = escapeHtml(purchase.srno || "—");
+    const poDate        = escapeHtml(formatDate(purchase.odate));
+    const projectId     = escapeHtml(purchase.projectid || "—");
 
     // Generate HTML with exact 794x1123 A4 geometry matching Purchase_Order_V23.pdf
     const htmlContent = `
@@ -541,11 +545,11 @@ export async function GET(req: NextRequest) {
               <div class="info-box">
                 <div class="info-col">
                   <div class="info-label">PO NUMBER</div>
-                  <div class="info-val">${purchase.srno}</div>
+                  <div class="info-val">${poNumber}</div>
                 </div>
                 <div class="info-col">
                   <div class="info-label">PO DATE</div>
-                  <div class="info-val">${formatDate(purchase.odate)}</div>
+                  <div class="info-val">${poDate}</div>
                 </div>
                 <div class="info-col">
                   <div class="info-label">VENDOR CODE</div>
@@ -615,7 +619,7 @@ export async function GET(req: NextRequest) {
                                   </td>
                                   <td style="text-align: center; color: #3d4a52;">${it.qty}</td>
                                   <td style="text-align: center; color: #3d4a52;">${it.materialtype}</td>
-                                  <td style="text-align: center; color: #3d4a52;">${purchase.projectid || "—"}</td>
+                                  <td style="text-align: center; color: #3d4a52;">${projectId}</td>
                                   <td style="text-align: center; font-weight: 700; color: #006181; font-size: 10.5px;">
                                     ${it.rate !== null && it.rate !== undefined && Number(it.rate) > 0 ? "₹ " + Number(it.rate).toLocaleString("en-IN") : "—"}
                                   </td>

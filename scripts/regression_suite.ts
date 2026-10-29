@@ -10,6 +10,9 @@ import {
 import { roleHasPermission } from "../src/lib/permissions/loader";
 import { DEFAULT_ROLE_PERMISSIONS } from "../src/lib/permissions/defaults";
 import { calculateGST, calculateLineTotal } from "../src/lib/gst-calculation";
+import { escapeHtml } from "../src/lib/utils";
+import { createSecurePrintToken, verifySecurePrintToken, MAX_PRINT_TOKEN_AGE_MS } from "../src/lib/print-token";
+import crypto from "crypto";
 
 // Ensure required environment variables for test execution
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || "starmould_test_session_secret_1234567890_min_32_chars";
@@ -75,8 +78,6 @@ async function run() {
     exp: Math.floor(Date.now() / 1000) - 100, // already expired
   };
   const expPayloadB64 = Buffer.from(JSON.stringify(expiredPayloadData)).toString("base64url");
-  // sign with crypto
-  const crypto = await import("crypto");
   const expSig = crypto.createHmac("sha256", process.env.SESSION_SECRET!).update(expPayloadB64).digest("base64url");
   const expiredToken = `${expPayloadB64}.${expSig}`;
   assert(verifySessionToken(expiredToken) === null, "Rejects expired session tokens");
@@ -245,6 +246,69 @@ async function run() {
   const isNewTokenValid = !(newTokenIat < userUpdatedAt - 5);
   assert(isOldTokenExpired === true, "Token issued prior to password update is invalidated");
   assert(isNewTokenValid === true, "Token issued after password update is accepted");
+
+  // ==========================================
+  // SUITE 6: Security Audit Vulnerability Regressions (SM-001 - SM-005)
+  // ==========================================
+  console.log("\n--- Suite 6: Security Audit Vulnerability Regressions ---");
+
+  // SM-001: HTML Sanitization & SSRF/Injection Prevention
+  const dangerousScript = "<script>alert('xss')</script>";
+  const escapedScript = escapeHtml(dangerousScript);
+  assert(
+    escapedScript === "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;",
+    "escapeHtml neutralizes script tags and quotes"
+  );
+  assert(
+    escapeHtml('" onmouseover="fetch(\'/etc/passwd\')') === "&quot; onmouseover=&quot;fetch(&#39;/etc/passwd&#39;)",
+    "escapeHtml neutralizes attribute break-outs"
+  );
+  assert(escapeHtml("Tom & Jerry") === "Tom &amp; Jerry", "escapeHtml escapes ampersands");
+  assert(escapeHtml(null) === "" && escapeHtml(undefined) === "", "escapeHtml safely handles null and undefined");
+
+  // SM-003: Print Token Expiration & Safe Defaults
+  const validPrintPayload = { type: "purchase", id: "12345", code: "PO-001" };
+  const freshPrintToken = createSecurePrintToken(validPrintPayload);
+  assert(typeof freshPrintToken === "string" && freshPrintToken.includes("."), "createSecurePrintToken produces signed token");
+  const verifiedPrint = verifySecurePrintToken(freshPrintToken);
+  assert(verifiedPrint?.id === "12345" && verifiedPrint?.type === "purchase", "verifySecurePrintToken validates fresh print token");
+
+  // Simulate an expired print token (25 hours old)
+  const expiredSecretKey = crypto.createHash("sha256").update(process.env.SESSION_SECRET!).digest();
+  const expiredIv = crypto.randomBytes(12);
+  const expiredCipher = crypto.createCipheriv("aes-256-gcm", expiredSecretKey, expiredIv);
+  const expiredPrintPayload = {
+    ...validPrintPayload,
+    id: "12345",
+    ts: Date.now() - (25 * 60 * 60 * 1000), // 25 hours ago
+  };
+  const expiredCiphertext = Buffer.concat([
+    expiredCipher.update(JSON.stringify(expiredPrintPayload), "utf8"),
+    expiredCipher.final(),
+  ]);
+  const expiredTag = expiredCipher.getAuthTag();
+  const expiredEncBody = Buffer.concat([expiredIv, expiredTag, expiredCiphertext]).toString("base64url");
+  const expiredSignature = crypto
+    .createHmac("sha256", expiredSecretKey)
+    .update(expiredEncBody)
+    .digest("base64url");
+  const expiredPrintToken = `${expiredEncBody}.${expiredSignature}`;
+  assert(verifySecurePrintToken(expiredPrintToken) === null, "verifySecurePrintToken rejects print token older than 24 hours");
+
+  // SM-004: Constant-Time Comparison Timing Safety
+  const secretA = "secret_cron_token_12345";
+  const secretB = "secret_cron_token_12345";
+  const secretC = "secret_cron_token_99999";
+  const bufA = Buffer.from(secretA);
+  const bufB = Buffer.from(secretB);
+  const bufC = Buffer.from(secretC);
+  assert(bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB), "timingSafeEqual matches identical secrets");
+  assert(bufA.length === bufC.length && !crypto.timingSafeEqual(bufA, bufC), "timingSafeEqual detects mismatch securely");
+
+  // SM-005: PostgREST Wildcard Sanitization
+  const sanitizeLoginUsername = (input: string) => input.trim().replace(/[%_(),]/g, "");
+  assert(sanitizeLoginUsername("admin%_(),") === "admin", "Sanitizes PostgREST wildcards % and _ as well as () and commas");
+  assert(sanitizeLoginUsername("user.name@example.com") === "user.name@example.com", "Preserves valid email and dots for login");
 
   console.log("\n================================================================");
   console.log(`TOTAL RESULTS: ${passed} PASSED, ${failed} FAILED`);

@@ -1,12 +1,17 @@
 import crypto from "crypto";
 
 function getPrintSecret(): string {
-  return (
-    process.env.SESSION_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "starmould-secure-print-token-key-32-chars-ok"
-  );
+  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Critical: Missing SESSION_SECRET and SUPABASE_SERVICE_ROLE_KEY in production environment.");
+    }
+    return "starmould-secure-print-token-key-32-chars-ok";
+  }
+  return secret;
 }
+
+export const MAX_PRINT_TOKEN_AGE_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 function getDerivedKey(): Buffer {
   return crypto.createHash("sha256").update(getPrintSecret()).digest();
@@ -86,6 +91,7 @@ export function verifySecurePrintToken(
     }
 
     const buf = Buffer.from(encBody, "base64url");
+    let decoded: { type: string; id: string; code?: string; ts?: number } | null = null;
 
     // 1. Attempt AES-256-GCM Decryption (iv: 12 bytes + tag: 16 bytes = minimum 28 bytes header)
     if (buf.length > 28) {
@@ -101,14 +107,29 @@ export function verifySecurePrintToken(
           decipher.final(),
         ]).toString("utf8");
 
-        return JSON.parse(decrypted);
+        decoded = JSON.parse(decrypted);
       } catch {
         // Fallback to legacy unencrypted decode if not GCM formatted
       }
     }
 
     // 2. Legacy Base64url JSON Decode Fallback
-    const decoded = JSON.parse(buf.toString("utf8"));
+    if (!decoded) {
+      try {
+        decoded = JSON.parse(buf.toString("utf8"));
+      } catch {}
+    }
+
+    if (!decoded) return null;
+
+    // Enforce 24-hour expiration window on timestamp
+    if (typeof decoded.ts === "number") {
+      const tokenAge = Date.now() - decoded.ts;
+      if (tokenAge > MAX_PRINT_TOKEN_AGE_MS || tokenAge < -60000) {
+        return null; // Expired or future-dated beyond clock skew
+      }
+    }
+
     return decoded;
   } catch {
     return null;

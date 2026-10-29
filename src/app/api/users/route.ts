@@ -271,6 +271,14 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    // Guard: Only Administrators can modify, update passwords for, or alter an Administrator account
+    if (Number(targetUser.role_id) === 0 && auth.user.role_id !== 0) {
+      return NextResponse.json(
+        { error: "Forbidden: Only Administrators can modify an Administrator account" },
+        { status: 403 }
+      );
+    }
+
     let finalSubtype = usersubtype;
     if (usertype && ["Admin", "Manager", "Supervisor", "Designer"].includes(usertype)) {
       finalSubtype = "Skilled MP";
@@ -407,6 +415,14 @@ export async function DELETE(req: NextRequest) {
     ) {
       return NextResponse.json(
         { error: "Super Admin account is permanently locked and cannot be deleted." },
+        { status: 403 }
+      );
+    }
+
+    // Guard: Only Administrators can delete an Administrator account
+    if (targetUser && Number(targetUser.role_id) === 0 && auth.user.role_id !== 0) {
+      return NextResponse.json(
+        { error: "Forbidden: Only Administrators can delete an Administrator account" },
         { status: 403 }
       );
     }

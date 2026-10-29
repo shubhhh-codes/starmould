@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { verifySecurePrintToken } from "@/lib/print-token";
+import { escapeHtml } from "@/lib/utils";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
@@ -131,22 +132,22 @@ export async function GET(req: NextRequest) {
       }
     } catch {}
 
-    const challanNo = dispatch.challanno || "—";
-    const challanDate = formatDate(dispatch.chdate);
-    const invoiceNo = dispatch.invoiceno || "N/A";
-    const vehicleNo = dispatch.vehicleno || "N/A";
-    const transporterName = transporter?.vendor_name || "Self / Hand to Hand";
-    const deliveryType = dispatch.deliverytype || "Door Delivery";
-    const freightMode = dispatch.freightmode || "To Pay";
-    const noOfCases = dispatch.noofcases || "1";
-    const projectCode = dispatch.projectid || "—";
+    const challanNo = escapeHtml(dispatch.challanno || "—");
+    const challanDate = escapeHtml(formatDate(dispatch.chdate));
+    const invoiceNo = escapeHtml(dispatch.invoiceno || "N/A");
+    const vehicleNo = escapeHtml(dispatch.vehicleno || "N/A");
+    const transporterName = escapeHtml(transporter?.vendor_name || "Self / Hand to Hand");
+    const deliveryType = escapeHtml(dispatch.deliverytype || "Door Delivery");
+    const freightMode = escapeHtml(dispatch.freightmode || "To Pay");
+    const noOfCases = escapeHtml(dispatch.noofcases || "1");
+    const projectCode = escapeHtml(dispatch.projectid || "—");
 
-    const customerName = customer?.customername || "—";
-    const customerAddress = customer?.address || (customer?.city ? `${customer.city}, Gujarat, India` : "—");
-    const customerGstin = customer?.gstin || "—";
-    const customerPan = customer?.pan || "—";
-    const customerMobile = customer?.mobile || customer?.mobile1 || "—";
-    const customerEmail = customer?.email || "—";
+    const customerName = escapeHtml(customer?.customername || "—");
+    const customerAddress = escapeHtml(customer?.address || (customer?.city ? `${customer.city}, Gujarat, India` : "—"));
+    const customerGstin = escapeHtml(customer?.gstin || "—");
+    const customerPan = escapeHtml(customer?.pan || "—");
+    const customerMobile = escapeHtml(customer?.mobile || customer?.mobile1 || "—");
+    const customerEmail = escapeHtml(customer?.email || "—");
 
     const totalQty = items.reduce((sum: number, it: any) => sum + (Number(it.qty) || 0), 0);
 
@@ -154,12 +155,12 @@ export async function GET(req: NextRequest) {
       ? `<tr><td colspan="6" style="height: 46px; text-align: center; color: #94a3b8; font-style: italic;">No items listed in this challan.</td></tr>`
       : items.map((it: any, idx: number) => {
           const sp = it.plateid ? plateMap.get(it.plateid) : null;
-          const desc = it.custom_plate_name || sp?.platename || it.particulars || "Mould Component";
-          const subCode = sp?.subprojectid || "";
-          const mat = sp?.material || "";
-          const prj = it.project || projectCode;
-          const cond = it.condition || "NEW";
-          const work = it.work || "NEW MADE";
+          const desc = escapeHtml(it.custom_plate_name || sp?.platename || it.particulars || "Mould Component");
+          const subCode = escapeHtml(sp?.subprojectid || "");
+          const mat = escapeHtml(sp?.material || "");
+          const prj = escapeHtml(it.project || projectCode);
+          const cond = escapeHtml(it.condition || "NEW");
+          const work = escapeHtml(it.work || "NEW MADE");
           const qty = Number(it.qty) || 1;
           const bg = idx % 2 === 0 ? "#f3f9fb" : "#ffffff";
 

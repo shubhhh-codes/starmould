@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateDatabaseBackup } from "@/lib/backup/engine";
 import path from "path";
 import os from "os";
+import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -14,25 +15,33 @@ export async function POST(req: NextRequest) {
 }
 
 async function handleBackupCron(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
   const authHeader = req.headers.get("authorization");
-  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : null;
-  const queryKey = searchParams.get("key") || searchParams.get("token");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7).trim() : null;
+  const configuredSecret = (process.env.CRON_SECRET || process.env.SESSION_SECRET || "").trim();
 
-  const providedKey = bearerToken || queryKey;
-  const configuredSecret = process.env.CRON_SECRET || process.env.SESSION_SECRET;
-
-  // Verify secret token to prevent unauthorized triggers (strictly require env secret)
-  const isValid =
-    providedKey &&
-    configuredSecret &&
-    (providedKey === configuredSecret ||
-      providedKey === process.env.CRON_SECRET ||
-      providedKey === process.env.SESSION_SECRET);
-
-  if (!isValid) {
+  if (!bearerToken || !configuredSecret) {
     return NextResponse.json(
-      { error: "Unauthorized: Invalid or missing secret token" },
+      { error: "Unauthorized: Missing authorization header" },
+      { status: 401 }
+    );
+  }
+
+  const tokenBuf = Buffer.from(bearerToken);
+  const secretBuf = Buffer.from(configuredSecret);
+
+  let isMatch = false;
+  if (tokenBuf.length === secretBuf.length && crypto.timingSafeEqual(tokenBuf, secretBuf)) {
+    isMatch = true;
+  } else if (process.env.CRON_SECRET) {
+    const cronBuf = Buffer.from(process.env.CRON_SECRET.trim());
+    if (tokenBuf.length === cronBuf.length && crypto.timingSafeEqual(tokenBuf, cronBuf)) {
+      isMatch = true;
+    }
+  }
+
+  if (!isMatch) {
+    return NextResponse.json(
+      { error: "Unauthorized: Invalid secret token" },
       { status: 401 }
     );
   }
