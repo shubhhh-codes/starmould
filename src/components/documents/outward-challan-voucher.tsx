@@ -72,7 +72,7 @@ const COMPANY = {
   gstin: "24ABLCS1427Q1ZV",
   pan: "ABLCS1427Q",
   mobile: "8238451671",
-  email: "info.starmould@yahoo.com",
+  email: "starmoulda@yahoo.in",
   website: "www.starmould.in",
 } as const;
 
@@ -93,50 +93,109 @@ export function OutwardChallanVoucher({
 }: OutwardChallanVoucherProps) {
   const items = challan.items || [];
   const challanNo = challan.docNumber || challan.challanno || "—";
-  const challanDate = formatDate(challan.docDate || challan.chdate);
+  const challanDate = challan.docDate || challan.chdate;
   const vendor = challan.party;
+
   const vendorName = vendor?.vendor_name || vendor?.customername || "—";
-  const totalQty = items.reduce((acc, it) => acc + (Number(it.qty) || 0), 0);
+  const vendorAddress = vendor?.address || (vendor?.city ? `${vendor.city}, Gujarat, India` : "—");
+  const vendorGstin = vendor?.gstin || "—";
+  const vendorPan = vendor?.pan || "—";
+  const vendorMobile = vendor?.mobile || vendor?.mobile1 || "—";
+  const vendorEmail = vendor?.email || "—";
+  const vendorCode = vendor?.vendor_code || "—";
+
+  const totalQuantity = items.reduce((acc, it) => acc + (Number(it.qty) || 0), 0);
+
+  const handlePrint = () => {
+    if (onPrint) onPrint();
+    else window.print();
+  };
 
   return (
-    <div
-      id="outward-challan-voucher"
-      className="bg-white text-slate-800 font-sans print:p-0 mx-auto"
-      style={{
-        width: "794px",
-        minWidth: "794px",
-        maxWidth: "794px",
-        boxSizing: "border-box",
-        backgroundColor: "#ffffff",
-        color: TEXT_DARK,
-        position: "relative",
-      }}
-    >
-      {/* ── Modal Floating Action Bar (hidden in print) ── */}
+    <div className="w-full flex justify-center bg-white print:p-0">
+      {/* ── Poppins Font import directly from Google Fonts ────────────────────── */}
+      {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
+      />
+
+      {/* ── Print styles ───────────────────────────────────────────────────── */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        .po-font-family {
+          font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+          -webkit-font-smoothing: antialiased !important;
+          -moz-osx-font-smoothing: grayscale !important;
+          text-rendering: optimizeLegibility !important;
+        }
+        @media print {
+          @page {
+            size: 794px 1123px;
+            margin: 0;
+          }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            width: 794px !important;
+            height: 1123px !important;
+            -webkit-font-smoothing: antialiased !important;
+            -moz-osx-font-smoothing: grayscale !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #challan-printable-area, #challan-printable-area * {
+            visibility: visible !important;
+          }
+          #challan-printable-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 794px !important;
+            height: 1123px !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            box-sizing: border-box !important;
+          }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .print\\:hidden { display: none !important; }
+        }
+      `,
+        }}
+      />
+
+      {/* ── Top Action Bar (Modal View Only) ─────────────────────────────────── */}
       {isModal && (
-        <div className="flex items-center justify-between p-3 bg-slate-900 text-white rounded-t-xl print:hidden">
+        <div className="flex items-center justify-between p-3 mb-4 bg-slate-100 border border-slate-200 rounded-xl print:hidden po-font-family w-[794px]">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-sm tracking-wide">
-              OUTWARD JOB WORK CHALLAN: {challanNo}
+            <span className="text-xs font-semibold text-slate-700">
+              Job Work Challan:&nbsp;
+              <span className="font-semibold text-slate-900">{challanNo}</span>
             </span>
           </div>
           <div className="flex items-center gap-2">
-            {onPrint && (
-              <button
-                type="button"
-                onClick={onPrint}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#006181] hover:bg-[#0d4f68] text-white text-xs font-semibold rounded-lg transition cursor-pointer"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-white text-xs font-semibold rounded-lg shadow-sm transition active:scale-95 cursor-pointer"
+              style={{ backgroundColor: TEAL_PRIMARY }}
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print Challan</span>
+            </button>
             {onClose && (
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-white transition cursor-pointer"
-                title="Close"
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200 rounded-lg transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -145,279 +204,460 @@ export function OutwardChallanVoucher({
         </div>
       )}
 
-      {/* ── Printable Page Content ── */}
+      {/* ══════════════════════════════════════════════════════════════════════
+          PRINTABLE SHEET (Exact A4 Geometry 794px x 1123px)
+          ══════════════════════════════════════════════════════════════════ */}
       <div
         id="challan-printable-area"
-        className="p-8 print:p-6 space-y-4"
-        style={{ boxSizing: "border-box" }}
+        className="w-[794px] min-h-[1123px] bg-white po-font-family relative flex flex-col justify-between"
+        style={{
+          width: "794px",
+          color: TEXT_DARK,
+        }}
       >
-        {/* Document Header / Letterhead */}
-        <div
-          className="pb-3 border-b-2"
-          style={{ borderColor: TEAL_PRIMARY }}
-        >
-          <div className="flex items-start justify-between">
-            {/* Left: Star Mould Brand Identity */}
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span
-                  className="font-extrabold text-xl tracking-tight uppercase"
-                  style={{ color: TEAL_PRIMARY, letterSpacing: "0.02em" }}
+        <div>
+          {/* ── TOP DECORATIVE STRIPES (Teal 9px, Grey 4px) ─────────────────── */}
+          <div className="w-[794px]">
+            <div style={{ height: "9px", width: "794px", backgroundColor: TEAL_PRIMARY }} />
+            <div style={{ height: "4px", width: "794px", backgroundColor: GREY_LINE }} />
+          </div>
+
+          {/* ── MAIN CONTENT (Padded 42px left & right) ──────────────────────── */}
+          <div className="px-[42px] pt-[24px]">
+
+            {/* ──────────────────────────────────────────────────────────────────
+                1. HEADER — Official Star Mould Logo (left) + "JOB WORK CHALLAN" (right)
+                ────────────────────────────────────────────────────────────────── */}
+            <div className="flex items-center justify-between mb-[22px]">
+              {/* Logo */}
+              <div className="w-[280px]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/stpl-logo.png"
+                  alt="Star Mould"
+                  className="w-[260px] h-auto object-contain block"
+                />
+              </div>
+
+              {/* Title with grey underline matching Brand PDF standard */}
+              <div className="text-right">
+                <div
+                  className="text-[28px] font-extrabold tracking-[0.5px] leading-none mb-[8px]"
+                  style={{ color: TEAL_PRIMARY }}
                 >
-                  {COMPANY.name}
-                </span>
-              </div>
-              <p className="text-[11px] leading-tight text-slate-600">
-                {COMPANY.address1} {COMPANY.address2}
-              </p>
-              <div className="flex items-center gap-3 text-[10px] text-slate-500 font-medium pt-0.5">
-                <span>Phone: <strong className="text-slate-700">{COMPANY.mobile}</strong></span>
-                <span>•</span>
-                <span>Email: <strong className="text-slate-700">{COMPANY.email}</strong></span>
-                <span>•</span>
-                <span>Web: <strong className="text-slate-700">{COMPANY.website}</strong></span>
-              </div>
-              <div className="flex items-center gap-3 text-[10px] text-slate-600 pt-0.5 font-mono">
-                <span>GSTIN: <strong className="text-slate-900">{COMPANY.gstin}</strong></span>
-                <span>•</span>
-                <span>PAN: <strong className="text-slate-900">{COMPANY.pan}</strong></span>
-                <span>•</span>
-                <span>CIN: <strong className="text-slate-900">{COMPANY.cin}</strong></span>
+                  JOB WORK CHALLAN
+                </div>
+                {/* Grey underline matching PDF standard */}
+                <div
+                  className="h-[5px] w-[330px] ml-auto"
+                  style={{ backgroundColor: GREY_LINE }}
+                />
+                <div className="text-[9px] font-semibold tracking-wider uppercase mt-[6px]" style={{ color: GREY_LINE }}>
+                  Outward Delivery / Job Work Under Section 143
+                </div>
               </div>
             </div>
 
-            {/* Right: Document Classification Banner */}
-            <div className="text-right shrink-0">
-              <div
-                className="inline-block px-3 py-1 rounded text-xs font-black uppercase tracking-wider text-white"
-                style={{ backgroundColor: TEAL_PRIMARY }}
-              >
-                OUTWARD JOB WORK CHALLAN
-              </div>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mt-1">
-                DELIVERY / JOB WORK CHALLAN
-              </p>
-              <span className="inline-block text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-300 mt-1">
-                ORIGINAL FOR PROCESSOR
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Metadata Grid: Consignor vs Vendor & Challan Specifics ── */}
-        <div
-          className="grid grid-cols-2 gap-0 border rounded-lg overflow-hidden text-xs"
-          style={{ borderColor: TEAL_BORDER }}
-        >
-          {/* Left: Vendor / Job Worker Details */}
-          <div
-            className="p-3 border-r space-y-1"
-            style={{ borderColor: TEAL_BORDER, backgroundColor: "#fafcfd" }}
-          >
-            <span
-              className="text-[10px] font-bold uppercase tracking-wider block"
-              style={{ color: TEXT_LABEL }}
+            {/* ──────────────────────────────────────────────────────────────────
+                2. TOP INFO BAR — Challan No | Date | Transporter | Mould Project
+                ────────────────────────────────────────────────────────────────── */}
+            <div
+              className="w-[710px] h-[58px] rounded-[12px] border flex overflow-hidden mb-[16px]"
+              style={{
+                borderColor: TEAL_BORDER,
+                backgroundColor: TEAL_LIGHT,
+              }}
             >
-              Consignee / Job Worker (Vendor)
-            </span>
-            <p className="font-bold text-sm text-slate-900 leading-snug">
-              {vendorName}
-            </p>
-            {vendor?.vendor_code && (
-              <span className="text-[10px] font-mono text-slate-500 block">
-                Vendor Code: {vendor.vendor_code}
-              </span>
-            )}
-            {vendor?.address && (
-              <p className="text-[11px] text-slate-600 leading-tight">
-                {vendor.address}{vendor.city ? `, ${vendor.city}` : ""}
-              </p>
-            )}
-            <div className="pt-1 text-[11px] text-slate-600 space-y-0.5 font-medium">
-              {(vendor?.mobile || vendor?.mobile1) && (
-                <p>
-                  Contact: <span className="text-slate-900">{vendor.mobile}{vendor.mobile1 ? ` / ${vendor.mobile1}` : ""}</span>
-                </p>
-              )}
-              {vendor?.email && (
-                <p>
-                  Email: <span className="text-slate-900">{vendor.email}</span>
-                </p>
-              )}
-              {vendor?.gstin && (
-                <p className="font-mono text-[10px]">
-                  GSTIN: <span className="font-bold text-slate-900">{vendor.gstin}</span>
-                </p>
-              )}
+              {[
+                { label: "CHALLAN NUMBER", value: challanNo },
+                { label: "CHALLAN DATE",   value: formatDate(challanDate) },
+                { label: "TRANSPORTER",    value: challan.transporter || "Self / Hand to Hand" },
+                { label: "MOULD PROJECT",  value: challan.projectCode || "Standard Project" },
+              ].map(({ label, value }) => (
+                <div
+                  key={label}
+                  className="flex-1 px-[18px] py-[8px] flex flex-col justify-center border-r last:border-r-0"
+                  style={{ borderColor: TEAL_BORDER }}
+                >
+                  <div
+                    className="text-[8px] font-bold tracking-[0.5px] uppercase mb-[3px]"
+                    style={{ color: TEAL_PRIMARY }}
+                  >
+                    {label}
+                  </div>
+                  <div
+                    className="text-[12px] font-medium truncate"
+                    style={{ color: "#33414a" }}
+                  >
+                    {value}
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
 
-          {/* Right: Challan Meta Details */}
-          <div className="p-3 space-y-1.5" style={{ backgroundColor: "#ffffff" }}>
-            <span
-              className="text-[10px] font-bold uppercase tracking-wider block"
-              style={{ color: TEXT_LABEL }}
+            {/* ──────────────────────────────────────────────────────────────────
+                3. JOB WORK QUICK LOGISTICS BAR
+                ────────────────────────────────────────────────────────────────── */}
+            <div
+              className="w-[710px] rounded-[10px] border px-[16px] py-[8px] mb-[20px] flex items-center justify-between text-[10px]"
+              style={{
+                borderColor: TEAL_BORDER,
+                backgroundColor: "#ffffff",
+              }}
             >
-              Challan Specifications
-            </span>
-            <div className="grid grid-cols-2 gap-2 text-xs pt-1">
               <div>
-                <span className="text-[10px] text-slate-500 block">Challan No:</span>
-                <span className="font-mono font-bold text-sm text-slate-900 block">
-                  {challanNo}
+                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
+                  Transporter:&nbsp;
+                </span>
+                <span className="font-medium" style={{ color: TEXT_DARK }}>
+                  {challan.transporter || "Self / Hand to Hand"}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-500 block">Challan Date:</span>
-                <span className="font-medium text-slate-900 block">
-                  {challanDate}
+                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
+                  Movement Purpose:&nbsp;
+                </span>
+                <span className="font-medium" style={{ color: TEXT_DARK }}>
+                  Job Work / Subplate Processing
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-500 block">Mould Project:</span>
-                <span className="font-mono font-bold text-slate-900 block">
+                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
+                  GST Category:&nbsp;
+                </span>
+                <span
+                  className="font-bold px-1.5 py-0.5 rounded text-[9px]"
+                  style={{
+                    backgroundColor: "#ecfdf5",
+                    color: "#047857",
+                  }}
+                >
+                  Sec. 143 Non-Taxable Outward
+                </span>
+              </div>
+              <div>
+                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
+                  Project Code:&nbsp;
+                </span>
+                <span className="font-bold font-mono text-[9.5px]" style={{ color: TEAL_PRIMARY }}>
                   {challan.projectCode || "—"}
                 </span>
               </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block">Customer Name:</span>
-                <span className="font-medium text-slate-800 block truncate">
-                  {challan.customerName || "—"}
+            </div>
+
+            {/* ──────────────────────────────────────────────────────────────────
+                4. PARTY SECTION — Job Worker (Consignee) + Consignor (Starmould)
+                ────────────────────────────────────────────────────────────────── */}
+            <div className="w-[710px] mb-[20px]">
+              {/* Header bar */}
+              <div className="flex h-[36px]" style={{ backgroundColor: TEAL_PRIMARY }}>
+                <div className="flex-1 flex items-center px-[16px] text-white font-semibold text-[10.5px] tracking-[0.5px] uppercase">
+                  JOB WORKER / PROCESSOR (CONSIGNEE)
+                </div>
+                <div className="flex-1 flex items-center px-[16px] text-white font-semibold text-[10.5px] tracking-[0.5px] uppercase">
+                  CONSIGNOR (ISSUED BY / PRINCIPAL)
+                </div>
+              </div>
+
+              {/* Content Row */}
+              <div className="flex bg-white border-x border-b" style={{ borderColor: TEAL_BORDER }}>
+                {/* LEFT — Vendor / Job Worker */}
+                <div
+                  className="flex-1 p-[12px_16px] text-[10px] leading-[1.5] border-r"
+                  style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
+                >
+                  <div className="font-bold text-[11.5px] mb-[2px]" style={{ color: TEXT_DARK }}>
+                    {vendorName}
+                  </div>
+                  <div>{vendorAddress}</div>
+                  {vendorCode && vendorCode !== "—" && (
+                    <div className="text-[9px] font-mono text-slate-500">Vendor Code: {vendorCode}</div>
+                  )}
+                  <div className="mt-[3px]">
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>GSTIN:</span> {vendorGstin}
+                    &nbsp;|&nbsp;
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>PAN:</span> {vendorPan}
+                  </div>
+                  <div>
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>Contact:</span> {vendorMobile}
+                  </div>
+                  <div>
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>Email:</span> {vendorEmail}
+                  </div>
+                </div>
+
+                {/* RIGHT — Starmould as Consignor */}
+                <div className="flex-1 p-[12px_16px] text-[10px] leading-[1.5]" style={{ color: TEXT_MUTED }}>
+                  <div className="font-bold text-[11.5px] mb-[2px]" style={{ color: TEXT_DARK }}>
+                    {COMPANY.name}
+                  </div>
+                  <div>{COMPANY.address1}</div>
+                  <div>{COMPANY.address2}</div>
+                  <div className="mt-[3px]">
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>CIN No:</span> {COMPANY.cin}
+                  </div>
+                  <div>
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>GSTIN:</span> {COMPANY.gstin}
+                    &nbsp;|&nbsp;
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>PAN:</span> {COMPANY.pan}
+                  </div>
+                  <div>
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>Mobile:</span> {COMPANY.mobile}
+                  </div>
+                  <div>
+                    <span className="font-bold" style={{ color: TEXT_DARK }}>Email:</span> {COMPANY.email}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* ──────────────────────────────────────────────────────────────────
+                5. PARTICULARS TABLE (Goods Sent For Job Work)
+                ────────────────────────────────────────────────────────────────── */}
+            <div className="mb-[18px]">
+              {/* Section label bar */}
+              <div
+                className="w-[710px] h-[32px] flex items-center justify-between px-[12px] font-semibold text-[10.5px] tracking-[0.5px] uppercase mb-[6px]"
+                style={{ backgroundColor: "#e6f2f6", color: TEAL_PRIMARY }}
+              >
+                <span>PARTICULARS &amp; SPECIFICATIONS OF GOODS SENT FOR JOB WORK</span>
+                <span className="text-[9.5px] font-mono lowercase">
+                  ({items.length} {items.length === 1 ? "item" : "items"})
                 </span>
               </div>
-              <div className="col-span-2 pt-1 border-t border-slate-100">
-                <span className="text-[10px] text-slate-500 block">Transporter / Delivery Mode:</span>
-                <span className="font-medium text-slate-800 block">
-                  {challan.transporter || "Self / Hand Delivery"}
+
+              <div
+                className="w-[710px] border overflow-hidden"
+                style={{ borderColor: TEAL_BORDER }}
+              >
+                <table className="w-full border-collapse text-[9.5px]">
+                  <thead>
+                    <tr className="text-white" style={{ backgroundColor: TEAL_PRIMARY }}>
+                      <th className="h-[36px] px-[8px] text-center w-[38px] border-r border-white/40 font-semibold text-[9.5px]">
+                        #
+                      </th>
+                      <th className="h-[36px] px-[12px] text-left w-[240px] border-r border-white/40 font-semibold text-[9.5px]">
+                        Component / Plate Description
+                      </th>
+                      <th className="h-[36px] px-[10px] text-left w-[170px] border-r border-white/40 font-semibold text-[9.5px]">
+                        Job Work Particulars
+                      </th>
+                      <th className="h-[36px] px-[8px] text-center w-[90px] border-r border-white/40 font-semibold text-[9.5px]">
+                        Material
+                      </th>
+                      <th className="h-[36px] px-[8px] text-center w-[110px] border-r border-white/40 font-semibold text-[9.5px]">
+                        Dimensions (WxHxL)
+                      </th>
+                      <th className="h-[36px] px-[12px] text-center w-[62px] font-semibold text-[9.5px]">
+                        Qty
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="h-[46px] text-center text-slate-400 italic">
+                          No subplates or items specified in this outward challan.
+                        </td>
+                      </tr>
+                    ) : (
+                      items.map((it, idx) => {
+                        const qty = Number(it.qty) || 1;
+                        const plateName = it.platename || "Mould Plate";
+                        const particulars = it.particulars || "Standard Machining / Job Work";
+                        const mat = it.material || "—";
+                        const dims = it.dimensions || "—";
+
+                        return (
+                          <tr
+                            key={idx}
+                            style={{
+                              backgroundColor: idx % 2 === 0 ? TEAL_LIGHT : "#ffffff",
+                            }}
+                          >
+                            <td
+                              className="h-[44px] px-[8px] text-center border-t border-r"
+                              style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
+                            >
+                              {idx + 1}
+                            </td>
+                            <td
+                              className="h-[44px] px-[14px] text-left border-t border-r"
+                              style={{ borderColor: TEAL_BORDER }}
+                            >
+                              <div className="font-semibold text-[10.5px]" style={{ color: TEXT_DARK }}>
+                                {plateName}
+                              </div>
+                              <div className="text-[8.5px] mt-[1px] text-slate-500 font-mono">
+                                Subplate Ref: #{idx + 1}
+                              </div>
+                            </td>
+                            <td
+                              className="h-[44px] px-[10px] text-left font-medium border-t border-r text-[9.5px]"
+                              style={{ borderColor: TEAL_BORDER, color: TEXT_DARK }}
+                            >
+                              {particulars}
+                            </td>
+                            <td
+                              className="h-[44px] px-[8px] text-center border-t border-r font-medium text-[9px]"
+                              style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
+                            >
+                              {mat}
+                            </td>
+                            <td
+                              className="h-[44px] px-[8px] text-center font-mono font-medium border-t border-r text-[9px]"
+                              style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
+                            >
+                              {dims}
+                            </td>
+                            <td
+                              className="h-[44px] px-[12px] text-center font-bold border-t text-[11px]"
+                              style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                            >
+                              {qty}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                    {/* Total Row */}
+                    <tr style={{ backgroundColor: "#e6f2f6", fontWeight: 700 }}>
+                      <td
+                        colSpan={5}
+                        className="h-[34px] px-[16px] text-right uppercase tracking-wider text-[9.5px] border-t"
+                        style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                      >
+                        Total Dispatched Quantity:
+                      </td>
+                      <td
+                        className="h-[34px] px-[12px] text-center font-bold text-[12px] border-t"
+                        style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                      >
+                        {totalQuantity}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ──────────────────────────────────────────────────────────────────
+                6. TERMS & CONDITIONS (Job Work Under GST Sec 143)
+                ────────────────────────────────────────────────────────────────── */}
+            <div className="w-[710px] mb-[18px]">
+              {/* Header */}
+              <div
+                className="h-[34px] px-[16px] flex items-center text-white font-semibold text-[10.5px] tracking-[0.5px] uppercase"
+                style={{ backgroundColor: TEAL_PRIMARY }}
+              >
+                DELIVERY &amp; JOB WORK TERMS &amp; CONDITIONS (SEC. 143 CGST ACT)
+              </div>
+              {/* Clauses */}
+              <div
+                className="p-[10px_16px] space-y-[2px] text-[9px] leading-[1.6] border-x border-b bg-white"
+                style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
+              >
+                <p>
+                  <span className="font-bold" style={{ color: TEXT_DARK }}>1. Nature of Movement: </span>
+                  Goods dispatched under this challan are strictly for Job Work / Tooling Processing only and not intended for sale.
+                </p>
+                <p>
+                  <span className="font-bold" style={{ color: TEXT_DARK }}>2. Statutory Rule: </span>
+                  Issued in accordance with Section 143 of the CGST Act 2017 &amp; Rule 55 of CGST Rules for movement of goods sent for job work.
+                </p>
+                <p>
+                  <span className="font-bold" style={{ color: TEXT_DARK }}>3. Return Obligation: </span>
+                  The processed goods/components must be returned to the consignor within the statutory period of 1 year (or 3 years for capital mould tooling).
+                </p>
+                <p>
+                  <span className="font-bold" style={{ color: TEXT_DARK }}>4. Verification &amp; Damage Claims: </span>
+                  Please inspect the dimensions, weight, and condition upon receipt. Any defect or discrepancy must be reported within 24 hours.
+                </p>
+              </div>
+            </div>
+
+            {/* ──────────────────────────────────────────────────────────────────
+                7. SIGNATURES — Receiver's Acknowledgement + Starmould Signatory
+                ────────────────────────────────────────────────────────────────── */}
+            <div
+              className="w-[710px] h-[98px] rounded-[12px] border overflow-hidden p-[10px_20px] flex flex-col justify-between"
+              style={{ borderColor: TEAL_BORDER, backgroundColor: TEAL_LIGHT }}
+            >
+              <div className="flex items-start justify-between">
+                <span
+                  className="font-bold text-[8.5px] tracking-[0.5px] uppercase"
+                  style={{ color: TEAL_PRIMARY }}
+                >
+                  RECEIVER&apos;S / PROCESSOR&apos;S ACKNOWLEDGEMENT
                 </span>
+                <span
+                  className="font-bold text-[8.5px] tracking-[0.5px] uppercase"
+                  style={{ color: TEAL_PRIMARY }}
+                >
+                  FOR {COMPANY.name}
+                </span>
+              </div>
+
+              <div className="flex items-end justify-between text-[9px]" style={{ color: TEXT_LABEL }}>
+                <div className="flex gap-4">
+                  <span>Received in Good Condition&nbsp;&nbsp;|&nbsp;&nbsp;Date: ________________</span>
+                </div>
+                <div className="font-semibold text-right" style={{ color: TEXT_DARK }}>
+                  Authorized Signatory
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── BOTTOM DECORATIVE FOOTER BAR (Matches Starmould Letterhead Design) ───── */}
+        <div className="w-[794px] mt-auto">
+          {/* Main Dark Navy Footer Bar */}
+          <div
+            className="w-[794px] px-[36px] py-[8px] flex items-center justify-between text-white"
+            style={{ backgroundColor: "#1b2537" }}
+          >
+            {/* Left side: Location Pin + Divider + Company Name & Full Address */}
+            <div className="flex items-center gap-[10px]">
+              <div className="shrink-0 flex items-center justify-center">
+                <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+                </svg>
+              </div>
+              <div className="w-[1px] h-[34px] bg-white/40 shrink-0" />
+              <div className="flex flex-col text-white leading-[1.25]">
+                <span className="text-[9.5px] font-bold tracking-tight">{COMPANY.displayName}</span>
+                <span className="text-[8px] text-white/90">{COMPANY.address1}</span>
+                <span className="text-[8px] text-white/90">{COMPANY.address2}</span>
+              </div>
+            </div>
+
+            {/* Right side: Mail & Web Icons + Divider + Email & Website */}
+            <div className="flex items-center gap-[9px]">
+              <div className="flex flex-col items-center justify-center gap-[5px] shrink-0 text-white">
+                <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                  <path d="M2 12h20" />
+                </svg>
+              </div>
+              <div className="w-[1px] h-[28px] bg-white/40 shrink-0" />
+              <div className="flex flex-col text-white leading-[1.3] text-[8.5px] font-semibold tracking-wide">
+                <span>{COMPANY.email}</span>
+                <span>{COMPANY.website}</span>
               </div>
             </div>
           </div>
+
+          {/* Bottom white margin */}
+          <div className="w-[794px] h-[14px] bg-white" />
         </div>
 
-        {/* ── Subplates / Tooling Table ── */}
-        <div className="border rounded-lg overflow-hidden" style={{ borderColor: TEAL_BORDER }}>
-          <table className="w-full text-xs border-collapse">
-            <thead>
-              <tr
-                className="text-left font-bold uppercase tracking-wider"
-                style={{ backgroundColor: TEAL_LIGHT, color: TEAL_PRIMARY, borderBottom: `2px solid ${TEAL_BORDER}` }}
-              >
-                <th className="py-2.5 px-3 text-center w-10">Sr</th>
-                <th className="py-2.5 px-3">Subplate Name</th>
-                <th className="py-2.5 px-3">Material</th>
-                <th className="py-2.5 px-3">Dimensions (WxHxL mm)</th>
-                <th className="py-2.5 px-3">Particulars / Job Work Scope</th>
-                <th className="py-2.5 px-3 text-right w-16">Qty</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {items.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-8 text-slate-400">
-                    No subplate line items recorded in this challan.
-                  </td>
-                </tr>
-              ) : (
-                items.map((it, idx) => (
-                  <tr
-                    key={idx}
-                    className="hover:bg-slate-50/50 transition-colors"
-                    style={{ backgroundColor: idx % 2 === 1 ? "#fafcfd" : "#ffffff" }}
-                  >
-                    <td className="py-2 px-3 text-center font-mono text-slate-500">
-                      {idx + 1}
-                    </td>
-                    <td className="py-2 px-3 font-bold text-slate-900">
-                      {it.platename || "Mould Plate"}
-                    </td>
-                    <td className="py-2 px-3 text-slate-700 font-medium">
-                      {it.material || "—"}
-                    </td>
-                    <td className="py-2 px-3 text-slate-700 font-mono text-[11px]">
-                      {it.dimensions || "—"}
-                    </td>
-                    <td className="py-2 px-3 text-slate-800">
-                      <span className="font-semibold text-slate-900 block">
-                        {it.particulars || "Standard Jobwork"}
-                      </span>
-                    </td>
-                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-900">
-                      {it.qty ?? 1}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-            {/* Table Summary Footer */}
-            <tfoot>
-              <tr
-                className="font-bold border-t-2"
-                style={{ borderColor: TEAL_PRIMARY, backgroundColor: TEAL_LIGHT }}
-              >
-                <td colSpan={5} className="py-2.5 px-3 text-right uppercase text-[11px] text-slate-700">
-                  Total Items: <span className="font-mono text-slate-900 mr-4">{items.length}</span> Total Quantity:
-                </td>
-                <td className="py-2.5 px-3 text-right font-mono text-sm font-extrabold" style={{ color: TEAL_PRIMARY }}>
-                  {totalQty}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-
-        {/* ── Terms & Declarations ── */}
-        <div
-          className="p-3 border rounded-lg text-[10px] space-y-1"
-          style={{ borderColor: "#e2e8f0", backgroundColor: "#f8fafc" }}
-        >
-          <span className="font-bold uppercase tracking-wider text-slate-700 block text-[10px]">
-            Job Work Conditions & Declarations:
-          </span>
-          <ol className="list-decimal list-inside space-y-0.5 text-slate-600 leading-normal">
-            <li>
-              Goods dispatched under this challan are strictly for job work / manufacturing processing and are returnable upon completion.
-            </li>
-            <li>
-              Ownership and proprietary rights of all moulds, subplates, and drawings remain exclusively with Star Mould Technology Pvt. Ltd.
-            </li>
-            <li>
-              The consignee / processor must verify plate specifications, materials, and quantities immediately upon receipt.
-            </li>
-            <li>
-              Subject to Rajkot jurisdiction.
-            </li>
-          </ol>
-        </div>
-
-        {/* ── Signature Blocks ── */}
-        <div className="pt-6 grid grid-cols-2 gap-8 text-xs">
-          {/* Receiver / Processor Signature */}
-          <div className="space-y-12">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
-              Receiver&apos;s Signature &amp; Stamp
-            </span>
-            <div className="border-t border-slate-300 pt-1.5 flex items-center justify-between text-[10px] text-slate-500">
-              <span>Received by (Signature)</span>
-              <span>Date: _____ / _____ / 202___</span>
-            </div>
-          </div>
-
-          {/* Consignor Signature */}
-          <div className="space-y-12 text-right">
-            <span className="text-[10px] font-bold uppercase tracking-wider block" style={{ color: TEAL_PRIMARY }}>
-              For, STARMOULD TECHNOLOGY PRIVATE LIMITED
-            </span>
-            <div className="border-t border-slate-300 pt-1.5 flex items-center justify-end text-[10px] text-slate-500">
-              <span>Authorized Signatory</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Page Footer */}
-        <div className="pt-4 border-t border-slate-200 text-center text-[9px] text-slate-400 font-medium">
-          Computer generated Outward Jobwork Challan • Starmould Technology Private Limited ERP
-        </div>
       </div>
     </div>
   );

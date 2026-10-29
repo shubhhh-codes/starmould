@@ -144,7 +144,6 @@ export async function GET(req: NextRequest) {
     const challanNo = escapeHtml(challan.challanno || "—");
     const challanDate = escapeHtml(formatDate(challan.chdate));
     const projectCode = escapeHtml(challan.projectid || "—");
-    const customerName = escapeHtml(customer?.customername || "—");
     const transporterName = escapeHtml(transporter?.vendor_name || "Self / Hand to Hand");
 
     const vendorName = escapeHtml(vendor?.vendor_name || "—");
@@ -153,38 +152,40 @@ export async function GET(req: NextRequest) {
     const vendorPan = escapeHtml(vendor?.pan || "—");
     const vendorMobile = escapeHtml(vendor?.mobile || vendor?.mobile1 || "—");
     const vendorEmail = escapeHtml(vendor?.email || "—");
+    const vendorCode = escapeHtml(vendor?.vendor_code || "");
 
     const totalQty = items.reduce((sum: number, it: any) => sum + (Number(it.qty) || 0), 0);
 
     const itemsRowsHtml = items.length === 0
-      ? `<tr><td colspan="6" style="height: 46px; text-align: center; color: #94a3b8; font-style: italic;">No items listed in this challan.</td></tr>`
+      ? `<tr><td colspan="6" style="height: 46px; text-align: center; color: #94a3b8; font-style: italic;">No subplates or items specified in this outward challan.</td></tr>`
       : items.map((it: any, idx: number) => {
           const sp = it.plateid ? plateMap.get(it.plateid) : null;
           const plateName = escapeHtml(sp?.platename || "Mould Plate");
           const mat = escapeHtml(sp?.material || "—");
           const dims = sp ? `${sp.width}x${sp.height}x${sp.length}` : "—";
-          const particulars = escapeHtml(it.particulars || "Standard Jobwork");
+          const particulars = escapeHtml(it.particulars || "Standard Machining / Job Work");
           const qty = Number(it.qty) || 1;
           const bg = idx % 2 === 0 ? "#f3f9fb" : "#ffffff";
 
           return `
             <tr style="background-color: ${bg};">
-              <td style="height: 42px; padding: 0 8px; text-align: center; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52; font-family: monospace;">
+              <td style="height: 44px; padding: 0 8px; text-align: center; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52; font-size: 9.5px;">
                 ${idx + 1}
               </td>
-              <td style="height: 42px; padding: 0 12px; text-align: left; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0;">
-                <div style="font-weight: 700; font-size: 10.5px; color: #1f2a30;">${plateName}</div>
+              <td style="height: 44px; padding: 0 14px; text-align: left; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0;">
+                <div style="font-weight: 600; font-size: 10.5px; color: #1f2a30;">${plateName}</div>
+                <div style="font-size: 8.5px; color: #64748b; font-family: monospace; margin-top: 1px;">Subplate Ref: #${idx + 1}</div>
               </td>
-              <td style="height: 42px; padding: 0 8px; text-align: center; font-size: 9.5px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
-                ${mat}
-              </td>
-              <td style="height: 42px; padding: 0 8px; text-align: center; font-family: monospace; font-size: 9px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
-                ${dims}
-              </td>
-              <td style="height: 42px; padding: 0 12px; text-align: left; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; font-size: 9.5px; color: #1f2a30; font-weight: 600;">
+              <td style="height: 44px; padding: 0 10px; text-align: left; font-weight: 500; font-size: 9.5px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #1f2a30;">
                 ${particulars}
               </td>
-              <td style="height: 42px; padding: 0 12px; text-align: center; font-weight: 700; border-top: 1px solid #bcd8e0; font-size: 11px; color: #006181; font-family: monospace;">
+              <td style="height: 44px; padding: 0 8px; text-align: center; font-size: 9px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
+                ${mat}
+              </td>
+              <td style="height: 44px; padding: 0 8px; text-align: center; font-family: monospace; font-size: 9px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
+                ${dims}
+              </td>
+              <td style="height: 44px; padding: 0 12px; text-align: center; font-weight: 700; border-top: 1px solid #bcd8e0; font-size: 11px; color: #006181;">
                 ${qty}
               </td>
             </tr>
@@ -211,7 +212,7 @@ export async function GET(req: NextRequest) {
             margin: 0;
             padding: 0;
             background: #ffffff;
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color: #1f2a30;
             -webkit-font-smoothing: antialiased;
           }
@@ -227,55 +228,86 @@ export async function GET(req: NextRequest) {
           .top-stripe-teal { height: 9px; width: 794px; background-color: #006181; }
           .top-stripe-grey { height: 4px; width: 794px; background-color: #62676b; }
           .content { padding: 24px 42px 0 42px; width: 794px; }
-          .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-          .logo-img { width: 240px; height: auto; display: block; }
-          .title-text { text-align: right; }
-          .title-main { font-size: 24px; font-weight: 800; letter-spacing: 0.5px; line-height: 1; color: #006181; margin-bottom: 6px; }
-          .title-underline { height: 4px; width: 340px; background-color: #62676b; margin-left: auto; }
+          
+          .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
+          .logo-wrap { width: 280px; }
+          .logo-img { width: 260px; height: auto; display: block; }
+          .title-wrap { text-align: right; }
+          .title-main { font-size: 28px; font-weight: 800; letter-spacing: 0.5px; line-height: 1; color: #006181; margin-bottom: 8px; }
+          .title-underline { height: 5px; width: 330px; background-color: #62676b; margin-left: auto; }
           .title-sub { font-size: 9px; font-weight: 600; text-transform: uppercase; color: #62676b; letter-spacing: 0.8px; margin-top: 6px; }
 
-          .info-card {
-            width: 710px; border-radius: 10px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
-            display: flex; overflow: hidden; margin-bottom: 14px;
+          .info-box {
+            width: 710px; height: 58px; border: 1px solid #bcd8e0; border-radius: 12px; background-color: #f3f9fb;
+            display: flex; overflow: hidden; margin-bottom: 16px;
           }
-          .info-cell { flex: 1; padding: 8px 14px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #bcd8e0; }
-          .info-cell:last-child { border-right: none; }
-          .info-label { font-size: 8px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #006181; margin-bottom: 2px; }
-          .info-val { font-size: 11px; font-weight: 600; color: #33414a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .info-col { flex: 1; padding: 8px 18px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #bcd8e0; }
+          .info-col:last-child { border-right: none; }
+          .info-label { font-size: 8px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #006181; margin-bottom: 3px; }
+          .info-val { font-size: 12px; font-weight: 500; color: #33414a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-          .party-box {
-            width: 710px; border-radius: 10px; border: 1px solid #bcd8e0; background: #ffffff;
-            margin-bottom: 16px; overflow: hidden; display: flex;
+          .quick-bar {
+            width: 710px; border-radius: 10px; border: 1px solid #bcd8e0; padding: 8px 16px; margin-bottom: 20px;
+            display: flex; align-items: center; justify-content: space-between; font-size: 10px; background-color: #ffffff;
           }
-          .party-col { flex: 1; padding: 10px 16px; }
-          .party-col-left { border-right: 1px solid #bcd8e0; background-color: #fafcfd; }
-          .party-title { font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #006181; margin-bottom: 4px; }
-          .party-name { font-size: 13px; font-weight: 700; color: #1f2a30; margin-bottom: 4px; line-height: 1.2; }
-          .party-addr { font-size: 9.5px; color: #3d4a52; line-height: 1.35; margin-bottom: 4px; }
-          .party-tax { font-size: 9px; color: #62676b; line-height: 1.35; }
+          .quick-label { font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #006181; }
 
-          .table-container { width: 710px; border-radius: 10px; border: 1px solid #bcd8e0; overflow: hidden; margin-bottom: 14px; }
-          table { width: 100%; border-collapse: collapse; }
+          .party-box { width: 710px; margin-bottom: 20px; }
+          .party-header { display: flex; height: 36px; background-color: #006181; }
+          .party-header-cell {
+            flex: 1; display: flex; align-items: center; padding: 0 16px;
+            font-size: 10.5px; font-weight: 600; color: #ffffff; letter-spacing: 0.5px; text-transform: uppercase;
+          }
+          .party-body { display: flex; background: #ffffff; border-left: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; border-bottom: 1px solid #bcd8e0; }
+          .party-col { flex: 1; padding: 12px 16px; font-size: 10px; line-height: 1.5; color: #3d4a52; }
+          .party-col-left { border-right: 1px solid #bcd8e0; }
+          .party-name { font-weight: 700; font-size: 11.5px; color: #1f2a30; margin-bottom: 2px; }
+
+          .section-bar {
+            width: 710px; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
+            font-weight: 600; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px;
+            background-color: #e6f2f6; color: #006181;
+          }
+
+          .table-box { width: 710px; border: 1px solid #bcd8e0; overflow: hidden; margin-bottom: 18px; }
+          table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
           th {
-            height: 32px; background-color: #006181; color: #ffffff; font-size: 8.5px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.6px; padding: 0 10px; border-right: 1px solid #004b64;
+            height: 36px; background-color: #006181; color: #ffffff; font-size: 9.5px; font-weight: 600;
+            padding: 0 8px; border-right: 1px solid rgba(255,255,255,0.4); text-align: center;
           }
           th:last-child { border-right: none; }
-          .total-row { background-color: #f3f9fb; border-top: 2px solid #006181; }
-          .total-row td { height: 32px; font-weight: 700; font-size: 10.5px; color: #006181; }
+          .total-row { background-color: #e6f2f6; font-weight: 700; }
+          .total-row td { height: 34px; font-size: 9.5px; color: #006181; border-top: 1px solid #bcd8e0; }
 
-          .terms-box {
-            width: 710px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc;
-            padding: 8px 14px; margin-bottom: 16px; font-size: 8.5px; color: #62676b; line-height: 1.4;
+          .terms-wrap { width: 710px; margin-bottom: 18px; }
+          .terms-header {
+            height: 34px; padding: 0 16px; display: flex; align-items: center; background-color: #006181;
+            color: #ffffff; font-weight: 600; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase;
           }
-          .terms-title { font-weight: 700; text-transform: uppercase; color: #33414a; margin-bottom: 2px; }
+          .terms-body {
+            padding: 10px 16px; font-size: 9px; line-height: 1.6; border-left: 1px solid #bcd8e0;
+            border-right: 1px solid #bcd8e0; border-bottom: 1px solid #bcd8e0; background-color: #ffffff; color: #3d4a52;
+          }
 
-          .sig-row { width: 710px; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 10px; }
-          .sig-box { width: 220px; text-align: center; }
-          .sig-line { border-top: 1px solid #33414a; margin-bottom: 4px; }
-          .sig-label { font-size: 8.5px; font-weight: 600; text-transform: uppercase; color: #3d4a52; }
+          .sig-card {
+            width: 710px; height: 98px; border-radius: 12px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
+            padding: 10px 20px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
+          }
+          .sig-top { display: flex; justify-content: space-between; align-items: flex-start; }
+          .sig-title { font-weight: 700; font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; color: #006181; }
+          .sig-bottom { display: flex; justify-content: space-between; align-items: flex-end; font-size: 9px; color: #4a575e; }
 
-          .bottom-bar { height: 12px; width: 794px; background-color: #006181; }
+          .footer-wrap { width: 794px; margin-top: auto; }
+          .footer-navy {
+            width: 794px; padding: 8px 36px; display: flex; align-items: center; justify-content: space-between;
+            background-color: #1b2537; color: #ffffff;
+          }
+          .footer-left { display: flex; align-items: center; gap: 10px; }
+          .footer-divider { width: 1px; height: 34px; background-color: rgba(255,255,255,0.4); }
+          .footer-addr { display: flex; flex-direction: column; line-height: 1.25; }
+          .footer-right { display: flex; align-items: center; gap: 9px; }
+          .footer-contact { display: flex; flex-direction: column; line-height: 1.3; font-size: 8.5px; font-weight: 600; }
+          .footer-white-space { width: 794px; height: 14px; background-color: #ffffff; }
         </style>
       </head>
       <body>
@@ -287,75 +319,109 @@ export async function GET(req: NextRequest) {
             <div class="content">
               <!-- Header Row -->
               <div class="header-row">
-                <div>
+                <div class="logo-wrap">
                   ${logoDataUrl ? `<img src="${logoDataUrl}" class="logo-img" alt="Star Mould Logo" />` : `
-                    <div style="font-size: 22px; font-weight: 800; color: #006181;">STARMOULD</div>
-                    <div style="font-size: 9px; font-weight: 600; color: #62676b;">TECHNOLOGY PRIVATE LIMITED</div>
+                    <div style="font-size: 24px; font-weight: 800; color: #006181;">STARMOULD</div>
+                    <div style="font-size: 10px; font-weight: 600; color: #62676b;">TECHNOLOGY PRIVATE LIMITED</div>
                   `}
                 </div>
-                <div class="title-text">
-                  <div class="title-main">OUTWARD CHALLAN</div>
+                <div class="title-wrap">
+                  <div class="title-main">JOB WORK CHALLAN</div>
                   <div class="title-underline"></div>
-                  <div class="title-sub">DELIVERY / JOB WORK CHALLAN</div>
+                  <div class="title-sub">Outward Delivery / Job Work Under Section 143</div>
                 </div>
               </div>
 
-              <!-- Info Card (Challan No, Date, Project, Transporter) -->
-              <div class="info-card">
-                <div class="info-cell">
-                  <div class="info-label">Challan No.</div>
+              <!-- Top Info Bar -->
+              <div class="info-box">
+                <div class="info-col">
+                  <div class="info-label">Challan Number</div>
                   <div class="info-val" style="font-family: monospace; font-weight: 700; color: #006181;">${challanNo}</div>
                 </div>
-                <div class="info-cell">
+                <div class="info-col">
                   <div class="info-label">Challan Date</div>
                   <div class="info-val">${challanDate}</div>
                 </div>
-                <div class="info-cell">
-                  <div class="info-label">Mould Project</div>
-                  <div class="info-val" style="font-family: monospace;">${projectCode}</div>
-                </div>
-                <div class="info-cell">
+                <div class="info-col">
                   <div class="info-label">Transporter</div>
                   <div class="info-val">${transporterName}</div>
                 </div>
+                <div class="info-col">
+                  <div class="info-label">Mould Project</div>
+                  <div class="info-val" style="font-family: monospace;">${projectCode}</div>
+                </div>
               </div>
 
-              <!-- Party Box: Consignor vs Vendor -->
+              <!-- Logistics Quick Bar -->
+              <div class="quick-bar">
+                <div>
+                  <span class="quick-label">Transporter:&nbsp;</span>
+                  <span style="font-weight: 500; color: #1f2a30;">${transporterName}</span>
+                </div>
+                <div>
+                  <span class="quick-label">Movement Purpose:&nbsp;</span>
+                  <span style="font-weight: 500; color: #1f2a30;">Job Work / Subplate Processing</span>
+                </div>
+                <div>
+                  <span class="quick-label">GST Category:&nbsp;</span>
+                  <span style="font-weight: 700; padding: 2px 6px; border-radius: 4px; font-size: 9px; background-color: #ecfdf5; color: #047857;">Sec. 143 Non-Taxable Outward</span>
+                </div>
+                <div>
+                  <span class="quick-label">Project Code:&nbsp;</span>
+                  <span style="font-family: monospace; font-weight: 700; font-size: 9.5px; color: #006181;">${projectCode}</span>
+                </div>
+              </div>
+
+              <!-- Party Section (Job Worker vs Consignor) -->
               <div class="party-box">
-                <div class="party-col party-col-left">
-                  <div class="party-title">Consignor / Principal Manufacturer</div>
-                  <div class="party-name">STARMOULD TECHNOLOGY PRIVATE LIMITED</div>
-                  <div class="party-addr">G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda, Rajkot-360 021 (Gujarat) INDIA</div>
-                  <div class="party-tax">
-                    <span>GSTIN: <strong>24ABLCS1427Q1ZV</strong></span> • 
-                    <span>PAN: <strong>ABLCS1427Q</strong></span><br>
-                    <span>Mobile: 8238451671</span> • <span>Email: info.starmould@yahoo.com</span>
-                  </div>
+                <div class="party-header">
+                  <div class="party-header-cell">Job Worker / Processor (Consignee)</div>
+                  <div class="party-header-cell">Consignor (Issued By / Principal)</div>
                 </div>
-                <div class="party-col">
-                  <div class="party-title">Consignee / Job Worker (Vendor)</div>
-                  <div class="party-name">${vendorName}</div>
-                  <div class="party-addr">${vendorAddress}</div>
-                  <div class="party-tax">
-                    ${vendorGstin !== "—" ? `<span>GSTIN: <strong>${vendorGstin}</strong></span> • ` : ""}
-                    ${vendorPan !== "—" ? `<span>PAN: <strong>${vendorPan}</strong></span><br>` : ""}
-                    <span>Contact: ${vendorMobile}</span>
-                    ${vendorEmail !== "—" ? ` • <span>Email: ${vendorEmail}</span>` : ""}
+                <div class="party-body">
+                  <div class="party-col party-col-left">
+                    <div class="party-name">${vendorName}</div>
+                    <div>${vendorAddress}</div>
+                    ${vendorCode ? `<div style="font-size: 9px; font-family: monospace; color: #64748b;">Vendor Code: ${vendorCode}</div>` : ""}
+                    <div style="margin-top: 3px;">
+                      <strong style="color: #1f2a30;">GSTIN:</strong> ${vendorGstin}
+                      &nbsp;|&nbsp;
+                      <strong style="color: #1f2a30;">PAN:</strong> ${vendorPan}
+                    </div>
+                    <div><strong style="color: #1f2a30;">Contact:</strong> ${vendorMobile}</div>
+                    <div><strong style="color: #1f2a30;">Email:</strong> ${vendorEmail}</div>
+                  </div>
+                  <div class="party-col">
+                    <div class="party-name">STARMOULD TECHNOLOGY PRIVATE LIMITED</div>
+                    <div>G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</div>
+                    <div>Rajkot-360 021. (Gujarat) INDIA.</div>
+                    <div style="margin-top: 3px;"><strong style="color: #1f2a30;">CIN No:</strong> U25910GJ2023PTC142461</div>
+                    <div>
+                      <strong style="color: #1f2a30;">GSTIN:</strong> 24ABLCS1427Q1ZV
+                      &nbsp;|&nbsp;
+                      <strong style="color: #1f2a30;">PAN:</strong> ABLCS1427Q
+                    </div>
+                    <div><strong style="color: #1f2a30;">Mobile:</strong> 8238451671</div>
+                    <div><strong style="color: #1f2a30;">Email:</strong> starmoulda@yahoo.in</div>
                   </div>
                 </div>
               </div>
 
-              <!-- Items Table -->
-              <div class="table-container">
+              <!-- Table Section -->
+              <div class="section-bar">
+                <span>Particulars &amp; Specifications of Goods Sent For Job Work</span>
+                <span style="font-size: 9.5px; font-family: monospace; text-transform: lowercase;">(${items.length} ${items.length === 1 ? "item" : "items"})</span>
+              </div>
+              <div class="table-box">
                 <table>
                   <thead>
                     <tr>
-                      <th style="width: 36px; text-align: center;">No.</th>
-                      <th style="width: 170px; text-align: left; padding-left: 12px;">Subplate Name</th>
-                      <th style="width: 75px; text-align: center;">Material</th>
-                      <th style="width: 110px; text-align: center;">Dimensions (WxHxL)</th>
-                      <th style="text-align: left; padding-left: 12px;">Job Work Particulars / Process</th>
-                      <th style="width: 55px; text-align: center;">Qty</th>
+                      <th style="width: 38px;">#</th>
+                      <th style="width: 240px; text-align: left; padding-left: 14px;">Component / Plate Description</th>
+                      <th style="width: 170px; text-align: left; padding-left: 10px;">Job Work Particulars</th>
+                      <th style="width: 90px;">Material</th>
+                      <th style="width: 110px;">Dimensions (WxHxL)</th>
+                      <th style="width: 62px;">Qty</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -363,10 +429,10 @@ export async function GET(req: NextRequest) {
                   </tbody>
                   <tfoot>
                     <tr class="total-row">
-                      <td colspan="5" style="text-align: right; padding-right: 14px; text-transform: uppercase; font-size: 9.5px;">
-                        Total Items: <span style="font-family: monospace; font-weight: 700; margin-right: 18px;">${items.length}</span> Total Quantity:
+                      <td colspan="5" style="text-align: right; padding-right: 16px; text-transform: uppercase; font-size: 9.5px;">
+                        Total Dispatched Quantity:
                       </td>
-                      <td style="text-align: center; font-size: 12px; font-weight: 800; font-family: monospace;">
+                      <td style="text-align: center; font-size: 12px; font-weight: 700;">
                         ${totalQty}
                       </td>
                     </tr>
@@ -375,32 +441,69 @@ export async function GET(req: NextRequest) {
               </div>
 
               <!-- Terms Box -->
-              <div class="terms-box">
-                <div class="terms-title">Job Work Conditions &amp; Declarations:</div>
-                <div>
-                  1. Goods dispatched under this challan are solely for job work / machining operations and will be returned after processing.<br>
-                  2. Ownership and proprietary title remain exclusively with Star Mould Technology Pvt. Ltd.<br>
-                  3. Please verify plate specifications, dimensions, and condition immediately upon receipt. Subject to Rajkot jurisdiction.
+              <div class="terms-wrap">
+                <div class="terms-header">Delivery &amp; Job Work Terms &amp; Conditions (Sec. 143 CGST Act)</div>
+                <div class="terms-body">
+                  <p><strong style="color: #1f2a30;">1. Nature of Movement:</strong> Goods dispatched under this challan are strictly for Job Work / Tooling Processing only and not intended for sale.</p>
+                  <p><strong style="color: #1f2a30;">2. Statutory Rule:</strong> Issued in accordance with Section 143 of the CGST Act 2017 &amp; Rule 55 of CGST Rules for movement of goods sent for job work.</p>
+                  <p><strong style="color: #1f2a30;">3. Return Obligation:</strong> The processed goods/components must be returned to the consignor within the statutory period of 1 year (or 3 years for capital mould tooling).</p>
+                  <p><strong style="color: #1f2a30;">4. Verification &amp; Damage Claims:</strong> Please inspect the dimensions, weight, and condition upon receipt. Any defect or discrepancy must be reported within 24 hours.</p>
                 </div>
               </div>
 
-              <!-- Signature Row -->
-              <div class="sig-row">
-                <div class="sig-box">
-                  <div style="height: 36px;"></div>
-                  <div class="sig-line"></div>
-                  <div class="sig-label">Receiver's Signature &amp; Stamp</div>
+              <!-- Signature Box -->
+              <div class="sig-card">
+                <div class="sig-top">
+                  <span class="sig-title">Receiver's / Processor's Acknowledgement</span>
+                  <span class="sig-title">For STARMOULD TECHNOLOGY PRIVATE LIMITED</span>
                 </div>
-                <div class="sig-box">
-                  <div style="font-size: 8.5px; font-weight: 700; color: #006181; margin-bottom: 24px;">For, STARMOULD TECHNOLOGY PVT. LTD.</div>
-                  <div class="sig-line"></div>
-                  <div class="sig-label">Authorized Signatory</div>
+                <div class="sig-bottom">
+                  <div>Received in Good Condition&nbsp;&nbsp;|&nbsp;&nbsp;Date: ________________</div>
+                  <div style="font-weight: 600; color: #1f2a30;">Authorized Signatory</div>
                 </div>
               </div>
+
             </div>
           </div>
 
-          <div class="bottom-bar"></div>
+          <!-- Bottom Footer Bar -->
+          <div class="footer-wrap">
+            <div class="footer-navy">
+              <div class="footer-left">
+                <div style="display: flex; align-items: center; justify-content: center;">
+                  <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                    <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
+                  </svg>
+                </div>
+                <div class="footer-divider"></div>
+                <div class="footer-addr">
+                  <span style="font-size: 9.5px; font-weight: 700; letter-spacing: -0.2px;">Starmould Technology Private Limited</span>
+                  <span style="font-size: 8px; color: rgba(255,255,255,0.9);">G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</span>
+                  <span style="font-size: 8px; color: rgba(255,255,255,0.9);">Rajkot-360 021. (Gujarat) INDIA.</span>
+                </div>
+              </div>
+
+              <div class="footer-right">
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
+                  <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                  </svg>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+                    <path d="M2 12h20" />
+                  </svg>
+                </div>
+                <div class="footer-divider" style="height: 28px;"></div>
+                <div class="footer-contact">
+                  <span>starmoulda@yahoo.in</span>
+                  <span>www.starmould.in</span>
+                </div>
+              </div>
+            </div>
+            <div class="footer-white-space"></div>
+          </div>
         </div>
       </body>
       </html>
@@ -426,7 +529,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Outward-Challan-${challanNo.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf"`,
+        "Content-Disposition": `attachment; filename="Job-Work-Challan-${challanNo.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf"`,
       },
     });
   } catch (err: any) {
