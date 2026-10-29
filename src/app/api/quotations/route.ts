@@ -290,7 +290,8 @@ export async function POST(req: NextRequest) {
       .select();
 
     if (itErr) {
-      return NextResponse.json({ error: itErr.message }, { status: 500 });
+      await supabaseAdmin.from("quotations").delete().eq("id", newQuote.id);
+      return NextResponse.json({ error: `Failed to insert quotation items: ${itErr.message}` }, { status: 500 });
     }
 
     return NextResponse.json({

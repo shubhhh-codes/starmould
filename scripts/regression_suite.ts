@@ -12,6 +12,7 @@ import { DEFAULT_ROLE_PERMISSIONS } from "../src/lib/permissions/defaults";
 import { calculateGST, calculateLineTotal } from "../src/lib/gst-calculation";
 import { escapeHtml } from "../src/lib/utils";
 import { createSecurePrintToken, verifySecurePrintToken, MAX_PRINT_TOKEN_AGE_MS } from "../src/lib/print-token";
+import { STAGE_DEFINITIONS, getAllowedStagesForUser } from "../src/lib/subplate-stages";
 import crypto from "crypto";
 
 // Ensure required environment variables for test execution
@@ -186,6 +187,26 @@ async function run() {
   });
   assert(zeroWeight === 0, `Zero-density material (Rubber) returns 0.000 kg (got ${zeroWeight})`);
 
+  const roundRubberWeight = calculateSubplateWeight({
+    shape: "Round",
+    material: "Rubber",
+    length: 100,
+    width: 50,
+    unit: "mm",
+    quantity: 1,
+  });
+  assert(roundRubberWeight === 0, `Round zero-density material (Rubber) returns 0.000 kg (got ${roundRubberWeight})`);
+
+  const roundSSWeight = calculateSubplateWeight({
+    shape: "Round Bar",
+    material: "SS",
+    length: 200,
+    width: 40,
+    unit: "mm",
+    quantity: 1,
+  });
+  assert(roundSSWeight === 0, `Round zero-density material (SS) returns 0.000 kg (got ${roundSSWeight})`);
+
   // Calculation Test 4: Height disabled for Round Bar
   assert(isHeightDisabled("Round") === true, "isHeightDisabled('Round') = true");
   assert(isHeightDisabled("Rectangle") === false, "isHeightDisabled('Rectangle') = false");
@@ -304,6 +325,15 @@ async function run() {
   const bufC = Buffer.from(secretC);
   assert(bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB), "timingSafeEqual matches identical secrets");
   assert(bufA.length === bufC.length && !crypto.timingSafeEqual(bufA, bufC), "timingSafeEqual detects mismatch securely");
+
+  // Suite 6: Modular Stage Definitions & Delta Sync Validation
+  assert(STAGE_DEFINITIONS.length === 9, "STAGE_DEFINITIONS defines all 9 production stages");
+  assert(getAllowedStagesForUser({ role_id: 3, role: "Designer" }, false).length === 1, "Designer role is strictly limited to 1 stage");
+  assert(getAllowedStagesForUser({ role_id: 1, role: "Manager" }, false).length === 9, "Manager role has access to all 9 stages");
+
+  const isValidSince = (since: string) => !isNaN(Date.parse(since)) && /^\d{4}-\d{2}-\d{2}/.test(since);
+  assert(isValidSince("2026-10-29T10:00:00.000Z") === true, "Valid ISO since timestamp passes validation");
+  assert(isValidSince("malicious_injection'),status.eq.1") === false, "PostgREST injection in since timestamp rejected");
 
   // SM-005: PostgREST Wildcard Sanitization
   const sanitizeLoginUsername = (input: string) => input.trim().replace(/[%_(),]/g, "");

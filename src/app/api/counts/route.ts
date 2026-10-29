@@ -90,7 +90,8 @@ export async function GET(req: NextRequest) {
       const { data: subplates } = await supabaseAdmin
         .from("subplate")
         .select("id, design_by, order_by, received_workby, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
-        .is("deleted_at", null);
+        .is("deleted_at", null)
+        .limit(100000);
 
       if (subplates) {
         const dp = subplates.filter((sp) => !sp.design_by || Number(sp.design_by) === 0).length;

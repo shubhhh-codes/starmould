@@ -97,11 +97,17 @@ export function calculateSubplateWeight(input: WeightCalculationInput): number {
   const h_val = isNaN(h) ? 0 : h * multiplier;
 
   const density = getMaterialDensity(material);
+  const isExplicitZero = Boolean(material) && Object.prototype.hasOwnProperty.call(MATERIAL_DENSITIES, material) && MATERIAL_DENSITIES[material] === 0;
   const MM3_TO_KG = 1_000_000;
 
   const normShape = (shape || "").trim().toLowerCase();
 
   let unitWeight = 0;
+
+  // Non-metal accessories (Rubber, SS, U-seal) explicitly defined with 0 density return 0 weight
+  if (isExplicitZero) {
+    return 0;
+  }
 
   if (normShape === "round" || normShape === "round bar") {
     // Legacy: ((3.14 * (width/2) * (width/2) * length) * density) / 1000000

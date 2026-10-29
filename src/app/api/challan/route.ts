@@ -159,39 +159,57 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
-    // Generate challan number if not provided (matching ChallanController.php lines 823-825: SM/JW/xx)
-    let finalChallanNo = challanno?.trim();
-    if (!finalChallanNo) {
-      const { count } = await supabaseAdmin
+    // 1. Insert parent Challan with collision retry loop
+    const { data: maxRows } = await supabaseAdmin
+      .from("challan")
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    const baseId = (maxRows?.[0]?.id ?? 0) + 1;
+    let challanData: any = null;
+    let cErr: any = null;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      let finalChallanNo = challanno?.trim();
+      if (!finalChallanNo) {
+        const nextId = baseId + attempt;
+        finalChallanNo = nextId < 10 ? `SM/JW/0${nextId}` : `SM/JW/${nextId}`;
+      }
+
+      const res = await supabaseAdmin
         .from("challan")
-        .select("id", { count: "exact", head: true });
-      const nextId = (count || 0) + 1;
-      finalChallanNo = nextId < 10 ? `SM/JW/0${nextId}` : `SM/JW/${nextId}`;
+        .insert([
+          {
+            challanno: finalChallanNo,
+            customerid: Number(customerid),
+            vendorid: Number(vendorid),
+            vendortid: vendortid ? Number(vendortid) : Number(vendorid),
+            projectid: projectid || "",
+            subprojectid: 0,
+            chdate: chdate || now.slice(0, 10),
+            status: "1",
+            created_at: now,
+            created_by: created_by || auth.user.name || "Admin",
+            updated_at: now,
+          },
+        ])
+        .select()
+        .single();
+
+      if (!res.error) {
+        challanData = res.data;
+        cErr = null;
+        break;
+      }
+      cErr = res.error;
+      if (res.error.code !== "23505" && !res.error.message?.includes("unique constraint")) {
+        break;
+      }
     }
 
-    // 1. Insert parent Challan
-    const { data: challanData, error: cErr } = await supabaseAdmin
-      .from("challan")
-      .insert([
-        {
-          challanno: finalChallanNo,
-          customerid: Number(customerid),
-          vendorid: Number(vendorid),
-          vendortid: vendortid ? Number(vendortid) : Number(vendorid),
-          projectid: projectid || "",
-          subprojectid: 0,
-          chdate: chdate || now.slice(0, 10),
-          status: "1",
-          created_at: now,
-          created_by: created_by || auth.user.name || "Admin",
-          updated_at: now,
-        },
-      ])
-      .select()
-      .single();
-
-    if (cErr) {
-      return NextResponse.json({ error: cErr.message }, { status: 500 });
+    if (cErr || !challanData) {
+      return NextResponse.json({ error: cErr?.message || "Failed to create challan" }, { status: 500 });
     }
 
     // 2. Insert child items and update subplate location to vendor initials
@@ -207,16 +225,20 @@ export async function POST(req: NextRequest) {
         updated_at: now,
       }));
 
-      await supabaseAdmin.from("challan_items").insert(itemsToInsert);
+      const { error: itemsErr } = await supabaseAdmin.from("challan_items").insert(itemsToInsert);
+      if (itemsErr) {
+        await supabaseAdmin.from("challan").delete().eq("id", challanData.id);
+        return NextResponse.json({ error: `Failed to insert challan items: ${itemsErr.message}` }, { status: 500 });
+      }
 
       // Update subplate location matching PHP ChallanController:881-899
       const { data: vendorData } = await supabaseAdmin
-        .from("customers")
-        .select("initials, customername")
+        .from("vendors")
+        .select("initials, vendor_name")
         .eq("id", Number(vendorid))
-        .single();
+        .maybeSingle();
 
-      const vendorInitials = vendorData?.initials || vendorData?.customername || "Vendor";
+      const vendorInitials = vendorData?.initials || vendorData?.vendor_name || "Vendor";
       const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
 
       if (plateIds.length > 0) {

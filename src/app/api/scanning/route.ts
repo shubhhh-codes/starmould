@@ -14,7 +14,18 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    const since = searchParams.get("since");
+    const rawSince = searchParams.get("since");
+
+    if (rawSince !== null) {
+      if (!rawSince.trim() || isNaN(Date.parse(rawSince)) || !/^\d{4}-\d{2}-\d{2}/.test(rawSince.trim())) {
+        return NextResponse.json(
+          { error: "Invalid 'since' timestamp format. Must be a valid ISO 8601 date." },
+          { status: 400 }
+        );
+      }
+    }
+
+    const since = rawSince ? new Date(rawSince.trim()).toISOString() : null;
 
     // =========================================================================
     // DELTA / INCREMENTAL SYNC HANDLER

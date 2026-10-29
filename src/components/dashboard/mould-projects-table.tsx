@@ -78,7 +78,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
-import { STAGE_DEFINITIONS, getAllowedStagesForUser, getSubplateProgressInfo } from "@/app/subplate/page";
+import { STAGE_DEFINITIONS, getAllowedStagesForUser, getSubplateProgressInfo } from "@/lib/subplate-stages";
 import { AssignStaffModal } from "@/components/subplate/assign-staff-modal";
 
 const REAL_MATERIALS = [

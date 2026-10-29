@@ -94,7 +94,8 @@ export async function GET(req: NextRequest) {
         .from("purchase")
         .select("*")
         .eq("status", "1")
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(100000);
 
       const headers = ["ID", "PO No", "Customer", "Vendor", "Project ID", "Order Date", "Status"];
       const rows = (pos || []).map((p) => {
@@ -121,7 +122,8 @@ export async function GET(req: NextRequest) {
         .select("*")
         .neq("worktype", "Sample")
         .eq("status", "pending")
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(100000);
 
       const headers = ["ID", "Project Code", "Customer", "Description", "Work Type", "RDate", "Status"];
       const rows = (moulds || []).map((m) => {
@@ -147,7 +149,8 @@ export async function GET(req: NextRequest) {
         .select("*")
         .neq("worktype", "Sample")
         .eq("status", "registered")
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(100000);
 
       const headers = ["ID", "Project Code", "Customer", "Description", "Work Type", "RDate", "Amount", "Status"];
       const rows = (moulds || []).map((m) => {
@@ -173,7 +176,8 @@ export async function GET(req: NextRequest) {
         .from("view_po_pending_inward_qty")
         .select("*")
         .neq("pending_qty", 0)
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(100000);
 
       const headers = ["ID", "PO No", "Customer", "Vendor", "Material", "Type", "Ordered Qty", "Inward Qty", "Pending Qty", "Plate Name"];
       const rows = (poInwards || []).map((p) => [
@@ -198,7 +202,8 @@ export async function GET(req: NextRequest) {
         .from("challan")
         .select("*")
         .eq("status", "1")
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(100000);
 
       const headers = ["ID", "Challan No", "Vendor", "Transporter", "Date", "Status"];
       const rows = (challans || []).map((c) => {
@@ -223,7 +228,8 @@ export async function GET(req: NextRequest) {
         .from("dispatch")
         .select("*")
         .eq("status", "1")
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(100000);
 
       const headers = ["ID", "Dispatch Date", "Invoice No", "Customer", "Status"];
       const rows = (dispatches || []).map((d) => {
@@ -246,7 +252,8 @@ export async function GET(req: NextRequest) {
         .from("view_pending_inward_qty")
         .select("*")
         .neq("pending_qty", 0)
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(100000);
 
       const headers = ["ID", "Challan No", "Customer", "Vendor", "Transporter", "Date", "Particulars", "Qty", "Inward Qty", "Pending Qty", "Plate Name"];
       const rows = (pending || []).map((p) => [

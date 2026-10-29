@@ -77,9 +77,7 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const { data: dbUsers } = await supabaseAdmin
-        .from("users")
-        .select("id, name, initials");
+      const dbUsers = await getCachedUsers();
       const userMap = new Map((dbUsers || []).map((u: any) => [u.id, u]));
 
       const enrichedPlates = plateList.map((p) => {

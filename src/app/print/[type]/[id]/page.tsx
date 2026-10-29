@@ -15,6 +15,7 @@ import {
   RotateCcw,
   FileText,
   ChevronDown,
+  ArrowUpDown,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,6 +48,29 @@ export default function PrintDocumentPage({ params }: PageProps) {
   const [hasInitializedZoom, setHasInitializedZoom] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isZoomDropdownOpen, setIsZoomDropdownOpen] = useState(false);
+  const [invertZoom, setInvertZoom] = useState<boolean>(false);
+  const invertZoomRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("sm_doc_viewer_invert_zoom");
+      if (saved === "true") {
+        setInvertZoom(true);
+        invertZoomRef.current = true;
+      }
+    }
+  }, []);
+
+  const handleToggleInvertZoom = useCallback(() => {
+    setInvertZoom((prev) => {
+      const next = !prev;
+      invertZoomRef.current = next;
+      try {
+        localStorage.setItem("sm_doc_viewer_invert_zoom", String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   const mainRef = useRef<HTMLElement>(null);
   const sheetWrapperRef = useRef<HTMLDivElement>(null);
@@ -376,12 +400,15 @@ export default function PrintDocumentPage({ params }: PageProps) {
         panRef.current.x -= 60;
         panRef.current = clampPan(panRef.current, zoomRef.current);
         applyTransformDirect(true);
+      } else if (e.key === "i" || e.key === "I") {
+        e.preventDefault();
+        handleToggleInvertZoom();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleZoomIn, handleZoomOut, handleResetZoom, handleFit, clampPan, applyTransformDirect]);
+  }, [handleZoomIn, handleZoomOut, handleResetZoom, handleFit, handleToggleInvertZoom, clampPan, applyTransformDirect]);
 
   // Direct Mouse Wheel Handler:
   // - Normal Wheel: Natural vertical & horizontal scroll / pan through document
@@ -422,8 +449,10 @@ export default function PrintDocumentPage({ params }: PageProps) {
         const focalY = e.clientY - rect.top;
 
         const oldZoom = zoomRef.current;
+        // Invert zoom direction if user enabled Invert Zoom preference
+        const effectiveDeltaY = invertZoomRef.current ? -e.deltaY : e.deltaY;
         // Exponential zoom factor: smooth on trackpads, responsive on discrete wheel clicks
-        const zoomFactor = Math.exp(-e.deltaY * 0.002);
+        const zoomFactor = Math.exp(-effectiveDeltaY * 0.002);
         const newZoom = Math.min(3.5, Math.max(0.35, Number((oldZoom * zoomFactor).toFixed(3))));
         if (Math.abs(newZoom - oldZoom) < 0.001) return;
 
@@ -916,7 +945,7 @@ export default function PrintDocumentPage({ params }: PageProps) {
                 {/* Dropdown Menu */}
                 {isZoomDropdownOpen && (
                   <div
-                    className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-50 w-36 text-xs text-slate-800 animate-in fade-in zoom-in-95 duration-100"
+                    className="absolute top-full mt-1.5 left-1/2 -translate-x-1/2 bg-white border border-slate-200 rounded-xl shadow-xl py-1 z-50 w-44 text-xs text-slate-800 animate-in fade-in zoom-in-95 duration-100"
                     onMouseLeave={() => setIsZoomDropdownOpen(false)}
                   >
                     <button
@@ -947,6 +976,27 @@ export default function PrintDocumentPage({ params }: PageProps) {
                         {preset === 1.0 && <span className="text-[10px] text-slate-400">100%</span>}
                       </button>
                     ))}
+                    <div className="h-px bg-slate-100 my-1" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleToggleInvertZoom();
+                      }}
+                      className="w-full text-left px-3 py-1.5 hover:bg-slate-100 flex items-center justify-between font-medium text-slate-700 transition"
+                      title="Invert mouse wheel zoom direction (I)"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <ArrowUpDown className={`w-3.5 h-3.5 ${invertZoom ? "text-amber-600" : "text-slate-400"}`} />
+                        <span>Invert Zoom</span>
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          invertZoom ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {invertZoom ? "ON" : "OFF"}
+                      </span>
+                    </button>
                   </div>
                 )}
               </div>
@@ -967,6 +1017,19 @@ export default function PrintDocumentPage({ params }: PageProps) {
                 title="Fit Document to Screen Width (F)"
               >
                 Fit
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleInvertZoom}
+                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ml-0.5 border-l border-slate-200 ${
+                  invertZoom
+                    ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                    : "text-slate-400 hover:text-slate-700 hover:bg-white"
+                }`}
+                title={`Invert Zoom Direction (I): ${invertZoom ? "Inverted (Wheel down zooms in)" : "Normal (Wheel up zooms in)"}`}
+              >
+                <ArrowUpDown className="w-3.5 h-3.5" />
               </button>
             </div>
 
@@ -1218,6 +1281,22 @@ export default function PrintDocumentPage({ params }: PageProps) {
             title="Fit to Width (F)"
           >
             Fit
+          </button>
+
+          <div className="w-px h-5 bg-slate-200 mx-0.5" />
+
+          <button
+            type="button"
+            onClick={handleToggleInvertZoom}
+            className={`px-2 py-1 text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1 ${
+              invertZoom
+                ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+            }`}
+            title={`Toggle Invert Zoom Direction (I): ${invertZoom ? "Inverted (Scroll down = Zoom in)" : "Normal (Scroll up = Zoom in)"}`}
+          >
+            <ArrowUpDown className="w-3.5 h-3.5" />
+            <span className="text-[11px] font-medium">{invertZoom ? "Inverted" : "Normal"}</span>
           </button>
         </aside>
       </div>

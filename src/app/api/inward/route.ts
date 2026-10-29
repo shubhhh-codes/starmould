@@ -173,40 +173,58 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2. Generate inward challan number if not provided (matching InwardController.php lines 494-498: SM/IW/xx)
-    let finalInChallanNo = inchallanno?.trim();
-    if (!finalInChallanNo) {
-      const { count } = await supabaseAdmin
+    // 2. Insert parent Inward record with collision retry loop
+    const { data: maxRows } = await supabaseAdmin
+      .from("inward")
+      .select("id")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    const baseId = (maxRows?.[0]?.id ?? 0) + 1;
+    let inwardData: any = null;
+    let inErr: any = null;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      let finalInChallanNo = inchallanno?.trim();
+      if (!finalInChallanNo) {
+        const nextId = baseId + attempt;
+        finalInChallanNo = nextId < 10 ? `SM/IW/0${nextId}` : `SM/IW/${nextId}`;
+      }
+
+      const res = await supabaseAdmin
         .from("inward")
-        .select("id", { count: "exact", head: true });
-      const nextId = (count || 0) + 1;
-      finalInChallanNo = nextId < 10 ? `SM/IW/0${nextId}` : `SM/IW/${nextId}`;
+        .insert([
+          {
+            challanid: Number(challanid),
+            inchallanno: finalInChallanNo,
+            customerid: customerid ? Number(customerid) : null,
+            vendorid: Number(vendorid),
+            vendortid: vendortid ? Number(vendortid) : Number(vendorid),
+            projectid: projectid || "",
+            subprojectid: 0,
+            chdate: chdate || now.slice(0, 10),
+            status: "1",
+            created_at: now,
+            created_by: created_by ? Number(created_by) : auth.user.id,
+            updated_at: now,
+          },
+        ])
+        .select()
+        .single();
+
+      if (!res.error) {
+        inwardData = res.data;
+        inErr = null;
+        break;
+      }
+      inErr = res.error;
+      if (res.error.code !== "23505" && !res.error.message?.includes("unique constraint")) {
+        break;
+      }
     }
 
-    // 3. Insert parent Inward record
-    const { data: inwardData, error: inErr } = await supabaseAdmin
-      .from("inward")
-      .insert([
-        {
-          challanid: Number(challanid),
-          inchallanno: finalInChallanNo,
-          customerid: customerid ? Number(customerid) : null,
-          vendorid: Number(vendorid),
-          vendortid: vendortid ? Number(vendortid) : Number(vendorid),
-          projectid: projectid || "",
-          subprojectid: 0,
-          chdate: chdate || now.slice(0, 10),
-          status: "1",
-          created_at: now,
-          created_by: created_by ? Number(created_by) : auth.user.id,
-          updated_at: now,
-        },
-      ])
-      .select()
-      .single();
-
-    if (inErr) {
-      return NextResponse.json({ error: inErr.message }, { status: 500 });
+    if (inErr || !inwardData) {
+      return NextResponse.json({ error: inErr?.message || "Failed to create inward receipt" }, { status: 500 });
     }
 
     // 4. Insert child items with rollback on failure

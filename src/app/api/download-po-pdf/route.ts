@@ -703,26 +703,36 @@ export async function GET(req: NextRequest) {
       </html>
     `;
 
-    // Launch Puppeteer with exact 794x1123 A4 dimensions
-    const browser = await puppeteer.launch({
-      executablePath: findChromePath(),
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
-    });
+    // Launch Puppeteer with exact 794x1123 A4 dimensions with try-finally to guarantee process cleanup
+    let browser: any = null;
+    let pdfBuffer: Uint8Array | null = null;
+    try {
+      browser = await puppeteer.launch({
+        executablePath: findChromePath(),
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
+      });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
-    await page.setContent(htmlContent, { waitUntil: "domcontentloaded" });
-    await page.evaluateHandle("document.fonts.ready");
+      const page = await browser.newPage();
+      await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
+      await page.setContent(htmlContent, { waitUntil: "domcontentloaded" });
+      await page.evaluateHandle("document.fonts.ready");
 
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 },
-    });
+      pdfBuffer = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        preferCSSPageSize: true,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
+      });
+    } finally {
+      if (browser) {
+        await browser.close().catch(() => {});
+      }
+    }
 
-    await browser.close();
+    if (!pdfBuffer) {
+      throw new Error("Failed to generate PDF buffer");
+    }
 
     const fileName = `${purchase.srno || "Purchase_Order"}.pdf`;
     const isInline = searchParams.get("inline") === "1" || searchParams.get("view") === "1";

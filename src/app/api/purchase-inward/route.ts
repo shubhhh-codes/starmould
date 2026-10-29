@@ -229,17 +229,18 @@ export async function POST(req: NextRequest) {
       .select();
 
     if (itErr) {
+      await supabaseAdmin.from("po_inward").delete().eq("id", receipt.id);
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
-    // Auto-sync subplates received_workby & received_workat so programming queue updates
+    // Auto-sync subplates received_workby & received_work_at so programming queue updates
     const inwardPlateIds = inwardItemsToInsert.map((it: any) => it.plateid).filter(Boolean);
     if (inwardPlateIds.length > 0) {
       await supabaseAdmin
         .from("subplate")
         .update({
           received_workby: auth.user.id || 1,
-          received_workat: new Date().toISOString(),
+          received_work_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .in("id", inwardPlateIds)
