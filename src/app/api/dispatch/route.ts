@@ -3,6 +3,24 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
 
+async function generateNextDispatchNo(offset = 0): Promise<string> {
+  const nowIST = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+  const dd = String(nowIST.getDate()).padStart(2, "0");
+  const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(nowIST.getFullYear());
+  const todayPrefix = `SMDC${dd}${mm}${yyyy}`;
+
+  const { count: todayCount } = await supabaseAdmin
+    .from("dispatch")
+    .select("id", { count: "exact", head: true })
+    .like("challanno", `${todayPrefix}%`);
+
+  const seq = String((todayCount ?? 0) + 1 + offset).padStart(3, "0");
+  return `${todayPrefix}${seq}`;
+}
+
 // GET /api/dispatch - fetch dispatches, customers, subplates, scans (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_dispatch");
@@ -12,6 +30,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+
+    if (searchParams.get("action") === "next-number") {
+      const nextNo = await generateNextDispatchNo();
+      return NextResponse.json({ nextNumber: nextNo });
+    }
+
     const limit = Number(searchParams.get("limit") || "100");
 
     // 1. Fetch dispatch headers and cached customers concurrently
@@ -98,6 +122,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
+      challanno,
       chdate,
       customerid,
       vendortid,
@@ -115,26 +140,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Sequence SM/DC/0001 with collision retry loop (Issue #3)
-    const { data: maxRows } = await supabaseAdmin
+    // ── Delivery Challan Number: SMDC{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
+    const nowIST = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+    const dd = String(nowIST.getDate()).padStart(2, "0");
+    const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(nowIST.getFullYear());
+    const todayPrefix = `SMDC${dd}${mm}${yyyy}`;
+
+    const { count: todayCount } = await supabaseAdmin
       .from("dispatch")
-      .select("id")
-      .order("id", { ascending: false })
-      .limit(1);
+      .select("id", { count: "exact", head: true })
+      .like("challanno", `${todayPrefix}%`);
 
     let newDispatch: any = null;
     let dErr: any = null;
-    const baseId = (maxRows?.[0]?.id ?? 0) + 1;
 
     for (let attempt = 0; attempt < 5; attempt++) {
-      const nextId = baseId + attempt;
-      const challanno = `SM/DC/${String(nextId).padStart(4, "0")}`;
+      const seq = String((todayCount ?? 0) + 1 + attempt).padStart(3, "0");
+      const finalChallanNo = challanno?.trim() || `${todayPrefix}${seq}`;
 
       const res = await supabaseAdmin
         .from("dispatch")
         .insert([
           {
-            challanno,
+            challanno: finalChallanNo,
             chdate: chdate || new Date().toISOString().slice(0, 10),
             customerid: Number(customerid),
             vendortid: vendortid ? Number(vendortid) : Number(customerid),

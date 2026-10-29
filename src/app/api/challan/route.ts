@@ -3,6 +3,24 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
 
+async function generateNextChallanNo(offset = 0): Promise<string> {
+  const nowIST = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+  );
+  const dd = String(nowIST.getDate()).padStart(2, "0");
+  const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(nowIST.getFullYear());
+  const todayPrefix = `SMJC${dd}${mm}${yyyy}`;
+
+  const { count: todayCount } = await supabaseAdmin
+    .from("challan")
+    .select("id", { count: "exact", head: true })
+    .or(`challanno.like.${todayPrefix}%,challanno.like.SMJW${dd}${mm}${yyyy}%,challanno.like.SMJV${dd}${mm}${yyyy}%`);
+
+  const seq = String((todayCount ?? 0) + 1 + offset).padStart(3, "0");
+  return `${todayPrefix}${seq}`;
+}
+
 // GET /api/challan - Fetch outward challans, child items, pending return status from view_pending_inward_qty, and lookups
 export async function GET(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 2, 9], "nav_challan");
@@ -12,6 +30,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
+
+    if (searchParams.get("action") === "next-number") {
+      const nextNo = await generateNextChallanNo();
+      return NextResponse.json({ nextNumber: nextNo });
+    }
+
     const limit = Number(searchParams.get("limit") || "1000");
     const status = searchParams.get("status") || "1";
 
@@ -160,21 +184,28 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
 
     // 1. Insert parent Challan with collision retry loop
-    const { data: maxRows } = await supabaseAdmin
-      .from("challan")
-      .select("id")
-      .order("id", { ascending: false })
-      .limit(1);
+    // ── Job Work Challan Number: SMJC{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
+    const nowIST = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+    const dd = String(nowIST.getDate()).padStart(2, "0");
+    const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(nowIST.getFullYear());
+    const todayPrefix = `SMJC${dd}${mm}${yyyy}`;
 
-    const baseId = (maxRows?.[0]?.id ?? 0) + 1;
+    const { count: todayCount } = await supabaseAdmin
+      .from("challan")
+      .select("id", { count: "exact", head: true })
+      .or(`challanno.like.${todayPrefix}%,challanno.like.SMJW${dd}${mm}${yyyy}%,challanno.like.SMJV${dd}${mm}${yyyy}%`);
+
     let challanData: any = null;
     let cErr: any = null;
 
     for (let attempt = 0; attempt < 5; attempt++) {
       let finalChallanNo = challanno?.trim();
       if (!finalChallanNo) {
-        const nextId = baseId + attempt;
-        finalChallanNo = nextId < 10 ? `SM/JW/0${nextId}` : `SM/JW/${nextId}`;
+        const seq = String((todayCount ?? 0) + 1 + attempt).padStart(3, "0");
+        finalChallanNo = `${todayPrefix}${seq}`;
       }
 
       const res = await supabaseAdmin
