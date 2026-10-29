@@ -1661,13 +1661,13 @@ export function MouldProjectsTable({
                       <div className={`flex items-center gap-1.5 ${isActions ? "justify-end" : isSelect ? "justify-center" : ""}`}>
                         {flexRender(header.column.columnDef.header, header.getContext())}
                         {canSort && (
-                          <span className="inline-flex items-center">
+                          <span className="inline-flex items-center ml-1">
                             {isSorted === "asc" ? (
-                              <ArrowUp className="w-3.5 h-3.5 text-blue-600" />
+                              <ArrowUp className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
                             ) : isSorted === "desc" ? (
-                              <ArrowDown className="w-3.5 h-3.5 text-blue-600" />
+                              <ArrowDown className="w-3.5 h-3.5 text-blue-600 stroke-[2.5]" />
                             ) : (
-                              <ArrowUpDown className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <ArrowUpDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-800 transition-colors" />
                             )}
                           </span>
                         )}
