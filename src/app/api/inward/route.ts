@@ -174,21 +174,28 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Insert parent Inward record with collision retry loop
-    const { data: maxRows } = await supabaseAdmin
-      .from("inward")
-      .select("id")
-      .order("id", { ascending: false })
-      .limit(1);
+    // ── Inward Number: SMIW{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
+    const nowIST = new Date(
+      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
+    );
+    const dd = String(nowIST.getDate()).padStart(2, "0");
+    const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(nowIST.getFullYear());
+    const todayPrefix = `SMIW${dd}${mm}${yyyy}`;
 
-    const baseId = (maxRows?.[0]?.id ?? 0) + 1;
+    const { count: todayCount } = await supabaseAdmin
+      .from("inward")
+      .select("id", { count: "exact", head: true })
+      .or(`inchallanno.like.${todayPrefix}%,inchallanno.like.SM/IW/%`);
+
     let inwardData: any = null;
     let inErr: any = null;
 
     for (let attempt = 0; attempt < 5; attempt++) {
       let finalInChallanNo = inchallanno?.trim();
       if (!finalInChallanNo) {
-        const nextId = baseId + attempt;
-        finalInChallanNo = nextId < 10 ? `SM/IW/0${nextId}` : `SM/IW/${nextId}`;
+        const seq = String((todayCount ?? 0) + 1 + attempt).padStart(3, "0");
+        finalInChallanNo = `${todayPrefix}${seq}`;
       }
 
       const res = await supabaseAdmin

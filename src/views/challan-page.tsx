@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   ArrowUpRight,
+  ArrowDownLeft,
   Search,
   Calendar,
   Building2,
@@ -46,6 +47,7 @@ import {
   useChallansQuery,
   useCreateChallanMutation,
   useDeleteChallanMutation,
+  useCreateInwardMutation,
   useSubplatesByProjectQuery,
   useCustomerDropdownQuery,
   useVendorDropdownQuery,
@@ -68,6 +70,98 @@ function ChallanPageContent() {
   const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
   const createChallanMutation = useCreateChallanMutation();
   const deleteChallanMutation = useDeleteChallanMutation();
+  const createInwardMutation = useCreateInwardMutation();
+
+  // Quick Inward Receipt Modal from Challan Row
+  const [inwardModalChallan, setInwardModalChallan] = useState<Challan | null>(null);
+  const [inwardForm, setInwardForm] = useState<{
+    chdate: string;
+    inchallanno: string;
+    items: Array<{
+      plateid: number;
+      platename: string;
+      particulars: string;
+      project: string;
+      qty: number;
+      inward_qty: number;
+    }>;
+  }>({
+    chdate: new Date().toISOString().slice(0, 10),
+    inchallanno: "",
+    items: [],
+  });
+  const [inwardError, setInwardError] = useState<string | null>(null);
+  const [isInwardSubmitting, setIsInwardSubmitting] = useState(false);
+
+  const handleOpenInwardModal = (c: Challan) => {
+    setInwardModalChallan(c);
+    setInwardError(null);
+    setInwardForm({
+      chdate: new Date().toISOString().slice(0, 10),
+      inchallanno: "",
+      items: (c.items || []).map((it) => {
+        const outQty = Number(it.qty) || 1;
+        const pending = (it as any).pending_qty !== undefined ? Number((it as any).pending_qty) : outQty;
+        return {
+          plateid: it.plateid,
+          platename: (it as any).platename || it.particulars || "Plate",
+          particulars: it.particulars || "",
+          project: it.project || c.projectid || "",
+          qty: outQty,
+          inward_qty: pending > 0 ? pending : outQty,
+        };
+      }),
+    });
+  };
+
+  const handleSubmitInward = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inwardModalChallan) return;
+    setInwardError(null);
+
+    if (inwardForm.items.length === 0) {
+      setInwardError("No plates available to receive in inward.");
+      return;
+    }
+
+    for (const item of inwardForm.items) {
+      if (!item.inward_qty || item.inward_qty <= 0) {
+        setInwardError(`Inward quantity for "${item.platename}" must be at least 1.`);
+        return;
+      }
+      if (item.inward_qty > item.qty) {
+        setInwardError(`Inward quantity (${item.inward_qty}) cannot exceed outward quantity (${item.qty}).`);
+        return;
+      }
+    }
+
+    try {
+      setIsInwardSubmitting(true);
+      await createInwardMutation.mutateAsync({
+        challanid: inwardModalChallan.id,
+        inchallanno: inwardForm.inchallanno.trim() || undefined,
+        customerid: inwardModalChallan.customerid,
+        vendorid: inwardModalChallan.vendorid,
+        vendortid: inwardModalChallan.vendortid,
+        projectid: inwardModalChallan.projectid,
+        chdate: inwardForm.chdate,
+        items: inwardForm.items.map((it) => ({
+          plateid: it.plateid,
+          particulars: it.particulars,
+          customer: inwardModalChallan.customerid,
+          project: it.project,
+          qty: it.qty,
+          inward_qty: it.inward_qty,
+        })),
+      });
+
+      setInwardModalChallan(null);
+    } catch (err: any) {
+      setInwardError(err.message || "Failed to record inward receipt");
+    } finally {
+      setIsInwardSubmitting(false);
+    }
+  };
 
   const challans = (data?.challans || []) as Challan[];
   const customers = (customerLookup.length > 0 ? customerLookup : (data?.customers || [])) as Customer[];
@@ -795,7 +889,21 @@ function ChallanPageContent() {
                             </td>
 
                             <td className="px-4 py-3.5 text-right">
-                              <div className="flex items-center justify-end gap-1">
+                              <div className="flex items-center justify-end gap-1.5">
+                                {(String(c.status) === "1" || (c as any).status === 1) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenInwardModal(c);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-md transition shadow-2xs cursor-pointer"
+                                    title={`Take Inward for ${c.challanno}`}
+                                  >
+                                    <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" />
+                                    <span>Inward</span>
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -917,6 +1025,20 @@ function ChallanPageContent() {
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Outward
                           </span>
+                          {(String(c.status) === "1" || (c as any).status === 1) && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenInwardModal(c);
+                              }}
+                              className="inline-flex items-center gap-0.5 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded transition cursor-pointer"
+                              title="Take Inward"
+                            >
+                              <ArrowDownLeft className="w-3 h-3 text-emerald-600" />
+                              <span>Inward</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
