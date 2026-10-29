@@ -120,15 +120,19 @@ export async function GET(req: NextRequest) {
         customerName: customer?.customername || "",
         transporter,
         projectCode: challan.projectid,
-        items: items.map((it, idx) => ({
-          srNo: idx + 1,
-          particulars: it.particulars || plateMap.get(it.plateid)?.platename || "Mould Plate",
-          material: plateMap.get(it.plateid)?.material || "",
-          dimensions: plateMap.get(it.plateid)
-            ? `${plateMap.get(it.plateid)?.width}x${plateMap.get(it.plateid)?.height}x${plateMap.get(it.plateid)?.length}`
-            : "",
-          qty: it.qty || 1,
-        })),
+        items: items.map((it, idx) => {
+          const sp = plateMap.get(it.plateid);
+          return {
+            srNo: idx + 1,
+            particulars: it.particulars || "Standard Jobwork",
+            platename: sp?.platename || "Mould Plate",
+            material: sp?.material || "",
+            dimensions: sp
+              ? `${sp.width}x${sp.height}x${sp.length}`
+              : "",
+            qty: it.qty || 1,
+          };
+        }),
       });
     }
 

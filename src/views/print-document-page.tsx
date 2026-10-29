@@ -21,6 +21,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-voucher";
 import { DispatchChallanVoucher } from "@/components/documents/dispatch-challan-voucher";
+import { OutwardChallanVoucher } from "@/components/documents/outward-challan-voucher";
 import { QuotationVoucher } from "@/components/quotations/quotation-voucher";
 
 export interface PrintDocumentPageProps {
@@ -150,7 +151,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
     if (!el) return;
 
     const measure = () => {
-      const printableArea = (el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area") || el.querySelector("#dispatch-printable-area")) as HTMLElement;
+      const printableArea = (el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area") || el.querySelector("#dispatch-printable-area") || el.querySelector("#challan-printable-area")) as HTMLElement;
       const h = printableArea?.offsetHeight || el.offsetHeight || el.scrollHeight || 1140;
       if (h > 200) {
         setSheetHeight(Math.max(1140, h));
@@ -164,7 +165,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
     });
 
     observer.observe(el);
-    const printableArea = el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area");
+    const printableArea = el.querySelector("#quotation-printable-area") || el.querySelector("#po-printable-area") || el.querySelector("#dispatch-printable-area") || el.querySelector("#challan-printable-area");
     if (printableArea) observer.observe(printableArea);
 
     return () => observer.disconnect();
@@ -694,7 +695,8 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       setIsDownloading(true);
       const isQuotation = type === "quotation";
       const isDispatch = type === "dispatch";
-      const fileName = `${doc?.docNumber || (isQuotation ? "Quotation" : isDispatch ? "Delivery_Challan" : "Purchase_Order")}.pdf`;
+      const isChallan = type === "challan";
+      const fileName = `${doc?.docNumber || (isQuotation ? "Quotation" : isDispatch ? "Delivery_Challan" : isChallan ? "Outward_Challan" : "Purchase_Order")}.pdf`;
 
       // Fetch pristine vector PDF from server Puppeteer engine
       const downloadUrl = isQuotation
@@ -760,7 +762,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
     if (typeof window !== "undefined" && window.history.length > 1) {
       window.history.back();
     } else {
-      router.push(type === "quotation" ? "/quotation" : type === "dispatch" ? "/dispatch" : "/purchase");
+      router.push(type === "quotation" ? "/quotation" : type === "dispatch" ? "/dispatch" : type === "challan" ? "/challan" : "/purchase");
     }
   };
 
@@ -852,10 +854,10 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               Go Back
             </button>
             <Link
-              href={type === "quotation" ? "/quotation" : type === "dispatch" ? "/dispatch" : "/purchase"}
+              href={type === "quotation" ? "/quotation" : type === "dispatch" ? "/dispatch" : type === "challan" ? "/challan" : "/purchase"}
               className="px-5 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition"
             >
-              Return to {type === "quotation" ? "Quotations" : type === "dispatch" ? "Dispatch" : "Purchase"}
+              Return to {type === "quotation" ? "Quotations" : type === "dispatch" ? "Dispatch" : type === "challan" ? "Challan" : "Purchase"}
             </Link>
           </div>
         </div>
@@ -864,7 +866,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
   }
 
   // ─── 3. PURCHASE ORDER & QUOTATION VOUCHER VIEW (Exact Star Mould PDF Geometry) ────────
-  if (type === "purchase" || type === "quotation" || type === "dispatch") {
+  if (type === "purchase" || type === "quotation" || type === "dispatch" || type === "challan") {
     return (
       <div className="min-h-screen bg-slate-100/80 py-3 sm:py-6 px-2 sm:px-4 print:p-0 print:bg-white text-slate-900 animate-in fade-in duration-200">
         {/* Print rules override for pristine physical page printing */}
@@ -890,7 +892,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               <FileText className="w-4 h-4 text-[#006181] shrink-0 hidden sm:inline" />
               <div className="truncate">
                 <span className="font-mono font-bold text-xs text-slate-900 truncate block">
-                  {doc.docNumber || (type === "quotation" ? "Quotation" : type === "dispatch" ? "Delivery Challan" : "Purchase Order")}
+                  {doc.docNumber || (type === "quotation" ? "Quotation" : type === "dispatch" ? "Delivery Challan" : type === "challan" ? "Outward Challan" : "Purchase Order")}
                 </span>
                 {(doc.party?.customername || doc.party?.vendor_name) && (
                   <span className="text-[10px] text-slate-500 font-medium truncate block hidden sm:block">
@@ -1077,7 +1079,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
                 title="Open browser print dialogue (A4)"
               >
                 <Printer className="w-3.5 h-3.5" />
-                <span>{type === "quotation" ? "Print Quotation" : type === "dispatch" ? "Print Challan" : "Print PO"}</span>
+                <span>{type === "quotation" ? "Print Quotation" : type === "dispatch" ? "Print Challan" : type === "challan" ? "Print Outward Challan" : "Print PO"}</span>
               </button>
             </div>
           </div>
@@ -1131,6 +1133,13 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
                 <DispatchChallanVoucher
                   dispatch={doc}
                   onPrint={handlePrint}
+                  isModal={false}
+                />
+              ) : type === "challan" ? (
+                <OutwardChallanVoucher
+                  challan={doc}
+                  onPrint={handlePrint}
+                  onClose={handleBack}
                   isModal={false}
                 />
               ) : (

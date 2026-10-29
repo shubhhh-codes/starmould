@@ -450,6 +450,40 @@ function ChallanPageContent() {
     }
   };
 
+  const handlePrintChallan = async (challanId: number) => {
+    const win = typeof window !== "undefined" ? window.open("", "_blank") : null;
+    try {
+      const res = await fetch("/api/print-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "challan", id: challanId }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const targetUrl = data.url || `/print/challan/${challanId}`;
+        if (win) {
+          win.location.href = targetUrl;
+        } else {
+          window.open(targetUrl, "_blank", "noopener,noreferrer");
+        }
+      } else {
+        const fallbackUrl = `/print/challan/${challanId}`;
+        if (win) {
+          win.location.href = fallbackUrl;
+        } else {
+          window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        }
+      }
+    } catch {
+      const fallbackUrl = `/print/challan/${challanId}`;
+      if (win) {
+        win.location.href = fallbackUrl;
+      } else {
+        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      }
+    }
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6 w-full">
@@ -725,14 +759,24 @@ function ChallanPageContent() {
                             </td>
 
                             <td className="px-4 py-3.5 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleCancelChallan(c.id)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                title="Cancel / Delete Challan"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handlePrintChallan(c.id)}
+                                  className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                                  title="Print Outward Challan / Job Work Voucher"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelChallan(c.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                  title="Cancel / Delete Challan"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
 
@@ -824,6 +868,14 @@ function ChallanPageContent() {
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Outward
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintChallan(c.id)}
+                            className="p-1 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                            title="Print Outward Challan"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
                           <button
                             type="button"
                             onClick={() => handleCancelChallan(c.id)}
