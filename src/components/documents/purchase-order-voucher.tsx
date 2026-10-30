@@ -106,11 +106,15 @@ export function PurchaseOrderVoucher({
       {/* eslint-disable-next-line @next/next/no-page-custom-font */}
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
       />
 
       {/* ── Print styles ───────────────────────────────────────────────────── */}
       <style dangerouslySetInnerHTML={{ __html: `
+        .rupee-symbol {
+          font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+          font-weight: 600 !important;
+        }
         .po-font-family {
           font-family: 'Poppins', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
           -webkit-font-smoothing: antialiased !important;
@@ -368,7 +372,7 @@ export function PurchaseOrderVoucher({
                       <th className="h-[39px] px-[8px] text-center w-[62px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Qty</th>
                       <th className="h-[39px] px-[8px] text-center w-[110px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Material Type</th>
                       <th className="h-[39px] px-[8px] text-center w-[90px] border-r border-white/40 font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Mould</th>
-                      <th className="h-[39px] px-[12px] text-center w-[96px] font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Rate (₹)</th>
+                      <th className="h-[39px] px-[12px] text-center w-[96px] font-semibold text-[9.5px]" style={{ fontWeight: 600 }}>Rate (<span className="rupee-symbol">₹</span>)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -412,7 +416,12 @@ export function PurchaseOrderVoucher({
                               {po.projectid || "—"}
                             </td>
                             <td className="h-[46px] px-[12px] text-center font-bold border-t" style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}>
-                              {rate !== null && rate > 0 ? `₹ ${rate.toLocaleString("en-IN")}` : "—"}
+                              {rate !== null && rate > 0 ? (
+                                <span className="inline-flex items-center justify-center gap-1">
+                                  <span className="rupee-symbol font-bold">₹</span>
+                                  <span>{rate.toLocaleString("en-IN")}</span>
+                                </span>
+                              ) : "—"}
                             </td>
                           </tr>
                         );
@@ -437,7 +446,7 @@ export function PurchaseOrderVoucher({
               {/* Clauses */}
               <div className="p-[10px_16px] space-y-[2px] text-[9.5px] leading-[1.6]" style={{ color: TEXT_MUTED }}>
                 <p>
-                  <span className="font-bold" style={{ color: TEXT_DARK }}>1. The above-mentioned prices are exclusive of GST.</span>
+                  <span className="font-bold" style={{ color: TEXT_DARK }}>1. The above-mentioned prices are exclusive of GST (18% GST will be added extra as applicable).</span>
                 </p>
                 <p>
                   <span className="font-bold" style={{ color: TEXT_DARK }}>2. Delivery: </span>

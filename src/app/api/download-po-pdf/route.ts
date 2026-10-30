@@ -167,8 +167,12 @@ export async function GET(req: NextRequest) {
         <meta charset="UTF-8">
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
         <style>
+          .rupee-symbol {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            font-weight: 600 !important;
+          }
           * {
             margin: 0;
             padding: 0;
@@ -611,7 +615,7 @@ export async function GET(req: NextRequest) {
                       <th style="width: 62px; text-align: center;">Qty</th>
                       <th style="width: 110px; text-align: center;">Material Type</th>
                       <th style="width: 90px; text-align: center;">Mould</th>
-                      <th style="width: 96px; text-align: center;">Rate (₹)</th>
+                      <th style="width: 96px; text-align: center;">Rate (<span class="rupee-symbol">₹</span>)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -632,7 +636,7 @@ export async function GET(req: NextRequest) {
                                   <td style="text-align: center; color: #3d4a52;">${it.materialtype}</td>
                                   <td style="text-align: center; color: #3d4a52;">${projectId}</td>
                                   <td style="text-align: center; font-weight: 700; color: #006181; font-size: 10.5px;">
-                                    ${it.rate !== null && it.rate !== undefined && Number(it.rate) > 0 ? "₹ " + Number(it.rate).toLocaleString("en-IN") : "—"}
+                                    ${it.rate !== null && it.rate !== undefined && Number(it.rate) > 0 ? '<span class="rupee-symbol">₹</span> ' + Number(it.rate).toLocaleString("en-IN") : "—"}
                                   </td>
                                 </tr>
                               `;
@@ -647,7 +651,7 @@ export async function GET(req: NextRequest) {
               <div class="terms-box">
                 <div class="terms-header">TERMS &amp; CONDITIONS</div>
                 <div class="terms-content">
-                  <p><span class="bold-label">1. The above-mentioned prices are exclusive of GST.</span></p>
+                  <p><span class="bold-label">1. The above-mentioned prices are exclusive of GST (18% GST will be added extra as applicable).</span></p>
                   <p><span class="bold-label">2. Delivery:</span> Material must be delivered as per the delivery schedule agreed with the buyer.</p>
                   <p><span class="bold-label">3. Quality:</span> Material must match the specifications, type, mould and quantity stated in this purchase order. Defective or non-conforming material may be rejected.</p>
                   <p><span class="bold-label">4. Payment:</span> Payment will be made as per the agreed payment terms after receipt and acceptance of the material.</p>
