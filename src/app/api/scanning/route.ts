@@ -523,6 +523,17 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+      if (
+        rpcError.code === "23503" ||
+        rpcError.message?.includes("foreign key") ||
+        rpcError.message?.includes("does not exist in customers master") ||
+        rpcError.message?.includes("fk_scan_customer")
+      ) {
+        return NextResponse.json(
+          { error: "The selected customer does not exist in the customer master. Please refresh and select a valid customer." },
+          { status: 400 }
+        );
+      }
       return NextResponse.json({ error: rpcError.message }, { status: 500 });
     }
 

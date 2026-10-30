@@ -506,7 +506,6 @@ export function DashboardPage() {
         <NewMouldModal
           isOpen={isCreateModalOpen}
           onClose={() => setIsCreateModalOpen(false)}
-          customers={projectsStream.customers}
           onSuccess={async () => {
             await Promise.all([
               projectsStream.refetch(),

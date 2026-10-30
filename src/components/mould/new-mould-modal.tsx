@@ -114,10 +114,12 @@ export function NewMouldModal({
 }: NewMouldModalProps) {
   // Fetch active customers matching exact legacy ERP (usertype = 'Customer')
   const dropdownQuery = useCustomerDropdownQuery("Customer");
-  const customerList =
-    propCustomers && propCustomers.length > 0
-      ? propCustomers
-      : (dropdownQuery.data as Customer[]) || [];
+  const customerList = useMemo(() => {
+    if (dropdownQuery.data && dropdownQuery.data.length > 0) {
+      return dropdownQuery.data as Customer[];
+    }
+    return (propCustomers || []) as Customer[];
+  }, [dropdownQuery.data, propCustomers]);
 
   const createProjectMutation = useCreateProjectMutation();
 
@@ -268,6 +270,10 @@ export function NewMouldModal({
     if (createProjectMutation.isPending) return;
     if (!form.cname) {
       setErrorMessage("Please select a customer.");
+      return;
+    }
+    if (!selectedCustomer) {
+      setErrorMessage("The selected customer is invalid or no longer exists. Please re-select from the list.");
       return;
     }
     if (!form.description.trim()) {

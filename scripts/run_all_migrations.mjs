@@ -72,6 +72,9 @@ async function main() {
     { name: '20261029161500_fix_mould_project_code_initials_matching.sql', path: 'supabase/migrations/20261029161500_fix_mould_project_code_initials_matching.sql' },
     { name: '20261029171000_add_customer_code_and_pan_code.sql', path: 'supabase/migrations/20261029171000_add_customer_code_and_pan_code.sql' },
     { name: '20261029172000_fix_inward_items_qty_status_filter.sql', path: 'supabase/migrations/20261029172000_fix_inward_items_qty_status_filter.sql' },
+    { name: '20261030095500_fix_mould_creation_foreign_key_validation.sql', path: 'supabase/migrations/20261030095500_fix_mould_creation_foreign_key_validation.sql' },
+    { name: '20261030101500_seed_customer_master_list.sql', path: 'supabase/migrations/20261030101500_seed_customer_master_list.sql' },
+    { name: '20261030102500_seed_vendors_master_list.sql', path: 'supabase/migrations/20261030102500_seed_vendors_master_list.sql' },
   ];
 
   console.log(`=== RUNNING ALL MIGRATIONS (${migrationManifest.length} total) ===\n`);

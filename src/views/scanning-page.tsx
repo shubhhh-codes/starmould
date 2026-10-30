@@ -887,7 +887,6 @@ function ScanningPageContent() {
             isOpen={isModalOpen}
             onClose={() => setIsModalOpen(false)}
             onSuccess={() => setIsModalOpen(false)}
-            customers={customers}
           />
         )}
 
