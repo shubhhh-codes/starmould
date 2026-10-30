@@ -742,7 +742,7 @@ export async function GET(req: NextRequest) {
           .section-heading {
             width: 710px;
             height: 28px;
-            background-color: #e6f2f6;
+            background-color: #cfe6ef;
             display: flex;
             align-items: center;
             padding-left: 10px;
@@ -862,8 +862,8 @@ export async function GET(req: NextRequest) {
           .footer-navy-bar {
             width: 794px;
             padding: 7px 36px;
-            background-color: #e6f2f6;
-            border-top: 1px solid #bcd8e0;
+            background-color: #cfe6ef;
+            border-top: 1px solid #a8d2de;
             display: flex;
             justify-content: space-between;
             align-items: center;

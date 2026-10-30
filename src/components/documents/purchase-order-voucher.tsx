@@ -70,8 +70,9 @@ const COMPANY = {
 // ─── Exact colors from Purchase_Order_V23.pdf stream ─────────────────────────
 const TEAL_PRIMARY = "#006181";
 const GREY_LINE    = "#62676b";
-const TEAL_LIGHT   = "#f3f9fb";
-const TEAL_BORDER  = "#bcd8e0";
+const TEAL_LIGHT   = "#e5f1f6";
+const TEAL_SECTION = "#cfe6ef";
+const TEAL_BORDER  = "#a8d2de";
 const TEXT_DARK    = "#1f2a30";
 const TEXT_MUTED   = "#3d4a52";
 const TEXT_LABEL   = "#4a575e";
@@ -344,10 +345,10 @@ export function PurchaseOrderVoucher({
                 4. PARTICULARS TABLE
                 ────────────────────────────────────────────────────────────────── */}
             <div>
-              {/* Section label bar matching PDF: 42 393 710 33 re with #e6f2f6 */}
+              {/* Section label bar matching PDF: 42 393 710 33 re with #cfe6ef */}
               <div
                 className="w-[710px] h-[33px] flex items-center px-[10px] font-semibold text-[11px] tracking-[0.5px] uppercase mb-[6px]"
-                style={{ backgroundColor: "#e6f2f6", color: TEAL_PRIMARY, fontWeight: 600 }}
+                style={{ backgroundColor: TEAL_SECTION, color: TEAL_PRIMARY, fontWeight: 600 }}
               >
                 PARTICULARS
               </div>
@@ -464,7 +465,7 @@ export function PurchaseOrderVoucher({
                 ────────────────────────────────────────────────────────────────── */}
             <div
               className="w-[710px] h-[105px] rounded-[12px] border overflow-hidden p-[12px_20px] flex flex-col justify-between"
-              style={{ borderColor: TEAL_BORDER, backgroundColor: TEAL_LIGHT }}
+              style={{ borderColor: TEAL_BORDER, backgroundColor: TEAL_SECTION }}
             >
               <div className="flex items-start justify-between">
                 <span
@@ -499,7 +500,7 @@ export function PurchaseOrderVoucher({
           {/* Main Light Clean Footer Bar (Saves Carbon & Ink) */}
           <div
             className="w-[794px] px-[36px] py-[8px] flex items-center justify-between border-t"
-            style={{ backgroundColor: "#e6f2f6", borderColor: "#bcd8e0" }}
+            style={{ backgroundColor: TEAL_SECTION, borderColor: TEAL_BORDER }}
           >
             {/* Left side: Location Pin + Divider + Company Name & Full Address */}
             <div className="flex items-center gap-[10px]">
@@ -508,7 +509,7 @@ export function PurchaseOrderVoucher({
                   <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
                 </svg>
               </div>
-              <div className="w-[1px] h-[34px] bg-[#bcd8e0] shrink-0" />
+              <div className="w-[1px] h-[34px] shrink-0" style={{ backgroundColor: TEAL_BORDER }} />
               <div className="flex flex-col leading-[1.25]">
                 <span className="text-[9.5px] font-bold tracking-tight text-[#006181]">{COMPANY.displayName}</span>
                 <span className="text-[8px] text-slate-600 font-medium">{COMPANY.address1}</span>
@@ -529,7 +530,7 @@ export function PurchaseOrderVoucher({
                   <path d="M2 12h20" />
                 </svg>
               </div>
-              <div className="w-[1px] h-[28px] bg-[#bcd8e0] shrink-0" />
+              <div className="w-[1px] h-[28px] shrink-0" style={{ backgroundColor: TEAL_BORDER }} />
               <div className="flex flex-col text-[#006181] leading-[1.3] text-[8.5px] font-semibold tracking-wide">
                 <span>{COMPANY.email}</span>
                 <span>{COMPANY.website}</span>

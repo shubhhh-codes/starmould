@@ -243,19 +243,19 @@ export async function GET(req: NextRequest) {
           .title-sub { font-size: 9px; font-weight: 600; text-transform: uppercase; color: #62676b; letter-spacing: 0.8px; margin-top: 6px; }
 
           .info-card {
-            width: 710px; height: 58px; border-radius: 12px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
+            width: 710px; height: 58px; border-radius: 12px; border: 1px solid #a8d2de; background-color: #e5f1f6;
             display: flex; overflow: hidden; margin-bottom: 16px;
           }
-          .info-cell { flex: 1; padding: 8px 18px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #bcd8e0; }
+          .info-cell { flex: 1; padding: 8px 18px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #a8d2de; }
           .info-cell:last-child { border-right: none; }
           .info-label { font-size: 8px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #006181; margin-bottom: 3px; }
           .info-val { font-size: 12px; font-weight: 500; color: #33414a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
           .logistics-bar {
-            width: 710px; min-height: 54px; border-radius: 12px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
+            width: 710px; min-height: 54px; border-radius: 12px; border: 1px solid #a8d2de; background-color: #e5f1f6;
             display: flex; overflow: hidden; margin-bottom: 16px;
           }
-          .logistics-cell { padding: 6px 12px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #bcd8e0; min-width: 0; }
+          .logistics-cell { padding: 6px 12px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #a8d2de; min-width: 0; }
           .logistics-cell:last-child { border-right: none; }
           .logistics-cell.col-transporter { flex: 1.6; }
           .logistics-cell.col-mode { flex: 1.1; }
@@ -267,42 +267,42 @@ export async function GET(req: NextRequest) {
           .logistics-val-wrap { font-size: 10.5px; font-weight: 500; color: #33414a; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
 
           .party-card { width: 710px; margin-bottom: 20px; }
-          .party-head { display: flex; height: 36px; background-color: transparent; border: 1px solid #bcd8e0; border-bottom: none; }
+          .party-head { display: flex; height: 36px; background-color: transparent; border: 1px solid #a8d2de; border-bottom: none; }
           .party-head-cell { flex: 1; display: flex; align-items: center; padding: 0 16px; color: #006181; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; }
-          .party-head-cell:first-child { border-right: 1px solid #bcd8e0; }
-          .party-body { display: flex; background: #ffffff; border: 1px solid #bcd8e0; }
+          .party-head-cell:first-child { border-right: 1px solid #a8d2de; }
+          .party-body { display: flex; background: #ffffff; border: 1px solid #a8d2de; }
           .party-col { flex: 1; padding: 12px 16px; font-size: 10px; line-height: 1.5; color: #3d4a52; }
-          .party-col:first-child { border-right: 1px solid #bcd8e0; }
+          .party-col:first-child { border-right: 1px solid #a8d2de; }
           .party-name { font-weight: 700; font-size: 11.5px; margin-bottom: 2px; color: #1f2a30; }
 
           .section-bar {
             width: 710px; height: 32px; display: flex; align-items: center; justify-content: space-between;
             padding: 0 12px; font-weight: 600; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase;
-            background-color: #e6f2f6; color: #006181; margin-bottom: 6px;
+            background-color: #cfe6ef; color: #006181; margin-bottom: 6px;
           }
-          .table-box { width: 710px; border: 1px solid #bcd8e0; overflow: hidden; margin-bottom: 18px; }
+          .table-box { width: 710px; border: 1px solid #a8d2de; overflow: hidden; margin-bottom: 18px; }
           table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-          thead tr { background-color: transparent; border-bottom: 1px solid #bcd8e0; }
-          thead th { height: 36px; padding: 0 8px; font-weight: 700; font-size: 9.5px; border-right: 1px solid #bcd8e0; color: #006181; }
+          thead tr { background-color: transparent; border-bottom: 1px solid #a8d2de; }
+          thead th { height: 36px; padding: 0 8px; font-weight: 700; font-size: 9.5px; border-right: 1px solid #a8d2de; color: #006181; }
           thead th:last-child { border-right: none; }
           .tot-row { background-color: #ffffff; font-weight: 700; }
-          .tot-label { height: 34px; padding: 0 16px; text-align: right; text-transform: uppercase; font-size: 9.5px; border-top: 1px solid #bcd8e0; color: #006181; }
-          .tot-val { height: 34px; padding: 0 12px; text-align: center; font-weight: 700; font-size: 12px; border-top: 1px solid #bcd8e0; color: #006181; }
+          .tot-label { height: 34px; padding: 0 16px; text-align: right; text-transform: uppercase; font-size: 9.5px; border-top: 1px solid #a8d2de; color: #006181; }
+          .tot-val { height: 34px; padding: 0 12px; text-align: center; font-weight: 700; font-size: 12px; border-top: 1px solid #a8d2de; color: #006181; }
 
           .terms-card { width: 710px; margin-bottom: 18px; }
-          .terms-head { height: 34px; padding: 0 16px; display: flex; align-items: center; color: #006181; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; background-color: transparent; border: 1px solid #bcd8e0; border-bottom: none; }
-          .terms-body { padding: 10px 16px; font-size: 9px; line-height: 1.6; border: 1px solid #bcd8e0; background-color: #ffffff; color: #3d4a52; }
+          .terms-head { height: 34px; padding: 0 16px; display: flex; align-items: center; color: #006181; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; background-color: transparent; border: 1px solid #a8d2de; border-bottom: none; }
+          .terms-body { padding: 10px 16px; font-size: 9px; line-height: 1.6; border: 1px solid #a8d2de; background-color: #ffffff; color: #3d4a52; }
 
           .sign-card {
-            width: 710px; height: 98px; border-radius: 12px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
+            width: 710px; height: 98px; border-radius: 12px; border: 1px solid #a8d2de; background-color: #cfe6ef;
             padding: 10px 20px; display: flex; flex-direction: column; justify-content: space-between;
           }
           .sign-top { display: flex; justify-content: space-between; font-weight: 700; font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; color: #006181; }
           .sign-bottom { display: flex; justify-content: space-between; align-items: flex-end; font-size: 9px; color: #4a575e; }
 
-          .footer-navy { width: 794px; padding: 8px 36px; background-color: #e6f2f6; border-top: 1px solid #bcd8e0; display: flex; align-items: center; justify-content: space-between; color: #1f2a30; margin-top: auto; }
+          .footer-navy { width: 794px; padding: 8px 36px; background-color: #cfe6ef; border-top: 1px solid #a8d2de; display: flex; align-items: center; justify-content: space-between; color: #1f2a30; margin-top: auto; }
           .footer-left { display: flex; align-items: center; gap: 10px; }
-          .footer-divider { width: 1px; height: 34px; background-color: #bcd8e0; }
+          .footer-divider { width: 1px; height: 34px; background-color: #a8d2de; }
           .footer-right { display: flex; align-items: center; gap: 9px; }
           .footer-right-text { font-size: 8.5px; font-weight: 600; line-height: 1.3; color: #006181; }
           .bottom-white { width: 794px; height: 14px; background: #ffffff; }
@@ -374,19 +374,10 @@ export async function GET(req: NextRequest) {
               <!-- Party Section -->
               <div class="party-card">
                 <div class="party-head">
-                  <div class="party-head-cell">CONSIGNEE (DELIVER TO)</div>
                   <div class="party-head-cell">CONSIGNOR (DISPATCHED FROM)</div>
+                  <div class="party-head-cell">CONSIGNEE (DELIVER TO)</div>
                 </div>
                 <div class="party-body">
-                  <div class="party-col">
-                    <div class="party-name">${customerName}</div>
-                    <div>${customerAddress}</div>
-                    <div style="margin-top: 3px;">
-                      <strong>GSTIN:</strong> ${customerGstin} &nbsp;|&nbsp; <strong>PAN:</strong> ${customerPan}
-                    </div>
-                    <div><strong>Contact:</strong> ${customerMobile}</div>
-                    <div><strong>Email:</strong> ${customerEmail}</div>
-                  </div>
                   <div class="party-col">
                     <div class="party-name">STARMOULD TECHNOLOGY PRIVATE LIMITED</div>
                     <div>G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</div>
@@ -395,6 +386,15 @@ export async function GET(req: NextRequest) {
                     <div><strong>GSTIN:</strong> 24ABLCS1427Q1ZV &nbsp;|&nbsp; <strong>PAN:</strong> ABLCS1427Q</div>
                     <div><strong>Mobile:</strong> 8238451671</div>
                     <div><strong>Email:</strong> starmoulda@yahoo.in</div>
+                  </div>
+                  <div class="party-col">
+                    <div class="party-name">${customerName}</div>
+                    <div>${customerAddress}</div>
+                    <div style="margin-top: 3px;">
+                      <strong>GSTIN:</strong> ${customerGstin} &nbsp;|&nbsp; <strong>PAN:</strong> ${customerPan}
+                    </div>
+                    <div><strong>Contact:</strong> ${customerMobile}</div>
+                    <div><strong>Email:</strong> ${customerEmail}</div>
                   </div>
                 </div>
               </div>

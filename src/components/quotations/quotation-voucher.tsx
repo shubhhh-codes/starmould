@@ -49,8 +49,9 @@ const COMPANY = {
 // ─── Colors ───────────────────────────────────────────────────────────────────
 const TEAL_PRIMARY = "#006181";
 const GREY_LINE    = "#62676b";
-const TEAL_LIGHT   = "#f3f9fb";
-const TEAL_BORDER  = "#bcd8e0";
+const TEAL_LIGHT   = "#e5f1f6";
+const TEAL_SECTION = "#cfe6ef";
+const TEAL_BORDER  = "#a8d2de";
 const TEXT_DARK    = "#1f2a30";
 const TEXT_MUTED   = "#3d4a52";
 const TEXT_LABEL   = "#4a575e";
@@ -509,7 +510,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
     <div className="w-[794px] mt-auto">
       <div
         className="w-[794px] px-[36px] py-[7px] flex items-center justify-between border-t"
-        style={{ backgroundColor: "#e6f2f6", borderColor: "#bcd8e0" }}
+        style={{ backgroundColor: TEAL_SECTION, borderColor: TEAL_BORDER }}
       >
         <div className="flex items-center gap-[10px]">
           <div className="shrink-0 flex items-center justify-center">
@@ -517,7 +518,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
               <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
             </svg>
           </div>
-          <div className="w-[1px] h-[32px] bg-[#bcd8e0] shrink-0" />
+          <div className="w-[1px] h-[32px] shrink-0" style={{ backgroundColor: TEAL_BORDER }} />
           <div className="flex flex-col leading-[1.25]">
             <span className="text-[9px] font-bold tracking-tight text-[#006181]">{COMPANY.displayName}</span>
             <span className="text-[7.5px] text-slate-600 font-medium">{COMPANY.address1} {COMPANY.address2}</span>
@@ -866,7 +867,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
               {/* Particulars Table */}
               <div
                 className="w-[710px] h-[28px] flex items-center px-[10px] font-semibold text-[10px] tracking-[0.5px] uppercase mb-[6px]"
-                style={{ backgroundColor: "#e6f2f6", color: TEAL_PRIMARY, fontWeight: 600 }}
+                style={{ backgroundColor: TEAL_SECTION, color: TEAL_PRIMARY, fontWeight: 600 }}
               >
                 PARTICULARS
               </div>
@@ -956,7 +957,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
                     {/* Ribbon */}
                     <div
                       className="w-[710px] h-[28px] flex items-center justify-between px-[12px] font-semibold text-[10px] tracking-[0.5px] uppercase mb-[6px]"
-                      style={{ backgroundColor: "#e6f2f6", color: TEAL_PRIMARY, fontWeight: 600 }}
+                      style={{ backgroundColor: TEAL_SECTION, color: TEAL_PRIMARY, fontWeight: 600 }}
                     >
                       <span>PARTICULARS (CONTINUED)</span>
                       <span className="text-[9px] font-normal text-slate-600">

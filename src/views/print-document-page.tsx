@@ -38,6 +38,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
   const [doc, setDoc] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Responsive & Zoom States (Virtual Viewport 2D Transform Engine)
@@ -706,32 +707,81 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
   };
 
   const handleShare = async () => {
-    const isQuotation = type === "quotation";
-    const isDispatch = type === "dispatch";
-    const title = `${isQuotation ? "Quotation" : isDispatch ? "Delivery Challan" : "PO"} ${doc?.docNumber || ""} - Star Mould`;
-    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
-    if (typeof navigator !== "undefined" && navigator.share) {
-      try {
+    try {
+      setIsSharing(true);
+      const isQuotation = type === "quotation";
+      const isDispatch = type === "dispatch";
+      const isChallan = type === "challan";
+      const docLabel = isQuotation
+        ? "Quotation"
+        : isDispatch
+        ? "Delivery Challan"
+        : isChallan
+        ? "Job Work Challan"
+        : "Purchase Order";
+
+      const docNum = doc?.docNumber || "";
+      const partyName = doc?.party?.customername || doc?.party?.vendor_name || doc?.customerName || "";
+      const title = `${docLabel} ${docNum} - Star Mould`.trim();
+      const rawFileName = `${docNum || docLabel.replace(/\s+/g, "_")}.pdf`;
+      const fileName = rawFileName.replace(/[/\\?%*:|"<>]/g, "_");
+
+      const isToken = typeof id === "string" && id.includes(".");
+      const tokenParam = isToken ? `&token=${encodeURIComponent(id)}` : "";
+      const targetId = isToken ? id : (doc?.id || doc?.quote?.id || id);
+
+      // Fetch pristine vector PDF from server Puppeteer engine
+      const downloadUrl = isQuotation
+        ? `/api/download-quotation-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
+        : isDispatch
+        ? `/api/download-dispatch-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
+        : isChallan
+        ? `/api/download-challan-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
+        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(targetId)}${tokenParam}`;
+
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        throw new Error("Server PDF generation failed");
+      }
+
+      const blob = await res.blob();
+      const pdfFile = new File([blob], fileName, { type: "application/pdf" });
+
+      // Check if navigator supports sharing files directly (e.g. WhatsApp, Outlook, Nearby Share, Teams)
+      // When files are provided without a URL, OS share sheets attach the actual PDF file rather than a web link
+      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         await navigator.share({
           title,
-          text: `Star Mould ${isQuotation ? "Quotation" : isDispatch ? "Delivery Challan" : "Purchase Order"} ${doc?.docNumber || ""} for ${
-            doc?.party?.customername || doc?.party?.vendor_name || doc?.customerName || ""
-          }`,
-          url: shareUrl,
+          text: `Star Mould ${docLabel} ${docNum}${partyName ? ` for ${partyName}` : ""}`,
+          files: [pdfFile],
         });
-        return;
-      } catch {
-        // User cancelled or share dismissed
-      }
-    }
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(shareUrl);
         setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch {
-        // Clipboard error fallback
+        setTimeout(() => setCopied(false), 2500);
+        return;
       }
+
+      // If browser doesn't support file sharing via Web Share API, directly download the PDF file
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        // User dismissed the native share popup
+        return;
+      }
+      console.error("Direct PDF share error:", err);
+      // Fallback: trigger standard PDF download
+      handleDownloadPdf();
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -991,17 +1041,23 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               </button>
             </div>
 
-            {/* Share / Copy Link Button */}
+            {/* Share / PDF Document Button */}
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center gap-1 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition active:scale-95 cursor-pointer"
-              title="Share or copy document link"
+              disabled={isSharing}
+              className="inline-flex items-center gap-1.5 p-2 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition active:scale-95 cursor-pointer disabled:opacity-60"
+              title="Share PDF document directly"
             >
-              {copied ? (
+              {isSharing ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
+                  <span className="hidden sm:inline">Preparing PDF...</span>
+                </>
+              ) : copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="hidden sm:inline text-emerald-700 font-bold">Copied</span>
+                  <span className="hidden sm:inline text-emerald-700 font-bold">Shared</span>
                 </>
               ) : (
                 <>
@@ -1270,14 +1326,18 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
           <button
             type="button"
             onClick={handleShare}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer"
+            disabled={isSharing}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition cursor-pointer disabled:opacity-60"
+            title="Share PDF document directly"
           >
-            {copied ? (
+            {isSharing ? (
+              <div className="h-4 w-4 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
+            ) : copied ? (
               <Check className="h-4 w-4 text-emerald-600" />
             ) : (
               <Share2 className="h-4 w-4" />
             )}
-            <span className="hidden sm:inline">Share</span>
+            <span className="hidden sm:inline">{isSharing ? "Preparing..." : copied ? "Shared" : "Share"}</span>
           </button>
           <button
             type="button"

@@ -333,7 +333,7 @@ export async function GET(req: NextRequest) {
           .section-heading {
             width: 710px;
             height: 33px;
-            background-color: #e6f2f6;
+            background-color: #cfe6ef;
             display: flex;
             align-items: center;
             padding-left: 10px;
@@ -453,8 +453,8 @@ export async function GET(req: NextRequest) {
           }
           .bottom-dark-bar {
             width: 794px;
-            background-color: #e6f2f6;
-            border-top: 1px solid #bcd8e0;
+            background-color: #cfe6ef;
+            border-top: 1px solid #a8d2de;
             color: #1f2a30;
             padding: 8px 36px 9px 36px;
             display: flex;

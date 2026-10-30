@@ -257,18 +257,18 @@ export async function GET(req: NextRequest) {
           .section-bar {
             width: 710px; height: 32px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px;
             font-weight: 600; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px;
-            background-color: #e6f2f6; color: #006181;
+            background-color: #cfe6ef; color: #006181;
           }
 
-          .table-box { width: 710px; border: 1px solid #bcd8e0; overflow: hidden; margin-bottom: 18px; }
+          .table-box { width: 710px; border: 1px solid #a8d2de; overflow: hidden; margin-bottom: 18px; }
           table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
           th {
             height: 36px; background-color: #006181; color: #ffffff; font-size: 9.5px; font-weight: 600;
             padding: 0 8px; border-right: 1px solid rgba(255,255,255,0.4); text-align: center;
           }
           th:last-child { border-right: none; }
-          .total-row { background-color: #e6f2f6; font-weight: 700; }
-          .total-row td { height: 34px; font-size: 9.5px; color: #006181; border-top: 1px solid #bcd8e0; }
+          .total-row { background-color: #cfe6ef; font-weight: 700; }
+          .total-row td { height: 34px; font-size: 9.5px; color: #006181; border-top: 1px solid #a8d2de; }
 
           .terms-wrap { width: 710px; margin-bottom: 18px; }
           .terms-header {
@@ -276,12 +276,12 @@ export async function GET(req: NextRequest) {
             color: #ffffff; font-weight: 600; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase;
           }
           .terms-body {
-            padding: 10px 16px; font-size: 9px; line-height: 1.6; border-left: 1px solid #bcd8e0;
-            border-right: 1px solid #bcd8e0; border-bottom: 1px solid #bcd8e0; background-color: #ffffff; color: #3d4a52;
+            padding: 10px 16px; font-size: 9px; line-height: 1.6; border-left: 1px solid #a8d2de;
+            border-right: 1px solid #a8d2de; border-bottom: 1px solid #a8d2de; background-color: #ffffff; color: #3d4a52;
           }
 
           .sig-card {
-            width: 710px; height: 98px; border-radius: 12px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
+            width: 710px; height: 98px; border-radius: 12px; border: 1px solid #a8d2de; background-color: #cfe6ef;
             padding: 10px 20px; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden;
           }
           .sig-top { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -291,10 +291,10 @@ export async function GET(req: NextRequest) {
           .footer-wrap { width: 794px; margin-top: auto; }
           .footer-navy {
             width: 794px; padding: 8px 36px; display: flex; align-items: center; justify-content: space-between;
-            background-color: #e6f2f6; border-top: 1px solid #bcd8e0; color: #1f2a30;
+            background-color: #cfe6ef; border-top: 1px solid #a8d2de; color: #1f2a30;
           }
           .footer-left { display: flex; align-items: center; gap: 10px; }
-          .footer-divider { width: 1px; height: 34px; background-color: #bcd8e0; }
+          .footer-divider { width: 1px; height: 34px; background-color: #a8d2de; }
           .footer-addr { display: flex; flex-direction: column; line-height: 1.25; }
           .footer-right { display: flex; align-items: center; gap: 9px; }
           .footer-contact { display: flex; flex-direction: column; line-height: 1.3; font-size: 8.5px; font-weight: 600; color: #006181; }
@@ -355,26 +355,14 @@ export async function GET(req: NextRequest) {
                 </div>
               </div>
 
-              <!-- Party Section (Job Worker vs Consignor) -->
+              <!-- Party Section (Consignor vs Job Worker) -->
               <div class="party-box">
                 <div class="party-header">
-                  <div class="party-header-cell">Job Worker / Processor (Consignee)</div>
                   <div class="party-header-cell">Consignor (Issued By / Principal)</div>
+                  <div class="party-header-cell">Job Worker / Processor (Consignee)</div>
                 </div>
                 <div class="party-body">
                   <div class="party-col party-col-left">
-                    <div class="party-name">${vendorName}</div>
-                    <div>${vendorAddress}</div>
-                    ${vendorCode ? `<div style="font-size: 9px; font-family: monospace; color: #64748b;">Vendor Code: ${vendorCode}</div>` : ""}
-                    <div style="margin-top: 3px;">
-                      <strong style="color: #1f2a30;">GSTIN:</strong> ${vendorGstin}
-                      &nbsp;|&nbsp;
-                      <strong style="color: #1f2a30;">PAN:</strong> ${vendorPan}
-                    </div>
-                    <div><strong style="color: #1f2a30;">Contact:</strong> ${vendorMobile}</div>
-                    <div><strong style="color: #1f2a30;">Email:</strong> ${vendorEmail}</div>
-                  </div>
-                  <div class="party-col">
                     <div class="party-name">STARMOULD TECHNOLOGY PRIVATE LIMITED</div>
                     <div>G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</div>
                     <div>Rajkot-360 021. (Gujarat) INDIA.</div>
@@ -386,6 +374,18 @@ export async function GET(req: NextRequest) {
                     </div>
                     <div><strong style="color: #1f2a30;">Mobile:</strong> 8238451671</div>
                     <div><strong style="color: #1f2a30;">Email:</strong> starmoulda@yahoo.in</div>
+                  </div>
+                  <div class="party-col">
+                    <div class="party-name">${vendorName}</div>
+                    <div>${vendorAddress}</div>
+                    ${vendorCode ? `<div style="font-size: 9px; font-family: monospace; color: #64748b;">Vendor Code: ${vendorCode}</div>` : ""}
+                    <div style="margin-top: 3px;">
+                      <strong style="color: #1f2a30;">GSTIN:</strong> ${vendorGstin}
+                      &nbsp;|&nbsp;
+                      <strong style="color: #1f2a30;">PAN:</strong> ${vendorPan}
+                    </div>
+                    <div><strong style="color: #1f2a30;">Contact:</strong> ${vendorMobile}</div>
+                    <div><strong style="color: #1f2a30;">Email:</strong> ${vendorEmail}</div>
                   </div>
                 </div>
               </div>
