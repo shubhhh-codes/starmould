@@ -12,6 +12,7 @@ import {
   Lock,
   Layers,
   ArrowRight,
+  ShoppingCart,
 } from "lucide-react";
 import type { Subplate, User } from "@/lib/supabase/types";
 import type { StageDefinition } from "@/app/subplate/page";
@@ -26,6 +27,7 @@ interface AssignStaffModalProps {
   currentUser: UserSession | null;
   isAdmin: boolean;
   onAssign: (subplateId: number, field: string, userId: number) => Promise<void>;
+  onCreatePO?: (subplate: Subplate) => void;
 }
 
 export function AssignStaffModal({
@@ -37,6 +39,7 @@ export function AssignStaffModal({
   currentUser,
   isAdmin,
   onAssign,
+  onCreatePO,
 }: AssignStaffModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,6 +86,78 @@ export function AssignStaffModal({
   }, [activeStaff, searchQuery]);
 
   if (!isOpen || !subplate || !stage) return null;
+
+  // Strict rule: Stage 2 (Purchase) cannot be manually assigned without a PO, and is locked if PO exists
+  if (stage.key === "order_by") {
+    return (
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={isAssigned ? "Purchase Stage (Locked)" : "Purchase Order Required"}
+        description={`Stage 2 • Subplate: ${subplate.platename} #${subplate.id} (${subplate.subprojectid || (subplate as any).mould_project_code || "Project"})`}
+        size="md"
+      >
+        <div className="space-y-4 pt-2">
+          {isAssigned ? (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-amber-900">Stage Locked by Purchase Order</h4>
+                <p className="text-xs text-amber-800/80 leading-relaxed max-w-sm mx-auto">
+                  This stage was automatically assigned to <span className="font-semibold">{currentAssignedUser?.name || `Staff #${currentAssignedId}`}</span> via Purchase Order {subplate.po_srno ? `(#${subplate.po_srno})` : ""}. It cannot be changed or unassigned manually.
+                </p>
+              </div>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-xs font-semibold rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
+                <ShoppingCart className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-sm font-bold text-slate-900">Purchase Order Required</h4>
+                <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
+                  Stage 2 (Purchase) cannot be assigned manually. To assign this stage, please generate a Purchase Order for this subplate first.
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                {onCreatePO && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onCreatePO(subplate);
+                    }}
+                    className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>Generate Purchase Order</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+    );
+  }
 
   const handleSelectStaff = async (userId: number) => {
     if (isSubmitting) return;

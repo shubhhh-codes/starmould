@@ -32,6 +32,7 @@ export interface CreatePurchaseOrderModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialProject?: ScanProject | null;
+  initialPlate?: Subplate | null;
   onSuccess?: (createdPO?: any) => void;
 }
 
@@ -47,6 +48,7 @@ export function CreatePurchaseOrderModal({
   isOpen,
   onClose,
   initialProject,
+  initialPlate,
   onSuccess,
 }: CreatePurchaseOrderModalProps) {
   const router = useRouter();
@@ -64,86 +66,119 @@ export function CreatePurchaseOrderModal({
   const vendors = vendorLookup as Vendor[];
   const clients = customerLookup as Customer[];
 
-  // Initialize form state once on mount
-  const [formData, setFormData] = useState<{
-    odate: string;
-    vname: number | "";
-    cname: number | "";
-    projectid: string;
-    items: PurchaseItemForm[];
-  }>(() => {
+  const buildInitialForm = () => {
     let defaultCustomer: number | "" = "";
-    const defaultMould = initialProject?.projectid || "";
+    const defaultMould =
+      initialProject?.projectid ||
+      initialPlate?.mold_code ||
+      (initialPlate?.projectid ? String(initialPlate.projectid) : "");
 
     if (initialProject) {
       if (initialProject.customer_id) {
         defaultCustomer = Number(initialProject.customer_id);
       } else if (initialProject.cname && !isNaN(Number(initialProject.cname))) {
         defaultCustomer = Number(initialProject.cname);
+      } else if (initialProject.cname && clients.length > 0) {
+        const found = clients.find(
+          (c) => c.customername?.toLowerCase().trim() === String(initialProject.cname).toLowerCase().trim()
+        );
+        if (found) defaultCustomer = found.id;
       }
     }
 
+    let items: PurchaseItemForm[] = [];
     const platesList = initialProject?.subplates || [];
     const pendingPlates = platesList.filter((sp) => {
-      const total = Number(sp.sqty) || 1;
-      const ordered = sp.ordered_qty ?? 0;
-      return total - ordered > 0;
+      const rem =
+        sp.remaining_qty !== undefined
+          ? sp.remaining_qty
+          : Math.max(0, (Number(sp.sqty) || 1) - (sp.ordered_qty ?? 0));
+      return rem > 0;
     });
 
-    const items: PurchaseItemForm[] =
-      pendingPlates.length > 0
-        ? pendingPlates.map((sp) => {
-            const rem = Math.max(0, (Number(sp.sqty) || 1) - (sp.ordered_qty ?? 0));
-            const formattedDims = formatSubplateDimensions(sp);
-            const dims =
-              formattedDims !== "—"
-                ? formattedDims
-                : [sp.length ?? "", sp.width ?? "", sp.height ?? ""]
-                    .filter(Boolean)
-                    .join(" x ") + (sp.unit ? ` ${sp.unit}` : " mm");
-            return {
-              plateid: sp.id,
-              material: dims,
-              materialtype: sp.material || "",
-              qty: rem > 0 ? rem : 1,
-              rate: "",
-            };
-          })
-        : [{ plateid: "", material: "", materialtype: "", qty: 1, rate: "" }];
+    if (pendingPlates.length > 0) {
+      // Prioritize initialPlate first, followed by all other pending subplates of this mould
+      const sortedPlates = [...pendingPlates];
+      if (initialPlate) {
+        const idx = sortedPlates.findIndex((p) => p.id === initialPlate.id);
+        if (idx > -1) {
+          const [found] = sortedPlates.splice(idx, 1);
+          sortedPlates.unshift(found);
+        } else {
+          const rem =
+            initialPlate.remaining_qty !== undefined
+              ? initialPlate.remaining_qty
+              : Math.max(0, (Number(initialPlate.sqty) || 1) - (initialPlate.ordered_qty ?? 0));
+          if (rem > 0) {
+            sortedPlates.unshift(initialPlate);
+          }
+        }
+      }
+      items = sortedPlates.map((sp) => {
+        const rem =
+          sp.remaining_qty !== undefined
+            ? sp.remaining_qty
+            : Math.max(0, (Number(sp.sqty) || 1) - (sp.ordered_qty ?? 0));
+        const formattedDims = formatSubplateDimensions(sp);
+        const dims =
+          formattedDims !== "—"
+            ? formattedDims
+            : [sp.length ?? "", sp.width ?? "", sp.height ?? ""]
+                .filter(Boolean)
+                .join(" x ") + (sp.unit ? ` ${sp.unit}` : " mm");
+        return {
+          plateid: sp.id,
+          material: dims,
+          materialtype: sp.material || "",
+          qty: rem > 0 ? rem : 1,
+          rate: "",
+        };
+      });
+    } else if (initialPlate) {
+      const rem =
+        initialPlate.remaining_qty !== undefined
+          ? initialPlate.remaining_qty
+          : Math.max(0, (Number(initialPlate.sqty) || 1) - (initialPlate.ordered_qty ?? 0));
+      const formattedDims = formatSubplateDimensions(initialPlate);
+      const dims =
+        formattedDims !== "—"
+          ? formattedDims
+          : [initialPlate.length ?? "", initialPlate.width ?? "", initialPlate.height ?? ""]
+              .filter(Boolean)
+              .join(" x ") + (initialPlate.unit ? ` ${initialPlate.unit}` : " mm");
+      items = [
+        {
+          plateid: initialPlate.id,
+          material: dims,
+          materialtype: initialPlate.material || "",
+          qty: rem > 0 ? rem : 1,
+          rate: "",
+        },
+      ];
+    } else {
+      items = [{ plateid: "", material: "", materialtype: "", qty: 1, rate: "" }];
+    }
 
     return {
       odate: new Date().toISOString().slice(0, 10),
-      vname: "",
+      vname: "" as number | "",
       cname: defaultCustomer,
       projectid: defaultMould,
       items,
     };
-  });
+  };
 
+  // Initialize form state
+  const [formData, setFormData] = useState(buildInitialForm);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // If initial customer ID was numeric string or name, resolve once clients query finishes
-  const hasResolvedCustomerRef = useRef(false);
+  // Sync state whenever modal is opened with new project or plate
   useEffect(() => {
-    if (hasResolvedCustomerRef.current || !initialProject || clients.length === 0) return;
-    if (formData.cname) {
-      hasResolvedCustomerRef.current = true;
-      return;
+    if (isOpen) {
+      setFormData(buildInitialForm());
+      setFormError(null);
     }
-    const cnameStr = String(
-      initialProject.cname || (initialProject as any).customername || ""
-    )
-      .toLowerCase()
-      .trim();
-    if (!cnameStr) return;
-    const found = clients.find(
-      (c) => c.customername?.toLowerCase().trim() === cnameStr
-    );
-    if (found) {
-      hasResolvedCustomerRef.current = true;
-      setFormData((prev) => ({ ...prev, cname: found.id }));
-    }
-  }, [clients, initialProject, formData.cname]);
+  }, [isOpen, initialProject, initialPlate]);
 
   // Selected scan for subplate resolution
   const selectedScan = useMemo(() => {
@@ -164,6 +199,32 @@ export function CreatePurchaseOrderModal({
     );
   }, [scans, formData.projectid, initialProject]);
 
+  // Resolve customer ID once clients query finishes or target scan changes
+  useEffect(() => {
+    if (!isOpen) return;
+    if (formData.cname) return;
+    const targetScan = selectedScan || initialProject;
+    if (!targetScan) return;
+
+    if (targetScan.customer_id) {
+      setFormData((prev) => ({ ...prev, cname: Number(targetScan.customer_id) }));
+      return;
+    }
+    if (targetScan.cname && !isNaN(Number(targetScan.cname))) {
+      setFormData((prev) => ({ ...prev, cname: Number(targetScan.cname) }));
+      return;
+    }
+    if (clients.length > 0 && targetScan.cname) {
+      const cnameStr = String(targetScan.cname).toLowerCase().trim();
+      const found = clients.find(
+        (c) => c.customername?.toLowerCase().trim() === cnameStr
+      );
+      if (found) {
+        setFormData((prev) => ({ ...prev, cname: found.id }));
+      }
+    }
+  }, [isOpen, clients, selectedScan, initialProject, formData.cname]);
+
   const lookupProjectId = selectedScan ? selectedScan.id : formData.projectid || undefined;
   const { data: dynamicSubplates = [] } = useSubplatesByProjectQuery(lookupProjectId, {
     enabled: Boolean(lookupProjectId),
@@ -179,29 +240,46 @@ export function CreatePurchaseOrderModal({
     return Array.from(map.values());
   }, [initialProject?.subplates, dynamicSubplates]);
 
-  // Once dynamic subplates load from API, pre-fill line items if initial items were blank
+  // Once dynamic subplates load from API, pre-fill all pending line items for this mould
   const hasPopulatedPlatesRef = useRef(false);
   useEffect(() => {
-    if (hasPopulatedPlatesRef.current || dynamicSubplates.length === 0) return;
-
-    if (initialProject?.subplates && initialProject.subplates.length > 0) {
-      hasPopulatedPlatesRef.current = true;
+    if (!isOpen) {
+      hasPopulatedPlatesRef.current = false;
       return;
     }
+    if (dynamicSubplates.length === 0) return;
 
     const pendingPlates = dynamicSubplates.filter((sp) => {
-      const rem = sp.remaining_qty ?? (Number(sp.sqty) || 1);
+      const rem =
+        sp.remaining_qty !== undefined
+          ? sp.remaining_qty
+          : Math.max(0, (Number(sp.sqty) || 1) - (sp.ordered_qty ?? 0));
       return rem > 0;
     });
 
     if (pendingPlates.length > 0) {
-      hasPopulatedPlatesRef.current = true;
       setFormData((prev) => {
-        if (prev.items.some((it) => it.plateid !== "")) return prev;
+        const currentPlateIds = new Set(prev.items.map((it) => Number(it.plateid)).filter(Boolean));
+        const allPendingPresent = pendingPlates.every((sp) => currentPlateIds.has(sp.id));
+        if (allPendingPresent && hasPopulatedPlatesRef.current) return prev;
+
+        hasPopulatedPlatesRef.current = true;
+        const sortedPlates = [...pendingPlates];
+        if (initialPlate) {
+          const idx = sortedPlates.findIndex((p) => p.id === initialPlate.id);
+          if (idx > -1) {
+            const [found] = sortedPlates.splice(idx, 1);
+            sortedPlates.unshift(found);
+          }
+        }
+
         return {
           ...prev,
-          items: pendingPlates.map((sp) => {
-            const rem = sp.remaining_qty ?? (Number(sp.sqty) || 1);
+          items: sortedPlates.map((sp) => {
+            const rem =
+              sp.remaining_qty !== undefined
+                ? sp.remaining_qty
+                : Math.max(0, (Number(sp.sqty) || 1) - (sp.ordered_qty ?? 0));
             const formattedDims = formatSubplateDimensions(sp);
             const dims =
               formattedDims !== "—"
@@ -220,7 +298,7 @@ export function CreatePurchaseOrderModal({
         };
       });
     }
-  }, [dynamicSubplates, initialProject]);
+  }, [isOpen, dynamicSubplates, initialPlate]);
 
   // Helper to calculate exact remaining quantity
   const getPlateRemainingQty = React.useCallback(
@@ -539,15 +617,38 @@ export function CreatePurchaseOrderModal({
               value={formData.projectid}
               onChange={(val) => {
                 const newProj = String(val || "");
+                hasPopulatedPlatesRef.current = false;
                 setFormData((p) => {
                   if (p.projectid === newProj) return p;
+                  const matchingScan = scans.find(
+                    (s) => s.projectid === newProj || String(s.id) === newProj
+                  );
+                  let matchedCustId = p.cname;
+                  if (matchingScan?.customer_id) {
+                    matchedCustId = Number(matchingScan.customer_id);
+                  } else if (matchingScan?.cname && !isNaN(Number(matchingScan.cname))) {
+                    matchedCustId = Number(matchingScan.cname);
+                  } else if (matchingScan?.cname && clients.length > 0) {
+                    const found = clients.find(
+                      (c) =>
+                        c.customername?.toLowerCase().trim() ===
+                        String(matchingScan.cname).toLowerCase().trim()
+                    );
+                    if (found) matchedCustId = found.id;
+                  }
                   return {
                     ...p,
                     projectid: newProj,
-                    items: p.items.map((it) => ({
-                      ...it,
-                      plateid: "",
-                    })),
+                    cname: matchedCustId || p.cname,
+                    items: [
+                      {
+                        plateid: "",
+                        material: "",
+                        materialtype: "",
+                        qty: 1,
+                        rate: "",
+                      },
+                    ],
                   };
                 });
               }}

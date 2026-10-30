@@ -18,6 +18,7 @@ export interface PipelineStageItem {
   fullLabel?: string;
   pendingCount: number;
   completedCount: number;
+  partialCount?: number;
   icon: LucideIcon;
   colorTheme: {
     bg: string;
@@ -35,6 +36,7 @@ interface PipelineStatGridProps {
     designCompleted?: number;
     orderPending?: number;
     orderCompleted?: number;
+    orderPartial?: number;
     programmingPending?: number;
     programmingCompleted?: number;
     vmcPending?: number;
@@ -122,6 +124,7 @@ export function PipelineStatGrid({
       fullLabel: "Purchase",
       pendingCount: stats.orderPending ?? stats.orderbytotal ?? 0,
       completedCount: stats.orderCompleted ?? 0,
+      partialCount: stats.orderPartial ?? 0,
       icon: Boxes,
       colorTheme: {
         bg: "hover:bg-amber-50/70",
@@ -236,12 +239,22 @@ export function PipelineStatGrid({
                 <span className="hidden 2xl:inline">{stage.fullLabel || stage.label}</span>
                 <span className="2xl:hidden">{stage.label}</span>
               </span>
-              <div
-                className={`p-1 rounded-md ${stage.colorTheme.iconBg} shrink-0 transition-transform duration-150 ${
-                  isSelected ? "scale-110" : ""
-                }`}
-              >
-                <Icon className="h-3 w-3" />
+              <div className="flex items-center gap-1 shrink-0">
+                {stage.partialCount !== undefined && stage.partialCount > 0 && (
+                  <span
+                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs leading-none"
+                    title={`${stage.partialCount} subplate(s) partially ordered`}
+                  >
+                    ⚡ {stage.partialCount}
+                  </span>
+                )}
+                <div
+                  className={`p-1 rounded-md ${stage.colorTheme.iconBg} shrink-0 transition-transform duration-150 ${
+                    isSelected ? "scale-110" : ""
+                  }`}
+                >
+                  <Icon className="h-3 w-3" />
+                </div>
               </div>
             </div>
 

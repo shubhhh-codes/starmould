@@ -330,6 +330,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Auto-sync subplates order_by & order_at so pipeline stage transitions cleanly
+    // Strictly auto-assigns ONLY the plates in this PO to the user who created it
     const orderedPlateIds = lineItemsToInsert.map((it: { plateid: number }) => it.plateid).filter(Boolean);
     if (orderedPlateIds.length > 0) {
       await supabaseAdmin
@@ -339,8 +340,7 @@ export async function POST(req: NextRequest) {
           order_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .in("id", orderedPlateIds)
-        .is("order_by", null);
+        .in("id", orderedPlateIds);
     }
 
     invalidateCache("api_counts_all");
@@ -468,7 +468,33 @@ export async function PUT(req: NextRequest) {
     // Delete items removed from the PO
     const idsToDelete = [...existingIds].filter((exId) => !submittedIds.has(exId));
     if (idsToDelete.length > 0) {
+      const { data: itemsBeingDeleted } = await supabaseAdmin
+        .from("purchase_items")
+        .select("plateid")
+        .in("id", idsToDelete);
+
       await supabaseAdmin.from("purchase_items").delete().in("id", idsToDelete);
+
+      // Reconcile removed plates: if no other active PO exists, reset order_by
+      if (itemsBeingDeleted && itemsBeingDeleted.length > 0) {
+        for (const dit of itemsBeingDeleted) {
+          const removedPlateId = Number(dit.plateid);
+          if (removedPlateId) {
+            const { data: otherActivePOs } = await supabaseAdmin
+              .from("purchase_items")
+              .select("pid, purchase:pid!inner(status)")
+              .eq("plateid", removedPlateId)
+              .neq("purchase.status", "0")
+              .limit(1);
+            if (!otherActivePOs || otherActivePOs.length === 0) {
+              await supabaseAdmin
+                .from("subplate")
+                .update({ order_by: null, order_at: null, updated_at: new Date().toISOString() })
+                .eq("id", removedPlateId);
+            }
+          }
+        }
+      }
     }
 
     // Update existing items or insert new items
@@ -502,7 +528,7 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Auto-sync subplates order_by & order_at for any newly added/updated plate lines
+    // Auto-sync subplates order_by & order_at strictly for plates included in this PO
     const orderedPlateIds = (items || []).map((it: any) => Number(it.plateid)).filter(Boolean);
     if (orderedPlateIds.length > 0) {
       await supabaseAdmin
@@ -512,8 +538,7 @@ export async function PUT(req: NextRequest) {
           order_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .in("id", orderedPlateIds)
-        .is("order_by", null);
+        .in("id", orderedPlateIds);
     }
 
     invalidateCache("api_counts_all");
@@ -538,7 +563,7 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-// DELETE /api/purchases?id=123 - soft delete PO (Admin, Manager, Purchase Incharge)
+// DELETE /api/purchases?id=123 - hard delete PO (Admin, Manager, Purchase Incharge)
 export async function DELETE(req: NextRequest) {
   const auth = await authenticateRequest(req, [0, 1, 5], "action_delete_purchase");
   if ("error" in auth) {
@@ -575,29 +600,40 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const { error } = await supabaseAdmin
-      .from("purchase")
-      .update({ status: "0", updated_at: new Date().toISOString() })
-      .eq("id", poId);
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    // Reset subplates order_by if no other active PO exists for them
-    const { data: cancelledItems } = await supabaseAdmin
+    // 1. Fetch plate IDs linked to this PO before deleting
+    const { data: poItems } = await supabaseAdmin
       .from("purchase_items")
       .select("plateid")
-      .eq("pid", Number(id));
+      .eq("pid", poId);
 
-    if (cancelledItems && cancelledItems.length > 0) {
-      const plateIds = cancelledItems.map((ci) => ci.plateid).filter(Boolean);
+    // 2. Hard-delete purchase line items first (cascading relation)
+    const { error: itErr } = await supabaseAdmin
+      .from("purchase_items")
+      .delete()
+      .eq("pid", poId);
+
+    if (itErr) {
+      return NextResponse.json({ error: `Failed to delete purchase items: ${itErr.message}` }, { status: 500 });
+    }
+
+    // 3. Hard-delete purchase header record
+    const { error: poErr } = await supabaseAdmin
+      .from("purchase")
+      .delete()
+      .eq("id", poId);
+
+    if (poErr) {
+      return NextResponse.json({ error: `Failed to delete purchase order: ${poErr.message}` }, { status: 500 });
+    }
+
+    // 4. Reset subplates order_by & order_at if no other active PO exists for them
+    if (poItems && poItems.length > 0) {
+      const plateIds = poItems.map((ci) => Number(ci.plateid)).filter(Boolean);
       for (const pid of plateIds) {
         const { data: otherActivePOs } = await supabaseAdmin
           .from("purchase_items")
-          .select("id, purchase:pid!inner(status)")
+          .select("id, pid, purchase:pid!inner(id)")
           .eq("plateid", pid)
-          .neq("purchase.status", "0")
           .limit(1);
 
         if (!otherActivePOs || otherActivePOs.length === 0) {
@@ -612,8 +648,9 @@ export async function DELETE(req: NextRequest) {
     invalidateCache("api_counts_all");
     invalidateCache("api_pipeline_stage_counts");
     invalidateCache("subplate_default_");
+    invalidateCache();
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, hardDeleted: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

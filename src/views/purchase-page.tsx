@@ -157,6 +157,27 @@ function PurchasePageContent() {
         {},
     );
 
+    // Purchase Order Register view mode & collapsed moulds state
+    const [poViewMode, setPoViewMode] = useState<"grouped" | "flat">("grouped");
+    const [collapsedPoMoulds, setCollapsedPoMoulds] = useState<Record<string, boolean>>({});
+
+    const toggleCollapsePoMould = (mouldCode: string) => {
+        setCollapsedPoMoulds((prev) => ({
+            ...prev,
+            [mouldCode]: !prev[mouldCode],
+        }));
+    };
+
+    const handleToggleAllPoMoulds = (expand: boolean) => {
+        const next: Record<string, boolean> = {};
+        if (!expand) {
+            purchasesByMould.forEach((g) => {
+                next[g.mouldCode] = true;
+            });
+        }
+        setCollapsedPoMoulds(next);
+    };
+
     // Pending Purchase view mode, filter & multi-select batch state
     const [viewMode, setViewMode] = useState<"grouped" | "flat">("grouped");
     const [mouldFilter, setMouldFilter] = useState<string>(mouldParam || "ALL");
@@ -384,11 +405,22 @@ function PurchasePageContent() {
             const sp = allSubplates.find((p) => p.id === numId);
             if (!sp) return null;
             const total = Number(sp.sqty) || 1;
-            // Use API remaining_qty if present and not editing, or compute using orderedQtyByPlateId
-            const ordered = orderedQtyByPlateId.get(numId) ?? (sp.ordered_qty ?? 0);
-            return Math.max(0, total - ordered);
+
+            // When editing an existing PO, exclude this PO's items so they do not count against themselves
+            const editingPoQty = editingPO
+                ? (editingPO.items || [])
+                      .filter((it) => Number(it.plateid) === numId)
+                      .reduce((sum, it) => sum + (Number(it.qty) || 0), 0)
+                : 0;
+
+            const orderedByOthers = Math.max(
+                orderedQtyByPlateId.get(numId) || 0,
+                Math.max(0, (sp.ordered_qty ?? 0) - editingPoQty),
+            );
+
+            return Math.max(0, total - orderedByOthers);
         },
-        [allSubplates, orderedQtyByPlateId],
+        [allSubplates, orderedQtyByPlateId, editingPO],
     );
 
     // Pending Purchase List Logic
@@ -524,6 +556,78 @@ function PurchasePageContent() {
             );
         });
     }, [purchases, searchQuery]);
+
+    // Group Purchase Orders by Mould Project
+    const purchasesByMould = useMemo(() => {
+        const groups: Record<
+            string,
+            {
+                mouldCode: string;
+                scan: ScanProject | undefined;
+                customerName: string;
+                customerId: number | null;
+                description: string;
+                worktype: string;
+                purchases: PurchaseOrder[];
+                totalPlatesCount: number;
+            }
+        > = {};
+
+        filteredPurchases.forEach((po) => {
+            const rawCode = (po.projectid || "").trim();
+            const mouldCode = !rawCode || rawCode === "-" ? "General / Unassigned" : rawCode;
+
+            if (!groups[mouldCode]) {
+                const matchingScan = scans.find(
+                    (s) => s.projectid === mouldCode || String(s.id) === mouldCode
+                );
+
+                let rawCustId: number | null = null;
+                if (matchingScan?.customer_id) {
+                    rawCustId = Number(matchingScan.customer_id);
+                } else if (matchingScan?.cname && !isNaN(Number(matchingScan.cname))) {
+                    rawCustId = Number(matchingScan.cname);
+                } else if (po.cname && !isNaN(Number(po.cname))) {
+                    rawCustId = Number(po.cname);
+                }
+
+                let custName = "";
+                if (matchingScan) {
+                    custName = (matchingScan as any).customername || matchingScan.cname || "";
+                }
+                if (!custName && rawCustId) {
+                    custName = getCustomerName(rawCustId);
+                }
+                if (!custName && po.cname) {
+                    custName = getCustomerName(po.cname);
+                }
+                if (!custName) {
+                    custName = "Direct / In-House";
+                }
+
+                groups[mouldCode] = {
+                    mouldCode,
+                    scan: matchingScan,
+                    customerName: custName,
+                    customerId: rawCustId,
+                    description: matchingScan?.description || "",
+                    worktype: matchingScan?.worktype || "",
+                    purchases: [],
+                    totalPlatesCount: 0,
+                };
+            }
+
+            groups[mouldCode].purchases.push(po);
+            const itemCount = po.items ? po.items.length : 0;
+            groups[mouldCode].totalPlatesCount += itemCount;
+        });
+
+        return Object.values(groups).sort((a, b) => {
+            if (a.mouldCode === "General / Unassigned") return 1;
+            if (b.mouldCode === "General / Unassigned") return -1;
+            return b.purchases.length - a.purchases.length;
+        });
+    }, [filteredPurchases, scans, getCustomerName]);
 
     // Filtered Pending Plates with search query, mould filter, and material filter
     const filteredPendingPlates = useMemo(() => {
@@ -853,9 +957,10 @@ function PurchasePageContent() {
         });
     };
 
-    // Open modal for creating PO (supports single subplate or multiple subplates array, plus optional presetMouldCode)
+    // Open modal for creating PO (supports single subplate or multiple subplates array, plus optional presetMouldCode & presetVendorId)
+    // Automatically pre-fills customer, mould, vendor (from mould history), and all pending plate line items
     const handleOpenAddModal = useCallback(
-        (presetPlates?: Subplate | Subplate[], presetMouldCode?: string) => {
+        (presetPlates?: Subplate | Subplate[], presetMouldCode?: string, presetVendorId?: number) => {
             setEditingPO(null);
             const platesArray: Subplate[] = presetPlates
                 ? Array.isArray(presetPlates)
@@ -865,6 +970,7 @@ function PurchasePageContent() {
 
             let defaultMould = presetMouldCode || "";
             let defaultCustomer: number | "" = "";
+            let defaultVendor: number | "" = presetVendorId || "";
 
             if (platesArray.length > 0) {
                 const firstPlate = platesArray[0];
@@ -872,7 +978,7 @@ function PurchasePageContent() {
                 defaultMould = mouldCode !== "Unassigned" ? mouldCode : (presetMouldCode || "");
                 defaultCustomer = custId !== null && !isNaN(Number(custId)) ? Number(custId) : "";
             } else if (presetMouldCode) {
-                const matchingScan = scans.find((s) => s.projectid === presetMouldCode);
+                const matchingScan = scans.find((s) => s.projectid === presetMouldCode || String(s.id) === presetMouldCode);
                 if (matchingScan) {
                     let rawCustId: number | null = null;
                     if (matchingScan.customer_id) {
@@ -894,9 +1000,54 @@ function PurchasePageContent() {
                 }
             }
 
+            // Auto-detect vendor from mould history if not explicitly provided
+            if (!defaultVendor && defaultMould && defaultMould !== "General / Unassigned") {
+                const prevPoForMould = purchases.find((p) => p.projectid === defaultMould && p.vname);
+                if (prevPoForMould && prevPoForMould.vname) {
+                    defaultVendor = Number(prevPoForMould.vname);
+                }
+            }
+            if (!defaultVendor && defaultCustomer) {
+                const prevPoForCust = purchases.find((p) => Number(p.cname) === Number(defaultCustomer) && p.vname);
+                if (prevPoForCust && prevPoForCust.vname) {
+                    defaultVendor = Number(prevPoForCust.vname);
+                }
+            }
+            if (!defaultVendor && vendors.length === 1) {
+                defaultVendor = Number(vendors[0].id);
+            }
+
+            // Automatically resolve plate items for this mould when opening via CTA
+            let resolvedPlates: Subplate[] = platesArray;
+            if (resolvedPlates.length === 0 && defaultMould && defaultMould !== "General / Unassigned") {
+                const matchingScan = scans.find((s) => s.projectid === defaultMould || String(s.id) === defaultMould);
+                const scanIdStr = matchingScan ? String(matchingScan.id) : "";
+
+                const mouldPlates = allSubplates.filter(
+                    (sp) =>
+                        (scanIdStr && String(sp.projectid) === scanIdStr) ||
+                        (matchingScan && sp.mold_id && sp.mold_id === matchingScan.id) ||
+                        (sp.mold_code && sp.mold_code === defaultMould) ||
+                        String(sp.projectid) === defaultMould ||
+                        (sp.subprojectid && sp.subprojectid.includes(defaultMould))
+                );
+
+                // Prioritize subplates with remaining pending quantities needing PO
+                const pendingForMould = mouldPlates.filter((sp) => {
+                    const rem = getPlateRemainingQty(sp.id);
+                    return rem === null || rem > 0;
+                });
+
+                if (pendingForMould.length > 0) {
+                    resolvedPlates = pendingForMould;
+                } else if (mouldPlates.length > 0) {
+                    resolvedPlates = mouldPlates;
+                }
+            }
+
             const items =
-                platesArray.length > 0
-                    ? platesArray.map((sp) => {
+                resolvedPlates.length > 0
+                    ? resolvedPlates.map((sp) => {
                           const remQty = getPlateRemainingQty(sp.id);
                           const initialQty =
                               remQty !== null && remQty > 0
@@ -935,7 +1086,7 @@ function PurchasePageContent() {
 
             setFormData({
                 odate: new Date().toISOString().slice(0, 10),
-                vname: "",
+                vname: defaultVendor,
                 cname: defaultCustomer,
                 projectid: defaultMould,
                 items,
@@ -943,7 +1094,7 @@ function PurchasePageContent() {
             setFormError(null);
             setIsModalOpen(true);
         },
-        [getPlateScanAndCustomer, getPlateRemainingQty, scans, clients],
+        [getPlateScanAndCustomer, getPlateRemainingQty, scans, clients, purchases, vendors, allSubplates],
     );
 
     // Automatically trigger Add PO modal when routed from Mould Table (?tab=pending&mould=...&create=true)
@@ -1176,6 +1327,393 @@ function PurchasePageContent() {
         document.body.removeChild(link);
     };
 
+    // Render desktop row for a Purchase Order (supports multi-item expand)
+    const renderPoRow = (po: PurchaseOrder) => {
+        const isExpanded = Boolean(expandedRows[po.id]);
+        const vendorName = getVendorName(po.vname);
+        const clientName = getCustomerName(po.cname);
+        const itemCount = po.items ? po.items.length : 0;
+
+        return (
+            <React.Fragment key={po.id}>
+                {/* Main PO Row */}
+                <tr
+                    id={`row-${po.id}`}
+                    onClick={(e) => {
+                        const target = e.target as HTMLElement;
+                        if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
+                            return;
+                        }
+                        toggleRow(po.id);
+                    }}
+                    className={`hover:bg-slate-50/70 transition-all duration-300 cursor-pointer ${getRowHighlightClass(po.id)}`}
+                    title="Click row to view PO line items"
+                >
+                    {/* Details Control toggle icon */}
+                    <td className="py-3 px-3 text-center">
+                        <button
+                            type="button"
+                            onClick={() => toggleRow(po.id)}
+                            className="p-1 rounded text-slate-400 hover:text-slate-700 transition"
+                            title="Expand line items"
+                        >
+                            {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 text-blue-600" />
+                            ) : (
+                                <ChevronRight className="w-4 h-4 text-slate-400" />
+                            )}
+                        </button>
+                    </td>
+
+                    {/* PO No. */}
+                    <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono font-bold text-[12px] text-blue-700">
+                                {po.srno}
+                            </span>
+                            {po.is_fully_received && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title="All items in this purchase order have been received">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>Fully Received</span>
+                                </span>
+                            )}
+                            {!po.is_fully_received && po.is_partially_received && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title={`Partially inwarded: ${po.total_inward_qty || 0} of ${po.total_ordered_qty || 0} received`}>
+                                    <Clock className="w-3 h-3 text-amber-600" />
+                                    <span>Partial Inward</span>
+                                </span>
+                            )}
+                        </div>
+                        <div className="text-[10px] text-slate-400">
+                            {itemCount} {itemCount === 1 ? "plate" : "plates"}
+                        </div>
+                    </td>
+
+                    {/* Order Date */}
+                    <td className="py-3 px-3 text-slate-700">
+                        <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="font-mono">{po.odate}</span>
+                        </div>
+                    </td>
+
+                    {/* Supplier Name */}
+                    <td className="py-3 px-4 font-medium text-slate-800">
+                        <div className="flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span className="truncate max-w-[200px]" title={vendorName}>
+                                {vendorName}
+                            </span>
+                        </div>
+                    </td>
+
+                    {/* Customer Name */}
+                    <td className="py-3 px-4 text-slate-700">
+                        <span className="truncate max-w-[200px] block" title={clientName}>
+                            {clientName}
+                        </span>
+                    </td>
+
+                    {/* Mould Project */}
+                    <td className="py-3 px-4">
+                        <span className="px-2 py-0.5 rounded font-mono font-semibold text-[11px] bg-slate-100 text-slate-700 border border-slate-200">
+                            {po.projectid || "—"}
+                        </span>
+                    </td>
+
+                    {/* Created By */}
+                    <td className="py-3 px-3 text-slate-600">
+                        {po.created_by || "Admin"}
+                    </td>
+
+                    {/* Action Buttons */}
+                    <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => handleOpenVoucherTab(po)}
+                                className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
+                                title="Open PO Voucher in new tab"
+                            >
+                                <Printer className="w-3 h-3" />
+                                <span>Voucher</span>
+                            </button>
+                            {canEditPurchase && (
+                                po.is_fully_received ? (
+                                    <button
+                                        type="button"
+                                        disabled
+                                        className="px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded cursor-not-allowed opacity-60 flex items-center gap-1"
+                                        title="Cannot edit: All items in this Purchase Order have already been fully received at the workshop gate"
+                                    >
+                                        <Lock className="w-3 h-3 text-slate-400" />
+                                        <span>Edit</span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleOpenEditModal(po)}
+                                        className="px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition flex items-center gap-1 cursor-pointer"
+                                        title="Edit Purchase Order"
+                                    >
+                                        <Edit2 className="w-3 h-3" />
+                                        <span>Edit</span>
+                                    </button>
+                                )
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => toggleRow(po.id)}
+                                className="px-2 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition cursor-pointer"
+                            >
+                                {isExpanded ? "Hide" : "Items"}
+                            </button>
+                            {canDeletePurchase && (
+                                po.has_inward ? (
+                                    <button
+                                        type="button"
+                                        disabled
+                                        className="px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded cursor-not-allowed opacity-60"
+                                        title="Cannot delete: Material has already been inwarded against this Purchase Order"
+                                    >
+                                        Delete
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeleteTarget(po)}
+                                        className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition cursor-pointer"
+                                        title="Delete Purchase Order"
+                                    >
+                                        Delete
+                                    </button>
+                                )
+                            )}
+                        </div>
+                    </td>
+                </tr>
+
+                {/* Expanded Child Table: Line Items */}
+                {isExpanded && (
+                    <tr className="bg-slate-50/90">
+                        <td colSpan={8} className="p-4 pl-12 border-y border-slate-200">
+                            <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-inner">
+                                <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-700">
+                                    <span className="flex items-center gap-1.5">
+                                        <Layers className="w-3.5 h-3.5 text-blue-600" />
+                                        Line Items for {po.srno}
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 font-normal">
+                                        {itemCount} subplates ordered
+                                    </span>
+                                </div>
+                                <div className="overflow-x-auto w-full">
+                                    <table className="w-full text-xs text-left">
+                                        <thead className="text-[10px] text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                                            <tr>
+                                                <th className="py-2 px-4">Plate Name</th>
+                                                <th className="py-2 px-4">Material / Dimensions</th>
+                                                <th className="py-2 px-4">Material Type</th>
+                                                <th className="py-2 px-4 text-center">Ordered Qty</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {po.items && po.items.length > 0 ? (
+                                                po.items.map((item) => (
+                                                    <tr key={item.id} className="hover:bg-slate-50/50">
+                                                        <td className="py-2 px-4 font-semibold text-slate-800">
+                                                            {item.platename || `Plate #${item.plateid}`}
+                                                        </td>
+                                                        <td className="py-2 px-4 font-mono text-[11px] text-slate-600">
+                                                            {item.material || "—"}
+                                                        </td>
+                                                        <td className="py-2 px-4 text-slate-600">
+                                                            <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 border border-slate-200">
+                                                                {item.materialtype}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-2 px-4 text-center font-bold text-slate-800">
+                                                            {item.qty}
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={4} className="py-4 text-center text-slate-400 italic">
+                                                        No line items attached to this order.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                )}
+            </React.Fragment>
+        );
+    };
+
+    // Render mobile card for a Purchase Order
+    const renderPoMobileCard = (po: PurchaseOrder) => {
+        const isExpanded = Boolean(expandedRows[po.id]);
+        const vendorName = getVendorName(po.vname);
+        const clientName = getCustomerName(po.cname);
+        const itemCount = po.items ? po.items.length : 0;
+
+        return (
+            <div
+                key={po.id}
+                id={`m-row-${po.id}`}
+                onClick={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
+                        return;
+                    }
+                    toggleRow(po.id);
+                }}
+                className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs cursor-pointer"
+                title="Tap card to view PO line items"
+            >
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-bold text-blue-700">
+                            {po.srno}
+                        </span>
+                        {po.is_fully_received && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Fully Received</span>
+                            </span>
+                        )}
+                        {!po.is_fully_received && po.is_partially_received && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span>Partial</span>
+                            </span>
+                        )}
+                        <span className="text-[10px] text-slate-400 ml-1 font-mono">
+                            {po.odate}
+                        </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded font-mono font-semibold text-[10px] bg-slate-100 text-slate-700 border border-slate-200">
+                        {po.projectid || "—"}
+                    </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+                    <div>
+                        <span className="text-slate-400 block text-[10px]">Supplier:</span>
+                        <span className="font-medium text-slate-800 truncate block">
+                            {vendorName}
+                        </span>
+                    </div>
+                    <div>
+                        <span className="text-slate-400 block text-[10px]">Customer:</span>
+                        <span className="font-medium text-slate-800 truncate block">
+                            {clientName}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="font-medium text-slate-600">
+                            {itemCount} {itemCount === 1 ? "subplate" : "subplates"}
+                        </span>
+                        <span className="text-[10px] text-slate-400">PO Actions</span>
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                        <button
+                            type="button"
+                            onClick={() => handleOpenVoucherTab(po)}
+                            className="min-h-[36px] px-1 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition flex items-center justify-center gap-1 cursor-pointer"
+                            title="Open PO Voucher in new tab"
+                        >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>Voucher</span>
+                        </button>
+                        {canEditPurchase && (
+                            po.is_fully_received ? (
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="min-h-[36px] px-1 py-1 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed opacity-60 flex items-center justify-center gap-1"
+                                    title="Cannot edit: All items in this Purchase Order have already been fully received at the workshop gate"
+                                >
+                                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                                    <span>Edit</span>
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenEditModal(po)}
+                                    className="min-h-[36px] px-1 py-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition flex items-center justify-center gap-1 cursor-pointer"
+                                    title="Edit PO"
+                                >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                    <span>Edit</span>
+                                </button>
+                            )
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => toggleRow(po.id)}
+                            className="min-h-[36px] px-1 py-1 text-xs font-semibold text-blue-600 bg-blue-50/50 border border-blue-200 rounded-lg hover:bg-blue-100 transition flex items-center justify-center cursor-pointer"
+                        >
+                            {isExpanded ? "Hide" : "Items"}
+                        </button>
+                        {canDeletePurchase && (
+                            po.has_inward ? (
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="min-h-[36px] px-1 py-1 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed opacity-60 flex items-center justify-center"
+                                    title="Cannot delete: Material has already been inwarded against this Purchase Order"
+                                >
+                                    Delete
+                                </button>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setDeleteTarget(po)}
+                                    className="min-h-[36px] px-1 py-1 text-xs font-semibold text-rose-600 bg-rose-50/50 border border-rose-200 rounded-lg hover:bg-rose-100 transition flex items-center justify-center cursor-pointer"
+                                >
+                                    Delete
+                                </button>
+                            )
+                        )}
+                    </div>
+                </div>
+
+                {/* Mobile Expanded Items */}
+                {isExpanded && po.items && po.items.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
+                        {po.items.map((it) => (
+                            <div
+                                key={it.id}
+                                className="p-2 rounded bg-white border border-slate-200 text-[11px] flex items-center justify-between"
+                            >
+                                <div>
+                                    <span className="font-semibold text-slate-800 block">
+                                        {it.platename || `Plate #${it.plateid}`}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">
+                                        {it.material || "—"} ({it.materialtype})
+                                    </span>
+                                </div>
+                                <span className="font-bold text-slate-800">
+                                    Qty: {it.qty}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
     return (
         <AppLayout>
             <div className="space-y-6">
@@ -1287,7 +1825,7 @@ function PurchasePageContent() {
 
                 {/* Toolbar for Orders Register tab */}
                 {activeTab === "orders" && (
-                    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                    <div className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 shadow-sm space-y-3">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="relative flex-1 max-w-md">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -1299,11 +1837,15 @@ function PurchasePageContent() {
                                         setCurrentPage(1);
                                     }}
                                     placeholder="Search PO no, supplier, customer, mould project..."
-                                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 "
+                                    className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 />
                                 {searchQuery && (
                                     <button
-                                        onClick={() => setSearchQuery("")}
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchQuery("");
+                                            setCurrentPage(1);
+                                        }}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                                     >
                                         <X className="w-3.5 h-3.5" />
@@ -1311,32 +1853,328 @@ function PurchasePageContent() {
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-3">
-                                <span className="text-xs text-slate-500 ">
-                                    Rows per page:
-                                </span>
-                                <select
-                                    value={pageSize}
-                                    onChange={(e) => {
-                                        setPageSize(Number(e.target.value));
-                                        setCurrentPage(1);
-                                    }}
-                                    className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none "
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                </select>
+                            <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end">
+                                {/* View Mode Toggle: By Mould vs Flat Register */}
+                                <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                    <button
+                                        type="button"
+                                        onClick={() => setPoViewMode("grouped")}
+                                        className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition ${
+                                            poViewMode === "grouped"
+                                                ? "bg-white text-blue-700 shadow-2xs"
+                                                : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                        title="Group Purchase Orders by Mould Project"
+                                    >
+                                        <LayoutGrid className="w-3.5 h-3.5" />
+                                        <span>By Mould</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPoViewMode("flat")}
+                                        className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition ${
+                                            poViewMode === "flat"
+                                                ? "bg-white text-blue-700 shadow-2xs"
+                                                : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                        title="View Flat Purchase Order Register"
+                                    >
+                                        <List className="w-3.5 h-3.5" />
+                                        <span>Flat Register</span>
+                                    </button>
+                                </div>
+
+                                {poViewMode === "grouped" ? (
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleAllPoMoulds(true)}
+                                            className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-blue-600 bg-slate-50 border border-slate-200 rounded-lg transition"
+                                        >
+                                            Expand All
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleToggleAllPoMoulds(false)}
+                                            className="px-2.5 py-1 text-xs font-medium text-slate-600 hover:text-blue-600 bg-slate-50 border border-slate-200 rounded-lg transition"
+                                        >
+                                            Collapse All
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-slate-500">
+                                            Rows per page:
+                                        </span>
+                                        <select
+                                            value={pageSize}
+                                            onChange={(e) => {
+                                                setPageSize(Number(e.target.value));
+                                                setCurrentPage(1);
+                                            }}
+                                            className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Status Count Summary Bar */}
+                        <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-slate-100 flex-wrap gap-2">
+                            <div>
+                                {poViewMode === "grouped" ? (
+                                    <span>
+                                        Showing <strong className="text-slate-800">{purchasesByMould.length}</strong> mould projects ({filteredPurchases.length} total purchase orders)
+                                    </span>
+                                ) : (
+                                    <span>
+                                        Showing <strong className="text-slate-800">{filteredPurchases.length}</strong> total purchase orders
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
                 )}
 
                 {/* ========================================================================= */}
-                {/* TAB 1: PURCHASE ORDER REGISTER (with expandable multi-item rows) */}
+                {/* TAB 1: PURCHASE ORDER REGISTER */}
                 {/* ========================================================================= */}
-                {activeTab === "orders" && (
+
+                {/* VIEW 1A: MOULD-WISE GROUPED VIEW (Default) */}
+                {activeTab === "orders" && poViewMode === "grouped" && (
+                    <div className="space-y-4">
+                        {isLoading ? (
+                            <div className="bg-white border border-slate-200 rounded-xl p-8">
+                                <TableSkeletonRows rows={6} columns={6} />
+                            </div>
+                        ) : purchasesByMould.length === 0 ? (
+                            <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400">
+                                <ShoppingCart className="w-10 h-10 mx-auto mb-3 opacity-40 text-slate-400" />
+                                <h3 className="text-sm font-semibold text-slate-800 mb-1">
+                                    No Purchase Orders Found
+                                </h3>
+                                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                                    {searchQuery
+                                        ? `No purchase orders match "${searchQuery}". Try clearing your search.`
+                                        : "No purchase orders have been created yet."}
+                                </p>
+                            </div>
+                        ) : (
+                            purchasesByMould.map((group) => {
+                                const isCollapsed = Boolean(collapsedPoMoulds[group.mouldCode]);
+                                return (
+                                    <div
+                                        key={group.mouldCode}
+                                        className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs transition-all hover:border-slate-300"
+                                    >
+                                        {/* Mould Header Bar */}
+                                        <div
+                                            onClick={(e) => {
+                                                const target = e.target as HTMLElement;
+                                                if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
+                                                    return;
+                                                }
+                                                toggleCollapsePoMould(group.mouldCode);
+                                            }}
+                                            className="bg-gradient-to-r from-slate-50/90 via-slate-50/70 to-white hover:bg-slate-100/70 border-b border-slate-200 cursor-pointer select-none transition-colors"
+                                        >
+                                            {/* Mobile Mould Header (< sm): Left-aligned, NO text crop, fully structured */}
+                                            <div className="block sm:hidden p-3.5 space-y-2.5">
+                                                {/* Top Row: Chevron + Code + Worktype on Left, PO Count on Right */}
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleCollapsePoMould(group.mouldCode);
+                                                            }}
+                                                            className="p-1 -ml-1 text-slate-400 hover:text-blue-600 transition cursor-pointer shrink-0"
+                                                            title={isCollapsed ? "Expand mould group" : "Collapse mould group"}
+                                                        >
+                                                            <ChevronDown
+                                                                className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${
+                                                                    !isCollapsed ? "rotate-0 text-blue-600" : "-rotate-90"
+                                                                }`}
+                                                            />
+                                                        </button>
+                                                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                                                            {group.mouldCode}
+                                                        </span>
+                                                        {group.worktype && (
+                                                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                                                                {group.worktype}
+                                                            </span>
+                                                        )}
+                                                    </div>
+
+                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 bg-blue-50 text-blue-700 border-blue-200">
+                                                        {group.purchases.length} {group.purchases.length === 1 ? "PO" : "POs"}
+                                                    </span>
+                                                </div>
+
+                                                {/* Main Title & Customer: Full-width, NO crop, bold, properly left-aligned */}
+                                                <div className="space-y-1">
+                                                    <h3 className="font-bold text-slate-900 text-sm leading-snug break-words">
+                                                        {group.description || (group.mouldCode !== "General / Unassigned" ? `Mould ${group.mouldCode}` : "General Purchase Orders")}
+                                                    </h3>
+                                                    {group.customerName && (
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                                                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                            <span className="break-words leading-tight">{group.customerName}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Bottom Row: Plates Count on Left, + Add PO on Right */}
+                                                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+                                                    <div className="text-slate-500 font-mono text-[11px] flex items-center gap-1.5 flex-wrap">
+                                                        <span className="font-semibold text-slate-700">
+                                                            {group.totalPlatesCount} {group.totalPlatesCount === 1 ? "Plate Item" : "Plate Items"}
+                                                        </span>
+                                                    </div>
+
+                                                    {canCreatePurchase && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const latestVendor = group.purchases[0]?.vname ? Number(group.purchases[0].vname) : undefined;
+                                                                handleOpenAddModal(undefined, group.mouldCode !== "General / Unassigned" ? group.mouldCode : undefined, latestVendor);
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer shrink-0"
+                                                        >
+                                                            <Plus className="w-3.5 h-3.5" />
+                                                            <span>PO</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Desktop Mould Header (sm and above): Full ERP horizontal bar */}
+                                            <div className="hidden sm:flex items-center justify-between gap-4 p-4">
+                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleCollapsePoMould(group.mouldCode);
+                                                        }}
+                                                        className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer shrink-0"
+                                                        title={isCollapsed ? "Expand mould group" : "Collapse mould group"}
+                                                    >
+                                                        <ChevronDown
+                                                            className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${
+                                                                !isCollapsed ? "rotate-0 text-blue-600" : "-rotate-90"
+                                                            }`}
+                                                        />
+                                                    </button>
+
+                                                    <div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-200/60 shrink-0">
+                                                        <Layers className="w-4 h-4 text-blue-600" />
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/90 shrink-0">
+                                                                {group.mouldCode}
+                                                            </span>
+                                                            <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
+                                                                {group.description || (group.mouldCode !== "General / Unassigned" ? `Mould ${group.mouldCode}` : "General Purchase Orders")}
+                                                            </h3>
+                                                            {group.worktype && (
+                                                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0">
+                                                                    {group.worktype}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
+                                                            {group.customerName && (
+                                                                <span className="inline-flex items-center gap-1 font-medium text-slate-700">
+                                                                    <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                                                    <span className="truncate">{group.customerName}</span>
+                                                                </span>
+                                                            )}
+                                                            {group.customerName && <span className="text-slate-300">•</span>}
+                                                            <span className="font-semibold text-slate-700 shrink-0">
+                                                                {group.purchases.length} {group.purchases.length === 1 ? "Purchase Order" : "Purchase Orders"}
+                                                            </span>
+                                                            <span className="text-slate-300">•</span>
+                                                            <span className="font-mono text-slate-600 font-medium whitespace-nowrap shrink-0">
+                                                                {group.totalPlatesCount} Plates / Items
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2.5 shrink-0">
+                                                    <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-700 border border-blue-200 text-xs font-semibold">
+                                                        {group.purchases.length} {group.purchases.length === 1 ? "PO" : "POs"}
+                                                    </span>
+                                                    {canCreatePurchase && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const latestVendor = group.purchases[0]?.vname ? Number(group.purchases[0].vname) : undefined;
+                                                                handleOpenAddModal(undefined, group.mouldCode !== "General / Unassigned" ? group.mouldCode : undefined, latestVendor);
+                                                            }}
+                                                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-2xs transition active:scale-95 shrink-0"
+                                                            title={`Create Purchase Order for Mould ${group.mouldCode}`}
+                                                        >
+                                                            <Plus className="w-3.5 h-3.5" />
+                                                            <span>PO for Mould</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Collapsible Content */}
+                                        {!isCollapsed && (
+                                            <div>
+                                                {/* Desktop Table View */}
+                                                <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                                                    <table className="w-full min-w-[1100px] text-left text-xs">
+                                                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
+                                                            <tr>
+                                                                <th className="py-3 px-3 w-[4%] text-center"></th>
+                                                                <th className="py-3 px-4 w-[11%]">PO. No.</th>
+                                                                <th className="py-3 px-3 w-[10%]">Order Date</th>
+                                                                <th className="py-3 px-4 w-[20%]">Supplier Name</th>
+                                                                <th className="py-3 px-4 w-[20%]">Customer Name</th>
+                                                                <th className="py-3 px-4 w-[15%]">Mould Project</th>
+                                                                <th className="py-3 px-3 w-[10%]">Created By</th>
+                                                                <th className="py-3 px-4 w-[10%] text-right">Action</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {group.purchases.map((po) => renderPoRow(po))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                {/* Mobile Card List */}
+                                                <div className="block md:hidden p-3 space-y-3">
+                                                    {group.purchases.map((po) => renderPoMobileCard(po))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+                )}
+
+                {/* VIEW 1B: FLAT REGISTER VIEW (Legacy Table with Pagination) */}
+                {activeTab === "orders" && poViewMode === "flat" && (
                     <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                         {/* Desktop Table View */}
                         <div className="hidden md:block overflow-x-auto custom-scrollbar">
@@ -1344,369 +2182,27 @@ function PurchasePageContent() {
                                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                                     <tr>
                                         <th className="py-3 px-3 w-[4%] text-center"></th>
-                                        <th className="py-3 px-4 w-[11%]">
-                                            PO. No.
-                                        </th>
-                                        <th className="py-3 px-3 w-[10%]">
-                                            Order Date
-                                        </th>
-                                        <th className="py-3 px-4 w-[20%]">
-                                            Supplier Name
-                                        </th>
-                                        <th className="py-3 px-4 w-[20%]">
-                                            Customer Name
-                                        </th>
-                                        <th className="py-3 px-4 w-[15%]">
-                                            Mould Project
-                                        </th>
-                                        <th className="py-3 px-3 w-[10%]">
-                                            Created By
-                                        </th>
-                                        <th className="py-3 px-4 w-[10%] text-right">
-                                            Action
-                                        </th>
+                                        <th className="py-3 px-4 w-[11%]">PO. No.</th>
+                                        <th className="py-3 px-3 w-[10%]">Order Date</th>
+                                        <th className="py-3 px-4 w-[20%]">Supplier Name</th>
+                                        <th className="py-3 px-4 w-[20%]">Customer Name</th>
+                                        <th className="py-3 px-4 w-[15%]">Mould Project</th>
+                                        <th className="py-3 px-3 w-[10%]">Created By</th>
+                                        <th className="py-3 px-4 w-[10%] text-right">Action</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100 ">
+                                <tbody className="divide-y divide-slate-100">
                                     {isLoading ? (
-                                        <TableSkeletonRows
-                                            rows={8}
-                                            columns={8}
-                                        />
+                                        <TableSkeletonRows rows={8} columns={8} />
                                     ) : paginatedPurchases.length === 0 ? (
                                         <tr>
-                                            <td
-                                                colSpan={8}
-                                                className="py-12 text-center text-slate-400"
-                                            >
+                                            <td colSpan={8} className="py-12 text-center text-slate-400">
                                                 <ShoppingCart className="w-8 h-8 mx-auto mb-2 opacity-30" />
                                                 <p>No purchase orders found.</p>
                                             </td>
                                         </tr>
                                     ) : (
-                                        paginatedPurchases.map((po) => {
-                                            const isExpanded = Boolean(
-                                                expandedRows[po.id],
-                                            );
-                                            const vendorName = getVendorName(
-                                                po.vname,
-                                            );
-                                            const clientName = getCustomerName(
-                                                po.cname,
-                                            );
-                                            const itemCount = po.items
-                                                ? po.items.length
-                                                : 0;
-
-                                            return (
-                                                <React.Fragment key={po.id}>
-                                                    {/* Main PO Row */}
-                                                    <tr
-                                                        id={`row-${po.id}`}
-                                                        onClick={(e) => {
-                                                            const target = e.target as HTMLElement;
-                                                            // Do not trigger toggle if user clicked on interactive elements
-                                                            if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
-                                                                return;
-                                                            }
-                                                            toggleRow(po.id);
-                                                        }}
-                                                        className={`hover:bg-slate-50/70 transition-all duration-300 cursor-pointer ${getRowHighlightClass(po.id)}`}
-                                                        title="Click row to view PO line items"
-                                                    >
-                                                        {/* Details Control toggle icon */}
-                                                        <td className="py-3 px-3 text-center">
-                                                            <button
-                                                                onClick={() =>
-                                                                    toggleRow(
-                                                                        po.id,
-                                                                    )
-                                                                }
-                                                                className="p-1 rounded text-slate-400 hover:text-slate-700 transition"
-                                                                title="Expand line items"
-                                                            >
-                                                                {isExpanded ? (
-                                                                    <ChevronDown className="w-4 h-4 text-blue-600" />
-                                                                ) : (
-                                                                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                                                                )}
-                                                            </button>
-                                                        </td>
-
-                                                        {/* PO No. */}
-                                                        <td className="py-3 px-4">
-                                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                                <span className="font-mono font-bold text-[12px] text-blue-700 ">
-                                                                    {po.srno}
-                                                                </span>
-                                                                {po.is_fully_received && (
-                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title="All items in this purchase order have been received">
-                                                                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                                                        <span>Fully Received</span>
-                                                                    </span>
-                                                                )}
-                                                                {!po.is_fully_received && po.is_partially_received && (
-                                                                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200" title={`Partially inwarded: ${po.total_inward_qty || 0} of ${po.total_ordered_qty || 0} received`}>
-                                                                        <Clock className="w-3 h-3 text-amber-600" />
-                                                                        <span>Partial Inward</span>
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <div className="text-[10px] text-slate-400">
-                                                                {itemCount}{" "}
-                                                                {itemCount === 1
-                                                                    ? "plate"
-                                                                    : "plates"}
-                                                            </div>
-                                                        </td>
-
-                                                        {/* Order Date */}
-                                                        <td className="py-3 px-3 text-slate-700 ">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                                                <span className="font-mono">
-                                                                    {po.odate}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-
-                                                        {/* Supplier Name */}
-                                                        <td className="py-3 px-4 font-medium text-slate-800 ">
-                                                            <div className="flex items-center gap-1.5">
-                                                                <Building2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                                                                <span
-                                                                    className="truncate max-w-[200px]"
-                                                                    title={
-                                                                        vendorName
-                                                                    }
-                                                                >
-                                                                    {vendorName}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-
-                                                        {/* Customer Name */}
-                                                        <td className="py-3 px-4 text-slate-700 ">
-                                                            <span
-                                                                className="truncate max-w-[200px] block"
-                                                                title={
-                                                                    clientName
-                                                                }
-                                                            >
-                                                                {clientName}
-                                                            </span>
-                                                        </td>
-
-                                                        {/* Mould Project */}
-                                                        <td className="py-3 px-4">
-                                                            <span className="px-2 py-0.5 rounded font-mono font-semibold text-[11px] bg-slate-100 text-slate-700 border border-slate-200 ">
-                                                                {po.projectid}
-                                                            </span>
-                                                        </td>
-
-                                                        {/* Created By */}
-                                                        <td className="py-3 px-3 text-slate-600 ">
-                                                            {po.created_by ||
-                                                                "Admin"}
-                                                        </td>
-
-                                                        {/* Action Buttons */}
-                                                        <td className="py-3 px-4 text-right whitespace-nowrap">
-                                                            <div className="flex items-center justify-end gap-1.5">
-                                                                <button
-                                                                    onClick={() =>
-                                                                        handleOpenVoucherTab(
-                                                                            po,
-                                                                        )
-                                                                    }
-                                                                    className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
-                                                                    title="Open PO Voucher in new tab"
-                                                                >
-                                                                    <Printer className="w-3 h-3" />
-                                                                    <span>Voucher</span>
-                                                                </button>
-                                                                {canEditPurchase && (
-                                                                    po.is_fully_received ? (
-                                                                        <button
-                                                                            type="button"
-                                                                            disabled
-                                                                            className="px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded cursor-not-allowed opacity-60 flex items-center gap-1"
-                                                                            title="Cannot edit: All items in this Purchase Order have already been fully received at the workshop gate"
-                                                                        >
-                                                                            <Lock className="w-3 h-3 text-slate-400" />
-                                                                            <span>Edit</span>
-                                                                        </button>
-                                                                    ) : (
-                                                                        <button
-                                                                            onClick={() =>
-                                                                                handleOpenEditModal(
-                                                                                    po,
-                                                                                )
-                                                                            }
-                                                                            className="px-2 py-1 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition flex items-center gap-1 cursor-pointer"
-                                                                            title="Edit Purchase Order"
-                                                                        >
-                                                                            <Edit2 className="w-3 h-3" />
-                                                                            <span>Edit</span>
-                                                                        </button>
-                                                                    )
-                                                                )}
-                                                                    <button
-                                                                        onClick={() =>
-                                                                            toggleRow(
-                                                                                po.id,
-                                                                            )
-                                                                        }
-                                                                        className="px-2 py-1 text-[11px] font-medium text-blue-600 border border-blue-200 rounded hover:bg-blue-50 transition"
-                                                                    >
-                                                                        {isExpanded
-                                                                            ? "Hide"
-                                                                            : "Items"}
-                                                                    </button>
-                                                                    {canDeletePurchase && (
-                                                                        po.has_inward ? (
-                                                                            <button
-                                                                                type="button"
-                                                                                disabled
-                                                                                className="px-2 py-1 text-[11px] font-medium text-slate-400 bg-slate-100 border border-slate-200 rounded cursor-not-allowed opacity-60"
-                                                                                title="Cannot delete: Material has already been inwarded against this Purchase Order"
-                                                                            >
-                                                                                Delete
-                                                                            </button>
-                                                                        ) : (
-                                                                            <button
-                                                                                onClick={() =>
-                                                                                    setDeleteTarget(
-                                                                                        po,
-                                                                                    )
-                                                                                }
-                                                                                className="px-2 py-1 text-[11px] font-medium text-rose-600 border border-rose-200 rounded hover:bg-rose-50 transition cursor-pointer"
-                                                                                title="Delete Purchase Order"
-                                                                            >
-                                                                                Delete
-                                                                            </button>
-                                                                        )
-                                                                    )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-
-                                                    {/* Expanded Child Table: Line Items (replicates purchaseitems format(d)) */}
-                                                    {isExpanded && (
-                                                        <tr className="bg-slate-50/90 ">
-                                                            <td
-                                                                colSpan={8}
-                                                                className="p-4 pl-12 border-y border-slate-200 "
-                                                            >
-                                                                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-inner">
-                                                                    <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between text-xs font-semibold text-slate-700 ">
-                                                                        <span className="flex items-center gap-1.5">
-                                                                            <Layers className="w-3.5 h-3.5 text-blue-600" />
-                                                                            Line
-                                                                            Items
-                                                                            for{" "}
-                                                                            {
-                                                                                po.srno
-                                                                            }
-                                                                        </span>
-                                                                        <span className="text-[11px] text-slate-500 font-normal">
-                                                                            {
-                                                                                itemCount
-                                                                            }{" "}
-                                                                            subplates
-                                                                            ordered
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="overflow-x-auto w-full">
-                                                                        <table className="w-full text-xs text-left">
-                                                                            <thead className="text-[10px] text-slate-500 uppercase bg-slate-50 border-b border-slate-200 ">
-                                                                                <tr>
-                                                                                    <th className="py-2 px-4">
-                                                                                        Plate
-                                                                                        Name
-                                                                                    </th>
-                                                                                    <th className="py-2 px-4">
-                                                                                        Material
-                                                                                        /
-                                                                                        Dimensions
-                                                                                    </th>
-                                                                                    <th className="py-2 px-4">
-                                                                                        Material
-                                                                                        Type
-                                                                                    </th>
-                                                                                    <th className="py-2 px-4 text-center">
-                                                                                        Ordered
-                                                                                        Qty
-                                                                                    </th>
-                                                                                </tr>
-                                                                            </thead>
-                                                                            <tbody className="divide-y divide-slate-100 ">
-                                                                                {po.items &&
-                                                                                po
-                                                                                    .items
-                                                                                    .length >
-                                                                                    0 ? (
-                                                                                    po.items.map(
-                                                                                        (
-                                                                                            item,
-                                                                                        ) => (
-                                                                                            <tr
-                                                                                                key={
-                                                                                                    item.id
-                                                                                                }
-                                                                                                className="hover:bg-slate-50/50"
-                                                                                            >
-                                                                                                <td className="py-2 px-4 font-semibold text-slate-800 ">
-                                                                                                    {item.platename ||
-                                                                                                        `Plate #${item.plateid}`}
-                                                                                                </td>
-                                                                                                <td className="py-2 px-4 font-mono text-[11px] text-slate-600 ">
-                                                                                                    {item.material ||
-                                                                                                        "—"}
-                                                                                                </td>
-                                                                                                <td className="py-2 px-4 text-slate-600 ">
-                                                                                                    <span className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 border border-slate-200 ">
-                                                                                                        {
-                                                                                                            item.materialtype
-                                                                                                        }
-                                                                                                    </span>
-                                                                                                </td>
-                                                                                                <td className="py-2 px-4 text-center font-bold text-slate-800 ">
-                                                                                                    {
-                                                                                                        item.qty
-                                                                                                    }
-                                                                                                </td>
-                                                                                            </tr>
-                                                                                        ),
-                                                                                    )
-                                                                                ) : (
-                                                                                    <tr>
-                                                                                        <td
-                                                                                            colSpan={
-                                                                                                4
-                                                                                            }
-                                                                                            className="py-4 text-center text-slate-400 italic"
-                                                                                        >
-                                                                                            No
-                                                                                            line
-                                                                                            items
-                                                                                            attached
-                                                                                            to
-                                                                                            this
-                                                                                            order.
-                                                                                        </td>
-                                                                                    </tr>
-                                                                                )}
-                                                                            </tbody>
-                                                                        </table>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    )}
-                                                </React.Fragment>
-                                            );
-                                        })
+                                        paginatedPurchases.map((po) => renderPoRow(po))
                                     )}
                                 </tbody>
                             </table>
@@ -1719,218 +2215,28 @@ function PurchasePageContent() {
                                     No purchase orders found.
                                 </div>
                             ) : (
-                                paginatedPurchases.map((po) => {
-                                    const isExpanded = Boolean(
-                                        expandedRows[po.id],
-                                    );
-                                    const vendorName = getVendorName(
-                                        po.vname,
-                                    );
-                                    const clientName = getCustomerName(
-                                        po.cname,
-                                    );
-                                    const itemCount = po.items
-                                        ? po.items.length
-                                        : 0;
-
-                                    return (
-                                        <div
-                                            key={po.id}
-                                            id={`m-row-${po.id}`}
-                                            onClick={(e) => {
-                                                const target = e.target as HTMLElement;
-                                                // Do not trigger toggle if user clicked on interactive elements
-                                                if (target.closest("button, a, input, select, [role='button'], [data-no-row-toggle]")) {
-                                                    return;
-                                                }
-                                                toggleRow(po.id);
-                                            }}
-                                            className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs cursor-pointer"
-                                            title="Tap card to view PO line items"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-1.5 flex-wrap">
-                                                    <span className="font-mono font-bold text-blue-700 ">
-                                                        {po.srno}
-                                                    </span>
-                                                    {po.is_fully_received && (
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                                            <span>Fully Received</span>
-                                                        </span>
-                                                    )}
-                                                    {!po.is_fully_received && po.is_partially_received && (
-                                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                                            <Clock className="w-3 h-3 text-amber-600" />
-                                                            <span>Partial</span>
-                                                        </span>
-                                                    )}
-                                                    <span className="text-[10px] text-slate-400 ml-1 font-mono">
-                                                        {po.odate}
-                                                    </span>
-                                                </div>
-                                                <span className="px-2 py-0.5 rounded font-mono font-semibold text-[10px] bg-slate-100 text-slate-700 border border-slate-200 ">
-                                                    {po.projectid}
-                                                </span>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600 ">
-                                                <div>
-                                                    <span className="text-slate-400 block text-[10px]">
-                                                        Supplier:
-                                                    </span>
-                                                    <span className="font-medium text-slate-800 truncate block">
-                                                        {vendorName}
-                                                    </span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-slate-400 block text-[10px]">
-                                                        Customer:
-                                                    </span>
-                                                    <span className="font-medium text-slate-800 truncate block">
-                                                        {clientName}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            <div className="pt-2 border-t border-slate-200 space-y-2">
-                                                <div className="flex items-center justify-between text-[11px] text-slate-500">
-                                                    <span className="font-medium text-slate-600">
-                                                        {itemCount}{" "}
-                                                        {itemCount === 1
-                                                            ? "subplate"
-                                                            : "subplates"}
-                                                    </span>
-                                                    <span className="text-[10px] text-slate-400">
-                                                        PO Actions
-                                                    </span>
-                                                </div>
-                                                <div className="grid grid-cols-4 gap-1.5">
-                                                    <button
-                                                        onClick={() =>
-                                                            handleOpenVoucherTab(po)
-                                                        }
-                                                        className="min-h-[36px] px-1 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition flex items-center justify-center gap-1 cursor-pointer"
-                                                        title="Open PO Voucher in new tab"
-                                                    >
-                                                        <Printer className="w-3.5 h-3.5" />
-                                                        <span>Voucher</span>
-                                                    </button>
-                                                    {canEditPurchase && (
-                                                        po.is_fully_received ? (
-                                                            <button
-                                                                type="button"
-                                                                disabled
-                                                                className="min-h-[36px] px-1 py-1 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed opacity-60 flex items-center justify-center gap-1"
-                                                                title="Cannot edit: All items in this Purchase Order have already been fully received at the workshop gate"
-                                                            >
-                                                                <Lock className="w-3.5 h-3.5 text-slate-400" />
-                                                                <span>Edit</span>
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleOpenEditModal(po)
-                                                                }
-                                                                className="min-h-[36px] px-1 py-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition flex items-center justify-center gap-1 cursor-pointer"
-                                                                title="Edit PO"
-                                                            >
-                                                                <Edit2 className="w-3.5 h-3.5" />
-                                                                <span>Edit</span>
-                                                            </button>
-                                                        )
-                                                    )}
-                                                    <button
-                                                        onClick={() =>
-                                                            toggleRow(po.id)
-                                                        }
-                                                        className="min-h-[36px] px-1 py-1 text-xs font-semibold text-blue-600 bg-blue-50/50 border border-blue-200 rounded-lg hover:bg-blue-100 transition flex items-center justify-center cursor-pointer"
-                                                    >
-                                                        {isExpanded
-                                                            ? "Hide"
-                                                            : "Items"}
-                                                    </button>
-                                                    {canDeletePurchase && (
-                                                        po.has_inward ? (
-                                                            <button
-                                                                type="button"
-                                                                disabled
-                                                                className="min-h-[36px] px-1 py-1 text-xs font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-lg cursor-not-allowed opacity-60 flex items-center justify-center"
-                                                                title="Cannot delete: Material has already been inwarded against this Purchase Order"
-                                                            >
-                                                                Delete
-                                                            </button>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() =>
-                                                                    setDeleteTarget(po)
-                                                                }
-                                                                className="min-h-[36px] px-1 py-1 text-xs font-semibold text-rose-600 bg-rose-50/50 border border-rose-200 rounded-lg hover:bg-rose-100 transition flex items-center justify-center cursor-pointer"
-                                                            >
-                                                                Delete
-                                                            </button>
-                                                        )
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Mobile Expanded Items */}
-                                            {isExpanded &&
-                                                po.items &&
-                                                po.items.length > 0 && (
-                                                    <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
-                                                        {po.items.map((it) => (
-                                                            <div
-                                                                key={it.id}
-                                                                className="p-2 rounded bg-white border border-slate-200 text-[11px] flex items-center justify-between"
-                                                            >
-                                                                <div>
-                                                                    <span className="font-semibold text-slate-800 block">
-                                                                        {it.platename ||
-                                                                            `Plate #${it.plateid}`}
-                                                                    </span>
-                                                                    <span className="text-[10px] text-slate-400">
-                                                                        {it.material ||
-                                                                            "—"}{" "}
-                                                                        (
-                                                                        {
-                                                                            it.materialtype
-                                                                        }
-                                                                        )
-                                                                    </span>
-                                                                </div>
-                                                                <span className="font-bold text-slate-800 ">
-                                                                    Qty:{" "}
-                                                                    {it.qty}
-                                                                </span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                        </div>
-                                    );
-                                })
+                                paginatedPurchases.map((po) => renderPoMobileCard(po))
                             )}
                         </div>
 
                         {/* Pagination Footer */}
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 border-t border-slate-200 text-xs text-slate-500 ">
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 border-t border-slate-200 text-xs text-slate-500">
                             <div>
                                 Showing{" "}
-                                <span className="font-semibold text-slate-800 ">
+                                <span className="font-semibold text-slate-800">
                                     {filteredPurchases.length === 0
                                         ? 0
                                         : (currentPage - 1) * pageSize + 1}
                                 </span>{" "}
                                 to{" "}
-                                <span className="font-semibold text-slate-800 ">
+                                <span className="font-semibold text-slate-800">
                                     {Math.min(
                                         currentPage * pageSize,
                                         filteredPurchases.length,
                                     )}
                                 </span>{" "}
                                 of{" "}
-                                <span className="font-semibold text-slate-800 ">
+                                <span className="font-semibold text-slate-800">
                                     {filteredPurchases.length}
                                 </span>{" "}
                                 purchase orders
@@ -1938,13 +2244,14 @@ function PurchasePageContent() {
 
                             <div className="flex items-center gap-1">
                                 <button
+                                    type="button"
                                     onClick={() =>
                                         setCurrentPage((p) =>
                                             Math.max(1, p - 1),
                                         )
                                     }
                                     disabled={currentPage === 1}
-                                    className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 "
+                                    className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700"
                                 >
                                     Previous
                                 </button>
@@ -1952,13 +2259,14 @@ function PurchasePageContent() {
                                     {currentPage} / {totalPages}
                                 </span>
                                 <button
+                                    type="button"
                                     onClick={() =>
                                         setCurrentPage((p) =>
                                             Math.min(totalPages, p + 1),
                                         )
                                     }
                                     disabled={currentPage === totalPages}
-                                    className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 "
+                                    className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700"
                                 >
                                     Next
                                 </button>
@@ -3348,7 +3656,7 @@ function PurchasePageContent() {
                                         Confirm Purchase Order Deletion
                                     </h4>
                                     <p className="text-slate-500">
-                                        This action will soft-delete the order
+                                        This action will permanently delete the purchase order
                                     </p>
                                 </div>
                             </div>
@@ -3366,8 +3674,7 @@ function PurchasePageContent() {
                                     <span className="font-semibold text-slate-900 ">
                                         &quot;{deleteTarget.srno}&quot;
                                     </span>{" "}
-                                    for mould {deleteTarget.projectid}? This will
-                                    soft-delete the order.
+                                    for mould {deleteTarget.projectid}? This will permanently delete the order and release all associated subplates back to Pending.
                                 </p>
                             )}
                             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 ">

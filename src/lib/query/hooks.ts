@@ -1474,7 +1474,13 @@ export function useCreatePurchaseMutation() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -1490,7 +1496,13 @@ export function useUpdatePurchaseMutation() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -1504,7 +1516,13 @@ export function useDeletePurchaseMutation() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }

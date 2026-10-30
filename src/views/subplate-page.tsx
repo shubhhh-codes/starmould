@@ -35,6 +35,7 @@ import {
 	Check,
 	Pencil,
 	AlertCircle,
+	ShoppingCart,
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
@@ -46,6 +47,7 @@ import { ProjectSelect } from "@/components/ui/project-select";
 import { appStore } from "@/lib/state/store";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
 import { AssignStaffModal } from "@/components/subplate/assign-staff-modal";
+import { CreatePurchaseOrderModal } from "@/components/purchase/create-purchase-order-modal";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
 	getRecommendedCompanionPlates,
@@ -476,7 +478,9 @@ function StageChipPicker({
 
 import { useSearchParams } from "next/navigation";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
-import { useIsRestoring } from "@tanstack/react-query";
+import { useQueryClient, useIsRestoring } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query/keys";
+import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 import { useSubplatesQuery, useProjectsQuery, useCreateSubplateMutation, useUpdateSubplateMutation, useDeleteSubplateMutation } from "@/lib/query/hooks";
 
 function SubplatePageContent() {
@@ -491,6 +495,7 @@ function SubplatePageContent() {
 	const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
 	const isRestoring = useIsRestoring();
+	const queryClient = useQueryClient();
 	const { data, isLoading: queryLoading, error: fetchQueryError } = useSubplatesQuery();
 	// Modal State for Add / Edit Subplate (declared early for on-demand query gating)
 	const [isModalOpen, setIsModalOpen] = useState(false);
@@ -566,6 +571,43 @@ function SubplatePageContent() {
 		isOpen: false,
 		subplate: null,
 	});
+
+	// Inline Create Purchase Order Modal state
+	const [createPOModalOpen, setCreatePOModalOpen] = useState(false);
+	const [poRequiredModal, setPoRequiredModal] = useState<Subplate | null>(null);
+	const [targetPOProject, setTargetPOProject] = useState<ScanProject | null>(null);
+	const [targetPOPlate, setTargetPOPlate] = useState<Subplate | null>(null);
+
+	const handleOpenCreatePOForPlate = useCallback((plate: Subplate) => {
+		const scan = scans.find(
+			(s) =>
+				String(s.id) === String(plate.projectid) ||
+				(plate.mold_id && s.id === plate.mold_id) ||
+				(s.projectid && s.projectid === plate.projectid)
+		);
+		const mouldPlates = subplates.filter((sp) =>
+			(scan && (String(sp.projectid) === String(scan.id) || (sp.mold_id && sp.mold_id === scan.id) || (sp.mold_code && scan.projectid && sp.mold_code === scan.projectid))) ||
+			(plate.mold_code && sp.mold_code === plate.mold_code) ||
+			(String(sp.projectid) === String(plate.projectid))
+		);
+		if (scan) {
+			setTargetPOProject({
+				...scan,
+				subplates: mouldPlates.length > 0 ? mouldPlates : (scan as any).subplates,
+			});
+		} else {
+			setTargetPOProject({
+				id: Number(plate.projectid) || 0,
+				projectid: plate.mold_code || plate.subprojectid?.split("_").slice(0, 3).join("_") || String(plate.projectid),
+				description: (plate as any).mould_description || plate.platename,
+				customer_id: (plate as any).customer_id || null,
+				cname: (plate as any).cname || (plate as any).customername || "",
+				subplates: mouldPlates.length > 0 ? mouldPlates : [plate],
+			} as any);
+		}
+		setTargetPOPlate(plate);
+		setCreatePOModalOpen(true);
+	}, [scans, subplates]);
 
 	// Quick Staff Assignment Modal (Admin only)
 	const [assignStaffModal, setAssignStaffModal] = useState<{
@@ -760,7 +802,8 @@ function SubplatePageContent() {
 	const countCompletedStages = (sp: Subplate) => {
 		let count = 0;
 		if (sp.design_by) count++;
-		if (sp.order_by) count++;
+		const isPartialPO = sp.po_status === "PARTIAL" || ((sp.ordered_qty ?? 0) > 0 && (sp.remaining_qty ?? 0) > 0);
+		if (sp.order_by && !isPartialPO) count++;
 		if (sp.received_workby) count++;
 		if (sp.received_qcby) count++;
 		if (sp.vmc_workby) count++;
@@ -915,14 +958,35 @@ function SubplatePageContent() {
 	) => {
 		// Non-admin users cannot unassign once assigned
 		if (!isAdmin && userId === 0) {
-			alert("Permission Notice: Once assigned, only Administrators can unassign or reassign a production stage.");
+			appStore.addToast({
+				type: "error",
+				message: "Permission Notice: Once assigned, only Administrators can unassign or reassign a production stage.",
+			});
 			return;
 		}
 
 		// Non-admin users can only assign to themselves
 		if (!isAdmin && userId !== 0 && currentUser?.id && Number(userId) !== Number(currentUser.id)) {
-			alert("Permission Notice: Non-admin users can only assign production tasks to themselves.");
+			appStore.addToast({
+				type: "error",
+				message: "Permission Notice: Non-admin users can only assign production tasks to themselves.",
+			});
 			return;
+		}
+
+		if (field === "order_by") {
+			const targetSp = subplates.find((s) => Number(s.id) === Number(subplateId));
+			if (targetSp && !targetSp.has_active_po && (!targetSp.order_by || targetSp.order_by === 0)) {
+				setPoRequiredModal(targetSp);
+				return;
+			}
+			if (targetSp && (targetSp.has_active_po || (targetSp.order_by && targetSp.order_by > 0))) {
+				appStore.addToast({
+					type: "warning",
+					message: `Stage 2 (Purchase) is locked by Purchase Order${targetSp.po_srno ? ` (#${targetSp.po_srno})` : ""}. It cannot be changed or unassigned manually.`,
+				});
+				return;
+			}
 		}
 
 		const newUserId = userId === 0 ? null : userId;
@@ -1672,91 +1736,40 @@ function SubplatePageContent() {
 									{/* Mould Header Bar */}
 									<div
 										onClick={() => toggleMould(group.id)}
-										className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-gradient-to-r from-slate-50/90 via-slate-50/70 to-white hover:bg-slate-100/70 border-b border-slate-200 cursor-pointer select-none transition-colors"
+										className="bg-gradient-to-r from-slate-50/90 via-slate-50/70 to-white hover:bg-slate-100/70 border-b border-slate-200 cursor-pointer select-none transition-colors"
 									>
-										{/* Left: Chevron + Mould Identification */}
-										<div className="flex items-center gap-3 min-w-0 flex-1">
-											<button
-												type="button"
-												onClick={(e) => {
-													e.stopPropagation();
-													toggleMould(group.id);
-												}}
-												className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer shrink-0"
-												title={isExpanded ? "Collapse mould group" : "Expand mould group"}
-											>
-												<ChevronDown
-													className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${
-														isExpanded ? "rotate-0 text-blue-600" : "-rotate-90"
-													}`}
-												/>
-											</button>
-
-											<div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-200/60 shrink-0">
-												<Layers className="w-4 h-4 text-blue-600" />
-											</div>
-
-											<div className="min-w-0 flex-1">
-												<div className="flex items-center gap-2 flex-wrap">
-													<span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/90 shrink-0">
+										{/* Mobile Mould Header (< sm): Left-aligned, NO text cropping, fully structured */}
+										<div className="block sm:hidden p-3.5 space-y-2.5">
+											{/* Top Row: Chevron + Code + Worktype on Left, Status Pill on Right */}
+											<div className="flex items-center justify-between gap-2">
+												<div className="flex items-center gap-1.5 min-w-0">
+													<button
+														type="button"
+														onClick={(e) => {
+															e.stopPropagation();
+															toggleMould(group.id);
+														}}
+														className="p-1 -ml-1 text-slate-400 hover:text-blue-600 transition cursor-pointer shrink-0"
+														title={isExpanded ? "Collapse mould group" : "Expand mould group"}
+													>
+														<ChevronDown
+															className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${
+																isExpanded ? "rotate-0 text-blue-600" : "-rotate-90"
+															}`}
+														/>
+													</button>
+													<span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
 														{group.mouldCode}
 													</span>
-													<h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
-														{group.mouldName || "Mould Project"}
-													</h3>
 													{group.worktype && (
-														<span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0">
+														<span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
 															{group.worktype}
 														</span>
 													)}
 												</div>
 
-												<div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
-													{group.customerName && (
-														<span className="inline-flex items-center gap-1 font-medium text-slate-700">
-															<Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-															<span className="truncate max-w-[200px] sm:max-w-none">{group.customerName}</span>
-														</span>
-													)}
-													{group.customerName && <span className="text-slate-300">•</span>}
-													<span className="font-semibold text-slate-700">
-														{group.plates.length} {group.plates.length === 1 ? "Subplate" : "Subplates"}
-													</span>
-													{group.totalWeight > 0 && (
-														<>
-															<span className="text-slate-300">•</span>
-															<span className="font-mono text-slate-600 font-medium">
-																Total Wt: {group.totalWeight.toFixed(2)} kg
-															</span>
-														</>
-													)}
-												</div>
-											</div>
-										</div>
-
-										{/* Right: Progress Summary & Quick Add Subplate Action */}
-										<div className="flex items-center gap-3 shrink-0 ml-auto sm:ml-0">
-											<div className="flex items-center gap-2.5">
-												<div className="text-right hidden sm:block">
-													<div className="font-bold text-slate-800 text-[11px]">
-														{group.completedPlates}/{group.totalPlates} Ready
-													</div>
-													<div className="text-[10px] text-slate-400">
-														{percent}% Complete
-													</div>
-												</div>
-												<div className="w-20 sm:w-24 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60 hidden sm:block">
-													<div
-														className={`h-full rounded-full transition-all duration-300 ${
-															group.completedPlates === group.totalPlates && group.totalPlates > 0
-																? "bg-emerald-500"
-																: "bg-blue-600"
-														}`}
-														style={{ width: `${percent}%` }}
-													/>
-												</div>
 												<span
-													className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
+													className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 whitespace-nowrap ${
 														group.completedPlates === group.totalPlates && group.totalPlates > 0
 															? "bg-emerald-50 text-emerald-700 border-emerald-200"
 															: group.completedPlates > 0
@@ -1770,21 +1783,163 @@ function SubplatePageContent() {
 												</span>
 											</div>
 
-											{canCreateSubplate && (
+											{/* Main Title & Customer: Full-width, NO crop, bold, properly left-aligned */}
+											<div className="space-y-1">
+												<h3 className="font-bold text-slate-900 text-sm leading-snug break-words">
+													{group.mouldName || "Mould Project"}
+												</h3>
+												{group.customerName && (
+													<div className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+														<Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+														<span className="break-words leading-tight">{group.customerName}</span>
+													</div>
+												)}
+											</div>
+
+											{/* Bottom Row: Subplates Count + Total Weight on Left, Add Plate Button on Right */}
+											<div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 text-xs">
+												<div className="text-slate-500 font-mono text-[11px] flex items-center gap-1.5 flex-wrap">
+													<span className="font-semibold text-slate-700">
+														{group.plates.length} {group.plates.length === 1 ? "Subplate" : "Subplates"}
+													</span>
+													{group.totalWeight > 0 && (
+														<>
+															<span className="text-slate-300">•</span>
+															<span>Total Wt: {group.totalWeight.toFixed(2)} kg</span>
+														</>
+													)}
+												</div>
+
+												{canCreateSubplate && (
+													<button
+														type="button"
+														onClick={(e) => {
+															e.stopPropagation();
+															const targetId = group.project?.id ? String(group.project.id) : (group.id !== "unassigned" ? group.id.replace("proj_", "") : "");
+															handleOpenAddModal(targetId);
+														}}
+														className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer shrink-0"
+													>
+														<Plus className="w-3.5 h-3.5" />
+														<span>Add Plate</span>
+													</button>
+												)}
+											</div>
+										</div>
+
+										{/* Desktop Mould Header (sm and above): Full ERP horizontal bar */}
+										<div className="hidden sm:flex items-center justify-between gap-4 p-4">
+											<div className="flex items-center gap-3 min-w-0 flex-1">
 												<button
 													type="button"
 													onClick={(e) => {
 														e.stopPropagation();
-														const targetId = group.project?.id ? String(group.project.id) : (group.id !== "unassigned" ? group.id.replace("proj_", "") : "");
-														handleOpenAddModal(targetId);
+														toggleMould(group.id);
 													}}
-													className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
-													title="Add a new subplate to this mould"
+													className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer shrink-0"
+													title={isExpanded ? "Collapse mould group" : "Expand mould group"}
 												>
-													<Plus className="w-3.5 h-3.5" />
-													<span className="hidden sm:inline">Add Plate</span>
+													<ChevronDown
+														className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${
+															isExpanded ? "rotate-0 text-blue-600" : "-rotate-90"
+														}`}
+													/>
 												</button>
-											)}
+
+												<div className="w-9 h-9 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center border border-blue-200/60 shrink-0">
+													<Layers className="w-4 h-4 text-blue-600" />
+												</div>
+
+												<div className="min-w-0 flex-1">
+													<div className="flex items-center gap-2 flex-wrap">
+														<span className="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200/90 shrink-0">
+															{group.mouldCode}
+														</span>
+														<h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight truncate">
+															{group.mouldName || "Mould Project"}
+														</h3>
+														{group.worktype && (
+															<span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/80 shrink-0">
+																{group.worktype}
+															</span>
+														)}
+													</div>
+
+													<div className="flex items-center gap-2 mt-1 text-xs text-slate-500 flex-wrap">
+														{group.customerName && (
+															<span className="inline-flex items-center gap-1 font-medium text-slate-700">
+																<Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+																<span className="truncate">{group.customerName}</span>
+															</span>
+														)}
+														{group.customerName && <span className="text-slate-300">•</span>}
+														<span className="font-semibold text-slate-700 shrink-0">
+															{group.plates.length} {group.plates.length === 1 ? "Subplate" : "Subplates"}
+														</span>
+														{group.totalWeight > 0 && (
+															<>
+																<span className="text-slate-300">•</span>
+																<span className="font-mono text-slate-600 font-medium whitespace-nowrap shrink-0">
+																	Total Wt: {group.totalWeight.toFixed(2)} kg
+																</span>
+															</>
+														)}
+													</div>
+												</div>
+											</div>
+
+											{/* Right: Progress Summary & Quick Add Subplate Action */}
+											<div className="flex items-center gap-3 shrink-0">
+												<div className="flex items-center gap-2.5">
+													<div className="text-right">
+														<div className="font-bold text-slate-800 text-[11px]">
+															{group.completedPlates}/{group.totalPlates} Ready
+														</div>
+														<div className="text-[10px] text-slate-400">
+															{percent}% Complete
+														</div>
+													</div>
+													<div className="w-20 sm:w-24 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60">
+														<div
+															className={`h-full rounded-full transition-all duration-300 ${
+																group.completedPlates === group.totalPlates && group.totalPlates > 0
+																	? "bg-emerald-500"
+																	: "bg-blue-600"
+															}`}
+															style={{ width: `${percent}%` }}
+														/>
+													</div>
+													<span
+														className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
+															group.completedPlates === group.totalPlates && group.totalPlates > 0
+																? "bg-emerald-50 text-emerald-700 border-emerald-200"
+																: group.completedPlates > 0
+																? "bg-blue-50 text-blue-700 border-blue-200"
+																: "bg-slate-100 text-slate-600 border-slate-200"
+														}`}
+													>
+														{group.completedPlates === group.totalPlates && group.totalPlates > 0
+															? "All Ready ✓"
+															: `${group.completedPlates}/${group.totalPlates} Ready`}
+													</span>
+												</div>
+
+												{canCreateSubplate && (
+													<button
+														type="button"
+														onClick={(e) => {
+															e.stopPropagation();
+															const targetId = group.project?.id ? String(group.project.id) : (group.id !== "unassigned" ? group.id.replace("proj_", "") : "");
+															handleOpenAddModal(targetId);
+														}}
+														className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
+														title="Add a new subplate to this mould"
+													>
+														<Plus className="w-3.5 h-3.5" />
+														<span>Add Plate</span>
+													</button>
+												)}
+											</div>
 										</div>
 									</div>
 
@@ -2039,12 +2194,21 @@ function SubplatePageContent() {
 																							const isAssigned = Boolean(val && val !== 0);
 																							const isAssignedToMe = Boolean(currentUser?.id && Number(val) === Number(currentUser.id));
 																							const isAssignedToOther = isAssigned && !isAssignedToMe;
+																							const isStage2 = stage.key === "order_by";
+																							const totalQty = Number(row.sqty) || 1;
+																							const orderedQty = row.ordered_qty ?? 0;
+																							const remainingQty = row.remaining_qty !== undefined ? row.remaining_qty : Math.max(0, totalQty - orderedQty);
+																							const isPartial = isStage2 && (row.po_status === "PARTIAL" || (orderedQty > 0 && remainingQty > 0));
+																							const isFullyOrdered = isStage2 && (row.po_status === "FULLY_ORDERED" || (orderedQty >= totalQty && orderedQty > 0));
+																							const isStageDone = isStage2 ? isFullyOrdered : isAssigned;
 
 																							return (
 																								<div
 																									key={stage.key}
 																									className={`p-3 rounded-xl border transition-all space-y-2.5 flex flex-col justify-between ${
-																										isAssigned
+																										isPartial
+																											? "bg-white border-amber-300 shadow-xs ring-1 ring-amber-400/20"
+																											: isStageDone
 																											? "bg-white border-blue-200 shadow-xs ring-1 ring-blue-500/10"
 																											: "bg-white/80 border-slate-200 hover:border-slate-300"
 																									}`}
@@ -2054,14 +2218,26 @@ function SubplatePageContent() {
 																										<div className="flex items-center justify-between gap-1 mb-1.5">
 																											<span
 																												className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded font-mono ${
-																													isAssigned
+																													isPartial
+																														? "bg-amber-50 text-amber-700 border border-amber-200/80"
+																														: isStageDone
 																														? "bg-blue-50 text-blue-700 border border-blue-200/60"
 																														: "bg-slate-100 text-slate-500 border border-slate-200/60"
 																												}`}
 																											>
 																												Stage {stage.step}
 																											</span>
-																											{isAssigned ? (
+																											{isStage2 ? (
+																												isFullyOrdered ? (
+																													<Lock className="w-4 h-4 text-emerald-600 shrink-0" />
+																												) : isPartial ? (
+																													<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 font-mono">
+																														Partial
+																													</span>
+																												) : (
+																													<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+																												)
+																											) : isAssigned ? (
 																												<CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
 																											) : (
 																												<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
@@ -2072,47 +2248,126 @@ function SubplatePageContent() {
 																										</div>
 																									</div>
 
-																									{/* Staff Dropdown */}
-																									<div className="space-y-1">
+																									{/* Middle: Staff / Action Section */}
+																									<div className="space-y-1.5 flex-1 flex flex-col justify-end">
 																										<label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block">
 																											Assigned Staff
 																										</label>
-																										<StaffSelect
-																											value={val}
-																											onChange={(userId) =>
-																												handleStageStaffChange(
-																													row.id,
-																													stage.key,
-																													userId
-																												)
-																											}
-																											staff={
-																												isAdmin
-																													? activeStaff
-																													: currentUser
-																													? [
-																															{
-																																id: Number(currentUser.id),
-																																name: currentUser.name || "Me",
-																																initials:
-																																	currentUser.initials ||
-																																	currentUser.name?.slice(0, 2).toUpperCase() ||
-																																	"ME",
-																															} as any,
-																													  ]
-																													: []
-																											}
-																											disabled={!isAdmin && isAssignedToOther}
-																											color="blue"
-																											className="w-full"
-																											placeholder="Unassigned"
-																										/>
+																										{isStage2 ? (
+																											(() => {
+																												const staffMember = activeStaff.find((u) => u.id === Number(val));
+																												const staffName = staffMember?.name || (row as any).order_by_name || `Staff #${val}`;
+																												const staffInitials = staffMember?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || "PO";
+
+																												if (isFullyOrdered) {
+																													return (
+																														<div className="h-9 px-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-1.5 shadow-2xs">
+																															<div className="flex items-center gap-1.5 min-w-0">
+																																<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																	{staffInitials}
+																																</div>
+																																<div className="min-w-0">
+																																	<div className="text-[11px] font-bold text-slate-800 truncate leading-tight">
+																																		{staffName}
+																																	</div>
+																																	<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
+																																		{row.po_srno ? `PO #${row.po_srno}` : "PO"} • {totalQty} pcs
+																																	</div>
+																																</div>
+																															</div>
+																															<Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+																														</div>
+																													);
+																												}
+
+																												if (isPartial) {
+																													return (
+																														<div className="space-y-1.5">
+																															<div className="h-9 px-2 rounded-lg bg-amber-50/70 border border-amber-200/80 flex items-center justify-between gap-1.5 shadow-2xs">
+																																<div className="flex items-center gap-1.5 min-w-0">
+																																	<div className="w-5 h-5 rounded-md bg-amber-500 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																		{staffInitials}
+																																	</div>
+																																	<div className="min-w-0">
+																																		<div className="text-[11px] font-bold text-slate-900 truncate leading-tight">
+																																			{staffName}
+																																		</div>
+																																		<div className="text-[9px] font-mono text-amber-700 truncate font-semibold leading-none">
+																																			{row.po_srno ? `PO #${row.po_srno}` : "PO"}
+																																		</div>
+																																	</div>
+																																</div>
+																																<span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300/80 px-1.5 py-0.5 rounded font-mono shrink-0">
+																																	{orderedQty}/{totalQty}
+																																</span>
+																															</div>
+																															<button
+																																type="button"
+																																onClick={() => handleOpenCreatePOForPlate(row)}
+																																className="w-full h-8 px-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-[11px] shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer group"
+																															>
+																																<ShoppingCart className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform" />
+																																<span className="truncate">Order Rem. ({remainingQty} pcs)</span>
+																															</button>
+																														</div>
+																													);
+																												}
+
+																												// Unordered
+																												return (
+																													<button
+																														type="button"
+																														onClick={() => handleOpenCreatePOForPlate(row)}
+																														className="w-full h-9 px-2.5 rounded-lg border border-dashed border-amber-300 bg-amber-50/60 hover:bg-amber-100/80 text-amber-900 transition flex items-center justify-between gap-1 cursor-pointer shadow-2xs group"
+																													>
+																														<span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5 truncate">
+																															<ShoppingCart className="w-3.5 h-3.5 text-amber-600 shrink-0 group-hover:scale-110 transition-transform" />
+																															<span className="truncate">Create PO</span>
+																														</span>
+																														<span className="text-[9px] font-mono font-bold text-amber-700 bg-amber-100 border border-amber-200/80 px-1.5 py-0.5 rounded shrink-0">
+																															{totalQty} pcs
+																														</span>
+																													</button>
+																												);
+																											})()
+																										) : (
+																											<StaffSelect
+																												value={val}
+																												onChange={(userId) =>
+																													handleStageStaffChange(
+																														row.id,
+																														stage.key,
+																														userId
+																													)
+																												}
+																												staff={
+																													isAdmin
+																														? activeStaff
+																														: currentUser
+																														? [
+																																{
+																																	id: Number(currentUser.id),
+																																	name: currentUser.name || "Me",
+																																	initials:
+																																		currentUser.initials ||
+																																		currentUser.name?.slice(0, 2).toUpperCase() ||
+																																		"ME",
+																																} as any,
+																														  ]
+																														: []
+																												}
+																												disabled={!isAdmin && isAssignedToOther}
+																												color="blue"
+																												className="w-full"
+																												placeholder="Unassigned"
+																											/>
+																										)}
 																									</div>
 
 																									{/* Timestamp Display */}
 																									<div className="pt-2 border-t border-slate-100 text-[10px]">
 																										{isAssigned && timestamp ? (
-																											<div className="flex items-center gap-1.5 text-slate-600 font-mono text-[10px] font-medium">
+																											<div className="flex items-center gap-1.5 text-slate-600 font-mono text-[10px] font-medium truncate">
 																												<Clock className="w-3 h-3 text-slate-400 shrink-0" />
 																												<span>{formatTimestamp(timestamp)}</span>
 																											</div>
@@ -2157,12 +2412,12 @@ function SubplatePageContent() {
 															onContextMenu={(e) => handleSubplateContextMenu(e, row)}
 															className={`p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2.5 text-xs shadow-2xs transition-all duration-200 cursor-pointer ${getRowHighlightClass(row.id)}`}
 														>
-															<div className="flex items-center justify-between">
-																<div className="flex items-center gap-1.5">
-																	<span className="font-mono text-slate-400 text-[11px]">#{row.id}</span>
-																	<span className="font-bold text-slate-900">{row.platename}</span>
+															<div className="flex items-center justify-between gap-2">
+																<div className="flex items-center gap-1.5 min-w-0 flex-1">
+																	<span className="font-mono text-slate-400 text-[11px] shrink-0">#{row.id}</span>
+																	<span className="font-bold text-slate-900 break-words leading-tight">{row.platename}</span>
 																</div>
-																<div className="flex items-center gap-2">
+																<div className="flex items-center gap-1.5 shrink-0">
 																	<span
 																		className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
 																			row.location === "SM" || !row.location
@@ -2246,6 +2501,135 @@ function SubplatePageContent() {
 																		const isAssigned = Boolean(val && val !== 0);
 																		const isAssignedToMe = Boolean(currentUser?.id && Number(val) === Number(currentUser.id));
 																		const isAssignedToOther = isAssigned && !isAssignedToMe;
+																		const isStage2 = stage.key === "order_by";
+																		const totalQty = Number(row.sqty) || 1;
+																		const orderedQty = row.ordered_qty ?? 0;
+																		const remainingQty = row.remaining_qty !== undefined ? row.remaining_qty : Math.max(0, totalQty - orderedQty);
+																		const isPartial = isStage2 && (row.po_status === "PARTIAL" || (orderedQty > 0 && remainingQty > 0));
+																		const isFullyOrdered = isStage2 && (row.po_status === "FULLY_ORDERED" || (orderedQty >= totalQty && orderedQty > 0));
+
+																		if (isStage2) {
+																			const staffMember = activeStaff.find((u) => u.id === Number(val));
+																			const staffName = staffMember?.name || (row as any).order_by_name || (val ? `Staff #${val}` : "PO Created");
+																			const staffInitials = staffMember?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || "PO";
+
+																			if (isFullyOrdered) {
+																				return (
+																					<div
+																						key={stage.key}
+																						className="p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-200/90 shadow-2xs space-y-1.5"
+																					>
+																						<div className="flex items-center justify-between gap-2">
+																							<div className="flex items-center gap-2 min-w-0">
+																								<span className="text-[11px] font-bold text-slate-900 whitespace-nowrap">
+																									{stage.label}
+																								</span>
+																								<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono whitespace-nowrap">
+																									All {totalQty} pcs
+																								</span>
+																							</div>
+
+																							<div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-emerald-200 text-slate-800 text-[11px] font-medium shrink-0 max-w-[140px] shadow-2xs">
+																								<div className="w-4 h-4 rounded-full bg-emerald-600 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+																									{staffInitials}
+																								</div>
+																								<span className="truncate font-semibold">{staffName}</span>
+																								<Lock className="w-3 h-3 text-emerald-600 shrink-0 ml-0.5" />
+																							</div>
+																						</div>
+
+																						<div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono pt-1.5 border-t border-emerald-100/80">
+																							<span className="font-semibold text-emerald-800">
+																								{row.po_srno ? `PO #${row.po_srno}` : "PO"}
+																							</span>
+																							{timestamp && (
+																								<>
+																									<span>•</span>
+																									<span>{formatTimestamp(timestamp)}</span>
+																								</>
+																							)}
+																						</div>
+																					</div>
+																				);
+																			}
+
+																			if (isPartial) {
+																				return (
+																					<div
+																						key={stage.key}
+																						className="p-2.5 rounded-xl bg-amber-50/50 border border-amber-300 shadow-2xs space-y-2"
+																					>
+																						{/* Tier 1: Title, Progress Pill & Staff Card */}
+																						<div className="flex items-center justify-between gap-2">
+																							<div className="flex items-center gap-2 min-w-0">
+																								<span className="text-[11px] font-bold text-slate-900 whitespace-nowrap">
+																									{stage.label}
+																								</span>
+																								<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-200/90 text-amber-900 font-mono whitespace-nowrap">
+																									{orderedQty}/{totalQty} pcs ordered
+																								</span>
+																							</div>
+
+																							<div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-amber-200 text-slate-800 text-[11px] font-medium shrink-0 max-w-[130px] shadow-2xs">
+																								<div className="w-4 h-4 rounded-full bg-amber-500 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+																									{staffInitials}
+																								</div>
+																								<span className="truncate font-semibold">{staffName}</span>
+																							</div>
+																						</div>
+
+																						{/* Tier 2: PO number & timestamp on left, Action Button on right */}
+																						<div className="flex items-center justify-between gap-2 pt-1.5 border-t border-amber-200/60 text-[10px]">
+																							<div className="min-w-0 text-slate-500 font-mono flex items-center gap-1 truncate">
+																								<span className="font-semibold text-amber-800 shrink-0">
+																									{row.po_srno ? `PO #${row.po_srno}` : "PO"}
+																								</span>
+																								{timestamp && (
+																									<>
+																										<span>•</span>
+																										<span className="truncate">{formatTimestamp(timestamp)}</span>
+																									</>
+																								)}
+																							</div>
+
+																							<button
+																								type="button"
+																								onClick={() => handleOpenCreatePOForPlate(row)}
+																								className="h-7 px-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-[10px] shadow-2xs transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+																							>
+																								<ShoppingCart className="w-3 h-3" />
+																								<span>+ Order {remainingQty} pcs</span>
+																							</button>
+																						</div>
+																					</div>
+																				);
+																			}
+
+																			// Unordered
+																			return (
+																				<div
+																					key={stage.key}
+																					className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between gap-2"
+																				>
+																					<div className="min-w-0 flex-1">
+																						<div className="text-[11px] font-bold text-slate-800 whitespace-nowrap">
+																							{stage.label}
+																						</div>
+																						<div className="text-[10px] text-amber-700 font-medium">
+																							PO required ({totalQty} pcs)
+																						</div>
+																					</div>
+																					<button
+																						type="button"
+																						onClick={() => handleOpenCreatePOForPlate(row)}
+																						className="h-7 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-2xs transition shrink-0 cursor-pointer"
+																					>
+																						<ShoppingCart className="w-3.5 h-3.5" />
+																						<span>Create PO</span>
+																					</button>
+																				</div>
+																			);
+																		}
 
 																		return (
 																			<div
@@ -3072,7 +3456,91 @@ function SubplatePageContent() {
 					currentUser={currentUser}
 					isAdmin={isAdmin}
 					onAssign={handleStageStaffChange}
+					onCreatePO={handleOpenCreatePOForPlate}
 				/>
+
+				{/* Inline Create Purchase Order Modal */}
+				<CreatePurchaseOrderModal
+					isOpen={createPOModalOpen}
+					onClose={() => {
+						setCreatePOModalOpen(false);
+						setTargetPOProject(null);
+						setTargetPOPlate(null);
+					}}
+					initialProject={targetPOProject}
+					initialPlate={targetPOPlate}
+					onSuccess={() => {
+						queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+						queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+						queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+						broadcastQueryInvalidation(queryKeys.subplates.all());
+						broadcastQueryInvalidation(queryKeys.dashboard.counts());
+					}}
+				/>
+
+				{/* Dedicated Purchase Order Required Modal */}
+				<Modal
+					isOpen={Boolean(poRequiredModal)}
+					onClose={() => setPoRequiredModal(null)}
+					title="Purchase Order Required"
+					description={`Stage 2 • ${poRequiredModal?.platename || "Subplate"}`}
+					size="md"
+				>
+					<div className="space-y-4 pt-1">
+						<div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200/80 flex items-start gap-3.5">
+							<div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+								<ShoppingCart className="w-5 h-5" />
+							</div>
+							<div className="space-y-1 min-w-0">
+								<h4 className="text-sm font-bold text-amber-950">Commercial PO Mandatory</h4>
+								<p className="text-xs text-amber-800/90 leading-relaxed">
+									Stage 2 (Purchase) cannot be assigned manually. To assign this stage, please generate an official Purchase Order for this subplate.
+								</p>
+							</div>
+						</div>
+
+						{poRequiredModal && (
+							<div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
+								<div className="flex justify-between items-center text-slate-500">
+									<span>Subplate Name:</span>
+									<span className="font-bold text-slate-800">{poRequiredModal.platename}</span>
+								</div>
+								<div className="flex justify-between items-center text-slate-500">
+									<span>Material:</span>
+									<span className="font-semibold text-slate-700">{poRequiredModal.material || "MS-Bright"}</span>
+								</div>
+								<div className="flex justify-between items-center text-slate-500">
+									<span>Required Qty:</span>
+									<span className="font-semibold text-slate-700">{poRequiredModal.sqty || 1} pcs</span>
+								</div>
+							</div>
+						)}
+
+						<div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+							<button
+								type="button"
+								onClick={() => setPoRequiredModal(null)}
+								className="px-3.5 py-2 text-xs font-semibold rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+							>
+								Cancel
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									if (poRequiredModal) {
+										const p = poRequiredModal;
+										setPoRequiredModal(null);
+										handleOpenCreatePOForPlate(p);
+									}
+								}}
+								className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+							>
+								<ShoppingCart className="w-3.5 h-3.5" />
+								<span>Generate Purchase Order</span>
+							</button>
+						</div>
+					</div>
+				</Modal>
 			</div>
  </AppLayout>
  );

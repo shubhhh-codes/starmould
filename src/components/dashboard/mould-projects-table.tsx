@@ -589,6 +589,13 @@ export function MouldProjectsTable({
   };
 
   const handleAssignSubplateToUser = async (subplateId: number, stageKey: string, userId: number) => {
+    if (stageKey === "order_by") {
+      appStore.addToast({
+        type: "error",
+        message: "Stage 2 (Purchase) cannot be assigned manually. A Purchase Order must be created first.",
+      });
+      return;
+    }
     // Non-admin users cannot unassign once assigned
     if (!isAdmin && userId === 0) {
       appStore.addToast({
@@ -2666,6 +2673,30 @@ export function MouldProjectsTable({
                 const validRawName = rawName && rawName !== "-" ? rawName : null;
                 const staffName = validRawName || staffMember?.name || staffMember?.initials || `Staff #${val}`;
 
+                if (st.key === "order_by") {
+                  if (isDone) {
+                    items.push({
+                      label: `Purchase (Locked by PO)`,
+                      subtext: `Stage 2 • Assigned to ${staffName} via PO`,
+                      icon: Lock,
+                      disabled: true,
+                      onClick: () => {},
+                    });
+                  } else {
+                    items.push({
+                      label: `Generate PO for Plate (Stage 2)`,
+                      subtext: `Stage 2 • Purchase Order required to assign`,
+                      icon: ShoppingCart,
+                      variant: "primary",
+                      onClick: () => {
+                        setCreatePOProject(subplateContextMenu.project || null);
+                        setIsCreatePOOpen(true);
+                      },
+                    });
+                  }
+                  return;
+                }
+
                 if (isDone) {
                   items.push({
                     label: `Unassign ${staffName} (${st.label.replace(/^\d+\.\s*/, "")})`,
@@ -2784,6 +2815,12 @@ export function MouldProjectsTable({
         currentUser={currentUser}
         isAdmin={isAdmin}
         onAssign={handleAssignSubplateToUser}
+        onCreatePO={() => {
+          if (subplateContextMenu?.project) {
+            setCreatePOProject(subplateContextMenu.project);
+            setIsCreatePOOpen(true);
+          }
+        }}
       />
 
       {/* Website Custom Delete & Action Confirmation Modal */}

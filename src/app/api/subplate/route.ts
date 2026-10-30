@@ -60,11 +60,18 @@ export async function GET(req: NextRequest) {
       const plateList = plates || [];
       const plateIds = plateList.map((p) => p.id);
       const orderedMap: Record<number, number> = {};
+      const platePOsMap = new Map<number, Array<{
+        po_id: number;
+        po_srno: string;
+        qty: number;
+        created_by?: string | null;
+        created_at?: string | null;
+      }>>();
 
       if (plateIds.length > 0) {
         const { data: orderedRows } = await supabaseAdmin
           .from("purchase_items")
-          .select("plateid, qty, purchase:pid!inner(status)")
+          .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
           .in("plateid", plateIds)
           .neq("purchase.status", "0");
 
@@ -73,6 +80,18 @@ export async function GET(req: NextRequest) {
             const pid = Number(row.plateid);
             const q = Number(row.qty) || 0;
             orderedMap[pid] = (orderedMap[pid] || 0) + q;
+            const poData = Array.isArray(row.purchase) ? row.purchase[0] : row.purchase;
+            if (poData) {
+              const existingList = platePOsMap.get(pid) || [];
+              existingList.push({
+                po_id: poData.id,
+                po_srno: poData.srno || "",
+                qty: q,
+                created_by: poData.created_by || null,
+                created_at: poData.created_at || null,
+              });
+              platePOsMap.set(pid, existingList);
+            }
           });
         }
       }
@@ -84,10 +103,21 @@ export async function GET(req: NextRequest) {
         const ordered = orderedMap[p.id] || 0;
         const total = Number(p.sqty) || 1;
         const remaining = Math.max(0, total - ordered);
+        const linkedPOs = platePOsMap.get(p.id) || [];
+        const hasPO = linkedPOs.length > 0;
+        const latestPO = linkedPOs[linkedPOs.length - 1] || null;
+        const poStatus: 'UNORDERED' | 'PARTIAL' | 'FULLY_ORDERED' =
+          ordered >= total ? 'FULLY_ORDERED' : ordered > 0 ? 'PARTIAL' : 'UNORDERED';
+
         return {
           ...p,
           ordered_qty: ordered,
           remaining_qty: remaining,
+          has_active_po: hasPO,
+          po_srno: latestPO?.po_srno || null,
+          po_id: latestPO?.po_id || null,
+          po_status: poStatus,
+          linked_pos: linkedPOs,
           design_by_name: userMap.get(Number(p.design_by))?.name || userMap.get(Number(p.design_by))?.initials || null,
           order_by_name: userMap.get(Number(p.order_by))?.name || userMap.get(Number(p.order_by))?.initials || null,
           received_workby_name: userMap.get(Number(p.received_workby))?.name || userMap.get(Number(p.received_workby))?.initials || null,
@@ -151,7 +181,7 @@ export async function GET(req: NextRequest) {
         getCached("shared_scans_lookup", 30, async () => {
           const res = await supabaseAdmin
             .from("scan")
-            .select("id, projectid, description, worktype, cname, status")
+            .select("id, projectid, description, worktype, cname, customer_id, status")
             .order("id", { ascending: false })
             .limit(1000);
           return res.data || [];
@@ -167,6 +197,45 @@ export async function GET(req: NextRequest) {
       const scanMap = new Map((scans || []).map((s: any) => [s.id, s]));
       const userMap = new Map((users || []).map((u: any) => [u.id, u]));
 
+      // Fetch active PO status & quantities for plates
+      const plateIds = subplates.map((sp: any) => sp.id);
+      const orderedMap: Record<number, number> = {};
+      const platePOsMap = new Map<number, Array<{
+        po_id: number;
+        po_srno: string;
+        qty: number;
+        created_by?: string | null;
+        created_at?: string | null;
+      }>>();
+
+      if (plateIds.length > 0) {
+        const { data: orderedRows } = await supabaseAdmin
+          .from("purchase_items")
+          .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
+          .in("plateid", plateIds)
+          .neq("purchase.status", "0");
+
+        if (orderedRows) {
+          orderedRows.forEach((row: any) => {
+            const pid = Number(row.plateid);
+            const q = Number(row.qty) || 0;
+            orderedMap[pid] = (orderedMap[pid] || 0) + q;
+            const poData = Array.isArray(row.purchase) ? row.purchase[0] : row.purchase;
+            if (poData) {
+              const existingList = platePOsMap.get(pid) || [];
+              existingList.push({
+                po_id: poData.id,
+                po_srno: poData.srno || "",
+                qty: q,
+                created_by: poData.created_by || null,
+                created_at: poData.created_at || null,
+              });
+              platePOsMap.set(pid, existingList);
+            }
+          });
+        }
+      }
+
       let inHouseCount = 0;
       let vendorCount = 0;
       for (const sp of subplates) {
@@ -181,8 +250,24 @@ export async function GET(req: NextRequest) {
 
       const enriched = subplates.map((sp: any) => {
         const scan = scanMap.get(sp.projectid);
+        const ordered = orderedMap[sp.id] || 0;
+        const total = Number(sp.sqty) || 1;
+        const remaining = Math.max(0, total - ordered);
+        const linkedPOs = platePOsMap.get(sp.id) || [];
+        const hasPO = linkedPOs.length > 0;
+        const latestPO = linkedPOs[linkedPOs.length - 1] || null;
+        const poStatus: 'UNORDERED' | 'PARTIAL' | 'FULLY_ORDERED' =
+          ordered >= total ? 'FULLY_ORDERED' : ordered > 0 ? 'PARTIAL' : 'UNORDERED';
+
         return {
           ...sp,
+          ordered_qty: ordered,
+          remaining_qty: remaining,
+          has_active_po: hasPO,
+          po_srno: latestPO?.po_srno || null,
+          po_id: latestPO?.po_id || null,
+          po_status: poStatus,
+          linked_pos: linkedPOs,
           mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
           mould_description: scan?.description || "",
           design_by_name: userMap.get(Number(sp.design_by))?.name || userMap.get(Number(sp.design_by))?.initials || "—",
@@ -543,6 +628,40 @@ export async function PUT(req: NextRequest) {
       final_qcby: "final_qc_at",
       packing_workby: "packing_at",
     };
+
+    // Strict business rule: Stage 2 (order_by) cannot be manually assigned or modified from Subplate/Dashboard.
+    // It is strictly governed by the Purchase Order (PO) lifecycle:
+    // 1) Must generate a PO to auto-assign it to the creator.
+    // 2) Once a PO is active, it is locked.
+    if ("order_by" in updatePayload) {
+      const { data: activePOs } = await supabaseAdmin
+        .from("purchase_items")
+        .select("pid, purchase:pid!inner(id, srno, status)")
+        .eq("plateid", subplateId)
+        .neq("purchase.status", "0")
+        .limit(1);
+
+      const hasActivePO = activePOs && activePOs.length > 0;
+      if (!hasActivePO) {
+        return NextResponse.json(
+          {
+            error: "Purchase stage cannot be assigned manually. A Purchase Order (PO) must be generated for this subplate first.",
+            code: "PO_REQUIRED",
+          },
+          { status: 400 }
+        );
+      } else {
+        const activePoRecord: any = activePOs[0];
+        const poSrno = activePoRecord?.purchase?.srno || activePoRecord?.purchase?.[0]?.srno || "PO";
+        return NextResponse.json(
+          {
+            error: `Purchase stage is locked by Purchase Order (#${poSrno}). It cannot be manually changed or unassigned.`,
+            code: "PO_LOCKED",
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // Enforce that non-admin users (e.g. Designers, Workers) can only assign tasks to themselves, and strictly for their department's stages
     const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";

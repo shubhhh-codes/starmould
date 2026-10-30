@@ -75,15 +75,22 @@ export function getAllowedStagesForUser(currentUser: UserSessionMinimal | null, 
 export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
   let completed = 0;
   let lastAssignedIndex = -1;
+  const isPartialPO = sp.po_status === "PARTIAL" || ((sp.ordered_qty ?? 0) > 0 && (sp.remaining_qty ?? 0) > 0);
+
   for (let i = 0; i < STAGE_DEFINITIONS.length; i++) {
-    const val = (sp as any)[STAGE_DEFINITIONS[i].key];
+    const stageDef = STAGE_DEFINITIONS[i];
+    const val = (sp as any)[stageDef.key];
     if (val && Number(val) !== 0) {
-      completed++;
+      if (stageDef.key === "order_by" && isPartialPO) {
+        // Stage 2 is only partially completed
+      } else {
+        completed++;
+      }
       lastAssignedIndex = i;
     }
   }
 
-  if (completed === 0) {
+  if (completed === 0 && !isPartialPO) {
     return {
       badgeLabel: "Not Started",
       subtext: "Pending Design Order",
@@ -115,6 +122,19 @@ export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
   const rawName = (sp as any)[stage.nameKey];
   const validRawName = rawName && rawName !== "-" ? rawName : null;
   const staffName = validRawName || staffMember?.name || staffMember?.initials || null;
+
+  if (stage.key === "order_by" && isPartialPO) {
+    return {
+      badgeLabel: `Stage 2: Purchase (Partial)`,
+      subtext: `${sp.ordered_qty}/${sp.sqty || 1} ordered (${sp.remaining_qty} pending)`,
+      badgeStyle: "bg-amber-50 text-amber-900 border-amber-300 font-bold shadow-2xs",
+      dotColor: "bg-amber-500",
+      completed,
+      isCompleted: false,
+      activeStage: stage,
+      assignee: staffName ? `${staffName} (${sp.ordered_qty}/${sp.sqty} pcs)` : null,
+    };
+  }
 
   return {
     badgeLabel: `Stage ${stage.step}: ${stage.label.replace(/^\d+\.\s*/, "")}`,

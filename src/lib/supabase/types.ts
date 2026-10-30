@@ -149,8 +149,21 @@ export interface Subplate {
   location: string;
   ordered_qty?: number;
   remaining_qty?: number;
+  has_active_po?: boolean;
+  po_srno?: string | null;
+  po_id?: number | null;
+  po_status?: 'UNORDERED' | 'PARTIAL' | 'FULLY_ORDERED';
+  linked_pos?: LinkedPOInfo[];
   created_at: string;
   updated_at: string;
+}
+
+export interface LinkedPOInfo {
+  po_id: number;
+  po_srno: string;
+  qty: number;
+  created_by?: string | null;
+  created_at?: string | null;
 }
 
 export interface PipelineStats {
