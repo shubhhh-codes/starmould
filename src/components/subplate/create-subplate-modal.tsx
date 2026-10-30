@@ -24,7 +24,6 @@ import {
   Layers,
   Scale,
   Sparkles,
-  MapPin,
   Check,
   Plus,
   Tag,
@@ -43,7 +42,7 @@ export interface CreateSubplateModalProps {
 
 const MATERIAL_OPTIONS: ERPSelectOption[] = Object.keys(MATERIAL_DENSITIES).map((mat) => ({
   value: mat,
-  label: `${mat} (${MATERIAL_DENSITIES[mat]} g/cm³)`,
+  label: mat,
 }));
 
 const SHAPE_OPTIONS: ERPSelectOption[] = SUPPORTED_SHAPES.map((shape) => ({
@@ -67,9 +66,9 @@ export function CreateSubplateModal({
   const [form, setForm] = useState({
     platename: "",
     shape: "Plate",
-    length: "100",
-    width: "100",
-    height: "25",
+    length: "",
+    width: "",
+    height: "",
     unit: "mm",
     material: "MS-Bright",
     sqty: "1",
@@ -102,9 +101,9 @@ export function CreateSubplateModal({
       setForm({
         platename: "",
         shape: "Plate",
-        length: "100",
-        width: "100",
-        height: "25",
+        length: "",
+        width: "",
+        height: "",
         unit: "mm",
         material: "MS-Bright",
         sqty: "1",
@@ -157,14 +156,12 @@ export function CreateSubplateModal({
 
   const isValid = useMemo(() => {
     if (!form.platename.trim()) return false;
-    const l = parseFloat(form.length);
-    const w = parseFloat(form.width);
-    const h = parseFloat(form.height);
     const q = parseInt(form.sqty, 10);
-    if (isNaN(l) || l <= 0) return false;
-    if (isNaN(w) || w <= 0) return false;
-    if (!isRound && (isNaN(h) || h <= 0)) return false;
     if (isNaN(q) || q <= 0) return false;
+    // Dimensions are completely optional; if provided they cannot be negative
+    if (form.length && (isNaN(parseFloat(form.length)) || parseFloat(form.length) < 0)) return false;
+    if (form.width && (isNaN(parseFloat(form.width)) || parseFloat(form.width) < 0)) return false;
+    if (!isRound && form.height && (isNaN(parseFloat(form.height)) || parseFloat(form.height) < 0)) return false;
     return true;
   }, [form, isRound]);
 
@@ -175,24 +172,29 @@ export function CreateSubplateModal({
       return;
     }
     if (!isValid) {
-      setErrorMessage("Please fill all required dimension fields with valid positive numbers.");
+      setErrorMessage("Please enter a valid plate name and quantity.");
       return;
     }
 
     try {
       setErrorMessage(null);
+      const parsedLen = form.length ? parseFloat(form.length) : null;
+      const parsedWid = form.width ? parseFloat(form.width) : null;
+      const parsedHgt = isRound ? null : (form.height ? parseFloat(form.height) : null);
+      const theoreticalWt = parseFloat(calculatedWeight) || 0;
+
       const res = await createSubplateMutation.mutateAsync({
         platename: form.platename.trim(),
         projectid: Number(project.id),
-        shape: form.shape,
-        length: parseFloat(form.length),
-        width: parseFloat(form.width),
-        height: isRound ? 0 : parseFloat(form.height),
-        unit: form.unit,
-        material: form.material,
-        sqty: parseInt(form.sqty, 10) || 1,
-        weight: parseFloat(calculatedWeight) || 0,
-        location: form.location,
+        shape: form.shape || "Plate",
+        length: parsedLen,
+        width: parsedWid,
+        height: parsedHgt,
+        unit: form.unit || "mm",
+        material: form.material || "MS-Bright",
+        sqty: Math.max(1, parseInt(form.sqty, 10) || 1),
+        weight: theoreticalWt > 0 ? theoreticalWt : null,
+        location: "SM",
       });
 
       appStore.addToast({
@@ -338,7 +340,7 @@ export function CreateSubplateModal({
           {/* Dynamic Dimensions: Length, Width/OD, Height/Thickness, Unit */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-              Dimensions & Unit
+              Dimensions & Unit (Optional)
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {/* Length */}
@@ -346,9 +348,7 @@ export function CreateSubplateModal({
                 <input
                   type="number"
                   step="any"
-                  min="0.1"
-                  required
-                  placeholder="Length"
+                  placeholder="Length (opt)"
                   value={form.length}
                   onChange={(e) => setForm((prev) => ({ ...prev, length: e.target.value }))}
                   className="w-full h-9 pl-3 pr-8 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -363,9 +363,7 @@ export function CreateSubplateModal({
                 <input
                   type="number"
                   step="any"
-                  min="0.1"
-                  required
-                  placeholder={isRound ? "Outer Dia (OD)" : "Width (W)"}
+                  placeholder={isRound ? "Outer Dia (opt)" : "Width (opt)"}
                   value={form.width}
                   onChange={(e) => setForm((prev) => ({ ...prev, width: e.target.value }))}
                   className="w-full h-9 pl-3 pr-8 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -380,9 +378,8 @@ export function CreateSubplateModal({
                 <input
                   type="number"
                   step="any"
-                  min="0.1"
                   disabled={isRound}
-                  placeholder={isRound ? "—" : isPipe ? "Wall (T)" : "Thickness (H)"}
+                  placeholder={isRound ? "—" : isPipe ? "Wall (opt)" : "Thk (opt)"}
                   value={isRound ? "" : form.height}
                   onChange={(e) => setForm((prev) => ({ ...prev, height: e.target.value }))}
                   className={`w-full h-9 pl-3 pr-8 rounded-lg text-xs font-mono font-bold ${
@@ -433,53 +430,20 @@ export function CreateSubplateModal({
             </div>
           </div>
 
-          {/* Quantity & Location (6 cols) */}
-          <div className="sm:col-span-6 flex flex-col justify-between gap-2.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Hash className="w-3.5 h-3.5 text-slate-500" />
-                <span>Quantity (Pcs)</span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                required
-                value={form.sqty}
-                onChange={(e) => setForm((prev) => ({ ...prev, sqty: e.target.value }))}
-                className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Production Routing</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, location: "SM" }))}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition text-center cursor-pointer ${
-                    form.location === "SM"
-                      ? "bg-emerald-600 text-white border-emerald-600 shadow-2xs"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  In-House (SM)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, location: "Vendor" }))}
-                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold border transition text-center cursor-pointer ${
-                    form.location !== "SM"
-                      ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
-                      : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-                >
-                  Outward Vendor
-                </button>
-              </div>
-            </div>
+          {/* Quantity (6 cols) */}
+          <div className="sm:col-span-6 flex flex-col justify-center">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+              <Hash className="w-3.5 h-3.5 text-slate-500" />
+              <span>Quantity (Pcs)</span>
+            </label>
+            <input
+              type="number"
+              min="1"
+              required
+              value={form.sqty}
+              onChange={(e) => setForm((prev) => ({ ...prev, sqty: e.target.value }))}
+              className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
           </div>
         </div>
 

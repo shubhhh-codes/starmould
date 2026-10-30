@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Search, ChevronDown, Check, X, Layers, Building2, Loader2 } from "lucide-react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { ChevronDown, Check, X, Layers, Building2, Loader2 } from "lucide-react";
 import type { ScanProject } from "@/lib/supabase/types";
 
 export interface ProjectSelectProps {
@@ -14,6 +14,7 @@ export interface ProjectSelectProps {
   className?: string;
   isLoading?: boolean;
   onOpen?: () => void;
+  id?: string;
 }
 
 export function ProjectSelect({
@@ -26,17 +27,25 @@ export function ProjectSelect({
   className = "",
   isLoading = false,
   onOpen,
+  id,
 }: ProjectSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setIsTyping(false);
+        setQuery("");
+        setActiveIndex(-1);
       }
     }
     if (isOpen) {
@@ -45,17 +54,6 @@ export function ProjectSelect({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isOpen]);
-
-  // Focus search input when dropdown opens
-  useEffect(() => {
-    if (isOpen) {
-      setTimeout(() => {
-        inputRef.current?.focus();
-      }, 50);
-    } else {
-      setQuery("");
-    }
   }, [isOpen]);
 
   // Find currently selected project
@@ -70,7 +68,7 @@ export function ProjectSelect({
 
   // Filter projects by query (project code, description, customer name, work type)
   const filteredProjects = useMemo(() => {
-    if (!query.trim()) return projects.slice(0, 40); // show top 40 initially for speed
+    if (!query.trim()) return projects.slice(0, 50);
     const q = query.toLowerCase().trim();
     return projects
       .filter((p) => {
@@ -89,16 +87,114 @@ export function ProjectSelect({
       .slice(0, 50);
   }, [projects, query]);
 
-  const handleSelect = (project: ScanProject) => {
-    const val = project.id ? String(project.id) : (project.projectid || "");
-    onChange(val, project);
-    setIsOpen(false);
+  // Auto-scroll active item into view
+  useEffect(() => {
+    if (activeIndex >= 0 && listRef.current) {
+      const activeEl = listRef.current.children[activeIndex] as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }, [activeIndex]);
+
+  const handleSelect = useCallback(
+    (project: ScanProject) => {
+      const val = project.id ? String(project.id) : (project.projectid || "");
+      onChange(val, project);
+      setIsOpen(false);
+      setIsTyping(false);
+      setQuery("");
+      setActiveIndex(-1);
+    },
+    [onChange]
+  );
+
+  const handleClear = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      onChange("");
+      setQuery("");
+      setIsTyping(false);
+      setActiveIndex(-1);
+      inputRef.current?.focus();
+    },
+    [onChange]
+  );
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        setActiveIndex(0);
+        if (onOpen) onOpen();
+      } else {
+        setActiveIndex((prev) =>
+          prev < filteredProjects.length - 1 ? prev + 1 : 0
+        );
+      }
+      return;
+    }
+
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!isOpen) {
+        setIsOpen(true);
+        setActiveIndex(filteredProjects.length - 1);
+        if (onOpen) onOpen();
+      } else {
+        setActiveIndex((prev) =>
+          prev > 0 ? prev - 1 : filteredProjects.length - 1
+        );
+      }
+      return;
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (isOpen && activeIndex >= 0 && activeIndex < filteredProjects.length) {
+        handleSelect(filteredProjects[activeIndex]);
+      } else if (!isOpen) {
+        setIsOpen(true);
+        setActiveIndex(0);
+        if (onOpen) onOpen();
+      }
+      return;
+    }
+
+    if (e.key === "Tab") {
+      if (e.shiftKey) {
+        setIsOpen(false);
+        setIsTyping(false);
+        return;
+      }
+      // If user typed and an item is highlighted, select it on Tab and let focus advance naturally
+      if (isOpen) {
+        if (query.trim() && activeIndex >= 0 && activeIndex < filteredProjects.length) {
+          handleSelect(filteredProjects[activeIndex]);
+        } else if (query.trim() && filteredProjects.length === 1) {
+          handleSelect(filteredProjects[0]);
+        }
+        setIsOpen(false);
+        setIsTyping(false);
+      }
+      return;
+    }
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setIsOpen(false);
+      setIsTyping(false);
+      setQuery("");
+      return;
+    }
   };
 
-  const handleClear = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onChange("");
-  };
+  const displayValue = isTyping
+    ? query
+    : selectedProject
+    ? `${selectedProject.projectid || `#${selectedProject.id}`} - ${selectedProject.description || "Untitled Mould"}`
+    : "";
 
   return (
     <div ref={containerRef} className={`relative w-full ${isOpen ? "z-30" : "z-10"} ${className}`}>
@@ -112,101 +208,99 @@ export function ProjectSelect({
         className="opacity-0 absolute pointer-events-none w-0 h-0"
       />
 
-      {/* Trigger Button */}
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => {
-          if (!disabled) {
-            const next = !isOpen;
-            setIsOpen(next);
-            if (next && onOpen) {
-              onOpen();
-            }
-          }
-        }}
-        className={`w-full min-h-[40px] px-3 py-1.5 rounded-xl border transition-all text-left flex items-center justify-between gap-2 shadow-xs cursor-pointer ${
-          isOpen
-            ? "border-blue-500 ring-2 ring-blue-500/20 bg-white"
-            : "border-slate-200 bg-slate-50/70 hover:bg-slate-50 hover:border-slate-300"
-        } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+      {/* Interactive Combobox Input Box */}
+      <div
+        className={`w-full min-h-[38px] px-3 py-1.5 rounded-xl border transition-all flex items-center justify-between gap-2 shadow-2xs ${
+          disabled
+            ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400"
+            : isOpen
+            ? "border-blue-600 ring-2 ring-blue-500/20 bg-white"
+            : "border-slate-200 bg-slate-50/70 hover:bg-slate-50 hover:border-slate-300 text-slate-800"
+        }`}
       >
-        <div className="flex-1 min-w-0">
-          {selectedProject ? (
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 shrink-0">
-                {selectedProject.projectid || `#${selectedProject.id}`}
-              </span>
-              <span className="text-xs font-medium text-slate-800 truncate block">
-                {selectedProject.description || "Untitled Mould"}
-              </span>
-              {(selectedProject.customername || selectedProject.cname) && (
-                <span className="hidden sm:inline-block text-[11px] text-slate-400 truncate">
-                  • {selectedProject.customername || selectedProject.cname}
-                </span>
-              )}
-            </div>
-          ) : isLoading ? (
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <Layers className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          {isLoading && !selectedProject ? (
             <span className="text-xs text-slate-400 font-medium flex items-center gap-1.5 select-none">
               <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
               Loading mould projects...
             </span>
           ) : (
-            <span className="text-xs text-slate-400 font-medium select-none">
-              {placeholder}
-            </span>
+            <input
+              ref={inputRef}
+              id={id}
+              type="text"
+              disabled={disabled}
+              value={displayValue}
+              placeholder={placeholder}
+              onFocus={() => {
+                setIsOpen(true);
+                setIsTyping(false);
+                setQuery("");
+                const selIdx = filteredProjects.findIndex(
+                  (p) => String(p.id) === value || p.projectid === value
+                );
+                setActiveIndex(selIdx >= 0 ? selIdx : 0);
+                inputRef.current?.select();
+                if (onOpen) onOpen();
+              }}
+              onChange={(e) => {
+                setIsTyping(true);
+                setQuery(e.target.value);
+                setIsOpen(true);
+                setActiveIndex(0);
+                if (onOpen) onOpen();
+              }}
+              onKeyDown={handleKeyDown}
+              className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none font-medium truncate"
+            />
           )}
         </div>
 
         <div className="flex items-center gap-1 shrink-0 text-slate-400">
           {selectedProject && !disabled && (
-            <div
+            <button
+              type="button"
+              tabIndex={-1}
               onClick={handleClear}
-              role="button"
-              tabIndex={0}
-              className="p-1 hover:text-slate-600 hover:bg-slate-200/60 rounded-md transition-colors"
+              className="p-1 hover:text-slate-600 hover:bg-slate-200/60 rounded-md transition-colors cursor-pointer"
               title="Clear selection"
             >
               <X className="w-3.5 h-3.5" />
-            </div>
+            </button>
           )}
-          <ChevronDown
-            className={`w-4 h-4 transition-transform duration-200 ${
-              isOpen ? "rotate-180 text-blue-600" : ""
-            }`}
-          />
+
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => {
+              if (disabled) return;
+              const next = !isOpen;
+              setIsOpen(next);
+              if (next) {
+                inputRef.current?.focus();
+                if (onOpen) onOpen();
+              }
+            }}
+            className="p-0.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+          >
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                isOpen ? "rotate-180 text-blue-600" : ""
+              }`}
+            />
+          </button>
         </div>
-      </button>
+      </div>
 
       {/* Floating Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 right-0 z-50 mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-          {/* Search Input Bar */}
-          <div className="p-2.5 border-b border-slate-100 bg-slate-50/60">
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                ref={inputRef}
-                type="text"
-                placeholder="Search by project code, mould name, customer..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-slate-900 placeholder:text-slate-400 font-medium shadow-2xs"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
-
+        <div className="absolute left-0 right-0 z-50 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
           {/* Project List */}
-          <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 p-1">
+          <div
+            ref={listRef}
+            className="max-h-60 overflow-y-auto divide-y divide-slate-100 p-1 custom-scrollbar"
+          >
             {isLoading && projects.length === 0 ? (
               <div className="p-6 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
@@ -214,24 +308,35 @@ export function ProjectSelect({
               </div>
             ) : filteredProjects.length === 0 ? (
               <div className="p-6 text-center text-xs text-slate-400">
-                {query ? `No matching projects found for "${query}"` : "No active mould projects available"}
+                {query.trim() ? (
+                  <>
+                    No matching projects found for &quot;
+                    <span className="text-slate-700 font-semibold">{query}</span>
+                    &quot;
+                  </>
+                ) : (
+                  "No active mould projects available"
+                )}
               </div>
             ) : (
-              filteredProjects.map((p) => {
+              filteredProjects.map((p, idx) => {
                 const isSelected =
                   selectedProject &&
                   (selectedProject.id === p.id ||
                     (selectedProject.projectid && selectedProject.projectid === p.projectid));
+                const isActive = idx === activeIndex;
                 const cust = p.customername || p.cname;
 
                 return (
-                  <button
+                  <div
                     key={p.id}
-                    type="button"
                     onClick={() => handleSelect(p)}
-                    className={`w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer ${
+                    onMouseEnter={() => setActiveIndex(idx)}
+                    className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer ${
                       isSelected
                         ? "bg-blue-50/80 text-blue-900"
+                        : isActive
+                        ? "bg-slate-100 text-slate-900"
                         : "hover:bg-slate-50 text-slate-800"
                     }`}
                   >
@@ -263,7 +368,7 @@ export function ProjectSelect({
                         </div>
                       )}
                     </div>
-                  </button>
+                  </div>
                 );
               })
             )}
@@ -272,7 +377,7 @@ export function ProjectSelect({
           {/* Quick Footer */}
           <div className="px-3 py-1.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
             <span>Showing up to {filteredProjects.length} results</span>
-            <span>Press Esc to close</span>
+            <span>Use Arrow keys & Enter/Tab</span>
           </div>
         </div>
       )}

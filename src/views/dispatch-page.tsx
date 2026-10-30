@@ -1104,6 +1104,7 @@ export function DispatchPage() {
                     Transporter Name <span className="text-rose-500">*</span>
                   </label>
                   <ERPSelect
+                    icon={<Truck className="w-3.5 h-3.5 text-slate-400 shrink-0" />}
                     value={modalForm.vendortid}
                     onChange={(val) =>
                       setModalForm((prev) => ({ ...prev, vendortid: String(val) }))
@@ -1111,7 +1112,7 @@ export function DispatchPage() {
                     options={transporterOptions}
                     placeholder="Search or select transporter..."
                     searchPlaceholder="Filter transporter..."
-                    showSearch={transporterOptions.length > 5}
+                    showSearch={true}
                     required
                   />
                 </div>

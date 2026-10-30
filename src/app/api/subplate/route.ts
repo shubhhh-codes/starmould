@@ -380,36 +380,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Strict Dimensions Validation
+    // 3. Optional Dimensions Validation
     const normShape = (shape || "Plate").trim();
     const normShapeLower = normShape.toLowerCase();
     const isRound = normShapeLower === "round" || normShapeLower === "round bar";
-    const numLength = Number(length);
-    const numWidth = Number(width);
-    const numHeight = Number(height);
-    const numQty = parseInt(String(sqty || 1), 10);
 
-    if (isNaN(numLength) || numLength <= 0) {
+    const hasLength = length !== undefined && length !== null && String(length).trim() !== "";
+    const hasWidth = width !== undefined && width !== null && String(width).trim() !== "";
+    const hasHeight = height !== undefined && height !== null && String(height).trim() !== "";
+
+    const numLength = hasLength ? Number(length) : null;
+    const numWidth = hasWidth ? Number(width) : null;
+    const numHeight = isRound ? null : (hasHeight ? Number(height) : null);
+    const numQty = Math.max(1, parseInt(String(sqty || 1), 10) || 1);
+
+    if (numLength !== null && (isNaN(numLength) || numLength < 0)) {
       return NextResponse.json(
-        { error: "Invalid length: Length must be a number greater than 0." },
+        { error: "Invalid length: Length must be a valid number if provided." },
         { status: 400 }
       );
     }
 
-    if (isNaN(numWidth) || numWidth <= 0) {
+    if (numWidth !== null && (isNaN(numWidth) || numWidth < 0)) {
       return NextResponse.json(
         {
           error: isRound
-            ? "Invalid Outer Diameter: OD must be a number greater than 0."
-            : "Invalid width: Width must be a number greater than 0.",
+            ? "Invalid Outer Diameter: OD must be a valid number if provided."
+            : "Invalid width: Width must be a valid number if provided.",
         },
         { status: 400 }
       );
     }
 
-    if (!isRound && (isNaN(numHeight) || numHeight <= 0)) {
+    if (!isRound && numHeight !== null && (isNaN(numHeight) || numHeight < 0)) {
       return NextResponse.json(
-        { error: "Invalid thickness/height: Height must be a number greater than 0 for plates." },
+        { error: "Invalid thickness/height: Height must be a valid number if provided." },
         { status: 400 }
       );
     }
@@ -421,15 +426,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Ensure weight is accurately computed if missing or zero
+    // 4. Ensure weight is computed if dimensions are provided
     let finalWeight = Number(weight) || 0;
-    if (finalWeight <= 0) {
+    if (finalWeight <= 0 && numLength !== null && numWidth !== null && (isRound || numHeight !== null)) {
       finalWeight = calculateSubplateWeight({
         shape: normShape,
         material: material || "MS-Bright",
         length: numLength,
         width: numWidth,
-        height: isRound ? 0 : numHeight,
+        height: isRound ? 0 : (numHeight || 0),
         unit: unit || "mm",
         quantity: numQty,
       });
@@ -564,28 +569,40 @@ export async function PUT(req: NextRequest) {
     }
 
     if (updatePayload.length !== undefined) {
-      const l = Number(updatePayload.length);
-      if (isNaN(l) || l <= 0) {
-        return NextResponse.json({ error: "Length must be greater than 0." }, { status: 400 });
+      if (updatePayload.length === null || updatePayload.length === "" || updatePayload.length === 0) {
+        updatePayload.length = null;
+      } else {
+        const l = Number(updatePayload.length);
+        if (isNaN(l) || l < 0) {
+          return NextResponse.json({ error: "Length must be a valid number." }, { status: 400 });
+        }
+        updatePayload.length = l;
       }
-      updatePayload.length = l;
     }
 
     if (updatePayload.width !== undefined) {
-      const w = Number(updatePayload.width);
-      if (isNaN(w) || w <= 0) {
-        return NextResponse.json({ error: "Width/OD must be greater than 0." }, { status: 400 });
+      if (updatePayload.width === null || updatePayload.width === "" || updatePayload.width === 0) {
+        updatePayload.width = null;
+      } else {
+        const w = Number(updatePayload.width);
+        if (isNaN(w) || w < 0) {
+          return NextResponse.json({ error: "Width/OD must be a valid number." }, { status: 400 });
+        }
+        updatePayload.width = w;
       }
-      updatePayload.width = w;
     }
 
-    if (updatePayload.height !== undefined && updatePayload.height !== null) {
-      const h = Number(updatePayload.height);
+    if (updatePayload.height !== undefined) {
       const isRound = String(updatePayload.shape || "").toLowerCase().includes("round");
-      if (!isRound && (isNaN(h) || h <= 0)) {
-        return NextResponse.json({ error: "Height/Thickness must be greater than 0." }, { status: 400 });
+      if (isRound || updatePayload.height === null || updatePayload.height === "" || updatePayload.height === 0) {
+        updatePayload.height = null;
+      } else {
+        const h = Number(updatePayload.height);
+        if (isNaN(h) || h < 0) {
+          return NextResponse.json({ error: "Height/Thickness must be a valid number." }, { status: 400 });
+        }
+        updatePayload.height = h;
       }
-      updatePayload.height = isRound ? null : h;
     }
 
     if (updatePayload.sqty !== undefined) {

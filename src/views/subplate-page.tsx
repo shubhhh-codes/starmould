@@ -826,12 +826,11 @@ function SubplatePageContent() {
 
 	const isModalFormValid = useMemo(() => {
 		if (!modalForm.platename?.trim() || !modalForm.projectid || isNaN(Number(modalForm.projectid)) || Number(modalForm.projectid) <= 0) return false;
-		const l = parseFloat(modalForm.length || "0");
-		const w = parseFloat(modalForm.width || "0");
-		const h = parseFloat(modalForm.height || "0");
 		const q = parseInt(modalForm.sqty || "0", 10);
-		if (isNaN(l) || isNaN(w) || l <= 0 || w <= 0 || q < 1) return false;
-		if (!heightDisabled && (isNaN(h) || h <= 0)) return false;
+		if (isNaN(q) || q < 1) return false;
+		if (modalForm.length && (isNaN(parseFloat(modalForm.length)) || parseFloat(modalForm.length) < 0)) return false;
+		if (modalForm.width && (isNaN(parseFloat(modalForm.width)) || parseFloat(modalForm.width) < 0)) return false;
+		if (!heightDisabled && modalForm.height && (isNaN(parseFloat(modalForm.height)) || parseFloat(modalForm.height) < 0)) return false;
 		return true;
 	}, [modalForm.platename, modalForm.projectid, modalForm.length, modalForm.width, modalForm.height, modalForm.sqty, heightDisabled]);
 
