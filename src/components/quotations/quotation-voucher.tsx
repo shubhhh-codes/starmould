@@ -508,30 +508,43 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
   const renderFooter = (pageNo: number) => (
     <div className="w-[794px] mt-auto">
       <div
-        className="w-[794px] px-[36px] py-[7px] flex items-center justify-between text-white"
-        style={{ backgroundColor: "#1b2537" }}
+        className="w-[794px] px-[36px] py-[7px] flex items-center justify-between border-t"
+        style={{ backgroundColor: "#e6f2f6", borderColor: "#bcd8e0" }}
       >
         <div className="flex items-center gap-[10px]">
           <div className="shrink-0 flex items-center justify-center">
-            <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
+            <svg width="13" height="16" viewBox="0 0 24 24" fill="#006181">
               <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
             </svg>
           </div>
-          <div className="w-[1px] h-[32px] bg-white/40 shrink-0" />
-          <div className="flex flex-col text-white leading-[1.25]">
-            <span className="text-[9px] font-bold tracking-tight">{COMPANY.displayName}</span>
-            <span className="text-[7.5px] text-white/90">{COMPANY.address1} {COMPANY.address2}</span>
+          <div className="w-[1px] h-[32px] bg-[#bcd8e0] shrink-0" />
+          <div className="flex flex-col leading-[1.25]">
+            <span className="text-[9px] font-bold tracking-tight text-[#006181]">{COMPANY.displayName}</span>
+            <span className="text-[7.5px] text-slate-600 font-medium">{COMPANY.address1} {COMPANY.address2}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-[9px]">
-          <div className="text-[8.5px] font-semibold text-white/85 border border-white/30 rounded px-2 py-0.5">
+          <div className="text-[8.5px] font-semibold text-[#006181] bg-white border border-[#bcd8e0] rounded px-2 py-0.5 shadow-2xs">
             Page {pageNo} of {totalPages}
           </div>
-          <div className="w-[1px] h-[26px] bg-white/40 shrink-0" />
-          <div className="flex flex-col text-white leading-[1.3] text-[8px] font-semibold tracking-wide">
-            <span>{COMPANY.email}</span>
-            <span>{COMPANY.website}</span>
+          <div className="w-[1px] h-[26px] bg-[#bcd8e0] shrink-0" />
+          <div className="flex items-center gap-[6px]">
+            <div className="flex flex-col items-center justify-center gap-[5px] shrink-0">
+              <svg width="11" height="9" viewBox="0 0 24 24" fill="none" stroke="#006181" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="4" width="20" height="16" rx="2" />
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+              </svg>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#006181" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+            </div>
+            <div className="flex flex-col text-[#006181] leading-[1.3] text-[8px] font-semibold tracking-wide">
+              <span>{COMPANY.email}</span>
+              <span>{COMPANY.website}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -565,47 +578,77 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
           html, body {
             margin: 0 !important;
             padding: 0 !important;
-            background: white !important;
-            width: 794px !important;
+            background: #ffffff !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
             -webkit-font-smoothing: antialiased !important;
             -moz-osx-font-smoothing: grayscale !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
-          body * {
-            visibility: hidden !important;
+          .print\\:hidden, header, nav, aside {
+            display: none !important;
           }
-          #quotation-printable-area, #quotation-printable-area * {
-            visibility: visible !important;
+          /* When printing from modal or root layout, hide all unrelated root containers */
+          body:has(#quotation-printable-area) > *:not(:has(#quotation-printable-area)) {
+            display: none !important;
+          }
+          /* Ensure all parent containers do not clip overflow or constrain height */
+          main, [data-viewport-container], .min-h-screen, .corbel-view-container {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            position: static !important;
+            transform: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            border: none !important;
           }
           #quotation-printable-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            display: block !important;
+            position: static !important;
             width: 794px !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             padding: 0 !important;
             border: none !important;
             box-shadow: none !important;
-            box-sizing: border-box !important;
+            overflow: visible !important;
+            visibility: visible !important;
           }
           .a4-page-sheet {
             page-break-after: always !important;
             break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            width: 794px !important;
             height: 1123px !important;
             min-height: 1123px !important;
             max-height: 1123px !important;
             overflow: hidden !important;
             box-shadow: none !important;
-            margin: 0 !important;
+            border: none !important;
+            border-radius: 0 !important;
+            margin: 0 auto !important;
+            position: relative !important;
+            background: #ffffff !important;
+            box-sizing: border-box !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            visibility: visible !important;
+          }
+          .a4-page-sheet * {
+            visibility: visible !important;
           }
           .a4-page-sheet:last-child {
             page-break-after: avoid !important;
             break-after: avoid !important;
           }
-          body {
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .print\\:hidden { display: none !important; }
         }
       `,
         }}
@@ -725,6 +768,9 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
                     className="h-[4px] w-[200px] ml-auto"
                     style={{ backgroundColor: GREY_LINE }}
                   />
+                  <div className="text-[9px] font-semibold tracking-wider uppercase mt-[6px]" style={{ color: GREY_LINE }}>
+                    We Shape Your Ideas
+                  </div>
                 </div>
               </div>
 

@@ -236,6 +236,9 @@ export function PurchaseOrderVoucher({
                   className="h-[5px] w-[330px] ml-auto"
                   style={{ backgroundColor: GREY_LINE }}
                 />
+                <div className="text-[9px] font-semibold tracking-wider uppercase mt-[6px]" style={{ color: GREY_LINE }}>
+                  We Shape Your Ideas
+                </div>
               </div>
             </div>
 
@@ -493,41 +496,41 @@ export function PurchaseOrderVoucher({
 
         {/* ── BOTTOM DECORATIVE FOOTER BAR (Matches Starmould Letterhead Design) ───── */}
         <div className="w-[794px] mt-auto">
-          {/* Main Dark Navy Footer Bar */}
+          {/* Main Light Clean Footer Bar (Saves Carbon & Ink) */}
           <div
-            className="w-[794px] px-[36px] py-[8px] flex items-center justify-between text-white"
-            style={{ backgroundColor: "#1b2537" }}
+            className="w-[794px] px-[36px] py-[8px] flex items-center justify-between border-t"
+            style={{ backgroundColor: "#e6f2f6", borderColor: "#bcd8e0" }}
           >
             {/* Left side: Location Pin + Divider + Company Name & Full Address */}
             <div className="flex items-center gap-[10px]">
               <div className="shrink-0 flex items-center justify-center">
-                <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                <svg width="14" height="17" viewBox="0 0 24 24" fill="#006181">
                   <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
                 </svg>
               </div>
-              <div className="w-[1px] h-[34px] bg-white/40 shrink-0" />
-              <div className="flex flex-col text-white leading-[1.25]">
-                <span className="text-[9.5px] font-bold tracking-tight">{COMPANY.displayName}</span>
-                <span className="text-[8px] text-white/90">{COMPANY.address1}</span>
-                <span className="text-[8px] text-white/90">{COMPANY.address2}</span>
+              <div className="w-[1px] h-[34px] bg-[#bcd8e0] shrink-0" />
+              <div className="flex flex-col leading-[1.25]">
+                <span className="text-[9.5px] font-bold tracking-tight text-[#006181]">{COMPANY.displayName}</span>
+                <span className="text-[8px] text-slate-600 font-medium">{COMPANY.address1}</span>
+                <span className="text-[8px] text-slate-600 font-medium">{COMPANY.address2}</span>
               </div>
             </div>
 
             {/* Right side: Mail & Web Icons + Divider + Email & Website */}
             <div className="flex items-center gap-[9px]">
-              <div className="flex flex-col items-center justify-center gap-[5px] shrink-0 text-white">
-                <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="flex flex-col items-center justify-center gap-[5px] shrink-0">
+                <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#006181" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="4" width="20" height="16" rx="2" />
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#006181" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
                   <path d="M2 12h20" />
                 </svg>
               </div>
-              <div className="w-[1px] h-[28px] bg-white/40 shrink-0" />
-              <div className="flex flex-col text-white leading-[1.3] text-[8.5px] font-semibold tracking-wide">
+              <div className="w-[1px] h-[28px] bg-[#bcd8e0] shrink-0" />
+              <div className="flex flex-col text-[#006181] leading-[1.3] text-[8.5px] font-semibold tracking-wide">
                 <span>{COMPANY.email}</span>
                 <span>{COMPANY.website}</span>
               </div>

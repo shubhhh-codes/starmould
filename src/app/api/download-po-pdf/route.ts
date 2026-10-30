@@ -248,6 +248,14 @@ export async function GET(req: NextRequest) {
             background-color: #62676b;
             margin-left: auto;
           }
+          .title-sub {
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #62676b;
+            letter-spacing: 0.8px;
+            margin-top: 6px;
+          }
           /* Info Box */
           .info-box {
             width: 710px;
@@ -445,8 +453,9 @@ export async function GET(req: NextRequest) {
           }
           .bottom-dark-bar {
             width: 794px;
-            background-color: #1b2537;
-            color: #ffffff;
+            background-color: #e6f2f6;
+            border-top: 1px solid #bcd8e0;
+            color: #1f2a30;
             padding: 8px 36px 9px 36px;
             display: flex;
             justify-content: space-between;
@@ -467,24 +476,25 @@ export async function GET(req: NextRequest) {
           .footer-divider-left {
             width: 1px;
             height: 34px;
-            background-color: rgba(255, 255, 255, 0.45);
+            background-color: #bcd8e0;
             flex-shrink: 0;
           }
           .footer-left-text {
             display: flex;
             flex-direction: column;
             line-height: 1.25;
-            color: #ffffff;
+            color: #1f2a30;
           }
           .footer-comp-name {
             font-size: 9.5px;
             font-weight: 700;
-            color: #ffffff;
+            color: #006181;
             letter-spacing: -0.1px;
           }
           .footer-addr-line {
             font-size: 8px;
-            color: rgba(255, 255, 255, 0.9);
+            color: #475569;
+            font-weight: 500;
           }
           .footer-right {
             display: flex;
@@ -497,20 +507,20 @@ export async function GET(req: NextRequest) {
             align-items: center;
             justify-content: center;
             gap: 5px;
-            color: #ffffff;
+            color: #006181;
             flex-shrink: 0;
           }
           .footer-divider-right {
             width: 1px;
             height: 28px;
-            background-color: rgba(255, 255, 255, 0.45);
+            background-color: #bcd8e0;
             flex-shrink: 0;
           }
           .footer-right-text {
             display: flex;
             flex-direction: column;
             gap: 2px;
-            color: #ffffff;
+            color: #006181;
             font-size: 8.5px;
             font-weight: 600;
             letter-spacing: 0.1px;
@@ -538,6 +548,7 @@ export async function GET(req: NextRequest) {
                 <div class="title-wrap">
                   <div class="title-text">PURCHASE ORDER</div>
                   <div class="title-underline"></div>
+                  <div class="title-sub">We Shape Your Ideas</div>
                 </div>
               </div>
 
@@ -664,7 +675,7 @@ export async function GET(req: NextRequest) {
               <!-- Left side: Pin + Divider + Company Name & Address -->
               <div class="footer-left">
                 <div class="footer-pin-icon">
-                  <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                  <svg width="14" height="17" viewBox="0 0 24 24" fill="#006181">
                     <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/>
                   </svg>
                 </div>
@@ -679,11 +690,11 @@ export async function GET(req: NextRequest) {
               <!-- Right side: Mail & Web Icons + Divider + Email & Website -->
               <div class="footer-right">
                 <div class="footer-right-icons">
-                  <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#006181" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="2" y="4" width="20" height="16" rx="2"/>
                     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                   </svg>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#006181" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
                     <path d="M2 12h20"/>

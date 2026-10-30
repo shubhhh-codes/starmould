@@ -15,7 +15,6 @@ import {
   RotateCcw,
   FileText,
   ChevronDown,
-  ArrowUpDown,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -49,29 +48,6 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
   const [hasInitializedZoom, setHasInitializedZoom] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isZoomDropdownOpen, setIsZoomDropdownOpen] = useState(false);
-  const [invertZoom, setInvertZoom] = useState<boolean>(false);
-  const invertZoomRef = useRef<boolean>(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("sm_doc_viewer_invert_zoom");
-      if (saved === "true") {
-        setInvertZoom(true);
-        invertZoomRef.current = true;
-      }
-    }
-  }, []);
-
-  const handleToggleInvertZoom = useCallback(() => {
-    setInvertZoom((prev) => {
-      const next = !prev;
-      invertZoomRef.current = next;
-      try {
-        localStorage.setItem("sm_doc_viewer_invert_zoom", String(next));
-      } catch {}
-      return next;
-    });
-  }, []);
 
   const mainRef = useRef<HTMLElement>(null);
   const sheetWrapperRef = useRef<HTMLDivElement>(null);
@@ -401,15 +377,12 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
         panRef.current.x -= 60;
         panRef.current = clampPan(panRef.current, zoomRef.current);
         applyTransformDirect(true);
-      } else if (e.key === "i" || e.key === "I") {
-        e.preventDefault();
-        handleToggleInvertZoom();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleZoomIn, handleZoomOut, handleResetZoom, handleFit, handleToggleInvertZoom, clampPan, applyTransformDirect]);
+  }, [handleZoomIn, handleZoomOut, handleResetZoom, handleFit, clampPan, applyTransformDirect]);
 
   // Direct Mouse Wheel Handler:
   // - Normal Wheel: Natural vertical & horizontal scroll / pan through document
@@ -450,10 +423,8 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
         const focalY = e.clientY - rect.top;
 
         const oldZoom = zoomRef.current;
-        // Invert zoom direction if user enabled Invert Zoom preference
-        const effectiveDeltaY = invertZoomRef.current ? -e.deltaY : e.deltaY;
         // Exponential zoom factor: smooth on trackpads, responsive on discrete wheel clicks
-        const zoomFactor = Math.exp(-effectiveDeltaY * 0.002);
+        const zoomFactor = Math.exp(-e.deltaY * 0.002);
         const newZoom = Math.min(3.5, Math.max(0.35, Number((oldZoom * zoomFactor).toFixed(3))));
         if (Math.abs(newZoom - oldZoom) < 0.001) return;
 
@@ -698,12 +669,18 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       const isChallan = type === "challan";
       const fileName = `${doc?.docNumber || (isQuotation ? "Quotation" : isDispatch ? "Delivery_Challan" : isChallan ? "Outward_Challan" : "Purchase_Order")}.pdf`;
 
+      const isToken = typeof id === "string" && id.includes(".");
+      const tokenParam = isToken ? `&token=${encodeURIComponent(id)}` : "";
+      const targetId = isToken ? id : (doc?.id || doc?.quote?.id || id);
+
       // Fetch pristine vector PDF from server Puppeteer engine
       const downloadUrl = isQuotation
-        ? `/api/download-quotation-pdf?id=${encodeURIComponent(doc?.id || doc?.quote?.id || id)}`
+        ? `/api/download-quotation-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
         : isDispatch
-        ? `/api/download-dispatch-pdf?id=${encodeURIComponent(id)}`
-        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`;
+        ? `/api/download-dispatch-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
+        : isChallan
+        ? `/api/download-challan-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
+        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(targetId)}${tokenParam}`;
       const res = await fetch(downloadUrl);
 
       if (!res.ok) {
@@ -877,8 +854,21 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
                 .print\\:hidden { display: none !important; }
                 .print\\:shadow-none { box-shadow: none !important; }
                 .print\\:border-none { border: none !important; }
-                .print\\:transform-none { transform: none !important; position: static !important; width: 794px !important; }
+                .print\\:transform-none { transform: none !important; position: static !important; width: 794px !important; height: auto !important; overflow: visible !important; }
                 .print\\:w-auto { width: auto !important; height: auto !important; }
+                main, [data-viewport-container], .min-h-screen {
+                  height: auto !important;
+                  min-height: 0 !important;
+                  max-height: none !important;
+                  overflow: visible !important;
+                  position: static !important;
+                  transform: none !important;
+                  padding: 0 !important;
+                  margin: 0 !important;
+                  background: transparent !important;
+                  box-shadow: none !important;
+                  border: none !important;
+                }
               }
             `,
           }}
@@ -978,27 +968,6 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
                         {preset === 1.0 && <span className="text-[10px] text-slate-400">100%</span>}
                       </button>
                     ))}
-                    <div className="h-px bg-slate-100 my-1" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleToggleInvertZoom();
-                      }}
-                      className="w-full text-left px-3 py-1.5 hover:bg-slate-100 flex items-center justify-between font-medium text-slate-700 transition"
-                      title="Invert mouse wheel zoom direction (I)"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <ArrowUpDown className={`w-3.5 h-3.5 ${invertZoom ? "text-amber-600" : "text-slate-400"}`} />
-                        <span>Invert Zoom</span>
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                          invertZoom ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-slate-100 text-slate-400"
-                        }`}
-                      >
-                        {invertZoom ? "ON" : "OFF"}
-                      </span>
-                    </button>
                   </div>
                 )}
               </div>
@@ -1015,23 +984,10 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               <button
                 type="button"
                 onClick={handleFit}
-                className="px-2 py-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-white transition cursor-pointer border-l border-slate-200 ml-0.5"
+                className="px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-white transition cursor-pointer border-l border-slate-200 ml-0.5"
                 title="Fit Document to Screen Width (F)"
               >
                 Fit
-              </button>
-
-              <button
-                type="button"
-                onClick={handleToggleInvertZoom}
-                className={`p-1.5 rounded-lg transition cursor-pointer active:scale-95 ml-0.5 border-l border-slate-200 ${
-                  invertZoom
-                    ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
-                    : "text-slate-400 hover:text-slate-700 hover:bg-white"
-                }`}
-                title={`Invert Zoom Direction (I): ${invertZoom ? "Inverted (Wheel down zooms in)" : "Normal (Wheel up zooms in)"}`}
-              >
-                <ArrowUpDown className="w-3.5 h-3.5" />
               </button>
             </div>
 
@@ -1097,7 +1053,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onDoubleClick={handleDoubleClick}
-          className="w-full relative overflow-hidden select-none touch-none h-[calc(100dvh-135px)] sm:h-[calc(100dvh-95px)] rounded-2xl bg-slate-200/50 border border-slate-200/70 shadow-inner cursor-grab active:cursor-grabbing print:h-auto print:overflow-visible print:border-none print:shadow-none print:bg-white print:cursor-auto"
+          className="w-full relative overflow-hidden select-none touch-none h-[calc(100dvh-135px)] sm:h-[calc(100dvh-95px)] rounded-2xl bg-slate-200/50 border border-slate-200/70 shadow-inner cursor-grab active:cursor-grabbing print:h-auto print:overflow-visible print:border-none print:shadow-none print:bg-white print:cursor-auto print:static print:max-h-none"
           style={{ overscrollBehavior: "none" }}
         >
           {/* Scaled Proportional Wrapper with Dynamic 2D Matrix GPU Transform */}
@@ -1113,14 +1069,14 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               willChange: isInteracting ? "transform" : "auto",
               transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
             }}
-            className="print:shadow-none print:border-none print:transform-none print:w-[794px] print:static"
+            className="print:shadow-none print:border-none print:transform-none print:w-[794px] print:static print:h-auto print:overflow-visible"
           >
             <div
               ref={sheetRef}
               className={
                 type === "quotation"
-                  ? "bg-transparent print:shadow-none print:border-none print:transform-none print:w-[794px] print:static"
-                  : "bg-white shadow-xl border border-slate-200/90 rounded-none sm:rounded-xl overflow-hidden print:shadow-none print:border-none print:transform-none print:w-[794px] print:static print:rounded-none"
+                  ? "bg-transparent print:shadow-none print:border-none print:transform-none print:w-[794px] print:static print:h-auto print:overflow-visible"
+                  : "bg-white shadow-xl border border-slate-200/90 rounded-none sm:rounded-xl overflow-hidden print:shadow-none print:border-none print:transform-none print:w-[794px] print:static print:rounded-none print:h-auto print:overflow-visible"
               }
             >
               {type === "quotation" ? (
@@ -1290,22 +1246,6 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
             title="Fit to Width (F)"
           >
             Fit
-          </button>
-
-          <div className="w-px h-5 bg-slate-200 mx-0.5" />
-
-          <button
-            type="button"
-            onClick={handleToggleInvertZoom}
-            className={`px-2 py-1 text-xs font-semibold rounded-xl transition cursor-pointer flex items-center gap-1 ${
-              invertZoom
-                ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
-                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-            }`}
-            title={`Toggle Invert Zoom Direction (I): ${invertZoom ? "Inverted (Scroll down = Zoom in)" : "Normal (Scroll up = Zoom in)"}`}
-          >
-            <ArrowUpDown className="w-3.5 h-3.5" />
-            <span className="text-[11px] font-medium">{invertZoom ? "Inverted" : "Normal"}</span>
           </button>
         </aside>
       </div>

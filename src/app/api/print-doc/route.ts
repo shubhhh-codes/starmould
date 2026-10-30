@@ -320,9 +320,12 @@ export async function GET(req: NextRequest) {
         projectCode: dispatch.projectid,
         items: items.map((it: any, idx: number) => {
           const sp = it.plateid ? plateMap.get(it.plateid) : null;
+          const componentName = it.custom_plate_name || sp?.platename || "Mould Tooling Component";
           return {
             srNo: idx + 1,
-            particulars: it.custom_plate_name || sp?.platename || it.particulars || "Mould Tooling Component",
+            componentName,
+            particulars: componentName,
+            specifications: it.particulars || "",
             subprojectId: sp?.subprojectid || null,
             material: sp?.material || null,
             projectCode: it.project || dispatch.projectid || "",

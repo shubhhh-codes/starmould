@@ -291,13 +291,13 @@ export async function GET(req: NextRequest) {
           .footer-wrap { width: 794px; margin-top: auto; }
           .footer-navy {
             width: 794px; padding: 8px 36px; display: flex; align-items: center; justify-content: space-between;
-            background-color: #1b2537; color: #ffffff;
+            background-color: #e6f2f6; border-top: 1px solid #bcd8e0; color: #1f2a30;
           }
           .footer-left { display: flex; align-items: center; gap: 10px; }
-          .footer-divider { width: 1px; height: 34px; background-color: rgba(255,255,255,0.4); }
+          .footer-divider { width: 1px; height: 34px; background-color: #bcd8e0; }
           .footer-addr { display: flex; flex-direction: column; line-height: 1.25; }
           .footer-right { display: flex; align-items: center; gap: 9px; }
-          .footer-contact { display: flex; flex-direction: column; line-height: 1.3; font-size: 8.5px; font-weight: 600; }
+          .footer-contact { display: flex; flex-direction: column; line-height: 1.3; font-size: 8.5px; font-weight: 600; color: #006181; }
           .footer-white-space { width: 794px; height: 14px; background-color: #ffffff; }
         </style>
       </head>
@@ -319,7 +319,7 @@ export async function GET(req: NextRequest) {
                 <div class="title-wrap">
                   <div class="title-main">JOB WORK CHALLAN</div>
                   <div class="title-underline"></div>
-                  <div class="title-sub">Outward Delivery / Job Work Under Section 143</div>
+                  <div class="title-sub">We Shape Your Ideas</div>
                 </div>
               </div>
 
@@ -452,25 +452,25 @@ export async function GET(req: NextRequest) {
             <div class="footer-navy">
               <div class="footer-left">
                 <div style="display: flex; align-items: center; justify-content: center;">
-                  <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                  <svg width="14" height="17" viewBox="0 0 24 24" fill="#006181">
                     <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
                   </svg>
                 </div>
                 <div class="footer-divider"></div>
                 <div class="footer-addr">
-                  <span style="font-size: 9.5px; font-weight: 700; letter-spacing: -0.2px;">Starmould Technology Private Limited</span>
-                  <span style="font-size: 8px; color: rgba(255,255,255,0.9);">G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</span>
-                  <span style="font-size: 8px; color: rgba(255,255,255,0.9);">Rajkot-360 021. (Gujarat) INDIA.</span>
+                  <span style="font-size: 9.5px; font-weight: 700; letter-spacing: -0.2px; color: #006181;">Starmould Technology Private Limited</span>
+                  <span style="font-size: 8px; color: #475569; font-weight: 500;">G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</span>
+                  <span style="font-size: 8px; color: #475569; font-weight: 500;">Rajkot-360 021. (Gujarat) INDIA.</span>
                 </div>
               </div>
 
               <div class="footer-right">
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;">
-                  <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#006181" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="2" y="4" width="20" height="16" rx="2" />
                     <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                   </svg>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#006181" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10" />
                     <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
                     <path d="M2 12h20" />

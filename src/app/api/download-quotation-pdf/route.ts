@@ -531,7 +531,7 @@ export async function GET(req: NextRequest) {
       <div class="footer-wrap">
         <div class="footer-navy-bar">
           <div class="footer-left">
-            <svg width="13" height="16" viewBox="0 0 24 24" fill="#ffffff">
+            <svg width="13" height="16" viewBox="0 0 24 24" fill="#006181">
               <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
             </svg>
             <div class="footer-divider-left"></div>
@@ -544,9 +544,22 @@ export async function GET(req: NextRequest) {
           <div class="footer-right">
             <div class="page-badge">Page ${pageNo} of ${totalPages}</div>
             <div class="footer-divider-right"></div>
-            <div class="footer-right-text">
-              <div>${COMPANY.email}</div>
-              <div>${COMPANY.website}</div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 5px;">
+                <svg width="11" height="9" viewBox="0 0 24 24" fill="none" stroke="#006181" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="4" width="20" height="16" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#006181" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
+              </div>
+              <div class="footer-right-text">
+                <div>${COMPANY.email}</div>
+                <div>${COMPANY.website}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -645,6 +658,15 @@ export async function GET(req: NextRequest) {
             width: 175px;
             background-color: #62676b;
             margin-left: auto;
+          }
+          .title-sub {
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #62676b;
+            letter-spacing: 0.8px;
+            margin-top: 6px;
+            text-align: right;
           }
           .info-box {
             width: 710px;
@@ -840,11 +862,12 @@ export async function GET(req: NextRequest) {
           .footer-navy-bar {
             width: 794px;
             padding: 7px 36px;
-            background-color: #1b2537;
+            background-color: #e6f2f6;
+            border-top: 1px solid #bcd8e0;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            color: #ffffff;
+            color: #1f2a30;
           }
           .footer-left {
             display: flex;
@@ -854,17 +877,19 @@ export async function GET(req: NextRequest) {
           .footer-divider-left {
             width: 1px;
             height: 32px;
-            background-color: rgba(255, 255, 255, 0.4);
+            background-color: #bcd8e0;
           }
           .footer-comp-name {
             font-size: 9px;
             font-weight: 700;
             letter-spacing: -0.2px;
+            color: #006181;
           }
           .footer-comp-addr {
             font-size: 7.5px;
-            color: rgba(255, 255, 255, 0.9);
+            color: #475569;
             line-height: 1.25;
+            font-weight: 500;
           }
           .footer-right {
             display: flex;
@@ -874,13 +899,14 @@ export async function GET(req: NextRequest) {
           .footer-divider-right {
             width: 1px;
             height: 26px;
-            background-color: rgba(255, 255, 255, 0.4);
+            background-color: #bcd8e0;
           }
           .footer-right-text {
             font-size: 8px;
             font-weight: 600;
             letter-spacing: 0.3px;
             line-height: 1.3;
+            color: #006181;
           }
           .bottom-white-margin {
             width: 794px;
@@ -890,8 +916,9 @@ export async function GET(req: NextRequest) {
           .page-badge {
             font-size: 8.5px;
             font-weight: 600;
-            color: rgba(255, 255, 255, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #006181;
+            background-color: #ffffff;
+            border: 1px solid #bcd8e0;
             border-radius: 4px;
             padding: 1px 6px;
           }
@@ -1162,6 +1189,7 @@ export async function GET(req: NextRequest) {
                 <div>
                   <div class="title-text">QUOTATION</div>
                   <div class="title-underline"></div>
+                  <div class="title-sub">We Shape Your Ideas</div>
                 </div>
               </div>
 

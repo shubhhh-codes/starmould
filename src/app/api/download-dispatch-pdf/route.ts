@@ -155,42 +155,44 @@ export async function GET(req: NextRequest) {
       ? `<tr><td colspan="6" style="height: 46px; text-align: center; color: #94a3b8; font-style: italic;">No items listed in this challan.</td></tr>`
       : items.map((it: any, idx: number) => {
           const sp = it.plateid ? plateMap.get(it.plateid) : null;
-          const desc = escapeHtml(it.custom_plate_name || sp?.platename || it.particulars || "Mould Component");
+          const componentName = escapeHtml(it.custom_plate_name || sp?.platename || "Mould Component");
+          const specs = escapeHtml(it.particulars || "");
           const subCode = escapeHtml(sp?.subprojectid || "");
           const mat = escapeHtml(sp?.material || "");
           const prj = escapeHtml(it.project || projectCode);
           const cond = escapeHtml(it.condition || "NEW");
           const work = escapeHtml(it.work || "NEW MADE");
           const qty = Number(it.qty) || 1;
-          const bg = idx % 2 === 0 ? "#f3f9fb" : "#ffffff";
 
           return `
-            <tr style="background-color: ${bg};">
-              <td style="height: 44px; padding: 0 8px; text-align: center; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
+            <tr style="background-color: #ffffff; page-break-inside: avoid;">
+              <td style="min-height: 44px; padding: 10px 8px; text-align: center; vertical-align: middle; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
                 ${idx + 1}
               </td>
-              <td style="height: 44px; padding: 0 14px; text-align: left; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0;">
-                <div style="font-weight: 600; font-size: 10px; color: #1f2a30;">${desc}</div>
-                ${subCode || mat ? `
-                  <div style="font-size: 8.5px; margin-top: 1px; color: #62676b;">
+              <td style="min-height: 44px; padding: 10px 14px; text-align: left; vertical-align: top; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0;">
+                <div style="font-weight: 700; font-size: 10px; line-height: 1.3; color: #1f2a30;">${componentName}</div>
+                ${specs ? `
+                  <div style="font-size: 8.5px; margin-top: 3px; color: #3d4a52; white-space: pre-line; line-height: 1.45; word-break: break-word;">
+                    ${specs}
+                  </div>
+                ` : (subCode || mat) ? `
+                  <div style="font-size: 8.5px; margin-top: 2px; color: #62676b;">
                     ${subCode ? `<span style="font-family: monospace;">${subCode}</span>` : ""}
                     ${subCode && mat ? " • " : ""}
                     ${mat ? `<span>Material: ${mat}</span>` : ""}
                   </div>
                 ` : ""}
               </td>
-              <td style="height: 44px; padding: 0 8px; text-align: center; font-family: monospace; font-weight: 500; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
+              <td style="min-height: 44px; padding: 10px 8px; text-align: center; vertical-align: middle; font-family: monospace; font-weight: 500; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #3d4a52;">
                 ${prj}
               </td>
-              <td style="height: 44px; padding: 0 8px; text-align: center; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0;">
-                <span style="padding: 2px 6px; border-radius: 4px; font-size: 8.5px; font-weight: 700; background-color: #e0f2fe; color: #0369a1; text-transform: uppercase;">
-                  ${cond}
-                </span>
+              <td style="min-height: 44px; padding: 10px 8px; text-align: center; vertical-align: middle; font-weight: 500; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; font-size: 9px; text-transform: uppercase; color: #3d4a52;">
+                ${cond}
               </td>
-              <td style="height: 44px; padding: 0 8px; text-align: center; font-weight: 500; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; font-size: 9px; color: #3d4a52;">
+              <td style="min-height: 44px; padding: 10px 8px; text-align: center; vertical-align: middle; font-weight: 500; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; font-size: 9px; color: #3d4a52;">
                 ${work}
               </td>
-              <td style="height: 44px; padding: 0 12px; text-align: center; font-weight: 700; border-top: 1px solid #bcd8e0; font-size: 11px; color: #006181;">
+              <td style="min-height: 44px; padding: 10px 12px; text-align: center; vertical-align: middle; font-weight: 700; border-top: 1px solid #bcd8e0; font-size: 11px; color: #006181;">
                 ${qty}
               </td>
             </tr>
@@ -250,16 +252,25 @@ export async function GET(req: NextRequest) {
           .info-val { font-size: 12px; font-weight: 500; color: #33414a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
           .logistics-bar {
-            width: 710px; border-radius: 10px; border: 1px solid #bcd8e0; background-color: #ffffff;
-            padding: 8px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 10px;
+            width: 710px; min-height: 54px; border-radius: 12px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
+            display: flex; overflow: hidden; margin-bottom: 16px;
           }
-          .log-label { font-weight: 700; font-size: 8.5px; text-transform: uppercase; color: #006181; letter-spacing: 0.5px; }
-          .badge-freight { padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 9px; }
+          .logistics-cell { padding: 6px 12px; display: flex; flex-direction: column; justify-content: center; border-right: 1px solid #bcd8e0; min-width: 0; }
+          .logistics-cell:last-child { border-right: none; }
+          .logistics-cell.col-transporter { flex: 1.6; }
+          .logistics-cell.col-mode { flex: 1.1; }
+          .logistics-cell.col-freight { flex: 0.75; }
+          .logistics-cell.col-cases { flex: 0.75; }
+          .logistics-cell.col-project { flex: 1.0; }
+          .logistics-label { font-size: 8px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: #006181; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .logistics-val { font-size: 11px; font-weight: 500; color: #33414a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .logistics-val-wrap { font-size: 10.5px; font-weight: 500; color: #33414a; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
 
           .party-card { width: 710px; margin-bottom: 20px; }
-          .party-head { display: flex; height: 36px; background-color: #006181; }
-          .party-head-cell { flex: 1; display: flex; align-items: center; padding: 0 16px; color: #ffffff; font-weight: 600; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; }
-          .party-body { display: flex; background: #ffffff; border-left: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; border-bottom: 1px solid #bcd8e0; }
+          .party-head { display: flex; height: 36px; background-color: transparent; border: 1px solid #bcd8e0; border-bottom: none; }
+          .party-head-cell { flex: 1; display: flex; align-items: center; padding: 0 16px; color: #006181; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; }
+          .party-head-cell:first-child { border-right: 1px solid #bcd8e0; }
+          .party-body { display: flex; background: #ffffff; border: 1px solid #bcd8e0; }
           .party-col { flex: 1; padding: 12px 16px; font-size: 10px; line-height: 1.5; color: #3d4a52; }
           .party-col:first-child { border-right: 1px solid #bcd8e0; }
           .party-name { font-weight: 700; font-size: 11.5px; margin-bottom: 2px; color: #1f2a30; }
@@ -271,16 +282,16 @@ export async function GET(req: NextRequest) {
           }
           .table-box { width: 710px; border: 1px solid #bcd8e0; overflow: hidden; margin-bottom: 18px; }
           table { width: 100%; border-collapse: collapse; font-size: 9.5px; }
-          thead tr { background-color: #006181; color: #ffffff; }
-          thead th { height: 36px; padding: 0 8px; font-weight: 600; font-size: 9.5px; border-right: 1px solid rgba(255,255,255,0.4); }
+          thead tr { background-color: transparent; border-bottom: 1px solid #bcd8e0; }
+          thead th { height: 36px; padding: 0 8px; font-weight: 700; font-size: 9.5px; border-right: 1px solid #bcd8e0; color: #006181; }
           thead th:last-child { border-right: none; }
-          .tot-row { background-color: #e6f2f6; font-weight: 700; }
+          .tot-row { background-color: #ffffff; font-weight: 700; }
           .tot-label { height: 34px; padding: 0 16px; text-align: right; text-transform: uppercase; font-size: 9.5px; border-top: 1px solid #bcd8e0; color: #006181; }
           .tot-val { height: 34px; padding: 0 12px; text-align: center; font-weight: 700; font-size: 12px; border-top: 1px solid #bcd8e0; color: #006181; }
 
           .terms-card { width: 710px; margin-bottom: 18px; }
-          .terms-head { height: 34px; padding: 0 16px; display: flex; align-items: center; color: #ffffff; font-weight: 600; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; background-color: #006181; }
-          .terms-body { padding: 10px 16px; font-size: 9px; line-height: 1.6; border-left: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; border-bottom: 1px solid #bcd8e0; background-color: #ffffff; color: #3d4a52; }
+          .terms-head { height: 34px; padding: 0 16px; display: flex; align-items: center; color: #006181; font-weight: 700; font-size: 10.5px; letter-spacing: 0.5px; text-transform: uppercase; background-color: transparent; border: 1px solid #bcd8e0; border-bottom: none; }
+          .terms-body { padding: 10px 16px; font-size: 9px; line-height: 1.6; border: 1px solid #bcd8e0; background-color: #ffffff; color: #3d4a52; }
 
           .sign-card {
             width: 710px; height: 98px; border-radius: 12px; border: 1px solid #bcd8e0; background-color: #f3f9fb;
@@ -289,11 +300,11 @@ export async function GET(req: NextRequest) {
           .sign-top { display: flex; justify-content: space-between; font-weight: 700; font-size: 8.5px; letter-spacing: 0.5px; text-transform: uppercase; color: #006181; }
           .sign-bottom { display: flex; justify-content: space-between; align-items: flex-end; font-size: 9px; color: #4a575e; }
 
-          .footer-navy { width: 794px; padding: 8px 36px; background-color: #1b2537; display: flex; align-items: center; justify-content: space-between; color: #ffffff; margin-top: auto; }
+          .footer-navy { width: 794px; padding: 8px 36px; background-color: #e6f2f6; border-top: 1px solid #bcd8e0; display: flex; align-items: center; justify-content: space-between; color: #1f2a30; margin-top: auto; }
           .footer-left { display: flex; align-items: center; gap: 10px; }
-          .footer-divider { width: 1px; height: 34px; background-color: rgba(255,255,255,0.4); }
+          .footer-divider { width: 1px; height: 34px; background-color: #bcd8e0; }
           .footer-right { display: flex; align-items: center; gap: 9px; }
-          .footer-right-text { font-size: 8.5px; font-weight: 600; line-height: 1.3; }
+          .footer-right-text { font-size: 8.5px; font-weight: 600; line-height: 1.3; color: #006181; }
           .bottom-white { width: 794px; height: 14px; background: #ffffff; }
         </style>
       </head>
@@ -312,7 +323,7 @@ export async function GET(req: NextRequest) {
                 <div class="title-text">
                   <div class="title-main">DELIVERY CHALLAN</div>
                   <div class="title-underline"></div>
-                  <div class="title-sub">Finished Mould &amp; Tooling Movement</div>
+                  <div class="title-sub">We Shape Your Ideas</div>
                 </div>
               </div>
 
@@ -338,16 +349,26 @@ export async function GET(req: NextRequest) {
 
               <!-- Logistics Bar -->
               <div class="logistics-bar">
-                <div><span class="log-label">Transporter: </span>${transporterName}</div>
-                <div><span class="log-label">Delivery Mode: </span>${deliveryType}</div>
-                <div>
-                  <span class="log-label">Freight: </span>
-                  <span class="badge-freight" style="background-color: ${freightMode === "Paid" ? "#ecfdf5" : "#fffbeb"}; color: ${freightMode === "Paid" ? "#047857" : "#b45309"};">
-                    ${freightMode}
-                  </span>
+                <div class="logistics-cell col-transporter">
+                  <div class="logistics-label">TRANSPORTER</div>
+                  <div class="logistics-val-wrap" title="${transporterName}">${transporterName}</div>
                 </div>
-                <div><span class="log-label">No. of Cases: </span>${noOfCases}</div>
-                <div><span class="log-label">Project Code: </span><span style="font-family: monospace; font-weight: 700; color: #006181;">${projectCode}</span></div>
+                <div class="logistics-cell col-mode">
+                  <div class="logistics-label">DELIVERY MODE</div>
+                  <div class="logistics-val">${deliveryType}</div>
+                </div>
+                <div class="logistics-cell col-freight">
+                  <div class="logistics-label">FREIGHT</div>
+                  <div class="logistics-val">${freightMode}</div>
+                </div>
+                <div class="logistics-cell col-cases">
+                  <div class="logistics-label">NO. OF CASES</div>
+                  <div class="logistics-val">${noOfCases}</div>
+                </div>
+                <div class="logistics-cell col-project">
+                  <div class="logistics-label">PROJECT CODE</div>
+                  <div class="logistics-val" style="font-family: monospace; font-weight: 700; color: #006181;">${projectCode}</div>
+                </div>
               </div>
 
               <!-- Party Section -->
@@ -434,14 +455,14 @@ export async function GET(req: NextRequest) {
           <div>
             <div class="footer-navy">
               <div class="footer-left">
-                <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                <svg width="14" height="17" viewBox="0 0 24 24" fill="#006181">
                   <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
                 </svg>
                 <div class="footer-divider"></div>
                 <div style="font-size: 8px; line-height: 1.25;">
-                  <div style="font-size: 9.5px; font-weight: 700;">Starmould Technology Private Limited</div>
-                  <div>G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</div>
-                  <div>Rajkot-360 021. (Gujarat) INDIA.</div>
+                  <div style="font-size: 9.5px; font-weight: 700; color: #006181;">Starmould Technology Private Limited</div>
+                  <div style="color: #475569; font-weight: 500;">G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,</div>
+                  <div style="color: #475569; font-weight: 500;">Rajkot-360 021. (Gujarat) INDIA.</div>
                 </div>
               </div>
               <div class="footer-right">

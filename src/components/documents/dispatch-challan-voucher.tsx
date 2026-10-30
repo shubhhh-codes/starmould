@@ -6,6 +6,8 @@ import { Printer, X } from "lucide-react";
 export interface DispatchItem {
   srNo?: number;
   particulars?: string;
+  componentName?: string;
+  specifications?: string;
   subprojectId?: string | null;
   material?: string | null;
   projectCode?: string;
@@ -257,7 +259,7 @@ export function DispatchChallanVoucher({
                   style={{ backgroundColor: GREY_LINE }}
                 />
                 <div className="text-[9px] font-semibold tracking-wider uppercase mt-[6px]" style={{ color: GREY_LINE }}>
-                  Finished Mould &amp; Tooling Movement
+                  We Shape Your Ideas
                 </div>
               </div>
             </div>
@@ -300,61 +302,68 @@ export function DispatchChallanVoucher({
             </div>
 
             {/* ──────────────────────────────────────────────────────────────────
-                3. DISPATCH LOGISTICS PILL BAR
+                3. DISPATCH LOGISTICS BAR — Transporter | Mode | Freight | Cases | Project
                 ────────────────────────────────────────────────────────────────── */}
             <div
-              className="w-[710px] rounded-[10px] border px-[16px] py-[8px] mb-[20px] flex items-center justify-between text-[10px]"
+              className="w-[710px] min-h-[54px] rounded-[12px] border flex overflow-hidden mb-[16px]"
               style={{
                 borderColor: TEAL_BORDER,
-                backgroundColor: "#ffffff",
+                backgroundColor: TEAL_LIGHT,
               }}
             >
-              <div>
-                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
-                  Transporter:&nbsp;
-                </span>
-                <span className="font-medium" style={{ color: TEXT_DARK }}>
-                  {dispatch.transporter || "Self / Hand to Hand"}
-                </span>
-              </div>
-              <div>
-                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
-                  Delivery Mode:&nbsp;
-                </span>
-                <span className="font-medium" style={{ color: TEXT_DARK }}>
-                  {dispatch.deliveryType || "Door Delivery"}
-                </span>
-              </div>
-              <div>
-                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
-                  Freight:&nbsp;
-                </span>
-                <span
-                  className="font-bold px-1.5 py-0.2 rounded text-[9px]"
-                  style={{
-                    backgroundColor: dispatch.freightMode === "Paid" ? "#ecfdf5" : "#fffbeb",
-                    color: dispatch.freightMode === "Paid" ? "#047857" : "#b45309",
-                  }}
+              {[
+                {
+                  label: "TRANSPORTER",
+                  value: dispatch.transporter || "Self / Hand to Hand",
+                  flex: "flex-[1.6]",
+                  isWrap: true,
+                },
+                {
+                  label: "DELIVERY MODE",
+                  value: dispatch.deliveryType || "Door Delivery",
+                  flex: "flex-[1.1]",
+                },
+                {
+                  label: "FREIGHT",
+                  value: dispatch.freightMode || "To Pay",
+                  flex: "flex-[0.75]",
+                },
+                {
+                  label: "NO. OF CASES",
+                  value: dispatch.noOfCases || "1",
+                  flex: "flex-[0.75]",
+                },
+                {
+                  label: "PROJECT CODE",
+                  value: dispatch.projectCode || "—",
+                  flex: "flex-[1.0]",
+                  isMono: true,
+                },
+              ].map(({ label, value, flex, isWrap, isMono }) => (
+                <div
+                  key={label}
+                  className={`${flex} px-[12px] py-[6px] flex flex-col justify-center border-r last:border-r-0 min-w-0`}
+                  style={{ borderColor: TEAL_BORDER }}
+                  title={value}
                 >
-                  {dispatch.freightMode || "To Pay"}
-                </span>
-              </div>
-              <div>
-                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
-                  No. of Cases:&nbsp;
-                </span>
-                <span className="font-bold" style={{ color: TEXT_DARK }}>
-                  {dispatch.noOfCases || "1"}
-                </span>
-              </div>
-              <div>
-                <span className="font-bold text-[8.5px] uppercase tracking-wider" style={{ color: TEAL_PRIMARY }}>
-                  Project Code:&nbsp;
-                </span>
-                <span className="font-bold font-mono text-[9.5px]" style={{ color: TEAL_PRIMARY }}>
-                  {dispatch.projectCode || "—"}
-                </span>
-              </div>
+                  <div
+                    className="text-[8px] font-bold tracking-[0.5px] uppercase mb-[2px] truncate"
+                    style={{ color: TEAL_PRIMARY }}
+                  >
+                    {label}
+                  </div>
+                  <div
+                    className={`font-medium ${
+                      isWrap
+                        ? "line-clamp-2 leading-[1.25] text-[10.5px] break-words"
+                        : "truncate text-[11.5px]"
+                    } ${isMono ? "font-mono font-bold" : ""}`}
+                    style={{ color: isMono ? TEAL_PRIMARY : "#33414a" }}
+                  >
+                    {value}
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* ──────────────────────────────────────────────────────────────────
@@ -362,11 +371,23 @@ export function DispatchChallanVoucher({
                 ────────────────────────────────────────────────────────────────── */}
             <div className="w-[710px] mb-[20px]">
               {/* Header bar */}
-              <div className="flex h-[36px]" style={{ backgroundColor: TEAL_PRIMARY }}>
-                <div className="flex-1 flex items-center px-[16px] text-white font-semibold text-[10.5px] tracking-[0.5px] uppercase">
+              <div
+                className="flex h-[36px] border-t border-x border-b"
+                style={{
+                  backgroundColor: "transparent",
+                  borderColor: TEAL_BORDER,
+                }}
+              >
+                <div
+                  className="flex-1 flex items-center px-[16px] font-bold text-[10.5px] tracking-[0.5px] uppercase border-r"
+                  style={{ color: TEAL_PRIMARY, borderColor: TEAL_BORDER }}
+                >
                   CONSIGNEE (DELIVER TO)
                 </div>
-                <div className="flex-1 flex items-center px-[16px] text-white font-semibold text-[10.5px] tracking-[0.5px] uppercase">
+                <div
+                  className="flex-1 flex items-center px-[16px] font-bold text-[10.5px] tracking-[0.5px] uppercase"
+                  style={{ color: TEAL_PRIMARY }}
+                >
                   CONSIGNOR (DISPATCHED FROM)
                 </div>
               </div>
@@ -441,23 +462,47 @@ export function DispatchChallanVoucher({
               >
                 <table className="w-full border-collapse text-[9.5px]">
                   <thead>
-                    <tr className="text-white" style={{ backgroundColor: TEAL_PRIMARY }}>
-                      <th className="h-[36px] px-[8px] text-center w-[38px] border-r border-white/40 font-semibold text-[9.5px]">
+                    <tr
+                      className="border-b"
+                      style={{
+                        backgroundColor: "transparent",
+                        borderColor: TEAL_BORDER,
+                      }}
+                    >
+                      <th
+                        className="h-[36px] px-[8px] text-center w-[38px] border-r font-bold text-[9.5px]"
+                        style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                      >
                         #
                       </th>
-                      <th className="h-[36px] px-[12px] text-left w-[320px] border-r border-white/40 font-semibold text-[9.5px]">
+                      <th
+                        className="h-[36px] px-[12px] text-left w-[320px] border-r font-bold text-[9.5px]"
+                        style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                      >
                         Component / Tooling Description
                       </th>
-                      <th className="h-[36px] px-[8px] text-center w-[120px] border-r border-white/40 font-semibold text-[9.5px]">
+                      <th
+                        className="h-[36px] px-[8px] text-center w-[120px] border-r font-bold text-[9.5px]"
+                        style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                      >
                         Mould Project
                       </th>
-                      <th className="h-[36px] px-[8px] text-center w-[75px] border-r border-white/40 font-semibold text-[9.5px]">
+                      <th
+                        className="h-[36px] px-[8px] text-center w-[75px] border-r font-bold text-[9.5px]"
+                        style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                      >
                         Condition
                       </th>
-                      <th className="h-[36px] px-[8px] text-center w-[95px] border-r border-white/40 font-semibold text-[9.5px]">
+                      <th
+                        className="h-[36px] px-[8px] text-center w-[95px] border-r font-bold text-[9.5px]"
+                        style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
+                      >
                         Work Nature
                       </th>
-                      <th className="h-[36px] px-[12px] text-center w-[62px] font-semibold text-[9.5px]">
+                      <th
+                        className="h-[36px] px-[12px] text-center w-[62px] font-bold text-[9.5px]"
+                        style={{ color: TEAL_PRIMARY }}
+                      >
                         Qty
                       </th>
                     </tr>
@@ -472,7 +517,8 @@ export function DispatchChallanVoucher({
                     ) : (
                       items.map((it, idx) => {
                         const qty = Number(it.qty) || 1;
-                        const desc = it.particulars || "Mould Component";
+                        const title = it.componentName || it.particulars || "Mould Component";
+                        const specs = it.specifications || (it.componentName && it.particulars !== it.componentName ? it.particulars : "");
                         const subCode = it.subprojectId;
                         const mat = it.material;
                         const prj = it.projectCode || dispatch.projectCode || "—";
@@ -483,55 +529,57 @@ export function DispatchChallanVoucher({
                           <tr
                             key={idx}
                             style={{
-                              backgroundColor: idx % 2 === 0 ? TEAL_LIGHT : "#ffffff",
+                              backgroundColor: "#ffffff",
                             }}
                           >
                             <td
-                              className="h-[44px] px-[8px] text-center border-t border-r"
+                              className="py-[10px] px-[8px] text-center border-t border-r align-middle"
                               style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
                             >
                               {idx + 1}
                             </td>
                             <td
-                              className="h-[44px] px-[14px] text-left border-t border-r"
+                              className="py-[10px] px-[14px] text-left border-t border-r align-top"
                               style={{ borderColor: TEAL_BORDER }}
                             >
-                              <div className="font-semibold text-[10px]" style={{ color: TEXT_DARK }}>
-                                {desc}
+                              <div className="font-bold text-[10px] leading-snug" style={{ color: TEXT_DARK }}>
+                                {title}
                               </div>
-                              {(subCode || mat) && (
-                                <div className="text-[8.5px] mt-[1px] flex items-center gap-2" style={{ color: GREY_LINE }}>
+                              {specs ? (
+                                <div
+                                  className="text-[8.5px] mt-1 whitespace-pre-line leading-relaxed font-normal"
+                                  style={{ color: TEXT_MUTED }}
+                                >
+                                  {specs}
+                                </div>
+                              ) : (subCode || mat) ? (
+                                <div className="text-[8.5px] mt-[2px] flex items-center gap-2" style={{ color: GREY_LINE }}>
                                   {subCode && <span className="font-mono">{subCode}</span>}
                                   {subCode && mat && <span>•</span>}
                                   {mat && <span>Material: {mat}</span>}
                                 </div>
-                              )}
+                              ) : null}
                             </td>
                             <td
-                              className="h-[44px] px-[8px] text-center font-mono font-medium border-t border-r"
+                              className="py-[10px] px-[8px] text-center font-mono font-medium border-t border-r align-middle"
                               style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
                             >
                               {prj}
                             </td>
                             <td
-                              className="h-[44px] px-[8px] text-center border-t border-r"
-                              style={{ borderColor: TEAL_BORDER }}
+                              className="py-[10px] px-[8px] text-center font-medium border-t border-r text-[9px] uppercase tracking-wider align-middle"
+                              style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
                             >
-                              <span
-                                className="px-1.5 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider"
-                                style={{ backgroundColor: "#e0f2fe", color: "#0369a1" }}
-                              >
-                                {cond}
-                              </span>
+                              {cond}
                             </td>
                             <td
-                              className="h-[44px] px-[8px] text-center font-medium border-t border-r text-[9px]"
+                              className="py-[10px] px-[8px] text-center font-medium border-t border-r text-[9px] align-middle"
                               style={{ borderColor: TEAL_BORDER, color: TEXT_MUTED }}
                             >
                               {workNature}
                             </td>
                             <td
-                              className="h-[44px] px-[12px] text-center font-bold border-t text-[11px]"
+                              className="py-[10px] px-[12px] text-center font-bold border-t text-[11px] align-middle"
                               style={{ borderColor: TEAL_BORDER, color: TEAL_PRIMARY }}
                             >
                               {qty}
@@ -541,7 +589,7 @@ export function DispatchChallanVoucher({
                       })
                     )}
                     {/* Total Row */}
-                    <tr style={{ backgroundColor: "#e6f2f6", fontWeight: 700 }}>
+                    <tr style={{ backgroundColor: "#ffffff", fontWeight: 700 }}>
                       <td
                         colSpan={5}
                         className="h-[34px] px-[16px] text-right uppercase tracking-wider text-[9.5px] border-t"
@@ -567,8 +615,12 @@ export function DispatchChallanVoucher({
             <div className="w-[710px] mb-[18px]">
               {/* Header */}
               <div
-                className="h-[34px] px-[16px] flex items-center text-white font-semibold text-[10.5px] tracking-[0.5px] uppercase"
-                style={{ backgroundColor: TEAL_PRIMARY }}
+                className="h-[34px] px-[16px] flex items-center font-bold text-[10.5px] tracking-[0.5px] uppercase border-t border-x border-b"
+                style={{
+                  backgroundColor: "transparent",
+                  borderColor: TEAL_BORDER,
+                  color: TEAL_PRIMARY,
+                }}
               >
                 DELIVERY TERMS &amp; CONDITIONS
               </div>
@@ -633,41 +685,41 @@ export function DispatchChallanVoucher({
 
         {/* ── BOTTOM DECORATIVE FOOTER BAR (Matches Starmould Letterhead Design) ───── */}
         <div className="w-[794px] mt-auto">
-          {/* Main Dark Navy Footer Bar */}
+          {/* Main Light Clean Footer Bar (Saves Carbon & Ink) */}
           <div
-            className="w-[794px] px-[36px] py-[8px] flex items-center justify-between text-white"
-            style={{ backgroundColor: "#1b2537" }}
+            className="w-[794px] px-[36px] py-[8px] flex items-center justify-between border-t"
+            style={{ backgroundColor: "#e6f2f6", borderColor: "#bcd8e0" }}
           >
             {/* Left side: Location Pin + Divider + Company Name & Full Address */}
             <div className="flex items-center gap-[10px]">
               <div className="shrink-0 flex items-center justify-center">
-                <svg width="14" height="17" viewBox="0 0 24 24" fill="#ffffff">
+                <svg width="14" height="17" viewBox="0 0 24 24" fill="#006181">
                   <path d="M12 0C7.58 0 4 3.58 4 8c0 5.25 8 13 8 13s8-7.75 8-13c0-4.42-3.58-8-8-8zm0 11c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z" />
                 </svg>
               </div>
-              <div className="w-[1px] h-[34px] bg-white/40 shrink-0" />
-              <div className="flex flex-col text-white leading-[1.25]">
-                <span className="text-[9.5px] font-bold tracking-tight">{COMPANY.displayName}</span>
-                <span className="text-[8px] text-white/90">{COMPANY.address1}</span>
-                <span className="text-[8px] text-white/90">{COMPANY.address2}</span>
+              <div className="w-[1px] h-[34px] bg-[#bcd8e0] shrink-0" />
+              <div className="flex flex-col leading-[1.25]">
+                <span className="text-[9.5px] font-bold tracking-tight text-[#006181]">{COMPANY.displayName}</span>
+                <span className="text-[8px] text-slate-600 font-medium">{COMPANY.address1}</span>
+                <span className="text-[8px] text-slate-600 font-medium">{COMPANY.address2}</span>
               </div>
             </div>
 
             {/* Right side: Mail & Web Icons + Divider + Email & Website */}
             <div className="flex items-center gap-[9px]">
-              <div className="flex flex-col items-center justify-center gap-[5px] shrink-0 text-white">
-                <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="flex flex-col items-center justify-center gap-[5px] shrink-0">
+                <svg width="12" height="10" viewBox="0 0 24 24" fill="none" stroke="#006181" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="4" width="20" height="16" rx="2" />
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#006181" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="10" />
                   <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
                   <path d="M2 12h20" />
                 </svg>
               </div>
-              <div className="w-[1px] h-[28px] bg-white/40 shrink-0" />
-              <div className="flex flex-col text-white leading-[1.3] text-[8.5px] font-semibold tracking-wide">
+              <div className="w-[1px] h-[28px] bg-[#bcd8e0] shrink-0" />
+              <div className="flex flex-col text-[#006181] leading-[1.3] text-[8.5px] font-semibold tracking-wide">
                 <span>{COMPANY.email}</span>
                 <span>{COMPANY.website}</span>
               </div>
