@@ -57,8 +57,8 @@ export async function GET(req: NextRequest) {
 
     const challanIds = (challans || []).map((c) => c.id);
 
-    // 2. Fetch Customers, Vendors, Challan Items, Pending Qtys, and KPI in PARALLEL
-    const [customers, vendors, itemsRes, pendingRowsRes, kpiRes] = await Promise.all([
+    // 2. Fetch Customers, Vendors, Challan Items, Pending Qtys, KPI, and Scans in PARALLEL
+    const [customers, vendors, itemsRes, pendingRowsRes, kpiRes, scansRes] = await Promise.all([
       getCachedCustomers(),
       getCachedVendors(),
       challanIds.length > 0
@@ -78,6 +78,11 @@ export async function GET(req: NextRequest) {
         .from("challan")
         .select("id", { count: "exact", head: true })
         .eq("status", "1"),
+      supabaseAdmin
+        .from("scan")
+        .select("id, projectid, description, worktype, customer_id, cname, status")
+        .order("id", { ascending: false })
+        .limit(5000),
     ]);
 
     const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
@@ -141,6 +146,7 @@ export async function GET(req: NextRequest) {
 
     const response = NextResponse.json({
       challans: enriched,
+      scans: scansRes.data || [],
       kpis: {
         totalChallans: kpiRes.count || 0,
         activeCount: enriched.length,
@@ -264,8 +270,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: cErr?.message || "Failed to create challan" }, { status: 500 });
     }
 
-    // 2. Insert child items and update subplate location to vendor initials
+    // 2. Validate Available Quantities in Star Mould (SM) & Insert Items
     if (items && Array.isArray(items) && items.length > 0) {
+      const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
+
+      if (plateIds.length > 0) {
+        const { data: balances } = await supabaseAdmin
+          .from("view_subplate_jobwork_balance")
+          .select("plateid, platename, total_qty, outward_jobwork_qty, available_sm_qty")
+          .in("plateid", plateIds);
+
+        const balMap = new Map((balances || []).map((b: any) => [Number(b.plateid), b]));
+
+        for (const it of items) {
+          if (!it.plateid) continue;
+          const bal = balMap.get(Number(it.plateid));
+          const reqQty = Number(it.qty) || 1;
+          if (bal) {
+            if (reqQty > bal.available_sm_qty) {
+              await supabaseAdmin.from("challan").delete().eq("id", challanData.id);
+              return NextResponse.json(
+                {
+                  error: `Cannot dispatch ${reqQty} pcs of "${bal.platename}". Only ${bal.available_sm_qty} pcs currently available in Star Mould (SM). ${bal.outward_jobwork_qty} pcs are currently out on Job Work.`,
+                },
+                { status: 400 }
+              );
+            }
+          }
+        }
+      }
+
       const itemsToInsert = items.map((it: any) => ({
         challanid: challanData.id,
         plateid: it.plateid ? Number(it.plateid) : null,
@@ -283,7 +317,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Failed to insert challan items: ${itemsErr.message}` }, { status: 500 });
       }
 
-      // Update subplate location matching PHP ChallanController:881-899
+      // Dynamic Location Update based on live Star Mould balance vs Vendor
       const { data: vendorData } = await supabaseAdmin
         .from("vendors")
         .select("initials, vendor_name")
@@ -291,43 +325,26 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       const vendorInitials = vendorData?.initials || vendorData?.vendor_name || "Vendor";
-      const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
 
       if (plateIds.length > 0) {
-        const { data: plates } = await supabaseAdmin
-          .from("subplate")
-          .select("id, location")
-          .in("id", plateIds);
+        const { data: updatedBalances } = await supabaseAdmin
+          .from("view_subplate_jobwork_balance")
+          .select("plateid, available_sm_qty, active_vendor_initials")
+          .in("plateid", plateIds);
 
-        const locMap = new Map<string, number[]>();
-        for (const sp of plates || []) {
-          const rawLoc = sp.location || "SM";
-          const parts = rawLoc.split(",").map((p: string) => p.trim()).filter(Boolean);
-          const smFound = parts.includes("SM");
-          const vendorFound = parts.includes(vendorInitials);
-
-          let newLoc = vendorInitials;
-          if (vendorInitials === "SM" || smFound || vendorFound) {
-            newLoc = vendorInitials;
-          } else {
-            parts.push(vendorInitials);
-            newLoc = parts.join(",");
+        for (const ub of updatedBalances || []) {
+          const vendors = ub.active_vendor_initials || vendorInitials;
+          let newLoc = "SM";
+          if (ub.available_sm_qty > 0 && vendors) {
+            newLoc = `SM, ${vendors}`;
+          } else if (vendors) {
+            newLoc = vendors;
           }
-
-          if (!locMap.has(newLoc)) {
-            locMap.set(newLoc, []);
-          }
-          locMap.get(newLoc)!.push(sp.id);
+          await supabaseAdmin
+            .from("subplate")
+            .update({ location: newLoc, updated_at: now })
+            .eq("id", ub.plateid);
         }
-
-        await Promise.all(
-          Array.from(locMap.entries()).map(([loc, ids]) =>
-            supabaseAdmin
-              .from("subplate")
-              .update({ location: loc, updated_at: now })
-              .in("id", ids)
-          )
-        );
       }
     }
 

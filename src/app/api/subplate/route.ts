@@ -68,12 +68,19 @@ export async function GET(req: NextRequest) {
         created_at?: string | null;
       }>>();
 
+      const jwBalanceMap = new Map<number, any>();
       if (plateIds.length > 0) {
-        const { data: orderedRows } = await supabaseAdmin
-          .from("purchase_items")
-          .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
-          .in("plateid", plateIds)
-          .neq("purchase.status", "0");
+        const [{ data: orderedRows }, { data: jwBalances }] = await Promise.all([
+          supabaseAdmin
+            .from("purchase_items")
+            .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
+            .in("plateid", plateIds)
+            .neq("purchase.status", "0"),
+          supabaseAdmin
+            .from("view_subplate_jobwork_balance")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .in("plateid", plateIds),
+        ]);
 
         if (orderedRows) {
           orderedRows.forEach((row: any) => {
@@ -93,6 +100,10 @@ export async function GET(req: NextRequest) {
               platePOsMap.set(pid, existingList);
             }
           });
+        }
+
+        if (jwBalances) {
+          jwBalances.forEach((b: any) => jwBalanceMap.set(Number(b.plateid), b));
         }
       }
 
@@ -118,6 +129,12 @@ export async function GET(req: NextRequest) {
           po_id: latestPO?.po_id || null,
           po_status: poStatus,
           linked_pos: linkedPOs,
+          jobwork_balance: {
+            outward_jobwork_qty: jwBalanceMap.get(p.id)?.outward_jobwork_qty ?? 0,
+            available_sm_qty: jwBalanceMap.get(p.id)?.available_sm_qty ?? total,
+            active_vendors: jwBalanceMap.get(p.id)?.active_vendors ?? null,
+            active_vendor_initials: jwBalanceMap.get(p.id)?.active_vendor_initials ?? null,
+          },
           design_by_name: userMap.get(Number(p.design_by))?.name || userMap.get(Number(p.design_by))?.initials || null,
           order_by_name: userMap.get(Number(p.order_by))?.name || userMap.get(Number(p.order_by))?.initials || null,
           received_workby_name: userMap.get(Number(p.received_workby))?.name || userMap.get(Number(p.received_workby))?.initials || null,
@@ -208,12 +225,19 @@ export async function GET(req: NextRequest) {
         created_at?: string | null;
       }>>();
 
+      const jwBalanceMap = new Map<number, any>();
       if (plateIds.length > 0) {
-        const { data: orderedRows } = await supabaseAdmin
-          .from("purchase_items")
-          .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
-          .in("plateid", plateIds)
-          .neq("purchase.status", "0");
+        const [{ data: orderedRows }, { data: jwBalances }] = await Promise.all([
+          supabaseAdmin
+            .from("purchase_items")
+            .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
+            .in("plateid", plateIds)
+            .neq("purchase.status", "0"),
+          supabaseAdmin
+            .from("view_subplate_jobwork_balance")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .in("plateid", plateIds),
+        ]);
 
         if (orderedRows) {
           orderedRows.forEach((row: any) => {
@@ -233,6 +257,10 @@ export async function GET(req: NextRequest) {
               platePOsMap.set(pid, existingList);
             }
           });
+        }
+
+        if (jwBalances) {
+          jwBalances.forEach((b: any) => jwBalanceMap.set(Number(b.plateid), b));
         }
       }
 
@@ -268,6 +296,12 @@ export async function GET(req: NextRequest) {
           po_id: latestPO?.po_id || null,
           po_status: poStatus,
           linked_pos: linkedPOs,
+          jobwork_balance: {
+            outward_jobwork_qty: jwBalanceMap.get(sp.id)?.outward_jobwork_qty ?? 0,
+            available_sm_qty: jwBalanceMap.get(sp.id)?.available_sm_qty ?? total,
+            active_vendors: jwBalanceMap.get(sp.id)?.active_vendors ?? null,
+            active_vendor_initials: jwBalanceMap.get(sp.id)?.active_vendor_initials ?? null,
+          },
           mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
           mould_description: scan?.description || "",
           design_by_name: userMap.get(Number(sp.design_by))?.name || userMap.get(Number(sp.design_by))?.initials || "—",

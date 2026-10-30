@@ -46,6 +46,7 @@ export function ProjectSelect({
         setIsTyping(false);
         setQuery("");
         setActiveIndex(-1);
+        inputRef.current?.blur();
       }
     }
     if (isOpen) {
@@ -210,7 +211,23 @@ export function ProjectSelect({
 
       {/* Interactive Combobox Input Box */}
       <div
-        className={`w-full min-h-[38px] px-3 py-1.5 rounded-xl border transition-all flex items-center justify-between gap-2 shadow-2xs ${
+        onClick={(e) => {
+          if (disabled) return;
+          if ((e.target as HTMLElement).closest("button")) return;
+          if (!isOpen) {
+            setIsOpen(true);
+            setIsTyping(false);
+            setQuery("");
+            const selIdx = filteredProjects.findIndex(
+              (p) => String(p.id) === value || p.projectid === value
+            );
+            setActiveIndex(selIdx >= 0 ? selIdx : 0);
+            if (onOpen) onOpen();
+          }
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }}
+        className={`cursor-pointer w-full min-h-[38px] px-3 py-1.5 rounded-xl border transition-all flex items-center justify-between gap-2 shadow-2xs ${
           disabled
             ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400"
             : isOpen
@@ -233,6 +250,21 @@ export function ProjectSelect({
               disabled={disabled}
               value={displayValue}
               placeholder={placeholder}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (disabled) return;
+                if (!isOpen) {
+                  setIsOpen(true);
+                  setIsTyping(false);
+                  setQuery("");
+                  const selIdx = filteredProjects.findIndex(
+                    (p) => String(p.id) === value || p.projectid === value
+                  );
+                  setActiveIndex(selIdx >= 0 ? selIdx : 0);
+                  if (onOpen) onOpen();
+                }
+                inputRef.current?.select();
+              }}
               onFocus={() => {
                 setIsOpen(true);
                 setIsTyping(false);
@@ -252,7 +284,7 @@ export function ProjectSelect({
                 if (onOpen) onOpen();
               }}
               onKeyDown={handleKeyDown}
-              className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none font-medium truncate"
+              className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none font-medium truncate cursor-pointer"
             />
           )}
         </div>
@@ -273,13 +305,23 @@ export function ProjectSelect({
           <button
             type="button"
             tabIndex={-1}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               if (disabled) return;
               const next = !isOpen;
               setIsOpen(next);
               if (next) {
+                setIsTyping(false);
+                setQuery("");
+                const selIdx = filteredProjects.findIndex(
+                  (p) => String(p.id) === value || p.projectid === value
+                );
+                setActiveIndex(selIdx >= 0 ? selIdx : 0);
                 inputRef.current?.focus();
+                inputRef.current?.select();
                 if (onOpen) onOpen();
+              } else {
+                inputRef.current?.blur();
               }
             }}
             className="p-0.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"

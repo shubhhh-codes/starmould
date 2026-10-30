@@ -461,7 +461,7 @@ export function OutwardChallanVoucher({
                               </div>
                             </td>
                             <td
-                              className="h-[44px] px-[10px] text-left font-medium border-t border-r text-[9.5px]"
+                              className="h-[44px] px-[10px] text-left font-medium border-t border-r text-[9.5px] whitespace-pre-line"
                               style={{ borderColor: TEAL_BORDER, color: TEXT_DARK }}
                             >
                               {particulars}

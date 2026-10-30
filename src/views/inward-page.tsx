@@ -98,6 +98,7 @@ export function InwardPage() {
             particulars: string;
             qty: number; // Outward dispatched qty
             inward_qty: number; // Inward received qty now
+            pending_qty?: number;
         }>;
     }>({
         chdate: new Date().toISOString().slice(0, 10),
@@ -214,41 +215,39 @@ export function InwardPage() {
         });
     }, [inwards, searchQuery, vendorFilter]);
 
-    // On selecting Outward Challan: auto-populate line items (inward/index.blade.php getichallandata())
+    // On selecting Outward Challan: auto-populate ALL line items on that challan with remaining pending quantities
     const handleSelectChallan = (challanIdStr: string) => {
         const challanId = Number(challanIdStr);
-        const selectedChallan = pendingChallans.find(
+        const matchingChallanRows = pendingChallans.filter(
             (c: any) => c.id === challanId,
         );
 
-        if (selectedChallan) {
+        if (matchingChallanRows.length > 0) {
+            const firstRow = matchingChallanRows[0];
             const cust = customers.find(
-                (c: Customer) => c.id === selectedChallan.customer,
+                (c: Customer) => c.id === firstRow.customer,
             );
-            const itemsToLoad = [
-                {
-                    plateid: selectedChallan.plateid,
-                    platename:
-                        selectedChallan.platename ||
-                        `Plate #${selectedChallan.plateid}`,
-                    customer: selectedChallan.customer,
-                    customername:
-                        selectedChallan.customername ||
-                        cust?.customername ||
-                        `Customer #${selectedChallan.customer}`,
-                    project: selectedChallan.projectid,
-                    particulars: selectedChallan.particulars,
-                    qty: selectedChallan.qty,
-                    inward_qty: selectedChallan.pending_qty,
-                },
-            ];
+            const itemsToLoad = matchingChallanRows.map((row: any) => ({
+                plateid: row.plateid,
+                platename: row.platename || `Plate #${row.plateid}`,
+                customer: row.customer,
+                customername:
+                    row.customername ||
+                    cust?.customername ||
+                    `Customer #${row.customer}`,
+                project: row.projectid,
+                particulars: row.particulars,
+                qty: row.qty,
+                pending_qty: row.pending_qty,
+                inward_qty: row.pending_qty, // defaults to remaining pending quantity
+            }));
 
             setModalForm((prev) => ({
                 ...prev,
                 challanid: challanIdStr,
-                customerid: String(selectedChallan.customer || ""),
+                customerid: String(firstRow.customer || ""),
                 vendortid: String(
-                    selectedChallan.vendortid || selectedChallan.vendorid || "",
+                    firstRow.vendortid || firstRow.vendorid || "",
                 ),
                 items: itemsToLoad,
             }));
@@ -298,9 +297,10 @@ export function InwardPage() {
                 );
                 return;
             }
-            if (it.inward_qty > it.qty) {
+            const maxAllowed = it.pending_qty !== undefined ? Number(it.pending_qty) : Number(it.qty);
+            if (it.inward_qty > maxAllowed) {
                 setFormError(
-                    `Row ${i + 1}: Received quantity (${it.inward_qty}) cannot exceed outward dispatched quantity (${it.qty}).`,
+                    `Row ${i + 1}: Received quantity (${it.inward_qty}) cannot exceed pending quantity (${maxAllowed}).`,
                 );
                 return;
             }

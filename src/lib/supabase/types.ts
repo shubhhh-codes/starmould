@@ -154,6 +154,12 @@ export interface Subplate {
   po_id?: number | null;
   po_status?: 'UNORDERED' | 'PARTIAL' | 'FULLY_ORDERED';
   linked_pos?: LinkedPOInfo[];
+  jobwork_balance?: {
+    outward_jobwork_qty: number;
+    available_sm_qty: number;
+    active_vendors: string | null;
+    active_vendor_initials: string | null;
+  } | null;
   created_at: string;
   updated_at: string;
 }

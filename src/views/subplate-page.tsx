@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import { SubplateJobworkLocationBadge } from "@/components/subplate/subplate-jobwork-location-badge";
 import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
@@ -2041,16 +2042,7 @@ function SubplatePageContent() {
 
 																		{/* Location Badge */}
 																		<td className="py-3 px-2 text-center whitespace-nowrap">
-																			<span
-																				className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
-																					row.location === "SM" || !row.location
-																						? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-																						: "bg-amber-50 text-amber-700 border border-amber-200"
-																				}`}
-																			>
-																				<MapPin className="w-3 h-3" />
-																				<span>{row.location || "SM"}</span>
-																			</span>
+											<SubplateJobworkLocationBadge subplate={row} size="sm" />
 																		</td>
 
 																		{/* Production Pipeline & Clean Status */}
@@ -2417,16 +2409,7 @@ function SubplatePageContent() {
 																	<span className="font-bold text-slate-900 break-words leading-tight">{row.platename}</span>
 																</div>
 																<div className="flex items-center gap-1.5 shrink-0">
-																	<span
-																		className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-																			row.location === "SM" || !row.location
-																				? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-																				: "bg-amber-50 text-amber-700 border border-amber-200"
-																		}`}
-																	>
-																		<MapPin className="w-2.5 h-2.5" />
-																		{row.location || "SM"}
-																	</span>
+																	<SubplateJobworkLocationBadge subplate={row} size="sm" />
 																	{canEditSubplate && (
 																		<button
 																			type="button"

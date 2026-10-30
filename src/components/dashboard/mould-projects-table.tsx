@@ -1,5 +1,7 @@
 "use client";
 
+import { SubplateJobworkLocationBadge } from "@/components/subplate/subplate-jobwork-location-badge";
+
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -1998,9 +2000,7 @@ export function MouldProjectsTable({
                         <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
                           {sp.material || "MS-Bright"}
                         </span>
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
-                          {sp.location || "SM"}
-                        </span>
+                        <SubplateJobworkLocationBadge subplate={sp} size="sm" />
                       </div>
                       <div className="text-slate-500 flex flex-wrap items-center gap-3 font-mono text-[11px]">
                         <span>

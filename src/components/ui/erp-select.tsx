@@ -8,9 +8,11 @@ export interface ERPSelectOption {
   label: string;
   subtitle?: string;
   badge?: string;
+  badgeTitle?: string;
   badgeVariant?: "blue" | "amber" | "green" | "purple" | "slate";
   disabled?: boolean;
   disabledReason?: string;
+  title?: string;
 }
 
 export interface ERPSelectProps {
@@ -98,6 +100,7 @@ export function ERPSelect({
         setIsTyping(false);
         setSearchQuery("");
         setActiveIndex(-1);
+        inputRef.current?.blur();
       }
     }
     if (isOpen) {
@@ -245,7 +248,22 @@ export function ERPSelect({
       {/* Trigger Box: Interactive Combobox Input when Searchable, or Action Button when Static */}
       {isSearchEnabled ? (
         <div
-          className={`w-full min-h-[38px] px-3 py-1.5 bg-slate-50 border rounded-xl text-xs font-medium flex items-center justify-between gap-2 transition-all shadow-2xs ${
+          onClick={(e) => {
+            if (disabled) return;
+            if ((e.target as HTMLElement).closest("button")) return;
+            if (!isOpen) {
+              setIsOpen(true);
+              setIsTyping(false);
+              setSearchQuery("");
+              const selIdx = filteredOptions.findIndex(
+                (o) => String(o.value) === String(value)
+              );
+              setActiveIndex(selIdx >= 0 ? selIdx : 0);
+            }
+            inputRef.current?.focus();
+            inputRef.current?.select();
+          }}
+          className={`cursor-pointer w-full min-h-[38px] px-3 py-1.5 bg-slate-50 border rounded-xl text-xs font-medium flex items-center justify-between gap-2 transition-all shadow-2xs ${
             disabled
               ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400"
               : isOpen
@@ -262,6 +280,20 @@ export function ERPSelect({
               disabled={disabled}
               value={displayValue}
               placeholder={placeholder}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (disabled) return;
+                if (!isOpen) {
+                  setIsOpen(true);
+                  setIsTyping(false);
+                  setSearchQuery("");
+                  const selIdx = filteredOptions.findIndex(
+                    (o) => String(o.value) === String(value)
+                  );
+                  setActiveIndex(selIdx >= 0 ? selIdx : 0);
+                }
+                inputRef.current?.select();
+              }}
               onFocus={() => {
                 setIsOpen(true);
                 setIsTyping(false);
@@ -279,27 +311,11 @@ export function ERPSelect({
                 setActiveIndex(0);
               }}
               onKeyDown={handleKeyDown}
-              className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none font-medium truncate"
+              className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none font-medium truncate cursor-pointer"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {selectedOption?.badge && !isTyping && (
-              <span
-                className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border shrink-0 ${getBadgeClasses(
-                  selectedOption.badgeVariant
-                )}`}
-              >
-                {selectedOption.badge}
-              </span>
-            )}
-
-            {selectedOption?.subtitle && !isTyping && !selectedOption.badge && (
-              <span className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono font-medium text-slate-500 bg-slate-100 rounded border border-slate-200">
-                {selectedOption.subtitle}
-              </span>
-            )}
-
+          <div className="flex items-center gap-1 shrink-0">
             {value !== undefined && value !== null && value !== "" && !disabled && (
               <button
                 type="button"
@@ -315,12 +331,22 @@ export function ERPSelect({
             <button
               type="button"
               tabIndex={-1}
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 if (disabled) return;
                 const next = !isOpen;
                 setIsOpen(next);
                 if (next) {
+                  setIsTyping(false);
+                  setSearchQuery("");
+                  const selIdx = filteredOptions.findIndex(
+                    (o) => String(o.value) === String(value)
+                  );
+                  setActiveIndex(selIdx >= 0 ? selIdx : 0);
                   inputRef.current?.focus();
+                  inputRef.current?.select();
+                } else {
+                  inputRef.current?.blur();
                 }
               }}
               className="p-0.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"
@@ -423,14 +449,14 @@ export function ERPSelect({
                     <div className="flex flex-col min-w-0 flex-1 pr-1">
                       <div className="flex items-center gap-1.5 truncate">
                         <span className="truncate">{opt.label}</span>
-                        {opt.disabledReason && (
-                          <span className="text-[10px] text-slate-400 italic shrink-0">
+                        {opt.disabled && opt.disabledReason && (
+                          <span className="text-[10px] text-amber-600/90 font-medium italic shrink-0">
                             ({opt.disabledReason})
                           </span>
                         )}
                       </div>
                       {opt.subtitle && (
-                        <span className="text-[10px] text-slate-400 truncate mt-0.5 font-normal">
+                        <span className="text-[10.5px] text-slate-500 truncate mt-0.5 font-normal">
                           {opt.subtitle}
                         </span>
                       )}
@@ -439,7 +465,8 @@ export function ERPSelect({
                     <div className="flex items-center gap-1.5 shrink-0">
                       {opt.badge && (
                         <span
-                          className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border ${getBadgeClasses(
+                          title={opt.badgeTitle || opt.title || opt.badge}
+                          className={`px-1.5 py-0.5 text-[10px] font-semibold rounded border cursor-help ${getBadgeClasses(
                             opt.badgeVariant
                           )}`}
                         >

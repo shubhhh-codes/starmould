@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { SubplateJobworkLocationBadge } from "@/components/subplate/subplate-jobwork-location-badge";
 import {
   Layers,
   Search,
@@ -452,18 +453,7 @@ export function MoldSubplatesInline({
                         </span>
                       </td>
                       <td className="py-2.5 px-3 whitespace-nowrap">
-                        <span
-                          className={`px-2 py-0.5 rounded-md text-[10px] font-semibold inline-flex items-center gap-1 ${
-                            isVendor
-                              ? "bg-amber-50 text-amber-800 border border-amber-200"
-                              : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                          }`}
-                        >
-                          <MapPin className="w-2.5 h-2.5" />
-                          {isVendor
-                            ? `At Vendor (${sp.location})`
-                            : "In-House (StarMould)"}
-                        </span>
+                        <SubplateJobworkLocationBadge subplate={sp} size="sm" />
                       </td>
                     </tr>
                   );

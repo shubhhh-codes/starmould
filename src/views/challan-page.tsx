@@ -262,21 +262,10 @@ function ChallanPageContent() {
     return (customersList || []).find((c: any) => String(c.id) === String(modalForm.customerid)) || null;
   }, [customersList, modalForm.customerid]);
 
-  // Mould projects for selected customer (Source: challan/index.blade.php getproject())
-  // Rule: "ek mould ka ek hi bar banna chahiye" - exclude moulds that already have an active outward challan
+  // Mould projects for selected customer
+  // Subplate availability is tracked per plate quantity, allowing multiple Job Work challans
   const availableProjects = useMemo(() => {
-    const activeChallanProjectIds = new Set<string>();
-    challans.forEach((c) => {
-      if (String(c.status) === "1" || (c as any).status === 1) {
-        if (c.projectid) activeChallanProjectIds.add(String(c.projectid).trim().toLowerCase());
-      }
-    });
-
-    const eligibleScans = scans.filter((s: ScanProject) => {
-      const code = String(s.projectid || "").trim().toLowerCase();
-      const idStr = String(s.id);
-      return !activeChallanProjectIds.has(code) && !activeChallanProjectIds.has(idStr);
-    });
+    const eligibleScans = scans;
 
     if (!modalForm.customerid) return eligibleScans;
     const custId = String(modalForm.customerid);
@@ -299,7 +288,7 @@ function ChallanPageContent() {
       return false;
     });
 
-    return matched;
+    return matched.length > 0 ? matched : eligibleScans;
   }, [scans, challans, modalForm.customerid, selectedCustomer]);
 
   // Selected scan record for subplate resolution
@@ -344,15 +333,24 @@ function ChallanPageContent() {
       const cust = customers.find((c) => c.id === Number(modalForm.customerid));
       const customerName = cust?.customername || selectedCustomer?.customername || "";
 
-      const autoPopulatedItems = availablePlates.map((plate) => ({
-        plateid: String(plate.id),
-        platename: plate.platename || `Plate #${plate.id}`,
-        customer: customerName,
-        project: modalForm.projectid,
-        particulars: "",
-        qty: plate.sqty || 1,
-        sqty: plate.sqty || 1,
-      }));
+      const autoPopulatedItems = availablePlates
+        .filter((plate) => {
+          const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
+          return avail > 0;
+        })
+        .map((plate) => {
+          const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
+          return {
+            plateid: String(plate.id),
+            platename: plate.platename || `Plate #${plate.id}`,
+            customer: customerName,
+            project: modalForm.projectid,
+            particulars: "",
+            qty: avail,
+            sqty: plate.sqty || 1,
+            available_sm_qty: avail,
+          };
+        });
 
       setModalForm((prev) => ({
         ...prev,
@@ -379,18 +377,42 @@ function ChallanPageContent() {
 
   const subplateOptions: ERPSelectOption[] = useMemo(() => {
     return availablePlates.map((p) => {
-      const seq = p.subprojectid ? p.subprojectid.split("_").pop() : "";
+      const total = p.sqty || 1;
+      const avail = p.jobwork_balance?.available_sm_qty ?? total;
+      const outward = p.jobwork_balance?.outward_jobwork_qty ?? 0;
+      const isOut = avail <= 0;
+      const vendorInitials = p.jobwork_balance?.active_vendor_initials;
+      const vendorNames = p.jobwork_balance?.active_vendors;
+
+      // Structured location subtitle (replaces raw Code: 0001...)
+      let locationText = "";
+      if (outward === 0) {
+        locationText = `📍 All ${total} in Star Mould (Ready for dispatch)`;
+      } else if (avail > 0) {
+        locationText = `📍 ${avail} in Star Mould • ${outward} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""}`;
+      } else {
+        locationText = `📍 All ${total} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""} — Inward required`;
+      }
+
+      const badgeLabel = isOut
+        ? `${vendorInitials || "JW"} (${outward})`
+        : outward > 0
+        ? `${avail} in SM`
+        : `${avail} in SM`;
+
+      const badgeTooltip = outward > 0
+        ? `${avail} pcs in Star Mould, ${outward} pcs with ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""}`
+        : `All ${avail} pcs available in Star Mould workshop`;
+
       return {
         value: String(p.id),
         label: p.platename,
-        subtitle: [
-          p.subprojectid ? `Code: ${p.subprojectid}` : "",
-          p.material ? `Material: ${p.material}` : "",
-        ]
-          .filter(Boolean)
-          .join(" • ") || undefined,
-        badge: seq ? `#${seq}` : undefined,
-        badgeVariant: "blue" as const,
+        subtitle: locationText,
+        badge: badgeLabel,
+        badgeTitle: badgeTooltip,
+        badgeVariant: isOut ? ("amber" as const) : ("green" as const),
+        disabled: isOut,
+        disabledReason: isOut ? `At ${vendorInitials || vendorNames || "Job Work"}` : undefined,
       };
     });
   }, [availablePlates]);
@@ -667,17 +689,7 @@ function ChallanPageContent() {
       return;
     }
 
-    const alreadyChallaned = challans.find(
-      (c) =>
-        (String(c.status) === "1" || (c as any).status === 1) &&
-        String(c.projectid).trim().toLowerCase() === String(modalForm.projectid).trim().toLowerCase()
-    );
-    if (alreadyChallaned) {
-      setFormError(
-        `Challan already exists for mould "${modalForm.projectid}" (${alreadyChallaned.challanno}). Ek mould ka ek hi challan ban sakta hai.`
-      );
-      return;
-    }
+    // Subplate quantity clamping validated per line item
     if (modalForm.items.length === 0) {
       setFormError("Please add at least one plate to the challan.");
       return;
@@ -1207,7 +1219,7 @@ function ChallanPageContent() {
                                             <td className="px-3 py-2 text-slate-500">
                                               {it.project || c.projectid}
                                             </td>
-                                            <td className="px-3 py-2 text-slate-700 font-medium">
+                                            <td className="px-3 py-2 text-slate-700 font-medium whitespace-pre-line">
                                               {it.particulars}
                                             </td>
                                             <td className="px-3 py-2 text-right font-bold text-slate-900">
@@ -1342,7 +1354,7 @@ function ChallanPageContent() {
                                 <span className="font-semibold text-slate-800 block">
                                   {it.platename || `Plate #${it.plateid}`}
                                 </span>
-                                <span className="text-[10px] text-slate-400">
+                                <span className="text-[10px] text-slate-400 whitespace-pre-line block">
                                   {it.particulars || "Standard Jobwork"}
                                 </span>
                               </div>
@@ -1487,7 +1499,7 @@ function ChallanPageContent() {
                                     <td className="px-4 py-3 font-semibold text-slate-900">
                                       {it.platename}
                                     </td>
-                                    <td className="px-4 py-3 text-slate-600 font-medium">
+                                    <td className="px-4 py-3 text-slate-600 font-medium whitespace-pre-line">
                                       {it.particulars || "—"}
                                     </td>
                                     <td className="px-4 py-3 text-right font-bold text-amber-700">
@@ -1549,7 +1561,7 @@ function ChallanPageContent() {
                             <td className="px-4 py-3.5 font-medium text-slate-900">
                               {row.platename}
                             </td>
-                            <td className="px-4 py-3.5 text-slate-700">
+                            <td className="px-4 py-3.5 text-slate-700 whitespace-pre-line">
                               {row.particulars}
                             </td>
                             <td className="px-4 py-3.5 text-right font-bold text-amber-600">
@@ -1681,15 +1693,24 @@ function ChallanPageContent() {
                   const cust = customers.find((c) => c.id === Number(modalForm.customerid));
                   const customerName = cust?.customername || selectedCustomer?.customername || "";
 
-                  const autoItems = matchingPlates.map((plate) => ({
-                    plateid: String(plate.id),
-                    platename: plate.platename || `Plate #${plate.id}`,
-                    customer: customerName,
-                    project: newProjectId,
-                    particulars: "",
-                    qty: plate.sqty || 1,
-                    sqty: plate.sqty || 1,
-                  }));
+                  const autoItems = matchingPlates
+                    .filter((plate) => {
+                      const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
+                      return avail > 0;
+                    })
+                    .map((plate) => {
+                      const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
+                      return {
+                        plateid: String(plate.id),
+                        platename: plate.platename || `Plate #${plate.id}`,
+                        customer: customerName,
+                        project: newProjectId,
+                        particulars: "",
+                        qty: avail,
+                        sqty: plate.sqty || 1,
+                        available_sm_qty: avail,
+                      };
+                    });
 
                   if (matchingPlates.length > 0) {
                     lastLoadedMouldRef.current = newProjectId;
@@ -1706,7 +1727,7 @@ function ChallanPageContent() {
                   !modalForm.customerid
                     ? "First select Customer above"
                     : availableProjects.length === 0
-                    ? "All moulds for this customer already have a challan"
+                    ? "No moulds found for this customer"
                     : "Select Mould Project"
                 }
                 required
@@ -1780,9 +1801,29 @@ function ChallanPageContent() {
                         {/* Fields Grid: Subplate (6 cols), Particulars (4 cols), Qty (2 cols) */}
                         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                           <div className="md:col-span-6">
-                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                              Subplate *
-                            </label>
+                            <div className="flex items-center justify-between mb-1">
+                              <label className="text-[11px] font-semibold text-slate-700">
+                                Subplate *
+                              </label>
+                              {selectedPlate && (
+                                <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                                  <span
+                                    className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold cursor-help"
+                                    title={`Star Mould workshop: ${selectedPlate.jobwork_balance?.available_sm_qty ?? selectedPlate.sqty ?? 1} pcs available for dispatch`}
+                                  >
+                                    SM: {selectedPlate.jobwork_balance?.available_sm_qty ?? selectedPlate.sqty ?? 1}
+                                  </span>
+                                  {(selectedPlate.jobwork_balance?.outward_jobwork_qty ?? 0) > 0 && (
+                                    <span
+                                      className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold cursor-help"
+                                      title={`${selectedPlate.jobwork_balance?.active_vendors || "Vendor"}: ${selectedPlate.jobwork_balance?.outward_jobwork_qty} pcs currently out on Job Work`}
+                                    >
+                                      {selectedPlate.jobwork_balance?.active_vendor_initials || "JW"}: {selectedPlate.jobwork_balance?.outward_jobwork_qty}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                             <ERPSelect
                               value={item.plateid}
                               onChange={(val) =>
@@ -1800,15 +1841,20 @@ function ChallanPageContent() {
                             <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                               Particulars / Operation *
                             </label>
-                            <input
-                              type="text"
-                              placeholder="e.g. Rough Milling, Hardening"
+                            <textarea
+                              rows={2}
+                              placeholder={"e.g. Rough Milling, Hardening\n(Shift+Enter for new line)"}
                               value={item.particulars}
                               onChange={(e) =>
                                 handleItemChange(idx, "particulars", e.target.value)
                               }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.stopPropagation();
+                                }
+                              }}
                               required
-                              className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-500"
+                              className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-blue-500 resize-y min-h-[38px] leading-relaxed"
                             />
                           </div>
 
@@ -1816,17 +1862,23 @@ function ChallanPageContent() {
                             <label className="block text-[11px] font-semibold text-slate-700 mb-1 text-center">
                               Qty *
                             </label>
-                            <input
-                              type="number"
-                              min="1"
-                              max={item.sqty > 0 ? item.sqty : undefined}
-                              value={item.qty}
-                              onChange={(e) =>
-                                handleItemChange(idx, "qty", Number(e.target.value))
-                              }
-                              required
-                              className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 text-center"
-                            />
+                            {(() => {
+                              const avail = (selectedPlate?.jobwork_balance?.available_sm_qty ?? item.sqty) || 1;
+                              return (
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={avail}
+                                  value={item.qty}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, Number(e.target.value) || 1);
+                                    handleItemChange(idx, "qty", Math.min(val, avail));
+                                  }}
+                                  required
+                                  className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 text-center"
+                                />
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1944,7 +1996,7 @@ function ChallanPageContent() {
                         <td className="px-3 py-2.5 font-medium text-slate-900">
                           {item.platename}
                         </td>
-                        <td className="px-3 py-2.5 text-slate-600">
+                        <td className="px-3 py-2.5 text-slate-600 whitespace-pre-line">
                           {item.particulars}
                         </td>
                         <td className="px-3 py-2.5 text-center font-bold text-slate-700">

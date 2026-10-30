@@ -84,6 +84,7 @@ export function CustomerSelect({
         setIsOpen(false);
         setIsTyping(false);
         setQuery("");
+        inputRef.current?.blur();
       }
     }
     if (isOpen) {
@@ -231,7 +232,22 @@ export function CustomerSelect({
 
       {/* Single Unified Combobox Input (Directly typeable with Tab continuity) */}
       <div
-        className={`w-full min-h-[40px] flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 border rounded-xl text-xs transition-all ${
+        onClick={(e) => {
+          if (disabled) return;
+          if ((e.target as HTMLElement).closest("button")) return;
+          if (!isOpen) {
+            setIsOpen(true);
+            setIsTyping(false);
+            setQuery("");
+            const selIdx = filteredCustomers.findIndex(
+              (c) => String(c.id) === String(value)
+            );
+            setActiveIndex(selIdx >= 0 ? selIdx : 0);
+          }
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }}
+        className={`cursor-pointer w-full min-h-[40px] flex items-center justify-between gap-2 px-3 py-1.5 bg-slate-50 border rounded-xl text-xs transition-all ${
           disabled
             ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200"
             : isOpen
@@ -248,6 +264,20 @@ export function CustomerSelect({
             disabled={disabled}
             value={displayValue}
             placeholder={placeholder}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (disabled) return;
+              if (!isOpen) {
+                setIsOpen(true);
+                setIsTyping(false);
+                setQuery("");
+                const selIdx = filteredCustomers.findIndex(
+                  (c) => String(c.id) === String(value)
+                );
+                setActiveIndex(selIdx >= 0 ? selIdx : 0);
+              }
+              inputRef.current?.select();
+            }}
             onFocus={() => {
               setIsOpen(true);
               setIsTyping(false);
@@ -265,33 +295,12 @@ export function CustomerSelect({
               setActiveIndex(0);
             }}
             onKeyDown={handleKeyDown}
-            className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none font-medium truncate"
+            className="w-full bg-transparent text-xs text-slate-800 placeholder-slate-400 focus:outline-none font-medium truncate cursor-pointer"
           />
         </div>
 
-        {/* Selected Badges & Controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {selectedCustomer && !isTyping && (
-            <div className="flex items-center gap-1">
-              {filterUserType === "ALL" && selectedCustomer.usertype && (
-                <span
-                  className={`px-1.5 py-0.5 text-[9px] font-bold rounded uppercase tracking-wider ${
-                    selectedCustomer.usertype === "Vendor"
-                      ? "bg-purple-50 text-purple-700 border border-purple-200"
-                      : "bg-blue-50 text-blue-700 border border-blue-200"
-                  }`}
-                >
-                  {selectedCustomer.usertype}
-                </span>
-              )}
-              {selectedCustomer.initials && (
-                <span className="px-1.5 py-0.5 text-[10px] font-bold font-mono bg-blue-50 text-blue-700 border border-blue-200/80 rounded">
-                  {selectedCustomer.initials}
-                </span>
-              )}
-            </div>
-          )}
-
+        {/* Action Controls */}
+        <div className="flex items-center gap-1 shrink-0">
           {value && !disabled && (
             <button
               type="button"
@@ -307,11 +316,22 @@ export function CustomerSelect({
           <button
             type="button"
             tabIndex={-1}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               if (disabled) return;
-              setIsOpen(!isOpen);
-              if (!isOpen) {
+              const next = !isOpen;
+              setIsOpen(next);
+              if (next) {
+                setIsTyping(false);
+                setQuery("");
+                const selIdx = filteredCustomers.findIndex(
+                  (c) => String(c.id) === String(value)
+                );
+                setActiveIndex(selIdx >= 0 ? selIdx : 0);
                 inputRef.current?.focus();
+                inputRef.current?.select();
+              } else {
+                inputRef.current?.blur();
               }
             }}
             className="p-0.5 text-slate-400 hover:text-slate-600 transition cursor-pointer"

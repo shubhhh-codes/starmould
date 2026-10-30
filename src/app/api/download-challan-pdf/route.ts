@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
               <td style="height: 44px; padding: 0 14px; text-align: left; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0;">
                 <div style="font-weight: 600; font-size: 10.5px; color: #1f2a30;">${plateName}</div>
               </td>
-              <td style="height: 44px; padding: 0 10px; text-align: left; font-weight: 500; font-size: 9.5px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #1f2a30;">
+              <td style="height: 44px; padding: 6px 10px; text-align: left; font-weight: 500; font-size: 9.5px; border-top: 1px solid #bcd8e0; border-right: 1px solid #bcd8e0; color: #1f2a30; white-space: pre-line;">
                 ${particulars}
               </td>
               <td style="height: 44px; padding: 0 12px; text-align: center; font-weight: 700; border-top: 1px solid #bcd8e0; font-size: 11px; color: #006181;">
