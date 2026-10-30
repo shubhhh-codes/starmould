@@ -104,7 +104,7 @@ export function PurchaseInwardPage() {
     const [receiveForm, setReceiveForm] = useState<{
         odate: string; // Receive Date
         inpono: string; // Vendor Delivery Note / Invoice No
-        receiveQtys: Record<number, number>; // plateid -> receiving qty
+        receiveQtys: Record<string, number>; // itemKey (poId_plateId or plateid) -> receiving qty
     }>({
         odate: new Date().toISOString().slice(0, 10),
         inpono: "",
@@ -346,10 +346,11 @@ export function PurchaseInwardPage() {
     // Open Receive Modal for a single plate
     const handleOpenReceiveModal = (item: ViewPoPendingInwardQty) => {
         setSelectedReceiveItems([item]);
+        const itemKey = `${item.id}_${item.plateid}`;
         setReceiveForm({
             odate: new Date().toISOString().slice(0, 10),
             inpono: "",
-            receiveQtys: { [item.plateid]: item.pending_qty },
+            receiveQtys: { [itemKey]: item.pending_qty, [item.plateid]: item.pending_qty },
         });
         setReceiveError(null);
         setIsReceiveModalOpen(true);
@@ -359,8 +360,10 @@ export function PurchaseInwardPage() {
     const handleOpenMouldBatchReceive = (items: ViewPoPendingInwardQty[]) => {
         if (!items || items.length === 0) return;
         setSelectedReceiveItems(items);
-        const qtys: Record<number, number> = {};
+        const qtys: Record<string, number> = {};
         items.forEach((it) => {
+            const itemKey = `${it.id}_${it.plateid}`;
+            qtys[itemKey] = it.pending_qty;
             qtys[it.plateid] = it.pending_qty;
         });
         setReceiveForm({
@@ -375,23 +378,23 @@ export function PurchaseInwardPage() {
     // Wheel quantity adjustment
     const handleQtyWheel = (
         e: React.WheelEvent<HTMLInputElement>,
-        plateid: number,
+        itemKey: string,
         maxQty: number,
     ) => {
         e.preventDefault();
-        const current = Number(receiveForm.receiveQtys[plateid] ?? maxQty);
+        const current = Number(receiveForm.receiveQtys[itemKey] ?? maxQty);
         if (e.deltaY < 0) {
             if (current < maxQty) {
                 setReceiveForm((prev) => ({
                     ...prev,
-                    receiveQtys: { ...prev.receiveQtys, [plateid]: current + 1 },
+                    receiveQtys: { ...prev.receiveQtys, [itemKey]: current + 1 },
                 }));
             }
         } else if (e.deltaY > 0) {
             if (current > 1) {
                 setReceiveForm((prev) => ({
                     ...prev,
-                    receiveQtys: { ...prev.receiveQtys, [plateid]: current - 1 },
+                    receiveQtys: { ...prev.receiveQtys, [itemKey]: current - 1 },
                 }));
             }
         }
@@ -410,14 +413,15 @@ export function PurchaseInwardPage() {
 
         // Validate quantities
         for (const item of selectedReceiveItems) {
-            const qty = Number(receiveForm.receiveQtys[item.plateid] || 0);
+            const itemKey = `${item.id}_${item.plateid}`;
+            const qty = Number(receiveForm.receiveQtys[itemKey] ?? receiveForm.receiveQtys[item.plateid] ?? 0);
             if (qty <= 0) {
-                setReceiveError(`Receiving quantity for "${item.platename}" must be at least 1.`);
+                setReceiveError(`Receiving quantity for "${item.platename}" (${item.srno || `PO #${item.id}`}) must be at least 1.`);
                 return;
             }
             if (qty > item.pending_qty) {
                 setReceiveError(
-                    `Receiving quantity for "${item.platename}" cannot exceed pending quantity (${item.pending_qty}).`,
+                    `Receiving quantity for "${item.platename}" (${item.srno || `PO #${item.id}`}) cannot exceed pending quantity (${item.pending_qty}).`,
                 );
                 return;
             }
@@ -440,14 +444,22 @@ export function PurchaseInwardPage() {
                     vname: first.vname,
                     projectid: first.projectid,
                     odate: receiveForm.odate,
-                    items: groupItems.map((it) => ({
-                        plateid: it.plateid,
-                        material: it.material,
-                        imaterial: it.material,
-                        materialtype: it.materialtype,
-                        qty: it.qty,
-                        inward_qty: Number(receiveForm.receiveQtys[it.plateid] || it.pending_qty),
-                    })),
+                    items: groupItems.map((it) => {
+                        const itemKey = `${it.id}_${it.plateid}`;
+                        const inwardQty = Number(
+                            receiveForm.receiveQtys[itemKey] ??
+                            receiveForm.receiveQtys[it.plateid] ??
+                            it.pending_qty
+                        );
+                        return {
+                            plateid: it.plateid,
+                            material: it.material,
+                            imaterial: it.material,
+                            materialtype: it.materialtype,
+                            qty: it.qty,
+                            inward_qty: inwardQty,
+                        };
+                    }),
                 });
             }
 
@@ -1398,7 +1410,8 @@ export function PurchaseInwardPage() {
                         let totalWeightKg = 0;
 
                         selectedReceiveItems.forEach((it) => {
-                            const q = Number(receiveForm.receiveQtys[it.plateid] ?? it.pending_qty);
+                            const itemKey = `${it.id}_${it.plateid}`;
+                            const q = Number(receiveForm.receiveQtys[itemKey] ?? receiveForm.receiveQtys[it.plateid] ?? it.pending_qty);
                             totalReceivingUnits += q;
                             totalPendingUnits += it.pending_qty;
                             const sp = subplateMap.get(it.plateid);
@@ -1522,8 +1535,10 @@ export function PurchaseInwardPage() {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                const allMax: Record<number, number> = {};
+                                                const allMax: Record<string, number> = {};
                                                 selectedReceiveItems.forEach((it) => {
+                                                    const itemKey = `${it.id}_${it.plateid}`;
+                                                    allMax[itemKey] = it.pending_qty;
                                                     allMax[it.plateid] = it.pending_qty;
                                                 });
                                                 setReceiveForm((prev) => ({
@@ -1539,23 +1554,31 @@ export function PurchaseInwardPage() {
 
                                     {/* Plates List */}
                                     <div className="divide-y divide-slate-100 max-h-[320px] overflow-y-auto custom-scrollbar">
-                                        {selectedReceiveItems.map((item) => {
+                                        {selectedReceiveItems.map((item, idx) => {
+                                            const itemKey = `${item.id}_${item.plateid}`;
                                             const currentVal =
-                                                receiveForm.receiveQtys[item.plateid] ?? item.pending_qty;
+                                                receiveForm.receiveQtys[itemKey] ??
+                                                receiveForm.receiveQtys[item.plateid] ??
+                                                item.pending_qty;
                                             const sp = subplateMap.get(item.plateid);
                                             const singleW = getItemWeightKg(item, sp);
 
                                             return (
                                                 <div
-                                                    key={item.plateid}
+                                                    key={`${item.id}_${item.plateid}_${idx}`}
                                                     className="p-3 sm:p-3.5 hover:bg-slate-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                                                 >
                                                     {/* Left: Plate Name & Specs */}
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-2">
+                                                        <div className="flex items-center gap-2 flex-wrap">
                                                             <span className="font-bold text-slate-900 text-xs sm:text-sm">
                                                                 {item.platename || `Plate #${item.plateid}`}
                                                             </span>
+                                                            {item.srno && (
+                                                                <span className="font-mono text-[10px] font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                                                    {item.srno}
+                                                                </span>
+                                                            )}
                                                             {item.materialtype && (
                                                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                                                                     {item.materialtype}
@@ -1598,6 +1621,7 @@ export function PurchaseInwardPage() {
                                                                             ...prev,
                                                                             receiveQtys: {
                                                                                 ...prev.receiveQtys,
+                                                                                [itemKey]: val - 1,
                                                                                 [item.plateid]: val - 1,
                                                                             },
                                                                         }));
@@ -1617,7 +1641,7 @@ export function PurchaseInwardPage() {
                                                                 required
                                                                 value={currentVal === 0 ? "" : currentVal}
                                                                 onWheel={(e) =>
-                                                                    handleQtyWheel(e, item.plateid, item.pending_qty)
+                                                                    handleQtyWheel(e, itemKey, item.pending_qty)
                                                                 }
                                                                 onChange={(e) => {
                                                                     const valStr = e.target.value;
@@ -1626,6 +1650,7 @@ export function PurchaseInwardPage() {
                                                                             ...prev,
                                                                             receiveQtys: {
                                                                                 ...prev.receiveQtys,
+                                                                                [itemKey]: 0,
                                                                                 [item.plateid]: 0,
                                                                             },
                                                                         }));
@@ -1641,6 +1666,7 @@ export function PurchaseInwardPage() {
                                                                         ...prev,
                                                                         receiveQtys: {
                                                                             ...prev.receiveQtys,
+                                                                            [itemKey]: clamped,
                                                                             [item.plateid]: clamped,
                                                                         },
                                                                     }));
@@ -1657,6 +1683,7 @@ export function PurchaseInwardPage() {
                                                                             ...prev,
                                                                             receiveQtys: {
                                                                                 ...prev.receiveQtys,
+                                                                                [itemKey]: val + 1,
                                                                                 [item.plateid]: val + 1,
                                                                             },
                                                                         }));
@@ -1676,6 +1703,7 @@ export function PurchaseInwardPage() {
                                                                         ...prev,
                                                                         receiveQtys: {
                                                                             ...prev.receiveQtys,
+                                                                            [itemKey]: item.pending_qty,
                                                                             [item.plateid]: item.pending_qty,
                                                                         },
                                                                     }));
