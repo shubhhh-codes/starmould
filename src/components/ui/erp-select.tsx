@@ -346,6 +346,7 @@ export function ERPSelect({
             <button
               type="button"
               tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
               className="p-1 hover:bg-slate-200 rounded-md text-slate-400 hover:text-slate-600 transition cursor-pointer"
               title="Clear selection"
@@ -357,6 +358,7 @@ export function ERPSelect({
           <button
             type="button"
             tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
               if (disabled) return;
@@ -389,6 +391,7 @@ export function ERPSelect({
       {/* Custom Theme Dropdown Popup */}
       {isOpen && (
         <div
+          onMouseDown={(e) => e.preventDefault()}
           className={`absolute left-0 right-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-full ${
             openUpward ? "bottom-full mb-1.5" : "top-full mt-1.5"
           }`}
@@ -417,6 +420,11 @@ export function ERPSelect({
                 return (
                   <div
                     key={String(opt.value)}
+                    onMouseDown={(e) => {
+                      if (opt.disabled) return;
+                      e.preventDefault();
+                      handleSelect(opt);
+                    }}
                     onClick={() => handleSelect(opt)}
                     onMouseEnter={() => setActiveIndex(idx)}
                     className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors ${

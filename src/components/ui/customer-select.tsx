@@ -313,6 +313,7 @@ export function CustomerSelect({
             <button
               type="button"
               tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
               className="p-1 hover:bg-slate-200 rounded-md text-slate-400 hover:text-slate-600 transition cursor-pointer"
               title="Clear selection"
@@ -324,6 +325,7 @@ export function CustomerSelect({
           <button
             type="button"
             tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
               if (disabled) return;
@@ -355,7 +357,10 @@ export function CustomerSelect({
 
       {/* Directly Attached Dropdown List (No redundant secondary search box!) */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+        >
           {/* List items */}
           <div
             ref={listRef}
@@ -373,6 +378,11 @@ export function CustomerSelect({
                 {canCreate && onAddNew ? (
                   <button
                     type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      setIsOpen(false);
+                      onAddNew(query.trim());
+                    }}
                     onClick={() => {
                       setIsOpen(false);
                       onAddNew(query.trim());
@@ -407,6 +417,10 @@ export function CustomerSelect({
                 return (
                   <div
                     key={cust.id}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(cust);
+                    }}
                     onClick={() => handleSelect(cust)}
                     onMouseEnter={() => setActiveIndex(idx)}
                     className={`flex items-center justify-between gap-3 px-3 py-2 rounded-lg cursor-pointer transition text-xs ${
@@ -465,6 +479,11 @@ export function CustomerSelect({
             <div className="p-1.5 border-t border-slate-100 bg-slate-50/70">
               <button
                 type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setIsOpen(false);
+                  onAddNew(query.trim());
+                }}
                 onClick={() => {
                   setIsOpen(false);
                   onAddNew(query.trim());

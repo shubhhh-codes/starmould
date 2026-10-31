@@ -302,6 +302,7 @@ export function ProjectSelect({
             <button
               type="button"
               tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={handleClear}
               className="p-1 hover:text-slate-600 hover:bg-slate-200/60 rounded-md transition-colors cursor-pointer"
               title="Clear selection"
@@ -313,6 +314,7 @@ export function ProjectSelect({
           <button
             type="button"
             tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={(e) => {
               e.stopPropagation();
               if (disabled) return;
@@ -345,7 +347,10 @@ export function ProjectSelect({
 
       {/* Floating Dropdown */}
       {isOpen && (
-        <div className="absolute left-0 right-0 z-50 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          className="absolute left-0 right-0 z-50 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        >
           {/* Project List */}
           <div
             ref={listRef}
@@ -380,6 +385,10 @@ export function ProjectSelect({
                 return (
                   <div
                     key={p.id}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      handleSelect(p);
+                    }}
                     onClick={() => handleSelect(p)}
                     onMouseEnter={() => setActiveIndex(idx)}
                     className={`w-full text-left px-3 py-2 rounded-xl flex items-center justify-between gap-3 text-xs transition-colors cursor-pointer ${
