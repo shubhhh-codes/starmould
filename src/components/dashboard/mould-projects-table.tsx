@@ -371,6 +371,7 @@ interface MouldProjectsTableProps {
   isRefreshing?: boolean;
   onRefresh?: () => void;
   onDeleteProject?: (id: number | string) => Promise<boolean>;
+  onDeleteProjects?: (ids: (number | string)[]) => Promise<boolean>;
 }
 
 const columnHelper = createColumnHelper<ScanProject>();
@@ -381,6 +382,7 @@ export function MouldProjectsTable({
   isRefreshing = false,
   onRefresh,
   onDeleteProject,
+  onDeleteProjects,
 }: MouldProjectsTableProps) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -1143,11 +1145,6 @@ export function MouldProjectsTable({
     subtitle: `${MATERIAL_DENSITIES[m] || 7.81} g/cm³`,
   }));
 
-  const modalPlateLocationOptions: ERPSelectOption[] = [
-    { value: "SM", label: "SM — In-House Production" },
-    { value: "Vendor", label: "Vendor — Outward Jobwork" },
-  ];
-
   const modalPlateUnitOptions: ERPSelectOption[] = SUPPORTED_UNITS.map((u) => ({ value: u, label: u }));
 
   const uniqueWorktypes = useMemo(() => {
@@ -1492,14 +1489,17 @@ export function MouldProjectsTable({
       onConfirm: async () => {
         setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
         try {
-          for (const r of selectedRows) {
-            if (onDeleteProject) {
-              await onDeleteProject(r.id);
-            } else {
-              await fetch(`/api/scanning?id=${r.id}`, { method: "DELETE" });
+          const selectedIds = selectedRows.map((r) => r.id);
+          if (onDeleteProjects) {
+            await onDeleteProjects(selectedIds);
+          } else if (onDeleteProject) {
+            for (const id of selectedIds) {
+              await onDeleteProject(id);
             }
-          }
-          if (!onDeleteProject) {
+          } else {
+            for (const id of selectedIds) {
+              await fetch(`/api/scanning?id=${id}`, { method: "DELETE" });
+            }
             queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
             queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
             queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
@@ -1586,26 +1586,30 @@ export function MouldProjectsTable({
         <div className="flex items-center justify-between sm:justify-end gap-2 pt-1 sm:pt-0 border-t border-slate-200/60 sm:border-0">
           <div className="flex items-center gap-2">
             {selectedCount > 0 && (
-              <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 font-medium">
-                <span>{selectedCount} sel</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-xs text-blue-700 shadow-2xs font-medium">
+                <span className="font-semibold text-blue-900 whitespace-nowrap">
+                  {selectedCount} selected
+                </span>
+                <span className="text-blue-300">|</span>
                 <button
+                  type="button"
                   onClick={handleBatchMarkDone}
-                  className="hover:underline text-[11px] font-semibold text-blue-800 cursor-pointer"
+                  className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                  title="Mark selected moulds as completed"
                 >
-                  Done
+                  <CheckCircle2 className="h-3 w-3 inline" />
+                  <span>Mark Completed</span>
                 </button>
                 {canDeleteMould && (
-                  <>
-                    <span>•</span>
-                    <button
-                      onClick={handleBatchDelete}
-                      className="text-rose-600 hover:text-rose-700 text-[11px] cursor-pointer flex items-center gap-1"
-                      title="Delete selected moulds"
-                    >
-                      <Trash2 className="h-3.5 w-3.5 inline" />
-                      <span>Delete</span>
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={handleBatchDelete}
+                    className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
+                    title="Delete selected moulds"
+                  >
+                    <Trash2 className="h-3 w-3 inline text-rose-600" />
+                    <span>Delete</span>
+                  </button>
                 )}
               </div>
             )}
@@ -2457,81 +2461,47 @@ export function MouldProjectsTable({
             </div>
           </div>
 
-          {/* Group 3: Weight Engineering Readout & Production Routing */}
-          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-stretch">
-            {/* Hero Calculated Weight Display (7 cols) */}
-            <div className="sm:col-span-7 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-3.5 text-white flex flex-col justify-between shadow-md relative overflow-hidden border border-slate-800">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-              <div className="flex items-center justify-between relative z-10 mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                  <Scale className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Theoretical Weight</span>
-                  <Lock className="w-3 h-3 text-slate-400" />
-                </span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                  <Sparkles className="w-2.5 h-2.5 text-cyan-300" />
-                  {Number(plateForm.sqty) > 1
-                    ? ("Total (" + plateForm.sqty + " pcs)")
-                    : "Auto"}
-                </span>
-              </div>
+          {/* Group 3: Weight Engineering Readout */}
+          <div className="rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-3.5 sm:p-4 text-white flex flex-col justify-between shadow-md relative overflow-hidden border border-slate-800">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+            <div className="flex items-center justify-between relative z-10 mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                <Scale className="w-3.5 h-3.5 text-blue-400" />
+                <span>Theoretical Weight</span>
+                <Lock className="w-3 h-3 text-slate-400" />
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                <Sparkles className="w-2.5 h-2.5 text-cyan-300" />
+                {Number(plateForm.sqty) > 1
+                  ? ("Total (" + plateForm.sqty + " pcs)")
+                  : "Auto"}
+              </span>
+            </div>
 
-              <div className="flex items-baseline gap-2 relative z-10">
-                <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                  {plateForm.weight || "0.000"}
+            <div className="flex items-baseline gap-2 relative z-10">
+              <span className="font-mono text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
+                {plateForm.weight || "0.000"}
+              </span>
+              <span className="text-sm font-bold text-slate-400">kg</span>
+              {Number(plateForm.sqty) > 1 && Boolean(plateForm.weight) && (
+                <span className="ml-auto text-[11px] font-mono text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/10">
+                  {(Number(plateForm.weight) / Number(plateForm.sqty)).toFixed(3)} kg / pc
                 </span>
-                <span className="text-sm font-bold text-slate-400">kg</span>
-                {Number(plateForm.sqty) > 1 && Boolean(plateForm.weight) && (
-                  <span className="ml-auto text-[11px] font-mono text-slate-300 bg-white/10 px-2 py-0.5 rounded-md border border-white/10">
-                    {(Number(plateForm.weight) / Number(plateForm.sqty)).toFixed(3)} kg / pc
-                  </span>
-                )}
-              </div>
-
-              {Number(plateForm.sqty) > 1 && Boolean(plateForm.weight) ? (
-                <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-400 flex items-center justify-between relative z-10 font-mono">
-                  <span>
-                    {plateForm.sqty} pcs × {(Number(plateForm.weight) / Number(plateForm.sqty)).toFixed(3)} kg
-                  </span>
-                  <span className="text-slate-300 font-sans font-semibold">Total Batch Wt</span>
-                </div>
-              ) : (
-                <div className="mt-1 text-[10px] text-slate-400 relative z-10">
-                  Based on {plateForm.material} density @ {MATERIAL_DENSITIES[plateForm.material] || 7.81} g/cm³
-                </div>
               )}
             </div>
 
-            {/* Production Location Card (5 cols) */}
-            <div className="sm:col-span-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 flex flex-col justify-between">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Production Routing</span>
-                </label>
-                <ERPSelect
-                  value={plateForm.location}
-                  onChange={(val) => setPlateForm({ ...plateForm, location: String(val) })}
-                  options={modalPlateLocationOptions}
-                  showSearch={false}
-                  placeholder="Routing"
-                />
-              </div>
-              <div className="mt-2 text-[10px] text-slate-500 flex items-center gap-1.5 font-medium">
-                <span
-                  className={"w-2 h-2 rounded-full shrink-0 " + (
-                    plateForm.location === "SM"
-                      ? "bg-emerald-500"
-                      : "bg-amber-500"
-                  )}
-                />
+            {Number(plateForm.sqty) > 1 && Boolean(plateForm.weight) ? (
+              <div className="mt-2 pt-2 border-t border-white/10 text-[10px] text-slate-400 flex items-center justify-between relative z-10 font-mono">
                 <span>
-                  {plateForm.location === "SM"
-                    ? "Routed to in-house VMC / Milling"
-                    : "Requires outward delivery challan"}
+                  {plateForm.sqty} pcs × {(Number(plateForm.weight) / Number(plateForm.sqty)).toFixed(3)} kg
                 </span>
+                <span className="text-slate-300 font-sans font-semibold">Total Batch Wt</span>
               </div>
-            </div>
+            ) : (
+              <div className="mt-1 text-[10px] text-slate-400 relative z-10">
+                Based on {plateForm.material} density @ {MATERIAL_DENSITIES[plateForm.material] || 7.81} g/cm³
+              </div>
+            )}
           </div>
 
           {/* Footer Actions with Perfect Baseline Alignment */}
