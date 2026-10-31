@@ -65,6 +65,8 @@ import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
 import { CreatePurchaseOrderModal } from "@/components/purchase/create-purchase-order-modal";
+import { MouldTimelineDrawer } from "@/components/mould/mould-timeline-drawer";
+import { MoveToRegisterModal } from "@/components/mould/move-to-register-modal";
 import { appStore } from "@/lib/state/store";
 import {
   calculateSubplateWeight,
@@ -427,6 +429,13 @@ export function MouldProjectsTable({
   const [viewSubplates, setViewSubplates] = useState<Subplate[]>([]);
   const [isLoadingSubplates, setIsLoadingSubplates] = useState(false);
 
+  // Mould Lifecycle Timeline Drawer State
+  const [timelineProjectId, setTimelineProjectId] = useState<string | number | null>(null);
+  const [isTimelineOpen, setIsTimelineOpen] = useState(false);
+
+  // Move to Register Modal State (detects partial dispatch)
+  const [moveToRegisterProject, setMoveToRegisterProject] = useState<ScanProject | null>(null);
+
   const queryClient = useQueryClient();
 
   // Inline Master-Detail Accordion State
@@ -680,12 +689,15 @@ export function MouldProjectsTable({
 
   const handleToggleProjectStatus = async (project: ScanProject) => {
     const isCompleted = (project.status || "").toLowerCase() === "completed";
-    const nextStatus: "completed" | "registered" = isCompleted ? "registered" : "completed";
+    if (!isCompleted) {
+      setMoveToRegisterProject(project);
+      return;
+    }
     try {
       const res = await fetch("/api/scanning", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: project.id, field: "status", value: nextStatus }),
+        body: JSON.stringify({ id: project.id, field: "status", value: "pending" }),
       });
       if (res.ok) {
         queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
@@ -693,7 +705,7 @@ export function MouldProjectsTable({
         onRefresh?.();
         appStore.addToast({
           type: "success",
-          message: `Project status updated to ${nextStatus}`,
+          message: "Project reopened to Active Pipeline",
         });
       } else {
         const err = await res.json().catch(() => ({}));
@@ -1237,9 +1249,18 @@ export function MouldProjectsTable({
                   }`}
                 />
               </button>
-              <span className="font-mono font-bold text-blue-600 text-xs">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setTimelineProjectId(info.row.original.projectid || info.row.original.id);
+                  setIsTimelineOpen(true);
+                }}
+                className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-xs cursor-pointer text-left"
+                title="View GitHub-style Lifecycle Timeline & History"
+              >
                 {info.getValue() || `P-${info.row.original.id}`}
-              </span>
+              </button>
             </div>
           );
         },
@@ -1345,6 +1366,17 @@ export function MouldProjectsTable({
         header: "Actions",
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => {
+                setTimelineProjectId(row.original.projectid || row.original.id);
+                setIsTimelineOpen(true);
+              }}
+              title="View Lifecycle Timeline & Dossier"
+              className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-colors cursor-pointer"
+            >
+              <Sparkles className="h-4 w-4" />
+            </button>
             <button
               type="button"
               onClick={() => handleOpenView(row.original)}
@@ -2834,6 +2866,37 @@ export function MouldProjectsTable({
           initialProject={createPOProject}
         />
       )}
+
+      {/* Mould Lifecycle Timeline & History Drawer */}
+      <MouldTimelineDrawer
+        projectId={timelineProjectId}
+        isOpen={isTimelineOpen}
+        onClose={() => {
+          setIsTimelineOpen(false);
+          setTimelineProjectId(null);
+        }}
+      />
+
+      {/* Move to Project Register Modal with Partial Dispatch Detection */}
+      <MoveToRegisterModal
+        project={moveToRegisterProject}
+        isOpen={!!moveToRegisterProject}
+        onClose={() => setMoveToRegisterProject(null)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+          queryClient.invalidateQueries({ queryKey: ["project_register_completed"] });
+          onRefresh?.();
+          appStore.addToast({
+            type: "success",
+            message: "Project successfully moved to Completed Project Register",
+          });
+        }}
+        onOpenDispatchForRemaining={(project) => {
+          const code = project.projectid || project.id;
+          router.push(`/dispatch?projectid=${encodeURIComponent(code)}`);
+        }}
+      />
     </div>
   );
 }

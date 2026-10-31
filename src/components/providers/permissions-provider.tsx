@@ -41,10 +41,11 @@ const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/export": "nav_export",
   "/settings": "nav_settings", // Admin settings
   "/quotation": "nav_quotation",
+  "/project-register": "nav_project_register",
 };
 
-const PERMS_CACHE_KEY = "starmould_role_perms_cache";
-const ORDERS_CACHE_KEY = "starmould_role_orders_cache";
+const PERMS_CACHE_KEY = "starmould_role_perms_cache_v2";
+const ORDERS_CACHE_KEY = "starmould_role_orders_cache_v2";
 
 function getCachedPerms(): { matrix: RolePermissionsMatrix; menuOrders: RoleMenuOrders } | null {
   if (typeof window === "undefined") return null;
@@ -211,8 +212,22 @@ export function PermissionsProvider({
 
   const getRoleMenuOrder = useCallback(
     (roleId: number): string[] => {
-      if (menuOrders[roleId] && menuOrders[roleId].length > 0) {
-        return menuOrders[roleId];
+      const order = menuOrders[roleId];
+      if (order && order.length > 0) {
+        const defaultOrder = DEFAULT_ROLE_MENU_ORDERS[roleId] || DEFAULT_ROLE_MENU_ORDERS[0];
+        const existingKeys = new Set(order);
+        const missingKeys = defaultOrder.filter((k) => !existingKeys.has(k));
+        if (missingKeys.length === 0) return order;
+        const enriched = [...order];
+        for (const mk of missingKeys) {
+          const scanIdx = enriched.indexOf("nav_scanning");
+          if (scanIdx !== -1) {
+            enriched.splice(scanIdx + 1, 0, mk);
+          } else {
+            enriched.push(mk);
+          }
+        }
+        return enriched;
       }
       return DEFAULT_ROLE_MENU_ORDERS[roleId] || DEFAULT_ROLE_MENU_ORDERS[0];
     },

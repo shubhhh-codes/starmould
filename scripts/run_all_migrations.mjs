@@ -82,6 +82,7 @@ async function main() {
     { name: '20261031124500_fix_jobwork_balance_and_inward_join.sql', path: 'supabase/migrations/20261031124500_fix_jobwork_balance_and_inward_join.sql' },
     { name: '20261031130000_protect_akshay_and_atomic_expense_rpc.sql', path: 'supabase/migrations/20261031130000_protect_akshay_and_atomic_expense_rpc.sql' },
     { name: '20261031140000_cascade_delete_mould_and_subplates.sql', path: 'supabase/migrations/20261031140000_cascade_delete_mould_and_subplates.sql' },
+    { name: '20261031150000_subplate_dispatch_status_and_closure.sql', path: 'supabase/migrations/20261031150000_subplate_dispatch_status_and_closure.sql' },
   ];
 
   console.log(`=== RUNNING ALL MIGRATIONS (${migrationManifest.length} total) ===\n`);

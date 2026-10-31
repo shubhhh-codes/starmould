@@ -140,21 +140,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Enforce rule: Only one delivery challan (dispatch) may be created per mould project
-    if (projectid) {
-      const trimmedProject = String(projectid).trim();
-      const { data: existingDispatch } = await supabaseAdmin
-        .from("dispatch")
-        .select("id, challanno")
-        .eq("status", "1")
-        .eq("projectid", trimmedProject)
-        .limit(1)
-        .maybeSingle();
+    // Check if any of the requested subplates have already been dispatched in an active delivery challan
+    const requestedPlateIds = items
+      .map((it: any) => Number(it.plateid))
+      .filter((id: number) => !isNaN(id) && id > 0);
 
-      if (existingDispatch) {
+    if (requestedPlateIds.length > 0) {
+      const { data: alreadyDispatchedItems } = await supabaseAdmin
+        .from("dispatch_items")
+        .select("plateid, dispatch!inner(challanno, status)")
+        .in("plateid", requestedPlateIds)
+        .eq("dispatch.status", "1")
+        .limit(1);
+
+      if (alreadyDispatchedItems && alreadyDispatchedItems.length > 0) {
+        const item = alreadyDispatchedItems[0];
+        const challanRef = (item.dispatch as any)?.challanno || "an existing challan";
         return NextResponse.json(
           {
-            error: `A delivery challan already exists for mould "${trimmedProject}" (${existingDispatch.challanno}). Only one final delivery dispatch is permitted per mould project.`,
+            error: `One or more selected subplates have already been dispatched in Delivery Challan ${challanRef}.`,
           },
           { status: 400 }
         );
@@ -241,20 +245,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
-    // Automatically complete project status in scan register and update subplate locations to Customer
+    // Automatically update subplate locations to Customer and dispatch_status
     const nowIso = new Date().toISOString();
     const todayDate = nowIso.slice(0, 10);
 
     if (projectid) {
       const trimmedProject = String(projectid).trim();
-      await supabaseAdmin
-        .from("scan")
-        .update({
-          status: "completed",
-          dispatchdate: todayDate,
-          updated_at: nowIso,
-        })
-        .eq("projectid", trimmedProject);
 
       const dispatchedPlateIds = itemsToInsert
         .map((it: any) => Number(it.plateid))
@@ -265,14 +261,34 @@ export async function POST(req: NextRequest) {
           .from("subplate")
           .update({
             location: "Customer",
+            dispatch_status: "dispatched",
             updated_at: nowIso,
           })
           .in("id", dispatchedPlateIds);
-      } else {
+      }
+
+      // Check if all subplates of this mould project are now dispatched or closed
+      const { data: allPlates } = await supabaseAdmin
+        .from("subplate")
+        .select("id, location, dispatch_status")
+        .or(`projectid.eq.${trimmedProject},mold_code.eq.${trimmedProject}`);
+
+      const totalPlatesCount = (allPlates || []).length;
+      const allDone =
+        totalPlatesCount > 0 &&
+        (allPlates || []).every(
+          (sp) =>
+            sp.location === "Customer" ||
+            sp.dispatch_status === "dispatched" ||
+            sp.dispatch_status === "closed_without_challan"
+        );
+
+      if (allDone) {
         await supabaseAdmin
-          .from("subplate")
+          .from("scan")
           .update({
-            location: "Customer",
+            status: "completed",
+            dispatchdate: todayDate,
             updated_at: nowIso,
           })
           .eq("projectid", trimmedProject);

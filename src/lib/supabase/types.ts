@@ -147,6 +147,10 @@ export interface Subplate {
   packing_at: string | null;
   packing_photo: string | null;
   location: string;
+  dispatch_status?: 'dispatched' | 'closed_without_challan' | string | null;
+  closure_reason?: string | null;
+  closed_at?: string | null;
+  closed_by?: number | null;
   ordered_qty?: number;
   remaining_qty?: number;
   has_active_po?: boolean;

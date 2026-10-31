@@ -838,6 +838,31 @@ export async function PUT(req: NextRequest) {
       packing_workby_name: userMap.get(Number(data.packing_workby))?.name || userMap.get(Number(data.packing_workby))?.initials || null,
     };
 
+    // Automatic Completion: If packing is completed for all companion subplates, auto-update mould to completed
+    if (updatePayload.packing_workby && (data.projectid || data.mold_code)) {
+      const targetProj = data.projectid || data.mold_code;
+      const { data: companionPlates } = await supabaseAdmin
+        .from("subplate")
+        .select("id, packing_workby")
+        .or(`projectid.eq.${targetProj},mold_code.eq.${targetProj}`);
+
+      const allPacked =
+        (companionPlates || []).length > 0 &&
+        (companionPlates || []).every((sp) => sp.packing_workby !== null && sp.packing_workby !== 0);
+
+      if (allPacked) {
+        const todayDate = new Date().toISOString().slice(0, 10);
+        await supabaseAdmin
+          .from("scan")
+          .update({
+            status: "completed",
+            dispatchdate: todayDate,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("projectid", targetProj);
+      }
+    }
+
     invalidateCache("subplate_default_");
     invalidateCache("scanning_default_");
     invalidateCache("subplates_worklog_lookup");

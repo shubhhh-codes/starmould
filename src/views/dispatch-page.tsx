@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
@@ -116,6 +117,27 @@ export function DispatchPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const lastLoadedMouldRef = useRef<string | null>(null);
 
+  const searchParams = useSearchParams();
+  const urlProjectId = searchParams.get("projectid");
+
+  useEffect(() => {
+    if (urlProjectId && scans.length > 0 && !isModalOpen) {
+      const matched = scans.find(
+        (s) =>
+          String(s.projectid).toLowerCase() === urlProjectId.toLowerCase() ||
+          String(s.id) === urlProjectId
+      );
+      if (matched) {
+        setModalForm((prev) => ({
+          ...prev,
+          customerid: String(matched.customer_id || matched.cname || ""),
+          projectid: matched.projectid || String(matched.id),
+        }));
+        setIsModalOpen(true);
+      }
+    }
+  }, [urlProjectId, scans]);
+
   // Filtered dropdown lists strictly based on legacy usertype
   const customersList = useMemo(() => customers.filter((c) => c.usertype === "Customer"), [customers]);
   const transporters = useMemo(() => (transporterLookup || []).map((t: any) => ({ id: t.id, customername: t.vendor_name, initials: t.initials })), [transporterLookup]);
@@ -127,19 +149,14 @@ export function DispatchPage() {
   }, [customers, modalForm.customerid]);
 
   // Mould projects for selected customer
-  // Rule: Exclude moulds that already have an active dispatch (one final delivery dispatch per mould)
+  // Rule: Moulds are eligible if they have undispatched subplates remaining
   const availableProjects = useMemo(() => {
-    const activeDispatchProjectIds = new Set<string>();
-    dispatches.forEach((d) => {
-      if (String(d.status) === "1" || (d as any).status === 1) {
-        if (d.projectid) activeDispatchProjectIds.add(String(d.projectid).trim().toLowerCase());
-      }
-    });
-
     const eligibleScans = scans.filter((s: ScanProject) => {
-      const code = String(s.projectid || "").trim().toLowerCase();
-      const idStr = String(s.id);
-      return !activeDispatchProjectIds.has(code) && !activeDispatchProjectIds.has(idStr);
+      const plates = s.subplates || [];
+      if (plates.length === 0) return true;
+      return plates.some(
+        (sp: any) => sp.location !== "Customer" && sp.dispatch_status !== "dispatched"
+      );
     });
 
     if (!modalForm.customerid) return eligibleScans;
@@ -385,9 +402,9 @@ export function DispatchPage() {
         (String(d.status) === "1" || (d as any).status === 1) &&
         String(d.projectid).trim().toLowerCase() === String(modalForm.projectid).trim().toLowerCase()
     );
-    if (alreadyDispatched) {
+    if (alreadyDispatched && availablePlates.length === 0) {
       setFormError(
-        `A delivery challan already exists for mould "${modalForm.projectid}" (${alreadyDispatched.challanno}). Only one final delivery dispatch is permitted per mould project.`
+        `All subplates for mould "${modalForm.projectid}" have already been dispatched (${alreadyDispatched.challanno}).`
       );
       return;
     }

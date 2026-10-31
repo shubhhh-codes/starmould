@@ -51,15 +51,21 @@ export async function loadEffectiveConfig(): Promise<{ permissions: RolePermissi
       const mergedOrders: RoleMenuOrders = { ...DEFAULT_ROLE_MENU_ORDERS };
       for (const [roleIdStr, order] of Object.entries(storedOrders)) {
         const roleId = Number(roleIdStr);
-        if (Array.isArray(order) && order.length > 0) mergedOrders[roleId] = order;
-      }
-      const storedAdminOrder = storedOrders[0] || (storedOrders as any)["0"];
-      if (Array.isArray(storedAdminOrder) && storedAdminOrder.length > 0) {
-        const existingKeys = new Set(storedAdminOrder);
-        const missingKeys = DEFAULT_ROLE_MENU_ORDERS[0].filter((k) => !existingKeys.has(k));
-        mergedOrders[0] = [...storedAdminOrder, ...missingKeys];
-      } else {
-        mergedOrders[0] = [...DEFAULT_ROLE_MENU_ORDERS[0]];
+        if (Array.isArray(order) && order.length > 0) {
+          const defaultList = DEFAULT_ROLE_MENU_ORDERS[roleId] || DEFAULT_ROLE_MENU_ORDERS[0];
+          const existingKeys = new Set(order);
+          const missingKeys = defaultList.filter((k) => !existingKeys.has(k));
+          const enriched = [...order];
+          for (const mk of missingKeys) {
+            const scanIdx = enriched.indexOf("nav_scanning");
+            if (scanIdx !== -1) {
+              enriched.splice(scanIdx + 1, 0, mk);
+            } else {
+              enriched.push(mk);
+            }
+          }
+          mergedOrders[roleId] = enriched;
+        }
       }
       for (const rId of Object.keys(mergedOrders).map(Number).filter((id) => id !== 0)) {
         if (Array.isArray(mergedOrders[rId])) {

@@ -28,6 +28,7 @@ import {
   Building2,
   Settings,
   FileText,
+  Archive,
 } from "lucide-react";
 
 export interface NavItem {
@@ -75,6 +76,13 @@ export const navigationItems: NavItem[] = [
     icon: Scan,
     allowedRoles: [0, 1, 2, 3, 4, 6, 7, 9, 10],
     permKey: "nav_scanning",
+  },
+  {
+    title: "Project Register",
+    href: "/project-register",
+    icon: Archive,
+    allowedRoles: [0, 1, 2, 3, 4, 5, 6, 7, 9, 10],
+    permKey: "nav_project_register",
   },
   {
     title: "Quotations",
