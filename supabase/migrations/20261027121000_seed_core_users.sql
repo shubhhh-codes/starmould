@@ -1,7 +1,8 @@
 -- Seed authentic staff users from 002_data.sql so user assignments resolve correctly across all views
 INSERT INTO public.users (id, name, email, role_id, status, username, initials, usertype, usersubtype, password_hash, must_change_password) VALUES
-  (1, 'Shivani', 'shivaniparmar559@gmail.com', 0, 1, 'shivani', 'SHP', 'Admin', 'Skilled MP', '$2y$10$aLTKAQN600Zi7UEPUFEN2OIqfJXxH6sJ4MBdAzv41sLN9G9LgktFu', false),
+  (1, 'Super Admin', 'admin@star.in', 0, 1, 'admin', 'ADM', 'Admin', 'Skilled MP', '$2a$10$tZ2c6rK6z7B3gKz0fM5x8edclCp5Au1TYDwbDQJOBfMo.wsxIl2BP', false),
   (2, 'Akshay', 'akshay@star.in', 0, 1, 'Akshay', 'AKS', 'Admin', 'Skilled MP', '$2y$10$S0OedclCp5Au1TYDwbDQJOBfMo.wsxIl2BPMCGM/000/7drfdI78W', false),
+  (3, 'Shivani', 'shivaniparmar559@gmail.com', 0, 1, 'shivani', 'SHP', 'Admin', 'Skilled MP', '$2y$10$aLTKAQN600Zi7UEPUFEN2OIqfJXxH6sJ4MBdAzv41sLN9G9LgktFu', false),
   (4, 'Bhagirath', 'bhagirath@star.in', 1, 1, 'BHAGIRATH', 'BGR', 'Manager', 'Skilled MP', '$2y$10$SyzjOCLz.GcZxfJg0ROhsOKdZjqpnRZOvyC6YbBShJvMzj.bGgrye', false),
   (5, 'Yash Moliya', 'yash@star.in', 0, 1, 'Yash', 'YAM', 'Admin', 'Skilled MP', '$2y$10$BggI.BN4dm1eBCEWBAiOdeZ9KBr4Q038lXzAQ8LWexXw9IDNuTtfa', false),
   (6, 'Prince Sojitra', 'prince@star.in', 4, 1, 'Prince', 'PRN', 'User', 'Skilled MP', '$2y$10$fHm9hVT9r7BPx7j6tm/9Wud5RabuyFYEF9G0uP4cdFeaELw7b3/b.', false),
