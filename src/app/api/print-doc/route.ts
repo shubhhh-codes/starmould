@@ -520,6 +520,32 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
       }
 
+      // Fetch customer code and details from customers table
+      let customerCode = quote.customer_code || null;
+      let customerData: any = null;
+      if (quote.customer_id) {
+        const { data: cust } = await supabaseAdmin
+          .from("customers")
+          .select("id, customer_code, initials, customername, address, gstin, pan, city, state, mobile, email")
+          .eq("id", quote.customer_id)
+          .maybeSingle();
+
+        if (cust) {
+          customerData = cust;
+          customerCode = cust.customer_code || cust.initials || null;
+        }
+      }
+
+      if (!customerCode && quote.consignee_name) {
+        customerCode = quote.consignee_name
+          .trim()
+          .split(/\s+/)
+          .map((w: string) => w[0]?.toUpperCase())
+          .filter(Boolean)
+          .slice(0, 4)
+          .join("") || null;
+      }
+
       const { data: items } = await supabaseAdmin
         .from("quotation_items")
         .select("*")
@@ -528,6 +554,8 @@ export async function GET(req: NextRequest) {
 
       const fullQuote = {
         ...quote,
+        customer_code: customerCode || "—",
+        customer: customerData,
         items: items || [],
       };
 
@@ -538,13 +566,14 @@ export async function GET(req: NextRequest) {
         docDate: quote.quotation_date,
         party: {
           id: quote.id,
+          customer_code: customerCode,
           customername: quote.consignee_name,
           vendor_name: quote.consignee_name,
           address: quote.consignee_address,
           gstin: quote.consignee_gstin,
-          state: quote.consignee_state,
-          email: quote.consignee_email,
-          mobile: quote.consignee_mobile,
+          state: quote.consignee_state || customerData?.state,
+          email: quote.consignee_email || customerData?.email,
+          mobile: quote.consignee_mobile || customerData?.mobile,
         },
         quote: fullQuote,
         items: fullQuote.items,

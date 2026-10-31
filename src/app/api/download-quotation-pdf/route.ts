@@ -102,8 +102,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch customer code
-    let customerCode = "—";
-    if (quote.customer_id) {
+    let customerCode = quote.customer_code || "—";
+    if (customerCode === "—" && quote.customer_id) {
       const { data: cust } = await supabaseAdmin
         .from("customers")
         .select("customer_code, initials, customername")

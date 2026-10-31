@@ -156,7 +156,19 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
 
   const inWords = amountInWords(grandTotal);
 
-  const customerCode = quote.customer_code || "—";
+  const customerCode =
+    quote.customer_code ||
+    (quote as any).customer?.customer_code ||
+    (quote as any).customer?.initials ||
+    (quote.consignee_name
+      ? quote.consignee_name
+          .trim()
+          .split(/\s+/)
+          .map((w: string) => w[0]?.toUpperCase())
+          .filter(Boolean)
+          .slice(0, 4)
+          .join("")
+      : "—");
   const consigneeName = quote.consignee_name || "—";
   const consigneeAddress = quote.consignee_address || "—";
   const consigneeGstin = quote.consignee_gstin || "—";
