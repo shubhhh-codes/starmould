@@ -523,8 +523,8 @@ export function DispatchChallanVoucher({
                         const subCode = it.subprojectId;
                         const mat = it.material;
                         const prj = it.projectCode || dispatch.projectCode || "—";
-                        const cond = it.condition || "NEW";
-                        const workNature = it.work || "NEW MADE";
+                        const cond = it.condition || "—";
+                        const workNature = it.work || "—";
 
                         return (
                           <tr

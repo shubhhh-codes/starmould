@@ -206,8 +206,8 @@ export function DispatchPage() {
         customer: customerVal,
         project: modalForm.projectid,
         particulars: "",
-        condition: "NEW",
-        work: "NEW MADE",
+        condition: "",
+        work: "",
         qty: plate.sqty || 1,
         sqty: plate.sqty || 1,
       }));
@@ -336,8 +336,8 @@ export function DispatchPage() {
           customer: cust?.id ? String(cust.id) : (prev.customerid || ""),
           project: prev.projectid,
           particulars: "",
-          condition: "NEW",
-          work: "NEW MADE",
+          condition: "",
+          work: "",
           qty: 1,
         },
       ],
@@ -795,7 +795,7 @@ export function DispatchPage() {
                                             </span>
                                           </td>
                                           <td className="px-3 py-2 text-slate-600 font-medium">
-                                            {it.work || "NEW MADE"}
+                                            {it.work || "—"}
                                           </td>
                                           <td className="px-3 py-2 text-slate-700 whitespace-pre-line text-xs">
                                             {it.particulars}
@@ -904,7 +904,7 @@ export function DispatchPage() {
                                 {it.custom_plate_name || it.platename || `Plate #${it.plateid}`}
                               </span>
                               <span className="text-[10px] text-slate-400">
-                                {it.condition || "NEW"} • {it.work || "NEW MADE"}
+                                {[it.condition, it.work].filter(Boolean).join(" • ") || "—"}
                               </span>
                             </div>
                             <span className="font-bold text-slate-800">
@@ -1148,8 +1148,8 @@ export function DispatchPage() {
                         customer: customerVal,
                         project: newProjectId,
                         particulars: "",
-                        condition: "NEW",
-                        work: "NEW MADE",
+                        condition: "",
+                        work: "",
                         qty: plate.sqty || 1,
                         sqty: plate.sqty || 1,
                       }));
