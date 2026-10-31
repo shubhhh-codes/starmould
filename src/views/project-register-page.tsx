@@ -225,7 +225,7 @@ export function ProjectRegisterPage() {
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  Completed Mould Register & Dossiers
+                  Completed Mould Register
                 </h1>
                 <p className="text-xs sm:text-sm text-slate-500">
                   Permanent historical archive of finished moulds, component lifecycles, and audit records

@@ -2,6 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 
+export interface LifecycleMilestone {
+  step: number;
+  id: string;
+  timestamp: string;
+  title: string;
+  badgeLabel: string;
+  badgeColor: "purple" | "blue" | "teal" | "emerald" | "amber" | "slate" | "rose";
+  description: string;
+  authorName?: string;
+  documentLink?: {
+    type: "challan" | "dispatch" | "purchase" | "inward";
+    id: number | string;
+    label: string;
+  };
+  details?: {
+    label: string;
+    value: string;
+  }[];
+  subItems?: {
+    name: string;
+    status: string;
+    note?: string;
+  }[];
+}
+
 export interface TimelineEvent {
   id: string;
   timestamp: string;
@@ -408,6 +433,180 @@ export async function GET(
     const startDate = new Date(project.rdate || project.created_at || new Date());
     const endDate = project.dispatchdate ? new Date(project.dispatchdate) : new Date();
     const durationDays = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    const isCompleted = String(project.status).toLowerCase() === "completed" || String(project.status).toLowerCase() === "registered";
+
+    // 5. Construct Clean, Step-by-Step Lifecycle Milestones (High-Level Progression Story)
+    const milestones: LifecycleMilestone[] = [];
+    let stepNumber = 1;
+
+    // Step 1: Mould Project Created
+    milestones.push({
+      step: stepNumber++,
+      id: `ms_created_${project.id}`,
+      timestamp: createdAt,
+      title: "Mould Project Created",
+      badgeLabel: "Created",
+      badgeColor: "purple",
+      description: `Mould project registered for ${customerName} (${project.worktype || "Tooling"}). ${project.description || "Mould set"}`,
+      authorName: creatorUser?.name || "System",
+      details: [
+        { label: "Received Date", value: project.rdate || "N/A" },
+        { label: "Committed Date", value: project.cdate || "N/A" },
+        { label: "Work Type", value: project.worktype || "Tooling" },
+      ],
+    });
+
+    // Step 2: Subplates Configured
+    if (subplates.length > 0) {
+      milestones.push({
+        step: stepNumber++,
+        id: `ms_subplates_${project.id}`,
+        timestamp: subplates[0].created_at || createdAt,
+        title: `${subplates.length} Subplates Configured`,
+        badgeLabel: `${subplates.length} Subplates`,
+        badgeColor: "blue",
+        description: `Subplate tooling breakdown registered with dimensions and raw steel specifications.`,
+        subItems: subplates.map((sp) => ({
+          name: sp.platename,
+          status: `${sp.length || 0}x${sp.width || 0}x${sp.height || 0} mm • ${sp.material || "Steel"}`,
+          note: sp.location ? `Loc: ${sp.location}` : undefined,
+        })),
+      });
+    }
+
+    // Step 3: Raw Material Procurement (PO)
+    if (purchases.length > 0) {
+      const firstPo = purchases[0];
+      const poVendors = Array.from(new Set(purchases.map((p) => vendMap.get(p.vname) || `Vendor #${p.vname}`))).join(", ");
+      milestones.push({
+        step: stepNumber++,
+        id: `ms_purchases_${project.id}`,
+        timestamp: firstPo.rdate ? `${firstPo.rdate}T00:00:00.000Z` : createdAt,
+        title: `Raw Material Orders (${purchases.length} PO${purchases.length > 1 ? "s" : ""})`,
+        badgeLabel: "Procurement",
+        badgeColor: "teal",
+        description: `Raw material ordered from ${poVendors}.`,
+        documentLink: {
+          type: "purchase",
+          id: firstPo.id,
+          label: firstPo.srno || `PO #${firstPo.id}`,
+        },
+        subItems: purchases.map((p) => ({
+          name: p.srno || `PO #${p.id}`,
+          status: vendMap.get(p.vname) || `Vendor #${p.vname}`,
+          note: p.rdate || undefined,
+        })),
+      });
+    }
+
+    // Step 4: Outward Jobwork (if any outside processing)
+    if (challans.length > 0) {
+      const firstCh = challans[0];
+      const chVendors = Array.from(new Set(challans.map((c) => vendMap.get(c.vendortid) || `Vendor #${c.vendortid}`))).join(", ");
+      milestones.push({
+        step: stepNumber++,
+        id: `ms_challans_${project.id}`,
+        timestamp: firstCh.chdate ? `${firstCh.chdate}T00:00:00.000Z` : createdAt,
+        title: `Outward Jobwork (${challans.length} Challan${challans.length > 1 ? "s" : ""})`,
+        badgeLabel: "Jobwork Sent",
+        badgeColor: "amber",
+        description: `Plates sent for outside specialized processes to ${chVendors}.`,
+        documentLink: {
+          type: "challan",
+          id: firstCh.id,
+          label: firstCh.challanno || `Challan #${firstCh.id}`,
+        },
+        subItems: challans.map((c) => ({
+          name: c.challanno || `Challan #${c.id}`,
+          status: vendMap.get(c.vendortid) || "Jobwork Vendor",
+          note: c.chdate || undefined,
+        })),
+      });
+    }
+
+    // Step 5: Shopfloor Machining & Stage Progress
+    const packedCount = subplates.filter((sp) => !!sp.packing_workby).length;
+    const vmcCount = subplates.filter((sp) => !!sp.vmc_workby).length;
+    const designCount = subplates.filter((sp) => !!sp.design_by).length;
+    const hasShopfloorActivity = worklogs.length > 0 || packedCount > 0 || vmcCount > 0;
+
+    if (hasShopfloorActivity) {
+      milestones.push({
+        step: stepNumber++,
+        id: `ms_machining_${project.id}`,
+        timestamp: worklogs[0]?.rdate ? `${worklogs[0].rdate}T00:00:00.000Z` : createdAt,
+        title: "Shopfloor Machining & Production Stages",
+        badgeLabel: `${formattedMachineTime} Machining hrs`,
+        badgeColor: "blue",
+        description: `${totalPlates} components progressed: ${designCount}/${totalPlates} Designed, ${vmcCount}/${totalPlates} VMC Machined, ${packedCount}/${totalPlates} Packed.`,
+        details: [
+          { label: "Total Machining Time", value: `${formattedMachineTime} hrs` },
+          { label: "Operations Logged", value: `${worklogs.length} sessions` },
+        ],
+        subItems: worklogs.map((wl) => ({
+          name: wl.workdescription || wl.program_name || "Machining Operation",
+          status: `${wl.work_hr || "0"} hrs • Operator: ${userMap.get(wl.userid)?.name || "Worker"}`,
+          note: wl.rdate || undefined,
+        })),
+      });
+    }
+
+    // Step 6: Delivery Dispatch Challan (if any customer shipment)
+    if (dispatches.length > 0) {
+      const firstDisp = dispatches[0];
+      const transporter = vendMap.get(firstDisp.vendortid) || "Logistics";
+      milestones.push({
+        step: stepNumber++,
+        id: `ms_dispatch_${project.id}`,
+        timestamp: firstDisp.chdate ? `${firstDisp.chdate}T00:00:00.000Z` : (project.dispatchdate ? `${project.dispatchdate}T00:00:00.000Z` : createdAt),
+        title: "Customer Delivery Challan Issued",
+        badgeLabel: `${dispatchedPlatesCount} Dispatched`,
+        badgeColor: "emerald",
+        description: `${dispatchedPlatesCount} component(s) dispatched to ${customerName} via Challan ${firstDisp.challanno || ""}. Transporter: ${transporter}.`,
+        documentLink: {
+          type: "dispatch",
+          id: firstDisp.id,
+          label: firstDisp.challanno || `Dispatch #${firstDisp.id}`,
+        },
+        details: [
+          { label: "Challan No", value: firstDisp.challanno },
+          { label: "Invoice No", value: firstDisp.invoiceno || "N/A" },
+          { label: "Vehicle", value: firstDisp.vehicleno || "N/A" },
+        ],
+      });
+    }
+
+    // Step 7: Direct Closures (if plates were archived without challan)
+    const directClosedPlates = subplates.filter((sp) => sp.dispatch_status === "closed_without_challan");
+    if (directClosedPlates.length > 0) {
+      milestones.push({
+        step: stepNumber++,
+        id: `ms_direct_closure_${project.id}`,
+        timestamp: directClosedPlates[0].closed_at || project.updated_at || createdAt,
+        title: `${directClosedPlates.length} Subplate(s) Closed Directly`,
+        badgeLabel: "Direct Closed (No Challan)",
+        badgeColor: "amber",
+        description: `${directClosedPlates.length} component(s) moved to Project Register without challan (deferred/in-house).`,
+        subItems: directClosedPlates.map((sp) => ({
+          name: sp.platename,
+          status: sp.closure_reason || "Direct Closure / Return",
+          note: sp.closed_at ? new Date(sp.closed_at).toLocaleDateString("en-IN") : undefined,
+        })),
+      });
+    }
+
+    // Step 8: Completed & Moved to Project Register
+    if (isCompleted) {
+      milestones.push({
+        step: stepNumber++,
+        id: `ms_completed_${project.id}`,
+        timestamp: project.updated_at || project.dispatchdate || createdAt,
+        title: "Project Completed & Moved to Register",
+        badgeLabel: "Archived in Register",
+        badgeColor: "emerald",
+        description: `All ${totalPlates} subplates fully accounted for (${dispatchedPlatesCount} dispatched, ${directClosedPlates.length} direct closed). Permanent historical dossier preserved.`,
+      });
+    }
 
     const responsePayload = {
       project: {
@@ -431,7 +630,7 @@ export async function GET(
         pendingPlatesCount,
         totalMachiningHours: formattedMachineTime,
         durationDays,
-        isCompleted: String(project.status).toLowerCase() === "completed" || String(project.status).toLowerCase() === "registered",
+        isCompleted,
         dispatchCoverage: {
           total: totalPlates,
           dispatched: dispatchedPlatesCount,
@@ -456,6 +655,7 @@ export async function GET(
         closureReason: sp.closure_reason,
         closedAt: sp.closed_at,
       })),
+      milestones,
       events,
     };
 

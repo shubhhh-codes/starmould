@@ -1372,7 +1372,7 @@ export function MouldProjectsTable({
                 setTimelineProjectId(row.original.projectid || row.original.id);
                 setIsTimelineOpen(true);
               }}
-              title="View Lifecycle Timeline & Dossier"
+              title="View Lifecycle Timeline"
               className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-colors cursor-pointer"
             >
               <Sparkles className="h-4 w-4" />
