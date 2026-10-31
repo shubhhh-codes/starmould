@@ -1360,8 +1360,8 @@ export function UserPage() {
                 <Modal
                     isOpen={!!deleteTarget}
                     onClose={() => setDeleteTarget(null)}
-                    title="Confirm Soft Deletion"
-                    description="Source: UserController.php destroy()"
+                    title="Confirm User Deletion"
+                    description="Deactivate user account and access permissions"
                     size="sm"
                 >
                     {deleteTarget && (
@@ -1372,20 +1372,20 @@ export function UserPage() {
                                 </div>
                                 <div>
                                     <h4 className="text-sm font-bold text-slate-900">
-                                        Confirm Soft Deletion
+                                        Delete User Account
                                     </h4>
                                     <p className="text-slate-500">
-                                        This action will soft-delete the user
+                                        Remove login access for this user
                                     </p>
                                 </div>
                             </div>
                             <p className="text-slate-600 leading-relaxed">
-                                Do you really want to delete user{" "}
+                                Are you sure you want to delete user{" "}
                                 <span className="font-semibold text-slate-900">
                                     &quot;{deleteTarget.name}&quot;
                                 </span>{" "}
-                                (@{deleteTarget.username})? This user will be
-                                soft deleted and marked with a timestamp.
+                                (@{deleteTarget.username})? They will no longer be able to log in or
+                                access the ERP system.
                             </p>
                             <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                                 <button

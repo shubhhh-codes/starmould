@@ -443,8 +443,9 @@ export async function DELETE(req: NextRequest) {
       .from("users")
       .update({
         deleted_at: new Date().toISOString(),
+        status: 0,
       })
-      .eq("id", id);
+      .eq("id", numId);
 
     if (error) {
       if (
