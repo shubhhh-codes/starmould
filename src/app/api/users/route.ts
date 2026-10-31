@@ -271,6 +271,27 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
+    const isTargetSuperAdmin =
+      numId === 1 ||
+      targetUser.username?.toLowerCase() === "admin" ||
+      targetUser.email?.toLowerCase() === "admin@star.in";
+
+    // Super Admin protection: cannot deactivate or change role
+    if (isTargetSuperAdmin) {
+      if (status !== undefined && Number(status) === 0) {
+        return NextResponse.json(
+          { error: "Super Admin account cannot be deactivated." },
+          { status: 400 }
+        );
+      }
+      if (role_id !== undefined && Number(role_id) !== 0) {
+        return NextResponse.json(
+          { error: "Super Admin role cannot be modified." },
+          { status: 400 }
+        );
+      }
+    }
+
     // Guard: Only Administrators can modify, update passwords for, or alter an Administrator account
     if (Number(targetUser.role_id) === 0 && auth.user.role_id !== 0) {
       return NextResponse.json(
