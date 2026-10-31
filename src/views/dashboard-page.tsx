@@ -231,7 +231,7 @@ export function DashboardPage() {
       //    pre-delete syncTime. This confirms the deletion via activeIds and updates
       //    lastSyncTime to the current server time — preventing ghost re-appearances.
       if (syncTimeBefore) {
-        projectsStream.syncDelta(syncTimeBefore);
+        await projectsStream.syncDelta(syncTimeBefore);
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -241,13 +241,55 @@ export function DashboardPage() {
       broadcastQueryInvalidation(queryKeys.purchases.all());
       return true;
     } catch (err: any) {
-      // 4. Rollback if delete fails
       if (original) {
         await projectsStream.restoreProjectLocally(original);
       }
       appStore.addToast({
         type: "error",
         message: err.message || "Failed to delete mould project",
+      });
+      return false;
+    }
+  };
+
+  // Batch Optimistic Instant Removal + Cascade Deletion
+  const handleDeleteProjects = async (ids: (number | string)[]): Promise<boolean> => {
+    if (!ids || ids.length === 0) return true;
+    const idSet = new Set(ids.map(String));
+    const originals = projectsStream.scans.filter((p) => idSet.has(String(p.id)));
+    const syncTimeBefore = projectsStream.lastSyncTime;
+
+    // 1. Instantly remove all rows from local state and IndexedDB in a single atomic batch
+    await projectsStream.removeProjectsLocally(ids);
+
+    try {
+      // 2. Perform all deletions on server
+      for (const id of ids) {
+        const res = await fetch(`/api/scanning?id=${id}`, { method: "DELETE" });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `Failed to delete mould project #${id}`);
+        }
+      }
+
+      // 3. ONLY after ALL server deletes complete, perform a single delta sync!
+      if (syncTimeBefore) {
+        await projectsStream.syncDelta(syncTimeBefore);
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
+      return true;
+    } catch (err: any) {
+      for (const orig of originals) {
+        await projectsStream.restoreProjectLocally(orig);
+      }
+      appStore.addToast({
+        type: "error",
+        message: err.message || "Failed to delete mould projects",
       });
       return false;
     }
@@ -498,6 +540,7 @@ export function DashboardPage() {
           isRefreshing={isRefreshing}
           onRefresh={handleRefresh}
           onDeleteProject={handleDeleteProject}
+          onDeleteProjects={handleDeleteProjects}
         />
       </div>
 

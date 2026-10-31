@@ -580,6 +580,49 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     [queryClient]
   );
 
+  // Optimistic Instant Removal of multiple mould projects (0ms UI lag)
+  const removeProjectsLocally = React.useCallback(
+    async (ids: (number | string)[]) => {
+      const idSet = new Set(ids.map((id) => String(id)));
+      const numSet = new Set(ids.map((id) => Number(id)));
+
+      setStreamedScans((prev) => {
+        const updated = prev.filter((p) => !idSet.has(String(p.id)) && !numSet.has(Number(p.id)));
+        streamedScansRef.current = updated;
+        const newTotal = Math.max(0, (totalCountRef.current || prev.length) - ids.length);
+        setTotalCount(newTotal);
+        totalCountRef.current = newTotal;
+
+        saveLocalProjectsStore({
+          scans: updated,
+          lastSyncTime: lastSyncTimeRef.current ?? new Date().toISOString(),
+          customers: extraMetadataRef.current.customers,
+          users: extraMetadataRef.current.users,
+          kpis: extraMetadataRef.current.kpis,
+          totalCount: newTotal,
+          isInitialComplete: true,
+        });
+        return updated;
+      });
+
+      queryClient.setQueriesData<any>({ queryKey: queryKeys.projects.all() }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old.scans)) {
+          const filtered = old.scans.filter((s: any) => !idSet.has(String(s.id)) && !numSet.has(Number(s.id)));
+          return {
+            ...old,
+            scans: filtered,
+            pagination: old.pagination
+              ? { ...old.pagination, total: Math.max(0, old.pagination.total - ids.length) }
+              : old.pagination,
+          };
+        }
+        return old;
+      });
+    },
+    [queryClient]
+  );
+
   // Optimistic rollback in case API deletion fails
   const restoreProjectLocally = React.useCallback(
     async (project: ScanProject) => {
@@ -728,6 +771,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     syncDelta,
     startFreshStream,
     removeProjectLocally,
+    removeProjectsLocally,
     restoreProjectLocally,
     lastSyncTime,
   };

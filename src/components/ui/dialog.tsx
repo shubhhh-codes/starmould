@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { overlayStack } from "@/lib/overlay-stack";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
 import { MotionButton } from "@/components/ui/motion-button";
@@ -103,8 +104,8 @@ export function Modal({
     "6xl": "sm:max-w-6xl",
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden min-h-full w-full max-w-[100vw]">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden min-h-full w-full max-w-[100vw]">
       {/* Backdrop with fade blur */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-backdrop-fade"
@@ -155,6 +156,8 @@ export function Modal({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(modalContent, document.body) : modalContent;
 }
 
 /* =========================================================================
@@ -230,8 +233,8 @@ export function Drawer({
     "4xl": "sm:max-w-4xl",
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex overflow-hidden">
+  const drawerContent = (
+    <div className="fixed inset-0 z-[9999] flex overflow-hidden">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-backdrop-fade"
@@ -290,6 +293,8 @@ export function Drawer({
       </div>
     </div>
   );
+
+  return typeof document !== "undefined" ? createPortal(drawerContent, document.body) : drawerContent;
 }
 
 /* =========================================================================

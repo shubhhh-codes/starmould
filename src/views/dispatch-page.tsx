@@ -1312,8 +1312,8 @@ export function DispatchPage() {
                             onChange={(e) =>
                               handleItemChange(idx, "condition", e.target.value)
                             }
-                            placeholder="e.g. NEW"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+                            placeholder="e.g. New"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                           />
                         </div>
 
@@ -1328,8 +1328,8 @@ export function DispatchPage() {
                             onChange={(e) =>
                               handleItemChange(idx, "work", e.target.value)
                             }
-                            placeholder="e.g. NEW MADE"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+                            placeholder="e.g. New made"
+                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                           />
                         </div>
 

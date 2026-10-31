@@ -794,13 +794,18 @@ export async function DELETE(req: NextRequest) {
       .delete()
       .or(worklogOrFilters.join(","));
 
-    // 4. Cascade Soft Delete: Soft-delete child subplates to preserve historical auditability
+    // 4. Cascade Hard Delete: Permanently remove child subplates from database table
     if (subplateIds.length > 0) {
       await supabaseAdmin
         .from("subplate")
-        .update({ deleted_at: new Date().toISOString() })
-        .or(subplateOrFilters.join(","));
+        .delete()
+        .in("id", subplateIds);
     }
+    // Also delete any remaining matching subplates to ensure no orphans remain
+    await supabaseAdmin
+      .from("subplate")
+      .delete()
+      .or(subplateOrFilters.join(","));
 
     // 5. Delete mould project row from scan table
     const { error: deleteErr } = await supabaseAdmin
