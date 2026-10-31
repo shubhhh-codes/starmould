@@ -111,28 +111,8 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
 
       if (cust) {
-        customerCode =
-          cust.customer_code ||
-          cust.initials ||
-          (cust.customername
-            ? cust.customername
-                .trim()
-                .split(/\s+/)
-                .map((w: string) => w[0]?.toUpperCase())
-                .filter(Boolean)
-                .slice(0, 4)
-                .join("")
-            : "—");
+        customerCode = cust.customer_code || cust.initials || "—";
       }
-    } else if (quote.consignee_name) {
-      customerCode =
-        quote.consignee_name
-          .trim()
-          .split(/\s+/)
-          .map((w: string) => w[0]?.toUpperCase())
-          .filter(Boolean)
-          .slice(0, 4)
-          .join("") || "—";
     }
 
     // Fetch line items

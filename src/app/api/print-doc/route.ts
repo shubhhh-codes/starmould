@@ -526,7 +526,7 @@ export async function GET(req: NextRequest) {
       if (quote.customer_id) {
         const { data: cust } = await supabaseAdmin
           .from("customers")
-          .select("id, customer_code, initials, customername, address, gstin, pan, city, state, mobile, email")
+          .select("id, customer_code, initials, customername, address, gstin, pan, city, mobile, email")
           .eq("id", quote.customer_id)
           .maybeSingle();
 
@@ -534,16 +534,6 @@ export async function GET(req: NextRequest) {
           customerData = cust;
           customerCode = cust.customer_code || cust.initials || null;
         }
-      }
-
-      if (!customerCode && quote.consignee_name) {
-        customerCode = quote.consignee_name
-          .trim()
-          .split(/\s+/)
-          .map((w: string) => w[0]?.toUpperCase())
-          .filter(Boolean)
-          .slice(0, 4)
-          .join("") || null;
       }
 
       const { data: items } = await supabaseAdmin
