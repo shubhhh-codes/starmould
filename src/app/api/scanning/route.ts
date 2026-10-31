@@ -169,12 +169,25 @@ export async function GET(req: NextRequest) {
         userMap.set(String(u.id), u);
       }
 
+      const deltaPlateIds = (subplatesRes.data || []).map((sp: any) => sp.id);
+      const { data: deltaJwBalances } = deltaPlateIds.length > 0
+        ? await supabaseAdmin
+            .from("view_subplate_jobwork_balance")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .in("plateid", deltaPlateIds)
+        : { data: [] };
+
+      const deltaJwMap = new Map((deltaJwBalances || []).map((b: any) => [b.plateid, b]));
+
       const subplateMap: Record<number, any[]> = {};
       for (const sp of subplatesRes.data || []) {
         const key = sp.mold_id || (Number(sp.projectid) || null);
         if (!key) continue;
         if (!subplateMap[key]) subplateMap[key] = [];
-        subplateMap[key].push(sp);
+        subplateMap[key].push({
+          ...sp,
+          jobwork_balance: deltaJwMap.get(sp.id) || null,
+        });
       }
 
       const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
@@ -359,13 +372,25 @@ export async function GET(req: NextRequest) {
           : Promise.resolve({ data: [] }),
       ]);
 
+      const allPlateIds = (subplatesRes.data || []).map((sp: any) => sp.id);
+      const { data: jwBalances } = allPlateIds.length > 0
+        ? await supabaseAdmin
+            .from("view_subplate_jobwork_balance")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .in("plateid", allPlateIds)
+        : { data: [] };
+
+      const jwBalanceMap = new Map((jwBalances || []).map((b: any) => [b.plateid, b]));
+
       const subplateMap: Record<number, any[]> = {};
       for (const sp of subplatesRes.data || []) {
         const key = sp.mold_id || (Number(sp.projectid) || null);
         if (!key) continue;
         if (!subplateMap[key]) subplateMap[key] = [];
-        subplateMap[key].push(sp);
-
+        subplateMap[key].push({
+          ...sp,
+          jobwork_balance: jwBalanceMap.get(sp.id) || null,
+        });
       }
 
       const worklogMap: Record<number, { scan_hr: number; model_hr: number }> = {};
@@ -694,6 +719,51 @@ export async function DELETE(req: NextRequest) {
 
     if (fetchErr || !project) {
       return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    }
+
+    // Safety Guard: Check if project has active POs, Outward Challans, or Dispatches
+    const projectCode = project.projectid ? String(project.projectid).trim() : "";
+    if (projectCode) {
+      const [activePOs, activeChallans, activeDispatches] = await Promise.all([
+        supabaseAdmin
+          .from("purchase")
+          .select("srno")
+          .eq("projectid", projectCode)
+          .neq("status", "0")
+          .limit(1),
+        supabaseAdmin
+          .from("challan")
+          .select("challanno")
+          .eq("projectid", projectCode)
+          .neq("status", "0")
+          .limit(1),
+        supabaseAdmin
+          .from("dispatch")
+          .select("challanno")
+          .eq("projectid", projectCode)
+          .neq("status", "0")
+          .limit(1),
+      ]);
+
+      const activeList: string[] = [];
+      if (activePOs.data && activePOs.data.length > 0) {
+        activeList.push(`Purchase Order #${activePOs.data[0].srno}`);
+      }
+      if (activeChallans.data && activeChallans.data.length > 0) {
+        activeList.push(`Job Work Challan #${activeChallans.data[0].challanno}`);
+      }
+      if (activeDispatches.data && activeDispatches.data.length > 0) {
+        activeList.push(`Delivery Dispatch #${activeDispatches.data[0].challanno}`);
+      }
+
+      if (activeList.length > 0) {
+        return NextResponse.json(
+          {
+            error: `Cannot delete project "${projectCode}" because it is actively referenced in: ${activeList.join(", ")}. Cancel or remove those records first to protect inventory and order history.`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // 2. Cascade Delete: Find all child subplates linked to this mould project

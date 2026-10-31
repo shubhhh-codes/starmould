@@ -25,6 +25,9 @@ import {
     X,
     PackagePlus,
     ArrowUpRight,
+    ArrowUpDown,
+    ArrowUp,
+    ArrowDown,
     Filter,
     ExternalLink,
     Scale,
@@ -176,6 +179,36 @@ function PurchasePageContent() {
             });
         }
         setCollapsedPoMoulds(next);
+    };
+
+    // Purchase Order sorting state
+    type PoSortField = "pono" | "date" | "supplier" | "customer" | "project" | "created_by";
+    type SortOrder = "asc" | "desc";
+
+    const [poSortField, setPoSortField] = useState<PoSortField>("date");
+    const [poSortOrder, setPoSortOrder] = useState<SortOrder>("desc");
+
+    const handlePoSort = (field: PoSortField) => {
+        if (poSortField === field) {
+            setPoSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+        } else {
+            setPoSortField(field);
+            setPoSortOrder(field === "date" || field === "pono" ? "desc" : "asc");
+        }
+        setCurrentPage(1);
+    };
+
+    const renderSortIcon = (field: PoSortField) => {
+        if (poSortField !== field) {
+            return (
+                <ArrowUpDown className="w-3 h-3 text-slate-300 group-hover:text-slate-500 transition shrink-0" />
+            );
+        }
+        return poSortOrder === "asc" ? (
+            <ArrowUp className="w-3 h-3 text-blue-600 shrink-0 font-bold" />
+        ) : (
+            <ArrowDown className="w-3 h-3 text-blue-600 shrink-0 font-bold" />
+        );
     };
 
     // Pending Purchase view mode, filter & multi-select batch state
@@ -555,7 +588,40 @@ function PurchasePageContent() {
                 (p.created_by && p.created_by.toLowerCase().includes(q))
             );
         });
-    }, [purchases, searchQuery]);
+    }, [purchases, searchQuery, getVendorName, getCustomerName]);
+
+    // Sorted PO records based on selected sort field and order
+    const sortedPurchases = useMemo(() => {
+        const list = [...filteredPurchases];
+        if (!poSortField) return list;
+
+        return list.sort((a, b) => {
+            let cmp = 0;
+            if (poSortField === "pono") {
+                const numA = parseInt(String(a.srno || a.pno || a.id).replace(/\D/g, ""), 10) || 0;
+                const numB = parseInt(String(b.srno || b.pno || b.id).replace(/\D/g, ""), 10) || 0;
+                cmp = numA !== numB ? numA - numB : String(a.srno || a.pno || "").localeCompare(String(b.srno || b.pno || ""));
+            } else if (poSortField === "date") {
+                const timeA = new Date(a.odate || a.created_at || 0).getTime();
+                const timeB = new Date(b.odate || b.created_at || 0).getTime();
+                cmp = timeA - timeB;
+            } else if (poSortField === "supplier") {
+                const nameA = getVendorName(a.vname);
+                const nameB = getVendorName(b.vname);
+                cmp = nameA.localeCompare(nameB);
+            } else if (poSortField === "customer") {
+                const nameA = getCustomerName(a.cname);
+                const nameB = getCustomerName(b.cname);
+                cmp = nameA.localeCompare(nameB);
+            } else if (poSortField === "project") {
+                cmp = (a.projectid || "").localeCompare(b.projectid || "");
+            } else if (poSortField === "created_by") {
+                cmp = (a.created_by || "").localeCompare(b.created_by || "");
+            }
+
+            return poSortOrder === "asc" ? cmp : -cmp;
+        });
+    }, [filteredPurchases, poSortField, poSortOrder, getVendorName, getCustomerName]);
 
     // Group Purchase Orders by Mould Project
     const purchasesByMould = useMemo(() => {
@@ -573,7 +639,7 @@ function PurchasePageContent() {
             }
         > = {};
 
-        filteredPurchases.forEach((po) => {
+        sortedPurchases.forEach((po) => {
             const rawCode = (po.projectid || "").trim();
             const mouldCode = !rawCode || rawCode === "-" ? "General / Unassigned" : rawCode;
 
@@ -625,9 +691,34 @@ function PurchasePageContent() {
         return Object.values(groups).sort((a, b) => {
             if (a.mouldCode === "General / Unassigned") return 1;
             if (b.mouldCode === "General / Unassigned") return -1;
+
+            if (poSortField === "project") {
+                const cmp = a.mouldCode.localeCompare(b.mouldCode);
+                return poSortOrder === "asc" ? cmp : -cmp;
+            }
+            if (poSortField === "customer") {
+                const cmp = a.customerName.localeCompare(b.customerName);
+                return poSortOrder === "asc" ? cmp : -cmp;
+            }
+            if (poSortField === "date" || poSortField === "pono") {
+                const topA = a.purchases[0];
+                const topB = b.purchases[0];
+                if (topA && topB) {
+                    if (poSortField === "date") {
+                        const timeA = new Date(topA.odate || topA.created_at || 0).getTime();
+                        const timeB = new Date(topB.odate || topB.created_at || 0).getTime();
+                        return poSortOrder === "asc" ? timeA - timeB : timeB - timeA;
+                    } else {
+                        const numA = parseInt(String(topA.srno || topA.pno || topA.id).replace(/\D/g, ""), 10) || 0;
+                        const numB = parseInt(String(topB.srno || topB.pno || topB.id).replace(/\D/g, ""), 10) || 0;
+                        return poSortOrder === "asc" ? numA - numB : numB - numA;
+                    }
+                }
+            }
+
             return b.purchases.length - a.purchases.length;
         });
-    }, [filteredPurchases, scans, getCustomerName]);
+    }, [sortedPurchases, scans, getCustomerName, poSortField, poSortOrder]);
 
     // Filtered Pending Plates with search query, mould filter, and material filter
     const filteredPendingPlates = useMemo(() => {
@@ -852,13 +943,13 @@ function PurchasePageContent() {
     // Pagination
     const totalPages =
         activeTab === "orders"
-            ? Math.ceil(filteredPurchases.length / pageSize) || 1
+            ? Math.ceil(sortedPurchases.length / pageSize) || 1
             : Math.ceil(filteredPendingPlates.length / pageSize) || 1;
 
     const paginatedPurchases = useMemo(() => {
         const start = (currentPage - 1) * pageSize;
-        return filteredPurchases.slice(start, start + pageSize);
-    }, [filteredPurchases, currentPage, pageSize]);
+        return sortedPurchases.slice(start, start + pageSize);
+    }, [sortedPurchases, currentPage, pageSize]);
 
     const paginatedPendingPlates = useMemo(() => {
         const start = (currentPage - 1) * pageSize;
@@ -866,7 +957,7 @@ function PurchasePageContent() {
     }, [filteredPendingPlates, currentPage, pageSize]);
 
     // Auto-scroll and highlight matching search row
-    const { getRowHighlightClass } = useTableHighlight(filteredPurchases, pageSize, setCurrentPage);
+    const { getRowHighlightClass } = useTableHighlight(sortedPurchases, pageSize, setCurrentPage);
 
     // Add line item row to PO
     const handleAddPlateRow = () => {
@@ -1854,6 +1945,36 @@ function PurchasePageContent() {
                             </div>
 
                             <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end">
+                                {/* Quick Sort Dropdown */}
+                                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                                    <ArrowUpDown className="w-3.5 h-3.5 text-slate-500 shrink-0 ml-1.5" />
+                                    <span className="text-xs text-slate-500 font-medium hidden md:inline">Sort:</span>
+                                    <select
+                                        value={`${poSortField}_${poSortOrder}`}
+                                        onChange={(e) => {
+                                            const [field, order] = e.target.value.split("_");
+                                            setPoSortField(field as PoSortField);
+                                            setPoSortOrder(order as SortOrder);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="text-xs bg-transparent text-slate-700 font-semibold focus:outline-none cursor-pointer pr-1 py-0.5"
+                                        title="Sort purchase orders"
+                                    >
+                                        <option value="date_desc">Date: Newest First</option>
+                                        <option value="date_asc">Date: Oldest First</option>
+                                        <option value="pono_desc">PO. No: Highest First</option>
+                                        <option value="pono_asc">PO. No: Lowest First</option>
+                                        <option value="supplier_asc">Supplier: A to Z</option>
+                                        <option value="supplier_desc">Supplier: Z to A</option>
+                                        <option value="customer_asc">Customer: A to Z</option>
+                                        <option value="customer_desc">Customer: Z to A</option>
+                                        <option value="project_asc">Mould Project: A to Z</option>
+                                        <option value="project_desc">Mould Project: Z to A</option>
+                                        <option value="created_by_asc">Created By: A to Z</option>
+                                        <option value="created_by_desc">Created By: Z to A</option>
+                                    </select>
+                                </div>
+
                                 {/* View Mode Toggle: By Mould vs Flat Register */}
                                 <div className="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
                                     <button
@@ -1949,8 +2070,12 @@ function PurchasePageContent() {
                 {activeTab === "orders" && poViewMode === "grouped" && (
                     <div className="space-y-4">
                         {isLoading ? (
-                            <div className="bg-white border border-slate-200 rounded-xl p-8">
-                                <TableSkeletonRows rows={6} columns={6} />
+                            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                                <table className="w-full text-left text-xs">
+                                    <tbody className="divide-y divide-slate-100">
+                                        <TableSkeletonRows rows={6} columns={6} />
+                                    </tbody>
+                                </table>
                             </div>
                         ) : purchasesByMould.length === 0 ? (
                             <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400">
@@ -2145,12 +2270,66 @@ function PurchasePageContent() {
                                                         <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                                                             <tr>
                                                                 <th className="py-3 px-3 w-[4%] text-center"></th>
-                                                                <th className="py-3 px-4 w-[11%]">PO. No.</th>
-                                                                <th className="py-3 px-3 w-[10%]">Order Date</th>
-                                                                <th className="py-3 px-4 w-[20%]">Supplier Name</th>
-                                                                <th className="py-3 px-4 w-[20%]">Customer Name</th>
-                                                                <th className="py-3 px-4 w-[15%]">Mould Project</th>
-                                                                <th className="py-3 px-3 w-[10%]">Created By</th>
+                                                                <th
+                                                                    onClick={() => handlePoSort("pono")}
+                                                                    className="py-3 px-4 w-[11%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                                                    title="Click to sort by PO. No."
+                                                                >
+                                                                    <div className="inline-flex items-center gap-1.5">
+                                                                        <span className={poSortField === "pono" ? "text-blue-600 font-bold" : ""}>PO. No.</span>
+                                                                        {renderSortIcon("pono")}
+                                                                    </div>
+                                                                </th>
+                                                                <th
+                                                                    onClick={() => handlePoSort("date")}
+                                                                    className="py-3 px-3 w-[10%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                                                    title="Click to sort by Order Date"
+                                                                >
+                                                                    <div className="inline-flex items-center gap-1.5">
+                                                                        <span className={poSortField === "date" ? "text-blue-600 font-bold" : ""}>Order Date</span>
+                                                                        {renderSortIcon("date")}
+                                                                    </div>
+                                                                </th>
+                                                                <th
+                                                                    onClick={() => handlePoSort("supplier")}
+                                                                    className="py-3 px-4 w-[20%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                                                    title="Click to sort by Supplier Name"
+                                                                >
+                                                                    <div className="inline-flex items-center gap-1.5">
+                                                                        <span className={poSortField === "supplier" ? "text-blue-600 font-bold" : ""}>Supplier Name</span>
+                                                                        {renderSortIcon("supplier")}
+                                                                    </div>
+                                                                </th>
+                                                                <th
+                                                                    onClick={() => handlePoSort("customer")}
+                                                                    className="py-3 px-4 w-[20%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                                                    title="Click to sort by Customer Name"
+                                                                >
+                                                                    <div className="inline-flex items-center gap-1.5">
+                                                                        <span className={poSortField === "customer" ? "text-blue-600 font-bold" : ""}>Customer Name</span>
+                                                                        {renderSortIcon("customer")}
+                                                                    </div>
+                                                                </th>
+                                                                <th
+                                                                    onClick={() => handlePoSort("project")}
+                                                                    className="py-3 px-4 w-[15%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                                                    title="Click to sort by Mould Project"
+                                                                >
+                                                                    <div className="inline-flex items-center gap-1.5">
+                                                                        <span className={poSortField === "project" ? "text-blue-600 font-bold" : ""}>Mould Project</span>
+                                                                        {renderSortIcon("project")}
+                                                                    </div>
+                                                                </th>
+                                                                <th
+                                                                    onClick={() => handlePoSort("created_by")}
+                                                                    className="py-3 px-3 w-[10%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                                                    title="Click to sort by Created By"
+                                                                >
+                                                                    <div className="inline-flex items-center gap-1.5">
+                                                                        <span className={poSortField === "created_by" ? "text-blue-600 font-bold" : ""}>Created By</span>
+                                                                        {renderSortIcon("created_by")}
+                                                                    </div>
+                                                                </th>
                                                                 <th className="py-3 px-4 w-[10%] text-right">Action</th>
                                                             </tr>
                                                         </thead>
@@ -2182,12 +2361,66 @@ function PurchasePageContent() {
                                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold uppercase tracking-wider text-[11px]">
                                     <tr>
                                         <th className="py-3 px-3 w-[4%] text-center"></th>
-                                        <th className="py-3 px-4 w-[11%]">PO. No.</th>
-                                        <th className="py-3 px-3 w-[10%]">Order Date</th>
-                                        <th className="py-3 px-4 w-[20%]">Supplier Name</th>
-                                        <th className="py-3 px-4 w-[20%]">Customer Name</th>
-                                        <th className="py-3 px-4 w-[15%]">Mould Project</th>
-                                        <th className="py-3 px-3 w-[10%]">Created By</th>
+                                        <th
+                                            onClick={() => handlePoSort("pono")}
+                                            className="py-3 px-4 w-[11%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                            title="Click to sort by PO. No."
+                                        >
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <span className={poSortField === "pono" ? "text-blue-600 font-bold" : ""}>PO. No.</span>
+                                                {renderSortIcon("pono")}
+                                            </div>
+                                        </th>
+                                        <th
+                                            onClick={() => handlePoSort("date")}
+                                            className="py-3 px-3 w-[10%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                            title="Click to sort by Order Date"
+                                        >
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <span className={poSortField === "date" ? "text-blue-600 font-bold" : ""}>Order Date</span>
+                                                {renderSortIcon("date")}
+                                            </div>
+                                        </th>
+                                        <th
+                                            onClick={() => handlePoSort("supplier")}
+                                            className="py-3 px-4 w-[20%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                            title="Click to sort by Supplier Name"
+                                        >
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <span className={poSortField === "supplier" ? "text-blue-600 font-bold" : ""}>Supplier Name</span>
+                                                {renderSortIcon("supplier")}
+                                            </div>
+                                        </th>
+                                        <th
+                                            onClick={() => handlePoSort("customer")}
+                                            className="py-3 px-4 w-[20%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                            title="Click to sort by Customer Name"
+                                        >
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <span className={poSortField === "customer" ? "text-blue-600 font-bold" : ""}>Customer Name</span>
+                                                {renderSortIcon("customer")}
+                                            </div>
+                                        </th>
+                                        <th
+                                            onClick={() => handlePoSort("project")}
+                                            className="py-3 px-4 w-[15%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                            title="Click to sort by Mould Project"
+                                        >
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <span className={poSortField === "project" ? "text-blue-600 font-bold" : ""}>Mould Project</span>
+                                                {renderSortIcon("project")}
+                                            </div>
+                                        </th>
+                                        <th
+                                            onClick={() => handlePoSort("created_by")}
+                                            className="py-3 px-3 w-[10%] cursor-pointer hover:bg-slate-100/80 transition select-none group"
+                                            title="Click to sort by Created By"
+                                        >
+                                            <div className="inline-flex items-center gap-1.5">
+                                                <span className={poSortField === "created_by" ? "text-blue-600 font-bold" : ""}>Created By</span>
+                                                {renderSortIcon("created_by")}
+                                            </div>
+                                        </th>
                                         <th className="py-3 px-4 w-[10%] text-right">Action</th>
                                     </tr>
                                 </thead>
@@ -2506,8 +2739,12 @@ function PurchasePageContent() {
                         {viewMode === "grouped" && (
                             <div className="space-y-4">
                                 {isLoading ? (
-                                    <div className="bg-white border border-slate-200 rounded-xl p-8">
-                                        <TableSkeletonRows rows={6} columns={6} />
+                                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                                        <table className="w-full text-left text-xs">
+                                            <tbody className="divide-y divide-slate-100">
+                                                <TableSkeletonRows rows={6} columns={6} />
+                                            </tbody>
+                                        </table>
                                     </div>
                                 ) : pendingByMould.length === 0 ? (
                                     <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-400">
@@ -3714,7 +3951,13 @@ export function PurchasePage() {
                 <AppLayout>
                     <div className="p-6 space-y-4">
                         <div className="h-8 bg-slate-200 rounded-lg w-48 animate-pulse" />
-                        <TableSkeletonRows rows={8} columns={6} />
+                        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                            <table className="w-full text-left text-xs">
+                                <tbody className="divide-y divide-slate-100">
+                                    <TableSkeletonRows rows={8} columns={6} />
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </AppLayout>
             }

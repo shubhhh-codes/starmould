@@ -63,7 +63,7 @@ export function CustomerSelect({
     return customers.filter((c) => {
       if (c.deleted_at) return false;
       if (!filterUserType || filterUserType === "ALL" || filterUserType === "All") return true;
-      return c.usertype === filterUserType;
+      return c.usertype?.toLowerCase() === filterUserType.toLowerCase();
     });
   }, [customers, filterUserType]);
 
@@ -194,11 +194,11 @@ export function CustomerSelect({
         setIsTyping(false);
         return;
       }
-      // If user typed and an item is highlighted, select it on Tab and let browser advance focus
+      // If user typed or navigated and dropdown is open, select active or first option and let browser advance focus
       if (isOpen) {
-        if (query.trim() && activeIndex >= 0 && activeIndex < filteredCustomers.length) {
+        if (activeIndex >= 0 && activeIndex < filteredCustomers.length) {
           handleSelect(filteredCustomers[activeIndex]);
-        } else if (query.trim() && filteredCustomers.length === 1) {
+        } else if (filteredCustomers.length > 0) {
           handleSelect(filteredCustomers[0]);
         }
         setIsOpen(false);
@@ -252,7 +252,7 @@ export function CustomerSelect({
             ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200"
             : isOpen
             ? "border-blue-600 ring-2 ring-blue-500/20 bg-white"
-            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/80"
+            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/80 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:bg-white"
         }`}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -287,6 +287,14 @@ export function CustomerSelect({
               );
               setActiveIndex(selIdx >= 0 ? selIdx : 0);
               inputRef.current?.select();
+            }}
+            onBlur={(e) => {
+              if (containerRef.current && containerRef.current.contains(e.relatedTarget as Node)) {
+                return;
+              }
+              setIsOpen(false);
+              setIsTyping(false);
+              setQuery("");
             }}
             onChange={(e) => {
               setIsTyping(true);

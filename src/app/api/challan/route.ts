@@ -187,26 +187,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Enforce rule: Ek mould ka ek hi bar outward challan banna chahiye
-    if (projectid) {
-      const trimmedProject = String(projectid).trim();
-      const { data: existingChallan } = await supabaseAdmin
-        .from("challan")
-        .select("id, challanno")
-        .eq("status", "1")
-        .eq("projectid", trimmedProject)
-        .limit(1)
-        .maybeSingle();
-
-      if (existingChallan) {
-        return NextResponse.json(
-          {
-            error: `Challan already exists for mould "${trimmedProject}" (${existingChallan.challanno}). Ek mould ka ek hi challan ban sakta hai.`,
-          },
-          { status: 400 }
-        );
-      }
-    }
 
     const now = new Date().toISOString();
 
@@ -380,18 +360,77 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing challan id" }, { status: 400 });
     }
 
+    const challanId = Number(id);
+
+    // Guard: Prevent cancelling outward challan if inward receipts have already been recorded against it
+    const { data: activeInwards, error: inwErr } = await supabaseAdmin
+      .from("inward_items")
+      .select("id, inchallanid, inward:inchallanid!inner(id, inchallanno, status)")
+      .eq("challanid", challanId)
+      .neq("inward.status", "0")
+      .limit(1);
+
+    if (inwErr) {
+      return NextResponse.json({ error: inwErr.message }, { status: 500 });
+    }
+
+    if (activeInwards && activeInwards.length > 0) {
+      const inwardRecord: any = activeInwards[0];
+      const inNo = inwardRecord?.inward?.inchallanno || "active inward receipt";
+      return NextResponse.json(
+        {
+          error: `Cannot cancel this outward challan because inward receipt (${inNo}) has already been recorded against it. Cancel the inward receipt first.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Fetch plate IDs on this challan so we can recompute locations after cancellation
+    const { data: cItems } = await supabaseAdmin
+      .from("challan_items")
+      .select("plateid")
+      .eq("challanid", challanId);
+
+    const plateIds = Array.from(
+      new Set((cItems || []).map((ci: any) => Number(ci.plateid)).filter(Boolean))
+    );
+
     // Set status to '0' (cancelled) matching legacy ChallanController
+    const now = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from("challan")
-      .update({ status: "0", updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .update({ status: "0", updated_at: now })
+      .eq("id", challanId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Recompute subplate locations based on remaining active jobwork balances
+    if (plateIds.length > 0) {
+      const { data: updatedBalances } = await supabaseAdmin
+        .from("view_subplate_jobwork_balance")
+        .select("plateid, available_sm_qty, active_vendor_initials")
+        .in("plateid", plateIds);
+
+      for (const ub of updatedBalances || []) {
+        const vendors = ub.active_vendor_initials;
+        let newLoc = "SM";
+        if (ub.available_sm_qty > 0 && vendors) {
+          newLoc = `SM, ${vendors}`;
+        } else if (vendors) {
+          newLoc = vendors;
+        }
+        await supabaseAdmin
+          .from("subplate")
+          .update({ location: newLoc, updated_at: now })
+          .eq("id", ub.plateid);
+      }
+    }
+
     invalidateCache("api_counts_all");
     invalidateCache("subplates_worklog_lookup");
+    invalidateCache("subplate_default_");
 
     return NextResponse.json({ success: true, message: "Challan cancelled successfully" });
   } catch (err: unknown) {

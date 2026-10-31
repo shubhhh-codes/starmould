@@ -86,6 +86,7 @@ function ChallanPageContent() {
       particulars: string;
       project: string;
       qty: number;
+      pending_qty?: number;
       inward_qty: number;
     }>;
   }>({
@@ -112,6 +113,7 @@ function ChallanPageContent() {
           particulars: it.particulars || "",
           project: it.project || c.projectid || "",
           qty: outQty,
+          pending_qty: pending,
           inward_qty: pending > 0 ? pending : outQty,
         };
       }),
@@ -133,8 +135,9 @@ function ChallanPageContent() {
         setInwardError(`Inward quantity for "${item.platename}" must be at least 1.`);
         return;
       }
-      if (item.inward_qty > item.qty) {
-        setInwardError(`Inward quantity (${item.inward_qty}) cannot exceed outward quantity (${item.qty}).`);
+      const maxAllowed = item.pending_qty !== undefined && item.pending_qty > 0 ? item.pending_qty : item.qty;
+      if (item.inward_qty > maxAllowed) {
+        setInwardError(`Inward quantity (${item.inward_qty}) cannot exceed remaining pending quantity (${maxAllowed}) for "${item.platename}".`);
         return;
       }
     }

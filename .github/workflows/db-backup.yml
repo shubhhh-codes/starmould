@@ -109,7 +109,7 @@ jobs:
             TRIGGER_TYPE="Manual Trigger Snapshot"
           fi
           echo "# 🗄️ StarMould Automated Database Backup Report" >> "$GITHUB_STEP_SUMMARY"
-          echo "### 🕒 Tareekh & Time (IST): **$REPORT_PRETTY_IST ($REPORT_DAY_IST)**" >> "$GITHUB_STEP_SUMMARY"
+          echo "### 🕒 Date & Time (IST): **$REPORT_PRETTY_IST ($REPORT_DAY_IST)**" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "| Field | Detail / Status |" >> "$GITHUB_STEP_SUMMARY"
           echo "| :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
@@ -125,4 +125,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "---" >> "$GITHUB_STEP_SUMMARY"
           echo "### 📥 How to Download this Backup:" >> "$GITHUB_STEP_SUMMARY"
-          echo "Neeche **Artifacts** section mein scroll karein aur **\`$REPORT_ARTIFACT_NAME\`** par click karein (.sql aur .json dono file download ho jayegi)." >> "$GITHUB_STEP_SUMMARY"
+          echo "Scroll to the **Artifacts** section below and select **\`$REPORT_ARTIFACT_NAME\`** to download the archive (includes both .sql and .json backup files)." >> "$GITHUB_STEP_SUMMARY"

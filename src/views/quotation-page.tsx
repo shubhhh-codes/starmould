@@ -712,7 +712,13 @@ export function QuotationPage() {
         <AppLayout>
           <div className="p-6 space-y-4">
             <div className="h-8 bg-slate-200 rounded-lg w-48 animate-pulse" />
-            <TableSkeletonRows rows={8} columns={7} />
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+              <table className="w-full text-left text-xs">
+                <tbody className="divide-y divide-slate-100">
+                  <TableSkeletonRows rows={8} columns={7} />
+                </tbody>
+              </table>
+            </div>
           </div>
         </AppLayout>
       }

@@ -169,11 +169,11 @@ export function ProjectSelect({
         setIsTyping(false);
         return;
       }
-      // If user typed and an item is highlighted, select it on Tab and let focus advance naturally
+      // If user typed or navigated and dropdown is open, select active or first option and let focus advance naturally
       if (isOpen) {
-        if (query.trim() && activeIndex >= 0 && activeIndex < filteredProjects.length) {
+        if (activeIndex >= 0 && activeIndex < filteredProjects.length) {
           handleSelect(filteredProjects[activeIndex]);
-        } else if (query.trim() && filteredProjects.length === 1) {
+        } else if (filteredProjects.length > 0) {
           handleSelect(filteredProjects[0]);
         }
         setIsOpen(false);
@@ -232,7 +232,7 @@ export function ProjectSelect({
             ? "opacity-60 cursor-not-allowed bg-slate-100 border-slate-200 text-slate-400"
             : isOpen
             ? "border-blue-600 ring-2 ring-blue-500/20 bg-white"
-            : "border-slate-200 bg-slate-50/70 hover:bg-slate-50 hover:border-slate-300 text-slate-800"
+            : "border-slate-200 bg-slate-50/70 hover:bg-slate-50 hover:border-slate-300 text-slate-800 focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:bg-white"
         }`}
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -275,6 +275,14 @@ export function ProjectSelect({
                 setActiveIndex(selIdx >= 0 ? selIdx : 0);
                 inputRef.current?.select();
                 if (onOpen) onOpen();
+              }}
+              onBlur={(e) => {
+                if (containerRef.current && containerRef.current.contains(e.relatedTarget as Node)) {
+                  return;
+                }
+                setIsOpen(false);
+                setIsTyping(false);
+                setQuery("");
               }}
               onChange={(e) => {
                 setIsTyping(true);

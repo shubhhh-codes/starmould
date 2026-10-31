@@ -127,7 +127,7 @@ export function DispatchPage() {
   }, [customers, modalForm.customerid]);
 
   // Mould projects for selected customer
-  // Rule: "ek mould ka ek hi bar banna chahiye" - exclude moulds that already have an active dispatch
+  // Rule: Exclude moulds that already have an active dispatch (one final delivery dispatch per mould)
   const availableProjects = useMemo(() => {
     const activeDispatchProjectIds = new Set<string>();
     dispatches.forEach((d) => {
@@ -387,7 +387,7 @@ export function DispatchPage() {
     );
     if (alreadyDispatched) {
       setFormError(
-        `Delivery challan already exists for mould "${modalForm.projectid}" (${alreadyDispatched.challanno}). Ek mould ka ek hi dispatch ban sakta hai.`
+        `A delivery challan already exists for mould "${modalForm.projectid}" (${alreadyDispatched.challanno}). Only one final delivery dispatch is permitted per mould project.`
       );
       return;
     }

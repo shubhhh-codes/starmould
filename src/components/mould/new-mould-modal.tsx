@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Layers,
   Flame,
@@ -184,6 +184,10 @@ export function NewMouldModal({
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const submitButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const copyButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleCopy = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -385,7 +389,7 @@ export function NewMouldModal({
                   key={wt.id}
                   role="radio"
                   aria-checked={isSelected}
-                  tabIndex={0}
+                  tabIndex={isSelected ? 0 : -1}
                   data-autofocus={idx === 0 ? "true" : undefined}
                   onClick={() =>
                     setForm((prev) => ({ ...prev, worktype: wt.id }))
@@ -574,13 +578,68 @@ export function NewMouldModal({
             onChange={(e) =>
               setForm((prev) => ({ ...prev, note: e.target.value }))
             }
+            onKeyDown={(e) => {
+              if (e.key === "Tab" && !e.shiftKey) {
+                e.preventDefault();
+                submitButtonRef.current?.focus();
+              }
+            }}
             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400 resize-none text-slate-800"
           />
         </div>
 
         {/* 6. Footer Action Bar (Responsive) */}
         <div className="pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100">
-          <div className="flex items-center gap-2 min-w-0">
+          {/* Action Buttons: Positioned first in tab order (Create -> Cancel), placed on right visually via flex order */}
+          <div className="order-1 sm:order-2 flex items-center gap-2 justify-end w-full sm:w-auto shrink-0 flex-row-reverse">
+            <MotionButton
+              ref={submitButtonRef}
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={createProjectMutation.isPending}
+              loadingText="Creating Project..."
+              successText="Project Created!"
+              className="flex-1 sm:flex-none shadow-xs shadow-blue-500/20"
+              onKeyDown={(e) => {
+                if (e.key === "Tab" && !e.shiftKey) {
+                  e.preventDefault();
+                  cancelButtonRef.current?.focus();
+                } else if (e.key === "Tab" && e.shiftKey) {
+                  e.preventDefault();
+                  document.getElementById("internal-note-input")?.focus();
+                }
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Create Mould Project</span>
+            </MotionButton>
+            <MotionButton
+              ref={cancelButtonRef}
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={onClose}
+              disabled={createProjectMutation.isPending}
+              className="flex-1 sm:flex-none"
+              onKeyDown={(e) => {
+                if (e.key === "Tab" && !e.shiftKey) {
+                  if (copyButtonRef.current) {
+                    e.preventDefault();
+                    copyButtonRef.current.focus();
+                  }
+                } else if (e.key === "Tab" && e.shiftKey) {
+                  e.preventDefault();
+                  submitButtonRef.current?.focus();
+                }
+              }}
+            >
+              Cancel
+            </MotionButton>
+          </div>
+
+          {/* Next ID: Positioned after buttons in tab order, placed on left visually via flex order */}
+          <div className="order-2 sm:order-1 flex items-center gap-2 min-w-0">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
               Next ID:
             </span>
@@ -595,11 +654,18 @@ export function NewMouldModal({
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span>{nextIdQuery.data?.previewCode}</span>
                 <button
+                  ref={copyButtonRef}
                   type="button"
                   onClick={handleCopy}
                   title={copied ? "Copied to clipboard!" : "Copy tentative ID"}
                   className="ml-0.5 p-1 text-emerald-700 hover:text-emerald-950 rounded hover:bg-emerald-200/60 transition-colors cursor-pointer"
                   aria-label="Copy tentative Project ID"
+                  onKeyDown={(e) => {
+                    if (e.key === "Tab" && e.shiftKey) {
+                      e.preventDefault();
+                      cancelButtonRef.current?.focus();
+                    }
+                  }}
                 >
                   {copied ? (
                     <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
@@ -638,31 +704,6 @@ export function NewMouldModal({
                 </span>
               </div>
             )}
-          </div>
-
-          <div className="flex items-center gap-2 justify-end w-full sm:w-auto shrink-0">
-            <MotionButton
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={onClose}
-              disabled={createProjectMutation.isPending}
-              className="flex-1 sm:flex-none"
-            >
-              Cancel
-            </MotionButton>
-            <MotionButton
-              type="submit"
-              variant="primary"
-              size="sm"
-              isLoading={createProjectMutation.isPending}
-              loadingText="Creating Project..."
-              successText="Project Created!"
-              className="flex-1 sm:flex-none shadow-xs shadow-blue-500/20"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Create Mould Project</span>
-            </MotionButton>
           </div>
         </div>
       </form>

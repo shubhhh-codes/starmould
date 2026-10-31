@@ -875,7 +875,52 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid subplate id" }, { status: 400 });
     }
 
-    // Bug #5 Fix: Cascade delete any child worklogs before deleting the subplate to prevent orphan records
+    // Safety Guard: Verify subplate is not referenced in active POs, Outward Challans, or Dispatches
+    const [poRes, challanRes, dispatchRes] = await Promise.all([
+      supabaseAdmin
+        .from("purchase_items")
+        .select("id, purchase:pid!inner(id, srno, status)")
+        .eq("plateid", subplateId)
+        .neq("purchase.status", "0")
+        .limit(1),
+      supabaseAdmin
+        .from("challan_items")
+        .select("id, challan:challanid!inner(id, challanno, status)")
+        .eq("plateid", subplateId)
+        .neq("challan.status", "0")
+        .limit(1),
+      supabaseAdmin
+        .from("dispatch_items")
+        .select("id, dispatch:dispatchid!inner(id, challanno, status)")
+        .eq("plateid", subplateId)
+        .neq("dispatch.status", "0")
+        .limit(1),
+    ]);
+
+    const activeDependencies: string[] = [];
+    if (poRes.data && poRes.data.length > 0) {
+      const srno = (poRes.data[0] as any)?.purchase?.srno || "PO";
+      activeDependencies.push(`Purchase Order #${srno}`);
+    }
+    if (challanRes.data && challanRes.data.length > 0) {
+      const challanNo = (challanRes.data[0] as any)?.challan?.challanno || "Challan";
+      activeDependencies.push(`Job Work Challan #${challanNo}`);
+    }
+    if (dispatchRes.data && dispatchRes.data.length > 0) {
+      const dispatchNo = (dispatchRes.data[0] as any)?.dispatch?.challanno || "Dispatch";
+      activeDependencies.push(`Delivery Dispatch #${dispatchNo}`);
+    }
+
+    if (activeDependencies.length > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete subplate because it is actively referenced in: ${activeDependencies.join(", ")}. Cancel or remove those records first to maintain historical ledger integrity.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    // Cascade delete any child operator worklogs before deleting the subplate to prevent orphan records
     await supabaseAdmin
       .from("worklog")
       .delete()

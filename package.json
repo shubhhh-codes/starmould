@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check:language": "node scripts/check-language.mjs",
     "test": "npx tsx scripts/regression_suite.ts"
   },
   "dependencies": {

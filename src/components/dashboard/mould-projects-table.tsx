@@ -249,6 +249,7 @@ function ProjectSubplatesRow({
                     <th className="py-2.5 px-3">Subproject ID</th>
                     <th className="py-2.5 px-3">Dimensions</th>
                     <th className="py-2.5 px-3">Material</th>
+                    <th className="py-2.5 px-3 text-center">Location</th>
                     <th className="py-2.5 px-3 text-right">Calc Weight</th>
                     <th className="py-2.5 px-3 text-center">Qty</th>
                     <th className="py-2.5 px-3 text-center">Status</th>
@@ -284,6 +285,9 @@ function ProjectSubplatesRow({
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
                             {sp.material || "MS-Bright"}
                           </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          <SubplateJobworkLocationBadge subplate={sp} size="sm" />
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-800">
                           {(() => {
@@ -1306,20 +1310,34 @@ export function MouldProjectsTable({
           const total = row.original.total_plates || 5;
           const percent = Math.min(100, Math.round((completed / (total || 1)) * 100));
           const isDone = percent === 100 && total > 0;
+          const subplates = row.original.subplates || [];
+          const jwPlates = subplates.filter(
+            (sp) =>
+              (sp.jobwork_balance?.outward_jobwork_qty ?? 0) > 0 ||
+              (sp.location && sp.location !== "SM" && sp.location.trim() !== "")
+          );
 
           return (
-            <div className="flex items-center gap-2.5 min-w-[130px]">
-              <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
-                <div
-                  className={`h-full rounded-full transition-all duration-300 ${
-                    isDone ? "bg-emerald-500" : "bg-blue-600"
-                  }`}
-                  style={{ width: `${percent}%` }}
-                />
+            <div className="flex flex-col gap-1 min-w-[130px]">
+              <div className="flex items-center gap-2.5">
+                <div className="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      isDone ? "bg-emerald-500" : "bg-blue-600"
+                    }`}
+                    style={{ width: `${percent}%` }}
+                  />
+                </div>
+                <span className="text-[11px] font-semibold font-mono text-slate-700 min-w-[34px]">
+                  {completed}/{total}
+                </span>
               </div>
-              <span className="text-[11px] font-semibold font-mono text-slate-700 min-w-[34px]">
-                {completed}/{total}
-              </span>
+              {jwPlates.length > 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-amber-700 font-semibold" title={`${jwPlates.length} subplate(s) currently out on Job Work`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                  <span>{jwPlates.length} {jwPlates.length === 1 ? "plate" : "plates"} on Job Work</span>
+                </div>
+              )}
             </div>
           );
         },

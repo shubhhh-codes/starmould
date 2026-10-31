@@ -479,7 +479,7 @@ export function DashboardPage() {
               <button
                 type="button"
                 onClick={projectsStream.startFreshStream}
-                title="Click karein live 50, 100, 500 chunks streaming test karne ke liye"
+                title="Click to run live streaming test for 50, 100, and 500 chunk loads"
                 className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all duration-300 cursor-pointer shadow-2xs group"
               >
                 <CheckCircle2 className="w-3 h-3 text-emerald-600 group-hover:scale-110 transition-transform" />

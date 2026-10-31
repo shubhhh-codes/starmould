@@ -164,6 +164,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required receipt fields" }, { status: 400 });
     }
 
+    const numPid = Number(pid);
+
+    // Validate incoming inward quantities against remaining pending quantities from PO view
+    const { data: poPendingList, error: pendingErr } = await supabaseAdmin
+      .from("view_po_pending_inward_qty")
+      .select("id, plateid, qty, inward_qty, pending_qty, platename")
+      .eq("id", numPid);
+
+    if (pendingErr) {
+      return NextResponse.json({ error: pendingErr.message }, { status: 500 });
+    }
+
+    const pendingMap = new Map<number, any>();
+    (poPendingList || []).forEach((row: any) => {
+      const plateKey = Number(row.plateid);
+      if (plateKey) pendingMap.set(plateKey, row);
+    });
+
+    for (const it of items) {
+      const inQty = Number(it.inward_qty);
+      if (isNaN(inQty) || inQty <= 0) {
+        return NextResponse.json({ error: "Inward quantity must be a positive number greater than 0" }, { status: 400 });
+      }
+
+      const plateId = Number(it.plateid);
+      if (plateId && pendingMap.has(plateId)) {
+        const poLine = pendingMap.get(plateId);
+        const pendingQty = Number(poLine.pending_qty) || 0;
+        if (inQty > pendingQty) {
+          const name = poLine.platename || it.imaterial || it.material || `Plate #${plateId}`;
+          return NextResponse.json(
+            {
+              error: `Inward quantity (${inQty}) exceeds remaining pending quantity (${pendingQty}) on this PO for "${name}".`,
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Sequence SM/PR/xx with retry loop on collision (Issue #3)
     const { count } = await supabaseAdmin
       .from("po_inward")

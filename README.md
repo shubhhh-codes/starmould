@@ -94,3 +94,14 @@ npm run start        # Start production server
 ## ☁️ Deployment Note (Vercel)
 > [!IMPORTANT]
 > Since the Next.js application has been moved to the root of the repository, ensure your **Vercel Project Settings > General > Root Directory** is set to `.` (root directory) rather than `frontend`.
+
+
+---
+
+## 🌐 Language Policy: English Only
+> [!IMPORTANT]
+> This codebase adheres to a strict **English-only policy** across all user-facing copy, error messages, form validations, toast notifications, code comments, and documentation.
+> - **No Hinglish or Vernacular Text**: Under no circumstances should Hindi (Devanagari script), Romanized Hindi / Hinglish (e.g. *karna*, *hoga*, *nahi*, *bhai*), or other non-English phrasing be introduced.
+> - **Tone**: Maintain a calm, professional, and helpful tone in all user feedback.
+> - **Domain Terms**: Established Indian manufacturing domain terms (*Challan*, *Subplate*, *Mould*, *Job Work*, *GST*, *VMC*) are cataloged in `scripts/language-allowlist.json`.
+> - **Automated Enforcement**: Run `npm run check:language` before committing changes to ensure no violations are introduced.

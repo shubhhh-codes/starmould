@@ -154,22 +154,60 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
-    // 1. Validate all child items BEFORE inserting parent
+    // 1. Validate all child items and ensure inward quantity does not exceed remaining pending quantity
     if (!items || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "At least one item is required for inward receipt" }, { status: 400 });
     }
 
+    // Fetch outward items from challan_items to know exact outward quantities
+    const { data: challanItems } = await supabaseAdmin
+      .from("challan_items")
+      .select("id, plateid, particulars, qty")
+      .eq("challanid", Number(challanid));
+
+    // Fetch prior active inward receipts for this challan
+    const { data: priorInwardItems } = await supabaseAdmin
+      .from("inward_items")
+      .select("plateid, particulars, inward_qty, inward:inchallanid!inner(status)")
+      .eq("challanid", Number(challanid))
+      .neq("inward.status", "0");
+
+    // Map already received quantities per plateid
+    const receivedMap = new Map<number, number>();
+    for (const p of priorInwardItems || []) {
+      const pid = Number(p.plateid);
+      if (pid) {
+        receivedMap.set(pid, (receivedMap.get(pid) || 0) + (Number(p.inward_qty) || 0));
+      }
+    }
+
+    // Map outward quantities per plateid
+    const outwardMap = new Map<number, number>();
+    for (const ci of challanItems || []) {
+      const pid = Number(ci.plateid);
+      if (pid) {
+        outwardMap.set(pid, (outwardMap.get(pid) || 0) + (Number(ci.qty) || 0));
+      }
+    }
+
     for (const it of items) {
       const inQty = Number(it.inward_qty);
-      const totalQty = Number(it.qty) || 0;
+      const pid = Number(it.plateid);
       if (isNaN(inQty) || inQty <= 0) {
         return NextResponse.json({ error: "Inward quantity must be a positive number greater than 0" }, { status: 400 });
       }
-      if (totalQty > 0 && inQty > totalQty) {
-        return NextResponse.json(
-          { error: `Inward quantity (${inQty}) cannot exceed outward / available quantity (${totalQty}) for ${it.particulars || it.platename || "item"}` },
-          { status: 400 }
-        );
+      if (pid) {
+        const outQty = outwardMap.get(pid) ?? (Number(it.qty) || 0);
+        const alreadyReceived = receivedMap.get(pid) ?? 0;
+        const remainingPending = Math.max(0, outQty - alreadyReceived);
+        if (inQty > remainingPending) {
+          return NextResponse.json(
+            {
+              error: `Cannot inward ${inQty} pcs for "${it.platename || it.particulars || "item"}". Only ${remainingPending} pcs remaining pending from this challan (${alreadyReceived} pcs already received).`,
+            },
+            { status: 400 }
+          );
+        }
       }
     }
 
@@ -318,17 +356,53 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing inward id" }, { status: 400 });
     }
 
+    const inwardId = Number(id);
+
+    // Fetch plate IDs on this inward receipt before cancelling so we can recompute locations
+    const { data: inItems } = await supabaseAdmin
+      .from("inward_items")
+      .select("plateid")
+      .eq("inchallanid", inwardId);
+
+    const plateIds = Array.from(
+      new Set((inItems || []).map((it: any) => Number(it.plateid)).filter(Boolean))
+    );
+
+    const now = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from("inward")
-      .update({ status: "0", updated_at: new Date().toISOString() })
-      .eq("id", id);
+      .update({ status: "0", updated_at: now })
+      .eq("id", inwardId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Recompute subplate locations based on remaining active jobwork balances
+    if (plateIds.length > 0) {
+      const { data: updatedBalances } = await supabaseAdmin
+        .from("view_subplate_jobwork_balance")
+        .select("plateid, available_sm_qty, active_vendor_initials")
+        .in("plateid", plateIds);
+
+      for (const ub of updatedBalances || []) {
+        const vendors = ub.active_vendor_initials;
+        let newLoc = "SM";
+        if (ub.available_sm_qty > 0 && vendors) {
+          newLoc = `SM, ${vendors}`;
+        } else if (vendors) {
+          newLoc = vendors;
+        }
+        await supabaseAdmin
+          .from("subplate")
+          .update({ location: newLoc, updated_at: now })
+          .eq("id", ub.plateid);
+      }
+    }
+
     invalidateCache("api_counts_all");
     invalidateCache("subplates_worklog_lookup");
+    invalidateCache("subplate_default_");
 
     return NextResponse.json({ success: true, message: "Inward record cancelled successfully" });
   } catch (err: unknown) {

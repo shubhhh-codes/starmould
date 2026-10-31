@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Enforce rule: Ek mould ka ek hi bar delivery challan (dispatch) banna chahiye
+    // Enforce rule: Only one delivery challan (dispatch) may be created per mould project
     if (projectid) {
       const trimmedProject = String(projectid).trim();
       const { data: existingDispatch } = await supabaseAdmin
@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
       if (existingDispatch) {
         return NextResponse.json(
           {
-            error: `Delivery challan already exists for mould "${trimmedProject}" (${existingDispatch.challanno}). Ek mould ka ek hi dispatch ban sakta hai.`,
+            error: `A delivery challan already exists for mould "${trimmedProject}" (${existingDispatch.challanno}). Only one final delivery dispatch is permitted per mould project.`,
           },
           { status: 400 }
         );
@@ -256,7 +256,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
+    // Automatically complete project status in scan register and update subplate locations to Customer
+    const nowIso = new Date().toISOString();
+    const todayDate = nowIso.slice(0, 10);
+
+    if (projectid) {
+      const trimmedProject = String(projectid).trim();
+      await supabaseAdmin
+        .from("scan")
+        .update({
+          status: "completed",
+          dispatchdate: todayDate,
+          updated_at: nowIso,
+        })
+        .eq("projectid", trimmedProject);
+
+      const dispatchedPlateIds = itemsToInsert
+        .map((it: any) => Number(it.plateid))
+        .filter(Boolean);
+
+      if (dispatchedPlateIds.length > 0) {
+        await supabaseAdmin
+          .from("subplate")
+          .update({
+            location: "Customer",
+            updated_at: nowIso,
+          })
+          .in("id", dispatchedPlateIds);
+      } else {
+        await supabaseAdmin
+          .from("subplate")
+          .update({
+            location: "Customer",
+            updated_at: nowIso,
+          })
+          .eq("projectid", trimmedProject);
+      }
+    }
+
     invalidateCache("api_counts_all");
+    invalidateCache("scanning_default_");
+    invalidateCache("subplate_default_");
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("scanning_kpi_metrics_v2");
 
     return NextResponse.json({
       dispatch: {
@@ -285,16 +327,43 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Dispatch ID required" }, { status: 400 });
     }
 
+    const dispatchId = Number(id);
+
+    // Fetch dispatch details before marking status = 0
+    const { data: dispatchRecord } = await supabaseAdmin
+      .from("dispatch")
+      .select("id, projectid")
+      .eq("id", dispatchId)
+      .maybeSingle();
+
+    const now = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from("dispatch")
-      .update({ status: "0", updated_at: new Date().toISOString() })
-      .eq("id", Number(id));
+      .update({ status: "0", updated_at: now })
+      .eq("id", dispatchId);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    if (dispatchRecord?.projectid) {
+      const trimmedProject = String(dispatchRecord.projectid).trim();
+      await supabaseAdmin
+        .from("scan")
+        .update({ status: "registered", updated_at: now })
+        .eq("projectid", trimmedProject);
+
+      await supabaseAdmin
+        .from("subplate")
+        .update({ location: "SM", updated_at: now })
+        .eq("projectid", trimmedProject);
+    }
+
     invalidateCache("api_counts_all");
+    invalidateCache("scanning_default_");
+    invalidateCache("subplate_default_");
+    invalidateCache("shared_scans_lookup");
+    invalidateCache("scanning_kpi_metrics_v2");
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
