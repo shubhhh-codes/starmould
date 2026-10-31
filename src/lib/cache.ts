@@ -32,16 +32,19 @@ export async function getCached<T>(
   const promise = (async () => {
     try {
       const fresh = await fetcher();
-      // Evict least recently used entry if cache reaches maximum limit
-      if (cache.size >= MAX_CACHE_ENTRIES) {
-        const lruKey = cache.keys().next().value;
-        if (lruKey) cache.delete(lruKey);
+      // Do not cache null or undefined results (avoids negative cache locking out freshly created or restored entities)
+      if (fresh !== null && fresh !== undefined) {
+        // Evict least recently used entry if cache reaches maximum limit
+        if (cache.size >= MAX_CACHE_ENTRIES) {
+          const lruKey = cache.keys().next().value;
+          if (lruKey) cache.delete(lruKey);
+        }
+        cache.delete(key);
+        cache.set(key, {
+          data: fresh,
+          expiresAt: Date.now() + ttlSeconds * 1000,
+        });
       }
-      cache.delete(key);
-      cache.set(key, {
-        data: fresh,
-        expiresAt: Date.now() + ttlSeconds * 1000,
-      });
       return fresh;
     } finally {
       inFlightPromises.delete(key);

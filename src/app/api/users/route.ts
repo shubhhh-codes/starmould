@@ -367,6 +367,7 @@ export async function PUT(req: NextRequest) {
 
     invalidateCache("shared_users");
     invalidateCache("api_counts_all");
+    invalidateCache(`auth_user_record_${numId}`);
     invalidateCache(`auth_user_record_${id}`);
 
     return NextResponse.json({ user: data, message: "User updated successfully." });
@@ -472,6 +473,7 @@ export async function DELETE(req: NextRequest) {
 
     invalidateCache("shared_users");
     invalidateCache("api_counts_all");
+    invalidateCache(`auth_user_record_${numId}`);
 
     return NextResponse.json({ success: true, message: "User deleted successfully." });
   } catch (err: unknown) {
