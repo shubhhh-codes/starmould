@@ -262,7 +262,7 @@ export async function PUT(req: NextRequest) {
     // Fetch existing user to check role and status transitions
     const { data: targetUser } = await supabaseAdmin
       .from("users")
-      .select("id, role_id, status")
+      .select("id, username, email, role_id, status")
       .eq("id", numId)
       .is("deleted_at", null)
       .single();
@@ -271,22 +271,25 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const isTargetSuperAdmin =
+    const isProtectedSystemAccount =
       numId === 1 ||
+      numId === 2 ||
       targetUser.username?.toLowerCase() === "admin" ||
-      targetUser.email?.toLowerCase() === "admin@star.in";
+      targetUser.username?.toLowerCase() === "akshay" ||
+      targetUser.email?.toLowerCase() === "admin@star.in" ||
+      targetUser.email?.toLowerCase() === "akshay@star.in";
 
-    // Super Admin protection: cannot deactivate or change role
-    if (isTargetSuperAdmin) {
+    // Protected system account (Admin / Akshay): cannot deactivate or change role
+    if (isProtectedSystemAccount) {
       if (status !== undefined && Number(status) === 0) {
         return NextResponse.json(
-          { error: "Super Admin account cannot be deactivated." },
+          { error: "Protected system account (Admin / Akshay) cannot be deactivated." },
           { status: 400 }
         );
       }
       if (role_id !== undefined && Number(role_id) !== 0) {
         return NextResponse.json(
-          { error: "Super Admin role cannot be modified." },
+          { error: "Protected system account (Admin / Akshay) role cannot be modified." },
           { status: 400 }
         );
       }
@@ -422,7 +425,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Cannot delete your own active account" }, { status: 400 });
     }
 
-    // Check if user is Super Admin (permanently locked)
+    // Check if user is protected system account (Admin / Akshay)
     const { data: targetUser } = await supabaseAdmin
       .from("users")
       .select("id, username, email, role_id")
@@ -432,11 +435,14 @@ export async function DELETE(req: NextRequest) {
     if (
       targetUser &&
       (numId === 1 ||
+        numId === 2 ||
         targetUser.username?.toLowerCase() === "admin" ||
-        targetUser.email?.toLowerCase() === "admin@star.in")
+        targetUser.username?.toLowerCase() === "akshay" ||
+        targetUser.email?.toLowerCase() === "admin@star.in" ||
+        targetUser.email?.toLowerCase() === "akshay@star.in")
     ) {
       return NextResponse.json(
-        { error: "Super Admin account is permanently locked and cannot be deleted." },
+        { error: "Protected system account (Admin / Akshay) is permanently locked and cannot be deleted." },
         { status: 403 }
       );
     }

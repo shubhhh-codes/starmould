@@ -104,46 +104,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid required fields (payment_type and positive amount are required)" }, { status: 400 });
     }
 
-    // Fetch previous latest row balance
-    const { data: latestRows } = await supabaseAdmin
-      .from("expense")
-      .select("id, balance")
-      .order("id", { ascending: false })
-      .limit(1);
+    // Atomic ledger mutation with transaction-level advisory lock
+    const { data: createdRow, error: rpcError } = await supabaseAdmin.rpc("create_expense_entry", {
+      p_rdate: rdate || new Date().toISOString().slice(0, 10),
+      p_customerid: customerid ? Number(customerid) : 0,
+      p_description: description?.trim() || "expense",
+      p_payment_type: payment_type || "Debit",
+      p_payment_mode: payment_mode || "Cash",
+      p_amount: numAmount,
+      p_user_id: Number(auth.user.id) || 1,
+    });
 
-    const prevBalance = Number(latestRows?.[0]?.balance ?? 0);
-    const newBalance =
-      payment_type === "Credit"
-        ? prevBalance + numAmount
-        : payment_type === "Debit"
-        ? prevBalance - numAmount
-        : prevBalance; // Outstanding preserves cash balance
-
-    const now = new Date().toISOString();
-    const { data, error } = await supabaseAdmin
-      .from("expense")
-      .insert([
-        {
-          rdate: rdate || now.slice(0, 10),
-          customerid: customerid ? Number(customerid) : 0,
-          description: description?.trim() || "expense",
-          payment_type: payment_type || "Debit",
-          payment_mode: payment_mode || "Cash",
-          amount: numAmount,
-          balance: newBalance,
-          created_at: now,
-          updated_at: now,
-        },
-      ])
-      .select()
-      .single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    if (rpcError) {
+      return NextResponse.json({ error: rpcError.message }, { status: 500 });
     }
 
     invalidateCache("api_counts_all");
-    return NextResponse.json({ expense: data, message: "Expense record created successfully." }, { status: 201 });
+    return NextResponse.json({ expense: createdRow, message: "Expense record created successfully." }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

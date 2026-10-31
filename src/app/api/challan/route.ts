@@ -190,7 +190,41 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
 
-    // 1. Insert parent Challan with collision retry loop
+    // 1. Validate Available Quantities in Star Mould (SM) BEFORE creating parent Challan
+    // Pre-aggregate requested quantities by plateid to prevent multi-line over-dispatch
+    if (items && Array.isArray(items) && items.length > 0) {
+      const requestedByPlate = new Map<number, number>();
+      for (const it of items) {
+        if (!it.plateid) continue;
+        const pid = Number(it.plateid);
+        const q = Number(it.qty) || 1;
+        requestedByPlate.set(pid, (requestedByPlate.get(pid) || 0) + q);
+      }
+
+      const plateIds = Array.from(requestedByPlate.keys());
+      if (plateIds.length > 0) {
+        const { data: balances } = await supabaseAdmin
+          .from("view_subplate_jobwork_balance")
+          .select("plateid, platename, total_qty, outward_jobwork_qty, available_sm_qty")
+          .in("plateid", plateIds);
+
+        const balMap = new Map((balances || []).map((b: any) => [Number(b.plateid), b]));
+
+        for (const [pid, reqQty] of requestedByPlate.entries()) {
+          const bal = balMap.get(pid);
+          if (bal && reqQty > bal.available_sm_qty) {
+            return NextResponse.json(
+              {
+                error: `Cannot dispatch ${reqQty} pcs of "${bal.platename}". Only ${bal.available_sm_qty} pcs currently available in Star Mould (SM). ${bal.outward_jobwork_qty} pcs are currently out on Job Work.`,
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+    }
+
+    // 2. Insert parent Challan with collision retry loop
     // ── Job Work Challan Number: SMJC{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
     const nowIST = new Date(
       new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
@@ -250,35 +284,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: cErr?.message || "Failed to create challan" }, { status: 500 });
     }
 
-    // 2. Validate Available Quantities in Star Mould (SM) & Insert Items
+    // 3. Insert Items and update location
     if (items && Array.isArray(items) && items.length > 0) {
       const plateIds = items.map((it: any) => Number(it.plateid)).filter((id: number) => Boolean(id));
-
-      if (plateIds.length > 0) {
-        const { data: balances } = await supabaseAdmin
-          .from("view_subplate_jobwork_balance")
-          .select("plateid, platename, total_qty, outward_jobwork_qty, available_sm_qty")
-          .in("plateid", plateIds);
-
-        const balMap = new Map((balances || []).map((b: any) => [Number(b.plateid), b]));
-
-        for (const it of items) {
-          if (!it.plateid) continue;
-          const bal = balMap.get(Number(it.plateid));
-          const reqQty = Number(it.qty) || 1;
-          if (bal) {
-            if (reqQty > bal.available_sm_qty) {
-              await supabaseAdmin.from("challan").delete().eq("id", challanData.id);
-              return NextResponse.json(
-                {
-                  error: `Cannot dispatch ${reqQty} pcs of "${bal.platename}". Only ${bal.available_sm_qty} pcs currently available in Star Mould (SM). ${bal.outward_jobwork_qty} pcs are currently out on Job Work.`,
-                },
-                { status: 400 }
-              );
-            }
-          }
-        }
-      }
 
       const itemsToInsert = items.map((it: any) => ({
         challanid: challanData.id,

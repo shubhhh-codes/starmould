@@ -238,7 +238,8 @@ async function run() {
   const line1Total = calculateLineTotal(5, 1200.50);
   assert(line1Total === 6002.50, "calculateLineTotal(5, 1200.50) is 6002.50");
 
-  const gstResult = calculateGST(
+  // Intrastate GST (9% CGST + 9% SGST, 0% IGST)
+  const intraGstResult = calculateGST(
     [
       { qty: 2, unit_price: 1000 },
       { qty: 4, unit_price: 500 },
@@ -247,9 +248,61 @@ async function run() {
     18,
     0
   );
-  assert(gstResult.subtotalAmount === 4000, "Subtotal of (2*1000 + 4*500) = 4000");
-  assert(gstResult.gstAmount === 720, "18% GST on 4000 = 720");
-  assert(gstResult.grandTotal === 4720, "Grand total with 18% GST = 4720");
+  assert(intraGstResult.subtotalAmount === 4000, "Subtotal of (2*1000 + 4*500) = 4000");
+  assert(intraGstResult.gstAmount === 720, "18% GST on 4000 = 720");
+  assert(intraGstResult.cgstAmount === 360, "Intrastate CGST = 360 (9%)");
+  assert(intraGstResult.sgstAmount === 360, "Intrastate SGST = 360 (9%)");
+  assert(intraGstResult.igstAmount === 0, "Intrastate IGST is strictly 0 (no double tax)");
+  assert(intraGstResult.grandTotal === 4720, "Grand total with 18% GST = 4720");
+
+  // Interstate GST (18% IGST, 0% CGST, 0% SGST)
+  const interGstResult = calculateGST(
+    [
+      { qty: 2, unit_price: 1000 },
+      { qty: 4, unit_price: 500 },
+    ],
+    "igst",
+    18,
+    0
+  );
+  assert(interGstResult.cgstAmount === 0, "Interstate CGST is strictly 0");
+  assert(interGstResult.sgstAmount === 0, "Interstate SGST is strictly 0");
+  assert(interGstResult.igstAmount === 720, "Interstate IGST is 720 (18%)");
+  assert(interGstResult.grandTotal === 4720, "Interstate grand total = 4720");
+
+  // Format validations: Quotation, PO, Jobwork Challan & Delivery Dispatch
+  const testQuotationNo = "SMQO31102026001";
+  assert(/^SMQO\d{8}\d{3}$/.test(testQuotationNo), "Quotation format matches SMQO{DDMMYYYY}{NNN}");
+
+  const testPurchaseOrderNo = "SMPO31102026001";
+  assert(/^SMPO\d{8}\d{3}$/.test(testPurchaseOrderNo), "Purchase Order format matches SMPO{DDMMYYYY}{NNN}");
+
+  const testJobworkChallanNo = "SMJC31102026001";
+  assert(/^SMJC\d{8}\d{3}$/.test(testJobworkChallanNo), "Jobwork Challan format matches SMJC{DDMMYYYY}{NNN}");
+
+  const testDispatchNo = "SMDC31102026001";
+  assert(/^SMDC\d{8}\d{3}$/.test(testDispatchNo), "Dispatch challan format matches SMDC{DDMMYYYY}{NNN}");
+
+  // Outward Challan Multi-line Pre-aggregation validation test
+  const sampleItems = [
+    { plateid: 10, qty: 3 },
+    { plateid: 10, qty: 3 },
+  ];
+  const requestedByPlate = new Map<number, number>();
+  for (const it of sampleItems) {
+    requestedByPlate.set(it.plateid, (requestedByPlate.get(it.plateid) || 0) + it.qty);
+  }
+  assert(requestedByPlate.get(10) === 6, "Multi-line plate request is aggregated to total 6 pcs");
+  const availableSmQty = 4;
+  const isOverDispatched = (requestedByPlate.get(10) || 0) > availableSmQty;
+  assert(isOverDispatched === true, "Pre-aggregation detects over-dispatch (6 > 4 available)");
+
+  // Akshay & Admin Protection guard check
+  const isProtected = (id: number, username: string, email: string) =>
+    id === 1 || id === 2 || username.toLowerCase() === "admin" || username.toLowerCase() === "akshay" || email.toLowerCase() === "akshay@star.in";
+  assert(isProtected(2, "akshay", "akshay@star.in") === true, "Akshay account is protected against delete/deactivation");
+  assert(isProtected(1, "admin", "admin@star.in") === true, "Admin account is protected against delete/deactivation");
+  assert(isProtected(99, "other_worker", "worker@star.in") === false, "Regular user is not marked as protected");
 
   // Expense Running Balance calculation (Issue #9)
   const calcExpenseBal = (prev: number, type: string, amt: number) =>

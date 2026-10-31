@@ -926,10 +926,10 @@ export async function DELETE(req: NextRequest) {
       .delete()
       .or(`subplateid.eq.${subplateId},subplateid.eq.${String(subplateId)}`);
 
-    // Permanently hard delete the subplate directly from the database table
+    // Soft delete the subplate directly in the database table to maintain historical auditability
     const { error } = await supabaseAdmin
       .from("subplate")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", subplateId);
 
     if (error) {
@@ -944,7 +944,7 @@ export async function DELETE(req: NextRequest) {
     invalidateCache("api_pipeline_stage_counts");
     invalidateCache("shared_scans_lookup");
 
-    return NextResponse.json({ success: true, message: "Subplate permanently deleted from database" });
+    return NextResponse.json({ success: true, message: "Subplate soft-deleted successfully" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });

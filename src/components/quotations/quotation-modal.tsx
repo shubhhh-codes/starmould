@@ -12,6 +12,14 @@ import { useCustomerDropdownQuery } from "@/lib/query/hooks";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import type { Customer } from "@/lib/supabase/types";
 
+function getInstantQuotationNo(): string {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const yyyy = String(now.getFullYear());
+  return `SMQO${dd}${mm}${yyyy}001`;
+}
+
 interface QuotationModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -92,7 +100,7 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
   const customerList = (customerDropdown.data as Customer[]) || [];
 
   // Form State
-  const [quotationNo, setQuotationNo] = useState("");
+  const [quotationNo, setQuotationNo] = useState<string>(() => getInstantQuotationNo());
   const [quotationDate, setQuotationDate] = useState(new Date().toISOString().split("T")[0]);
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [consigneeName, setConsigneeName] = useState("");
@@ -249,7 +257,8 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
         );
       }
     } else {
-      // New quote - fetch next auto-sequential number
+      // New quote - instant default number, confirmed via server in background
+      setQuotationNo((prev) => (prev && prev !== "Generating..." ? prev : getInstantQuotationNo()));
       fetch("/api/quotations?action=next-number")
         .then((res) => res.json())
         .then((data) => {
@@ -327,6 +336,14 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
     setConsigneePhone(c.mobile || c.mobile1 || "");
     setConsigneeEmail(c.email || "");
 
+    // Auto-detect interstate tax type based on GSTIN state code (24 = Gujarat)
+    const effectiveGstin = c.gstin?.trim() || "";
+    if (effectiveGstin.length >= 2 && !effectiveGstin.startsWith("24")) {
+      setTaxType("igst");
+    } else if (taxType === "igst") {
+      setTaxType("gst_18");
+    }
+
     // Automatically fetch full fresh profile by ID and fallback to previous quotation
     try {
       if (c.id) {
@@ -337,7 +354,13 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
           if (full) {
             const freshAddr = [full.address, full.city].filter(Boolean).join(", ");
             if (freshAddr) setConsigneeAddress(freshAddr);
-            if (full.gstin) setConsigneeGstin(full.gstin);
+            if (full.gstin) {
+              setConsigneeGstin(full.gstin);
+              const gstinClean = full.gstin.trim();
+              if (gstinClean.length >= 2 && !gstinClean.startsWith("24")) {
+                setTaxType("igst");
+              }
+            }
             if (full.pan) setConsigneePan(full.pan);
             if (full.mobile || full.mobile1) setConsigneePhone(full.mobile || full.mobile1);
             if (full.email) setConsigneeEmail(full.email);
@@ -939,11 +962,22 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                       type="radio"
                       name="tax_type"
                       value="gst_18"
-                      checked={taxType !== "exempt"}
+                      checked={taxType === "gst_18" || taxType === "cgst_sgst"}
                       onChange={() => setTaxType("gst_18")}
                       className="text-blue-600 focus:ring-blue-500"
                     />
-                    GST (18%)
+                    Intrastate (9% CGST + 9% SGST)
+                  </label>
+                  <label className="flex items-center gap-2 text-xs font-semibold text-indigo-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="tax_type"
+                      value="igst"
+                      checked={taxType === "igst"}
+                      onChange={() => setTaxType("igst")}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Interstate (18% IGST)
                   </label>
                   <label className="flex items-center gap-2 text-xs font-semibold text-emerald-700 cursor-pointer">
                     <input
@@ -962,9 +996,13 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                   <div className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 inline-block">
                     ✓ GST Free Quote: No tax applicable (0% GST)
                   </div>
+                ) : taxType === "igst" ? (
+                  <div className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1.5 rounded-lg border border-indigo-200 inline-block">
+                    ✓ Interstate GST: 18% Integrated Tax (IGST)
+                  </div>
                 ) : (
-                  <div className="text-xs text-slate-500">
-                    Standard 18% GST applies to this quotation.
+                  <div className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200 inline-block">
+                    ✓ Intrastate GST: 9% CGST + 9% SGST (Gujarat)
                   </div>
                 )}
 
@@ -1022,11 +1060,22 @@ export const QuotationModal: React.FC<QuotationModalProps> = ({
                     <span>Tax (GST Free)</span>
                     <span className="font-mono font-bold text-emerald-600">₹ 0.00</span>
                   </div>
-                ) : (
+                ) : taxType === "igst" ? (
                   <div className="flex justify-between text-slate-600">
-                    <span>GST (18%)</span>
-                    <span className="font-mono font-bold text-slate-800">₹ {formatINRTwoDecimals(gstAmount)}</span>
+                    <span>IGST (18%)</span>
+                    <span className="font-mono font-bold text-indigo-700">₹ {formatINRTwoDecimals(igstAmount)}</span>
                   </div>
+                ) : (
+                  <>
+                    <div className="flex justify-between text-slate-600">
+                      <span>CGST (9%)</span>
+                      <span className="font-mono font-bold text-slate-800">₹ {formatINRTwoDecimals(cgstAmount)}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>SGST (9%)</span>
+                      <span className="font-mono font-bold text-slate-800">₹ {formatINRTwoDecimals(sgstAmount)}</span>
+                    </div>
+                  </>
                 )}
 
                 <div className="border-t border-slate-200 pt-2 flex justify-between text-sm font-bold text-blue-800">

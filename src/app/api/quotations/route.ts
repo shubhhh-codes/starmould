@@ -11,14 +11,27 @@ export async function generateNextQuotationNo(offset = 0): Promise<string> {
   const dd = String(nowIST.getDate()).padStart(2, "0");
   const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
   const yyyy = String(nowIST.getFullYear());
-  const todayPrefix = `SMQT${dd}${mm}${yyyy}`;
+  const todayPrefix = `SMQO${dd}${mm}${yyyy}`;
 
-  const { count: todayCount } = await supabaseAdmin
+  // Find latest quotation number created today (supports both SMQO and SMQT legacy)
+  const { data: latestQuote } = await supabaseAdmin
     .from("quotations")
-    .select("id", { count: "exact", head: true })
-    .like("quotation_no", `${todayPrefix}%`);
+    .select("quotation_no")
+    .or(`quotation_no.like.${todayPrefix}%,quotation_no.like.SMQT${dd}${mm}${yyyy}%`)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  const seq = String((todayCount ?? 0) + 1 + offset).padStart(3, "0");
+  let nextSeq = 1;
+  if (latestQuote?.quotation_no) {
+    const rawSeq = latestQuote.quotation_no.slice(todayPrefix.length);
+    const lastNum = parseInt(rawSeq, 10);
+    if (!isNaN(lastNum) && lastNum >= nextSeq) {
+      nextSeq = lastNum + 1;
+    }
+  }
+
+  const seq = String(nextSeq + offset).padStart(3, "0");
   return `${todayPrefix}${seq}`;
 }
 
@@ -216,7 +229,14 @@ export async function POST(req: NextRequest) {
     }
 
     const discountVal = Number(body.discount_amount) || 0;
-    const gst = calculateGST(items, tax_type || "gst_18", 18, discountVal);
+    let effectiveTaxType = tax_type || "gst_18";
+    if (effectiveTaxType === "gst_18" && consignee_gstin) {
+      const cleanGstin = consignee_gstin.trim();
+      if (cleanGstin.length >= 2 && !cleanGstin.startsWith("24")) {
+        effectiveTaxType = "igst";
+      }
+    }
+    const gst = calculateGST(items, effectiveTaxType, 18, discountVal);
     const calculatedWords = amountInWords(gst.grandTotal);
 
     const { data: newQuote, error: qErr } = await supabaseAdmin
@@ -380,7 +400,15 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ success: true, quotation: updatedQuote });
     }
 
-    const gst = calculateGST(items || [], tax_type || "gst_18");
+    const discountVal = Number(body.discount_amount) || 0;
+    let effectiveTaxType = tax_type || "gst_18";
+    if (effectiveTaxType === "gst_18" && consignee_gstin) {
+      const cleanGstin = consignee_gstin.trim();
+      if (cleanGstin.length >= 2 && !cleanGstin.startsWith("24")) {
+        effectiveTaxType = "igst";
+      }
+    }
+    const gst = calculateGST(items || [], effectiveTaxType, 18, discountVal);
     const calculatedWords = amountInWords(gst.grandTotal);
 
     const { data: updatedQuote, error: qErr } = await supabaseAdmin
@@ -398,6 +426,7 @@ export async function PATCH(req: NextRequest) {
         tax_type: gst.taxType,
         tax_rate: gst.taxRate,
         taxable_amount: gst.taxableAmount,
+        discount_amount: discountVal,
         cgst_amount: gst.cgstAmount,
         sgst_amount: gst.sgstAmount,
         igst_amount: gst.igstAmount,

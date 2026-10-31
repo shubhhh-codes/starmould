@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
 
   const tables = [
     "customers",
+    "vendors",
     "subplate",
     "scan",
     "purchase",
@@ -37,21 +38,44 @@ export async function GET(req: NextRequest) {
     "expense",
     "worklog",
     "users",
+    "quotations",
   ];
 
   const fetchTableCounts = async () => {
-    // 1. Fast aggregation RPC (1 roundtrip instead of 16 individual queries)
+    // 1. Fast aggregation RPC (1 roundtrip instead of individual queries)
     try {
       const { data: rpcCounts, error: rpcErr } = await supabaseAdmin.rpc("get_table_counts");
       if (!rpcErr && rpcCounts && typeof rpcCounts === "object") {
-        return rpcCounts as Record<string, number | string>;
+        const countsObj = { ...(rpcCounts as Record<string, number | string>) };
+        // Normalize singular aliases so both counts.subplate and counts.subplates work
+        if (countsObj.subplates !== undefined) countsObj.subplate = countsObj.subplates;
+        if (countsObj.scans !== undefined) countsObj.scan = countsObj.scans;
+        if (countsObj.purchases !== undefined) countsObj.purchase = countsObj.purchases;
+        if (countsObj.challans !== undefined) countsObj.challan = countsObj.challans;
+        if (countsObj.dispatches !== undefined) countsObj.dispatch = countsObj.dispatches;
+        if (countsObj.expenses !== undefined) countsObj.expense = countsObj.expenses;
+        if (countsObj.worklogs !== undefined) countsObj.worklog = countsObj.worklogs;
+        return countsObj;
       }
     } catch {
       // Fallback to table queries
     }
 
     const resCounts: Record<string, number | string> = {};
-    const softDeletableTables = new Set(["customers", "users", "subplate"]);
+    const softDeletableTables = new Set(["customers", "vendors", "users", "subplate", "quotations"]);
+
+    const pluralMap: Record<string, string> = {
+      subplate: "subplates",
+      scan: "scans",
+      purchase: "purchases",
+      po_inward: "po_inwards",
+      challan: "challans",
+      inward: "inwards",
+      dispatch: "dispatches",
+      expense: "expenses",
+      worklog: "worklogs",
+      quotation: "quotations",
+    };
 
     await Promise.all(
       tables.map(async (table) => {
@@ -63,7 +87,12 @@ export async function GET(req: NextRequest) {
             query = query.neq("status", "completed");
           }
           const { count, error } = await query;
-          resCounts[table] = error ? error.message : count ?? 0;
+          const val = error ? error.message : count ?? 0;
+          resCounts[table] = val;
+          const pluralKey = pluralMap[table];
+          if (pluralKey) {
+            resCounts[pluralKey] = val;
+          }
         } catch (err: unknown) {
           resCounts[table] = err instanceof Error ? err.message : "error";
         }

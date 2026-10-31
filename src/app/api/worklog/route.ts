@@ -61,17 +61,21 @@ export async function GET(req: NextRequest) {
 
     const worklogs = wRes.data || [];
 
-    // Query only referenced subplate IDs instead of dumping 2000 plates
+    // Query referenced subplate IDs (matching either primary id or subprojectid)
     const subplateIds = Array.from(
       new Set(worklogs.map((w: any) => w.subplateid).filter(Boolean))
     );
     let subplates: any[] = [];
     if (subplateIds.length > 0) {
-      const { data } = await supabaseAdmin
-        .from("subplate")
-        .select("id, platename, subprojectid, projectid")
-        .in("subprojectid", subplateIds.slice(0, 500));
-      subplates = data || [];
+      const numericIds = subplateIds.map((id) => Number(id)).filter((n) => !isNaN(n));
+      if (numericIds.length > 0) {
+        const idList = numericIds.slice(0, 500).join(",");
+        const { data } = await supabaseAdmin
+          .from("subplate")
+          .select("id, platename, subprojectid, projectid")
+          .or(`id.in.(${idList}),subprojectid.in.(${idList})`);
+        subplates = data || [];
+      }
     }
 
     const custMap = new Map<string | number, any>();
@@ -82,7 +86,19 @@ export async function GET(req: NextRequest) {
     }
     const userMap = new Map((users || []).map((u: any) => [Number(u.id), u]));
     const scanMap = new Map((scans || []).map((s: any) => [s.projectid, s]));
-    const subMap = new Map((subplates || []).map((sp: any) => [sp.subprojectid, sp]));
+    const subMap = new Map<string | number, any>();
+    for (const sp of subplates || []) {
+      if (sp.id !== undefined && sp.id !== null) {
+        subMap.set(sp.id, sp);
+        subMap.set(String(sp.id), sp);
+        subMap.set(Number(sp.id), sp);
+      }
+      if (sp.subprojectid !== undefined && sp.subprojectid !== null) {
+        subMap.set(sp.subprojectid, sp);
+        subMap.set(String(sp.subprojectid), sp);
+        subMap.set(Number(sp.subprojectid), sp);
+      }
+    }
 
     const enriched = (worklogs || []).map((w) => {
       const cust = custMap.get(w.customerid) || custMap.get(Number(w.customerid));

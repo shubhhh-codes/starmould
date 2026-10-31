@@ -75,6 +75,12 @@ async function main() {
     { name: '20261030095500_fix_mould_creation_foreign_key_validation.sql', path: 'supabase/migrations/20261030095500_fix_mould_creation_foreign_key_validation.sql' },
     { name: '20261030101500_seed_customer_master_list.sql', path: 'supabase/migrations/20261030101500_seed_customer_master_list.sql' },
     { name: '20261030102500_seed_vendors_master_list.sql', path: 'supabase/migrations/20261030102500_seed_vendors_master_list.sql' },
+    { name: '20261019090000_app_config_and_security.sql', path: 'supabase/migrations/20261019090000_app_config_and_security.sql' },
+    { name: '20261026120000_create_quotations_and_presets.sql', path: 'supabase/migrations/20261026120000_create_quotations_and_presets.sql' },
+    { name: '20261031104500_fix_user_update_trigger_and_soft_delete.sql', path: 'supabase/migrations/20261031104500_fix_user_update_trigger_and_soft_delete.sql' },
+    { name: '20261031123000_enable_quotations_and_vendor_rls.sql', path: 'supabase/migrations/20261031123000_enable_quotations_and_vendor_rls.sql' },
+    { name: '20261031124500_fix_jobwork_balance_and_inward_join.sql', path: 'supabase/migrations/20261031124500_fix_jobwork_balance_and_inward_join.sql' },
+    { name: '20261031130000_protect_akshay_and_atomic_expense_rpc.sql', path: 'supabase/migrations/20261031130000_protect_akshay_and_atomic_expense_rpc.sql' },
   ];
 
   console.log(`=== RUNNING ALL MIGRATIONS (${migrationManifest.length} total) ===\n`);

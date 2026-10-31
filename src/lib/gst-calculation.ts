@@ -2,13 +2,18 @@
  * Indian GST Financial Calculation Engine
  * 
  * Rules:
- * 1. Standard 18% GST: All quotes are calculated at a standard 18% GST (or 0% GST Free if exempt).
- * 2. No CGST / SGST / IGST split is exposed on the quote, keeping the quote clean, professional, and unambiguous.
- * 3. Exact 2-decimal paise arithmetic:
- *    - Taxable Amount = sum of line totals
+ * 1. Intrastate (Within Gujarat / state code 24 or cgst_sgst):
+ *    - 9% CGST + 9% SGST, 0% IGST.
+ *    - Total GST = 18%.
+ * 2. Interstate (Outside Gujarat / IGST):
+ *    - 18% IGST, 0% CGST, 0% SGST.
+ *    - Total GST = 18%.
+ * 3. Exempt (GST Free):
+ *    - 0% GST, Grand Total = Taxable Amount.
+ * 4. Exact 2-decimal paise arithmetic with penny-rounding balance:
+ *    - Taxable Amount = sum of line totals - discount
  *    - GST (18%) = round(Taxable Amount * 18 / 100)
  *    - Grand Total = Taxable Amount + GST
- * 4. GST Free: GST = 0, Grand Total = Taxable Amount.
  */
 
 export type TaxType = "gst_18" | "exempt" | "cgst_sgst" | "igst";
@@ -44,7 +49,7 @@ export function calculateLineTotal(qty: number | string, unitPrice: number | str
 export function calculateGST(
   items: ItemCalculationInput[],
   taxType: TaxType,
-  _taxRate: number = 18,
+  taxRate: number = 18,
   discount: number = 0
 ): GSTCalculationResult {
   let subtotalPaise = 0;
@@ -84,21 +89,41 @@ export function calculateGST(
     };
   }
 
-  // Standard 18% GST
-  const gstPaise = Math.round((taxablePaise * 18) / 100);
+  const effectiveRate = taxRate > 0 ? taxRate : 18;
+  const gstPaise = Math.round((taxablePaise * effectiveRate) / 100);
   const grandTotalPaise = taxablePaise + gstPaise;
-  const halfPaise = Math.round(gstPaise / 2);
 
+  if (taxType === "igst") {
+    // Interstate: 18% IGST only, 0% CGST, 0% SGST
+    return {
+      subtotalAmount: subtotalPaise / 100,
+      discountAmount: discountPaise / 100,
+      taxableAmount: taxablePaise / 100,
+      taxRate: effectiveRate,
+      taxType: "igst",
+      gstAmount: gstPaise / 100,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: gstPaise / 100,
+      grandTotal: grandTotalPaise / 100,
+      taxablePaise,
+      gstPaise,
+      grandTotalPaise,
+    };
+  }
+
+  // Intrastate (cgst_sgst or gst_18): 9% CGST + 9% SGST, 0% IGST
+  const halfPaise = Math.round(gstPaise / 2);
   return {
     subtotalAmount: subtotalPaise / 100,
     discountAmount: discountPaise / 100,
     taxableAmount: taxablePaise / 100,
-    taxRate: 18,
-    taxType: "gst_18",
+    taxRate: effectiveRate,
+    taxType: taxType === "cgst_sgst" ? "cgst_sgst" : "gst_18",
     gstAmount: gstPaise / 100,
     cgstAmount: halfPaise / 100,
     sgstAmount: (gstPaise - halfPaise) / 100,
-    igstAmount: gstPaise / 100,
+    igstAmount: 0,
     grandTotal: grandTotalPaise / 100,
     taxablePaise,
     gstPaise,

@@ -145,6 +145,10 @@ export async function GET(req: NextRequest) {
     const quoteItems = items || [];
     const discountVal = Number(quote.discount_amount) || 0;
 
+    const isIntraState = !quote.consignee_gstin || quote.consignee_gstin.trim().startsWith("24");
+    const isExempt = quote.tax_type === "exempt";
+    const effectiveTaxType = isExempt ? "exempt" : (!isIntraState || quote.tax_type === "igst" ? "igst" : "gst_18");
+
     // Financial calculations
     const {
       subtotalAmount,
@@ -160,14 +164,12 @@ export async function GET(req: NextRequest) {
         unit_price: it.unit_price,
         total_amount: it.total_amount,
       })),
-      quote.tax_type || "gst_18",
-      quote.tax_type === "exempt" ? 0 : 18,
+      effectiveTaxType,
+      isExempt ? 0 : 18,
       discountVal
     );
 
     const inWords = amountInWords(grandTotal);
-    const isIntraState = !quote.consignee_gstin || quote.consignee_gstin.trim().startsWith("24");
-    const isExempt = quote.tax_type === "exempt";
 
     // Read Cover as Base64
     let coverDataUrl = "";

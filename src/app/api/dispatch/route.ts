@@ -161,26 +161,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Delivery Challan Number: SMDC{DDMMYYYY}{NNN} — daily-scoped, resets each day (IST) ──
-    const nowIST = new Date(
-      new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
-    );
-    const dd = String(nowIST.getDate()).padStart(2, "0");
-    const mm = String(nowIST.getMonth() + 1).padStart(2, "0");
-    const yyyy = String(nowIST.getFullYear());
-    const todayPrefix = `SMDC${dd}${mm}${yyyy}`;
-
-    const { count: todayCount } = await supabaseAdmin
-      .from("dispatch")
-      .select("id", { count: "exact", head: true })
-      .like("challanno", `${todayPrefix}%`);
-
     let newDispatch: any = null;
     let dErr: any = null;
 
     for (let attempt = 0; attempt < 5; attempt++) {
-      const seq = String((todayCount ?? 0) + 1 + attempt).padStart(3, "0");
-      const finalChallanNo = challanno?.trim() || `${todayPrefix}${seq}`;
+      const finalChallanNo = challanno?.trim() || (await generateNextDispatchNo(attempt));
 
       const res = await supabaseAdmin
         .from("dispatch")
@@ -189,7 +174,7 @@ export async function POST(req: NextRequest) {
             challanno: finalChallanNo,
             chdate: chdate || new Date().toISOString().slice(0, 10),
             customerid: Number(customerid),
-            vendortid: vendortid ? Number(vendortid) : Number(customerid),
+            vendortid: vendortid ? Number(vendortid) : null,
             projectid: projectid || "",
             invoiceno: invoiceno?.trim() || "N/A",
             vehicleno: vehicleno?.trim() || "N/A",

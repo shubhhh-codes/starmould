@@ -794,11 +794,11 @@ export async function DELETE(req: NextRequest) {
       .delete()
       .or(worklogOrFilters.join(","));
 
-    // 4. Cascade Delete: Remove child subplates
+    // 4. Cascade Soft Delete: Soft-delete child subplates to preserve historical auditability
     if (subplateIds.length > 0) {
       await supabaseAdmin
         .from("subplate")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() })
         .or(subplateOrFilters.join(","));
     }
 

@@ -99,8 +99,10 @@ export async function GET(req: NextRequest) {
 
       const headers = ["ID", "PO No", "Customer", "Vendor", "Project ID", "Order Date", "Status"];
       const rows = (pos || []).map((p) => {
-        const cust = custMap.get(Number(p.cname));
-        const vend = vendMap.get(Number(p.vname));
+        const custId = p.customer_id || (p.cname && !isNaN(Number(p.cname)) ? Number(p.cname) : null);
+        const vendId = p.vendor_id || (p.vname && !isNaN(Number(p.vname)) ? Number(p.vname) : null);
+        const cust = custId ? custMap.get(Number(custId)) : null;
+        const vend = vendId ? vendMap.get(Number(vendId)) : null;
         return [
           formatCsvCell(p.id),
           formatCsvCell(p.srno || p.purchaseid || ""),
@@ -127,7 +129,8 @@ export async function GET(req: NextRequest) {
 
       const headers = ["ID", "Project Code", "Customer", "Description", "Work Type", "RDate", "Status"];
       const rows = (moulds || []).map((m) => {
-        const cust = custMap.get(Number(m.cname));
+        const custId = m.customer_id || (m.cname && !isNaN(Number(m.cname)) ? Number(m.cname) : null);
+        const cust = custId ? custMap.get(Number(custId)) : null;
         return [
           formatCsvCell(m.id),
           formatCsvCell(m.projectid || ""),
@@ -154,7 +157,8 @@ export async function GET(req: NextRequest) {
 
       const headers = ["ID", "Project Code", "Customer", "Description", "Work Type", "RDate", "Amount", "Status"];
       const rows = (moulds || []).map((m) => {
-        const cust = custMap.get(Number(m.cname));
+        const custId = m.customer_id || (m.cname && !isNaN(Number(m.cname)) ? Number(m.cname) : null);
+        const cust = custId ? custMap.get(Number(custId)) : null;
         return [
           formatCsvCell(m.id),
           formatCsvCell(m.projectid || ""),
