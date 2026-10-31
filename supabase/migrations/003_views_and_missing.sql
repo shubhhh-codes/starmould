@@ -146,6 +146,11 @@ JOIN public.scan ON subplate.projectid::text = scan.id::text
 WHERE scan.status <> 'completed';
 
 -- -----------------------------------------------------------------------------
+DROP VIEW IF EXISTS public.view_po_pending_outword_qty CASCADE;
+DROP VIEW IF EXISTS public.view_po_pending_inward_qty CASCADE;
+DROP VIEW IF EXISTS public.view_po_outword_items_qty CASCADE;
+DROP VIEW IF EXISTS public.view_po_inward_items_qty CASCADE;
+
 -- 7. view_po_inward_items_qty
 -- Source: MySQL view_po_inward_items_qty
 -- -----------------------------------------------------------------------------

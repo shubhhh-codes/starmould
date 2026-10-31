@@ -11,6 +11,9 @@ WHERE usertype IN ('Vendor', 'Transport')
 
 -- 2. Add guard constraint to prevent future vendor/transporter inserts into customers
 ALTER TABLE public.customers
+    DROP CONSTRAINT IF EXISTS check_customers_no_active_vendors;
+
+ALTER TABLE public.customers
     ADD CONSTRAINT check_customers_no_active_vendors 
     CHECK (usertype NOT IN ('Vendor', 'Transport') OR deleted_at IS NOT NULL) 
     NOT VALID;

@@ -1,4 +1,7 @@
 -- Seed core system accounts: Super Admin, Akshay (Admin), and Designer
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+
 INSERT INTO public.users (id, name, email, role_id, status, username, initials, usertype, usersubtype, password_hash, must_change_password) VALUES
   (1, 'Super Admin', 'admin@star.in', 0, 1, 'admin', 'ADM', 'Admin', 'Skilled MP', '$2y$10$S0OedclCp5Au1TYDwbDQJOBfMo.wsxIl2BPMCGM/000/7drfdI78W', false),
   (2, 'Akshay', 'akshay@star.in', 0, 1, 'Akshay', 'AKS', 'Admin', 'Skilled MP', '$2y$10$S0OedclCp5Au1TYDwbDQJOBfMo.wsxIl2BPMCGM/000/7drfdI78W', false),

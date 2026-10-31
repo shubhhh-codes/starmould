@@ -19,5 +19,6 @@ ON CONFLICT (key) DO NOTHING;
 ALTER TABLE app_config ENABLE ROW LEVEL SECURITY;
 
 -- Allow service role full access
+DROP POLICY IF EXISTS "Service role only" ON app_config;
 CREATE POLICY "Service role only" ON app_config
   USING (false);

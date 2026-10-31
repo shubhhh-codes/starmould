@@ -50,8 +50,10 @@ DECLARE
   ];
 BEGIN
   FOREACH t IN ARRAY tables LOOP
-    EXECUTE format('DROP POLICY IF EXISTS service_role_all ON public.%I', t);
-    EXECUTE format('CREATE POLICY service_role_all ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true)', t);
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = t) THEN
+      EXECUTE format('DROP POLICY IF EXISTS service_role_all ON public.%I', t);
+      EXECUTE format('CREATE POLICY service_role_all ON public.%I FOR ALL TO service_role USING (true) WITH CHECK (true)', t);
+    END IF;
   END LOOP;
 END $$;
 

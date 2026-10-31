@@ -1,6 +1,11 @@
 -- Migration 017: Expanded Terms (Order Confirmation, Warranty, Jurisdiction)
 
 ALTER TABLE public.quotation_terms_presets
+ADD COLUMN IF NOT EXISTS price_terms TEXT,
+ADD COLUMN IF NOT EXISTS delivery_terms TEXT,
+ADD COLUMN IF NOT EXISTS payment_terms TEXT,
+ADD COLUMN IF NOT EXISTS validity_terms TEXT,
+ADD COLUMN IF NOT EXISTS force_majeure TEXT,
 ADD COLUMN IF NOT EXISTS order_confirmation TEXT DEFAULT 'Manufacturing starts only after receipt of advance payment and a written Purchase Order.',
 ADD COLUMN IF NOT EXISTS warranty_terms TEXT DEFAULT '[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage.',
 ADD COLUMN IF NOT EXISTS jurisdiction_terms TEXT DEFAULT 'Subject to Rajkot, Gujarat jurisdiction only.';
@@ -10,29 +15,35 @@ ADD COLUMN IF NOT EXISTS order_confirmation TEXT DEFAULT 'Manufacturing starts o
 ADD COLUMN IF NOT EXISTS warranty_terms TEXT DEFAULT '[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage.',
 ADD COLUMN IF NOT EXISTS jurisdiction_terms TEXT DEFAULT 'Subject to Rajkot, Gujarat jurisdiction only.';
 
--- Insert the Official StarMould Preset matching customer requirements
-INSERT INTO public.quotation_terms_presets (
-    title,
-    price_terms,
-    delivery_terms,
-    payment_terms,
-    validity_terms,
-    order_confirmation,
-    warranty_terms,
-    jurisdiction_terms,
-    force_majeure,
-    is_default
-)
-VALUES (
-    'Official StarMould Standard Preset',
-    'Prices are in Indian Rupees (₹), firm and fixed, Ex-Works Rajkot. GST @ [18]% extra as applicable. Freight and transit insurance [extra at actuals / included].',
-    '[__] days from receipt of a clear Purchase Order together with the advance payment; subject to material availability and production capacity.',
-    '[50% advance along with Purchase Order, balance 50% before dispatch / within __ days of invoice]. Payment by NEFT / RTGS / cheque in favour of Starmould Technology Pvt. Ltd.',
-    'This quotation is valid for [15] days from the date of issue. Prices and delivery are subject to change thereafter.',
-    'Manufacturing starts only after receipt of advance payment and a written Purchase Order.',
-    '[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage.',
-    'Subject to Rajkot, Gujarat jurisdiction only.',
-    'This Clause Is Applicable.',
-    true
-)
-ON CONFLICT DO NOTHING;
+-- Insert the Official StarMould Preset matching customer requirements (conditional if legacy columns exist)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quotation_terms_presets' AND column_name = 'price_terms')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quotation_terms_presets' AND column_name = 'content') THEN
+    INSERT INTO public.quotation_terms_presets (
+        title,
+        price_terms,
+        delivery_terms,
+        payment_terms,
+        validity_terms,
+        order_confirmation,
+        warranty_terms,
+        jurisdiction_terms,
+        force_majeure,
+        is_default
+    )
+    VALUES (
+        'Official StarMould Standard Preset',
+        'Prices are in Indian Rupees (₹), firm and fixed, Ex-Works Rajkot. GST @ [18]% extra as applicable. Freight and transit insurance [extra at actuals / included].',
+        '[__] days from receipt of a clear Purchase Order together with the advance payment; subject to material availability and production capacity.',
+        '[50% advance along with Purchase Order, balance 50% before dispatch / within __ days of invoice]. Payment by NEFT / RTGS / cheque in favour of Starmould Technology Pvt. Ltd.',
+        'This quotation is valid for [15] days from the date of issue. Prices and delivery are subject to change thereafter.',
+        'Manufacturing starts only after receipt of advance payment and a written Purchase Order.',
+        '[__ months] against manufacturing defects only; excludes misuse, mishandling, overloading or external damage.',
+        'Subject to Rajkot, Gujarat jurisdiction only.',
+        'This Clause Is Applicable.',
+        true
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+END $$;

@@ -1,8 +1,17 @@
 -- Migration: 20261027110000_seed_82_customers.sql
 -- Description: Seed 82 official customers with unique 5-letter initials and STC codes
 
--- 1. Insert 82 customers with explicit IDs (1 to 82)
-INSERT INTO public.customers (
+-- 1. Ensure required columns exist
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS customer_code VARCHAR(50);
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS pan_code VARCHAR(50);
+
+-- 2. Insert 82 customers with explicit IDs (1 to 82)
+
+DO $$
+BEGIN
+  IF (SELECT count(*) FROM public.customers) < 82 THEN
+    EXECUTE $cust$
+      INSERT INTO public.customers (
     id,
     customername,
     customer_code,
@@ -99,7 +108,21 @@ INSERT INTO public.customers (
   (79, 'Wesfo Eco Products Private Limited', 'STC21TK3', 'WSFEC', '9687617135', NULL, '24AACCW5292P1ZP', 'AACCW5292P', NULL, 'Customer', 0, 0, NOW(), NOW()),
   (80, 'Yash Laxmi Eco Pack Private Limited', 'STC00KW4', 'YSHLX', '6386446484', 'SANJAY.YASHLAXMI@gmail.com', '10AABCY7367C1ZK', 'AABCY7367C', 'Sanjay bhai', 'Customer', 0, 0, NOW(), NOW()),
   (81, 'Miracle Plastics Private Limited', 'STC87KQ6', 'MRCLP', NULL, 'miracleplastic2004@gmail.com', '24AAFCM2571E1ZR', 'AAFCM2571E', NULL, 'Customer', 0, 0, NOW(), NOW()),
-  (82, 'Shree Shyam Foundry', 'STC27XV1', 'SHSYF', NULL, 'Sachin.shyam9@gmail.com', '09LWKPS3091J1ZL', 'LWKPS3091J', NULL, 'Customer', 0, 0, NOW(), NOW());
+  (82, 'Shree Shyam Foundry', 'STC27XV1', 'SHSYF', NULL, 'Sachin.shyam9@gmail.com', '09LWKPS3091J1ZL', 'LWKPS3091J', NULL, 'Customer', 0, 0, NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET
+  customername = EXCLUDED.customername,
+  customer_code = EXCLUDED.customer_code,
+  initials = EXCLUDED.initials,
+  mobile = EXCLUDED.mobile,
+  email = EXCLUDED.email,
+  gstin = EXCLUDED.gstin,
+  pan = EXCLUDED.pan,
+  contact_person = EXCLUDED.contact_person,
+  usertype = EXCLUDED.usertype,
+  updated_at = NOW();
+    $cust$;
+  END IF;
+END $$;
 
 -- 2. Advance the primary key sequence past the highest inserted ID
 SELECT setval(pg_get_serial_sequence('public.customers', 'id'), COALESCE((SELECT MAX(id) FROM public.customers), 1));

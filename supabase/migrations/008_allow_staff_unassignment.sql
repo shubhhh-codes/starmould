@@ -15,15 +15,18 @@ UPDATE public.scan SET scan_by = NULL WHERE scan_by = 0;
 UPDATE public.scan SET modeldesign_by = NULL WHERE modeldesign_by = 0;
 UPDATE public.scan SET qc_by = NULL WHERE qc_by = 0;
 
--- 2. Table: print (Printing & CAM Master)
-ALTER TABLE public.print ALTER COLUMN print_by DROP NOT NULL;
-ALTER TABLE public.print ALTER COLUMN print_by SET DEFAULT NULL;
-
-ALTER TABLE public.print ALTER COLUMN qc_by DROP NOT NULL;
-ALTER TABLE public.print ALTER COLUMN qc_by SET DEFAULT NULL;
-
-UPDATE public.print SET print_by = NULL WHERE print_by = 0;
-UPDATE public.print SET qc_by = NULL WHERE qc_by = 0;
+-- 2. Table: print (Printing & CAM Master - conditional if table exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'print') THEN
+    ALTER TABLE public.print ALTER COLUMN print_by DROP NOT NULL;
+    ALTER TABLE public.print ALTER COLUMN print_by SET DEFAULT NULL;
+    ALTER TABLE public.print ALTER COLUMN qc_by DROP NOT NULL;
+    ALTER TABLE public.print ALTER COLUMN qc_by SET DEFAULT NULL;
+    UPDATE public.print SET print_by = NULL WHERE print_by = 0;
+    UPDATE public.print SET qc_by = NULL WHERE qc_by = 0;
+  END IF;
+END $$;
 
 -- 3. Table: subplate (Subplate Workpiece 9-Stage Tracking)
 ALTER TABLE public.subplate ALTER COLUMN design_by DROP NOT NULL;

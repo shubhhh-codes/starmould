@@ -24,26 +24,7 @@ DROP VIEW IF EXISTS public.view_outword_items_qty CASCADE;
 DROP VIEW IF EXISTS public.view_inward_items_qty CASCADE;
 DROP VIEW IF EXISTS public.view_dispatch_items_qty CASCADE;
 
-DROP TABLE IF EXISTS public.scanning_models CASCADE;
-DROP TABLE IF EXISTS public.print CASCADE;
-DROP TABLE IF EXISTS public.gram_calc CASCADE;
-DROP TABLE IF EXISTS public.expense CASCADE;
-DROP TABLE IF EXISTS public.worklog CASCADE;
-DROP TABLE IF EXISTS public.dispatch_items CASCADE;
-DROP TABLE IF EXISTS public.dispatch CASCADE;
-DROP TABLE IF EXISTS public.purchase_inward_items CASCADE;
-DROP TABLE IF EXISTS public.po_inward CASCADE;
-DROP TABLE IF EXISTS public.purchase_items CASCADE;
-DROP TABLE IF EXISTS public.purchase CASCADE;
-DROP TABLE IF EXISTS public.inward_items CASCADE;
-DROP TABLE IF EXISTS public.inward CASCADE;
-DROP TABLE IF EXISTS public.challan_items CASCADE;
-DROP TABLE IF EXISTS public.challan CASCADE;
-DROP TABLE IF EXISTS public.subplate CASCADE;
-DROP TABLE IF EXISTS public.scan CASCADE;
-DROP TABLE IF EXISTS public.customers CASCADE;
-DROP TABLE IF EXISTS public.users CASCADE;
-DROP TABLE IF EXISTS public.roles CASCADE;
+-- Tables preserved via CREATE TABLE IF NOT EXISTS
 
 -- ------------------------------------------------------------------------------
 -- 1. ROLES & AUTH HELPER INFRASTRUCTURE
@@ -736,172 +717,210 @@ ALTER TABLE public.subplate ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.challan ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.challan_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inward ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.inward_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.po_inward ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase_inward_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.dispatch ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.dispatch_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.worklog ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.expense ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.gram_calc ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.print ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.scanning_models ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.inward_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.purchase ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.purchase_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.po_inward ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.purchase_inward_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.dispatch ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.dispatch_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.worklog ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.expense ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.gram_calc ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.print ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.scanning_models ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Roles Table (Read by all authenticated users, manage by Admin)
+DROP POLICY IF EXISTS "Roles are viewable by authenticated users" ON public.roles;
 CREATE POLICY "Roles are viewable by authenticated users" 
 ON public.roles FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Roles manageable only by admin" ON public.roles;
 CREATE POLICY "Roles manageable only by admin" 
 ON public.roles FOR ALL TO authenticated 
 USING (public.get_auth_role() = 'admin')
 WITH CHECK (public.get_auth_role() = 'admin');
 
 -- Policy: Users / Profiles Table
+DROP POLICY IF EXISTS "Users viewable by authenticated users" ON public.users;
 CREATE POLICY "Users viewable by authenticated users" 
 ON public.users FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile" 
 ON public.users FOR UPDATE TO authenticated 
 USING (auth_id = auth.uid() OR public.is_admin_or_manager())
 WITH CHECK (auth_id = auth.uid() OR public.is_admin_or_manager());
 
+DROP POLICY IF EXISTS "Users insert/delete only by admin" ON public.users;
 CREATE POLICY "Users insert/delete only by admin" 
 ON public.users FOR ALL TO authenticated 
 USING (public.get_auth_role() = 'admin')
 WITH CHECK (public.get_auth_role() = 'admin');
 
 -- Policy: Customers & Vendors
+DROP POLICY IF EXISTS "Customers viewable by authenticated users" ON public.customers;
 CREATE POLICY "Customers viewable by authenticated users" 
 ON public.customers FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Customers manageable by admin and managers" ON public.customers;
 CREATE POLICY "Customers manageable by admin and managers" 
 ON public.customers FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
 -- Policy: Scan / Projects
+DROP POLICY IF EXISTS "Scan viewable by authenticated users" ON public.scan;
 CREATE POLICY "Scan viewable by authenticated users" 
 ON public.scan FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Scan creatable and updatable by authenticated users" ON public.scan;
 CREATE POLICY "Scan creatable and updatable by authenticated users" 
 ON public.scan FOR INSERT TO authenticated WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Scan updatable by authenticated users" ON public.scan;
 CREATE POLICY "Scan updatable by authenticated users" 
 ON public.scan FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Scan delete only by admin" ON public.scan;
 CREATE POLICY "Scan delete only by admin" 
 ON public.scan FOR DELETE TO authenticated 
 USING (public.get_auth_role() = 'admin');
 
 -- Policy: Subplate
+DROP POLICY IF EXISTS "Subplate viewable by authenticated users" ON public.subplate;
 CREATE POLICY "Subplate viewable by authenticated users" 
 ON public.subplate FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Subplate insert/update by authenticated users" ON public.subplate;
 CREATE POLICY "Subplate insert/update by authenticated users" 
 ON public.subplate FOR INSERT TO authenticated WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Subplate update by authenticated users" ON public.subplate;
 CREATE POLICY "Subplate update by authenticated users" 
 ON public.subplate FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Subplate delete only by admin" ON public.subplate;
 CREATE POLICY "Subplate delete only by admin" 
 ON public.subplate FOR DELETE TO authenticated 
 USING (public.get_auth_role() = 'admin');
 
 -- Policy: Challan & Challan Items
+DROP POLICY IF EXISTS "Challan viewable by authenticated users" ON public.challan;
 CREATE POLICY "Challan viewable by authenticated users" 
 ON public.challan FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Challan manageable by admin and managers" ON public.challan;
 CREATE POLICY "Challan manageable by admin and managers" 
 ON public.challan FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
+DROP POLICY IF EXISTS "Challan items viewable by authenticated users" ON public.challan_items;
 CREATE POLICY "Challan items viewable by authenticated users" 
 ON public.challan_items FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Challan items manageable by admin and managers" ON public.challan_items;
 CREATE POLICY "Challan items manageable by admin and managers" 
 ON public.challan_items FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
 -- Policy: Inward & Inward Items
+DROP POLICY IF EXISTS "Inward viewable by authenticated users" ON public.inward;
 CREATE POLICY "Inward viewable by authenticated users" 
 ON public.inward FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Inward manageable by admin and managers" ON public.inward;
 CREATE POLICY "Inward manageable by admin and managers" 
 ON public.inward FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
+DROP POLICY IF EXISTS "Inward items viewable by authenticated users" ON public.inward_items;
 CREATE POLICY "Inward items viewable by authenticated users" 
 ON public.inward_items FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Inward items manageable by admin and managers" ON public.inward_items;
 CREATE POLICY "Inward items manageable by admin and managers" 
 ON public.inward_items FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
 -- Policy: Purchase & Purchase Items
+DROP POLICY IF EXISTS "Purchase viewable by authenticated users" ON public.purchase;
 CREATE POLICY "Purchase viewable by authenticated users" 
 ON public.purchase FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Purchase manageable by admin and managers" ON public.purchase;
 CREATE POLICY "Purchase manageable by admin and managers" 
 ON public.purchase FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
+DROP POLICY IF EXISTS "Purchase items viewable by authenticated users" ON public.purchase_items;
 CREATE POLICY "Purchase items viewable by authenticated users" 
 ON public.purchase_items FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Purchase items manageable by admin and managers" ON public.purchase_items;
 CREATE POLICY "Purchase items manageable by admin and managers" 
 ON public.purchase_items FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
 -- Policy: PO Inward & Purchase Inward Items
+DROP POLICY IF EXISTS "PO Inward viewable by authenticated users" ON public.po_inward;
 CREATE POLICY "PO Inward viewable by authenticated users" 
 ON public.po_inward FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "PO Inward manageable by admin and managers" ON public.po_inward;
 CREATE POLICY "PO Inward manageable by admin and managers" 
 ON public.po_inward FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
+DROP POLICY IF EXISTS "Purchase inward items viewable by authenticated users" ON public.purchase_inward_items;
 CREATE POLICY "Purchase inward items viewable by authenticated users" 
 ON public.purchase_inward_items FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Purchase inward items manageable by admin and managers" ON public.purchase_inward_items;
 CREATE POLICY "Purchase inward items manageable by admin and managers" 
 ON public.purchase_inward_items FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
 -- Policy: Dispatch & Dispatch Items
+DROP POLICY IF EXISTS "Dispatch viewable by authenticated users" ON public.dispatch;
 CREATE POLICY "Dispatch viewable by authenticated users" 
 ON public.dispatch FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Dispatch manageable by admin and managers" ON public.dispatch;
 CREATE POLICY "Dispatch manageable by admin and managers" 
 ON public.dispatch FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
+DROP POLICY IF EXISTS "Dispatch items viewable by authenticated users" ON public.dispatch_items;
 CREATE POLICY "Dispatch items viewable by authenticated users" 
 ON public.dispatch_items FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Dispatch items manageable by admin and managers" ON public.dispatch_items;
 CREATE POLICY "Dispatch items manageable by admin and managers" 
 ON public.dispatch_items FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
 -- Policy: Worklog
+DROP POLICY IF EXISTS "Worklog viewable by authenticated users" ON public.worklog;
 CREATE POLICY "Worklog viewable by authenticated users" 
 ON public.worklog FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Workers can insert and update their own worklogs" ON public.worklog;
 CREATE POLICY "Workers can insert and update their own worklogs" 
 ON public.worklog FOR INSERT TO authenticated 
 WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Workers can update own worklog, managers/admin update any" ON public.worklog;
 CREATE POLICY "Workers can update own worklog, managers/admin update any" 
 ON public.worklog FOR UPDATE TO authenticated 
 USING (
@@ -913,34 +932,46 @@ WITH CHECK (
     userid IN (SELECT id FROM public.users WHERE auth_id = auth.uid() OR email = (auth.jwt() ->> 'email'))
 );
 
+DROP POLICY IF EXISTS "Worklog delete only by admin" ON public.worklog;
 CREATE POLICY "Worklog delete only by admin" 
 ON public.worklog FOR DELETE TO authenticated 
 USING (public.get_auth_role() = 'admin');
 
 -- Policy: Expense
+DROP POLICY IF EXISTS "Expense accessible only by admin and managers" ON public.expense;
 CREATE POLICY "Expense accessible only by admin and managers" 
 ON public.expense FOR ALL TO authenticated 
 USING (public.is_admin_or_manager())
 WITH CHECK (public.is_admin_or_manager());
 
 -- Policy: Gram Calc & Print
+DROP POLICY IF EXISTS "Gram Calc viewable by all, manageable by admin" ON public.gram_calc;
 CREATE POLICY "Gram Calc viewable by all, manageable by admin" 
 ON public.gram_calc FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Gram Calc update only by admin" ON public.gram_calc;
 CREATE POLICY "Gram Calc update only by admin" 
 ON public.gram_calc FOR ALL TO authenticated 
 USING (public.get_auth_role() = 'admin')
 WITH CHECK (public.get_auth_role() = 'admin');
 
-CREATE POLICY "Print records viewable by authenticated users" 
-ON public.print FOR SELECT TO authenticated USING (true);
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'print') THEN
+    DROP POLICY IF EXISTS "Print records viewable by authenticated users" ON public.print;
+    CREATE POLICY "Print records viewable by authenticated users" 
+    ON public.print FOR SELECT TO authenticated USING (true);
 
-CREATE POLICY "Print records insert/update by authenticated users" 
-ON public.print FOR ALL TO authenticated 
-USING (true)
-WITH CHECK (true);
+    DROP POLICY IF EXISTS "Print records insert/update by authenticated users" ON public.print;
+    CREATE POLICY "Print records insert/update by authenticated users" 
+    ON public.print FOR ALL TO authenticated 
+    USING (true)
+    WITH CHECK (true);
+  END IF;
+END $$;
 
 -- Policy: Scanning Models
+DROP POLICY IF EXISTS "Scanning Models viewable by authenticated users" ON public.scanning_models;
 CREATE POLICY "Scanning Models viewable by authenticated users" 
 ON public.scanning_models FOR ALL TO authenticated 
 USING (true)

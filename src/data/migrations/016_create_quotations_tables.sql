@@ -74,14 +74,27 @@ CREATE INDEX IF NOT EXISTS idx_quotations_quotation_date ON public.quotations(qu
 CREATE INDEX IF NOT EXISTS idx_quotations_deleted_at ON public.quotations(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_quotation_items_quotation_id ON public.quotation_items(quotation_id);
 
--- Insert default Terms Preset if not already present
-INSERT INTO public.quotation_terms_presets (title, price_terms, delivery_terms, payment_terms, validity_terms, force_majeure, is_default)
-SELECT 
-    'Standard StarMould Preset',
-    'Ex-Works Rajkot, +18% GST Freight ,Transit Insurance At Actual.',
-    '2 Days',
-    '100% advance before dispatch of goods.',
-    '10 DAYS',
-    'This Clause Is Applicable.',
-    true
-WHERE NOT EXISTS (SELECT 1 FROM public.quotation_terms_presets WHERE title = 'Standard StarMould Preset');
+ALTER TABLE public.quotation_terms_presets 
+  ADD COLUMN IF NOT EXISTS price_terms TEXT,
+  ADD COLUMN IF NOT EXISTS delivery_terms TEXT,
+  ADD COLUMN IF NOT EXISTS payment_terms TEXT,
+  ADD COLUMN IF NOT EXISTS validity_terms TEXT,
+  ADD COLUMN IF NOT EXISTS force_majeure TEXT;
+
+-- Insert default Terms Preset if not already present (only if legacy columns structure exists)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quotation_terms_presets' AND column_name = 'price_terms')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'quotation_terms_presets' AND column_name = 'content') THEN
+    INSERT INTO public.quotation_terms_presets (title, price_terms, delivery_terms, payment_terms, validity_terms, force_majeure, is_default)
+    SELECT 
+        'Standard StarMould Preset',
+        'Ex-Works Rajkot, +18% GST Freight ,Transit Insurance At Actual.',
+        '2 Days',
+        '100% advance before dispatch of goods.',
+        '10 DAYS',
+        'This Clause Is Applicable.',
+        true
+    WHERE NOT EXISTS (SELECT 1 FROM public.quotation_terms_presets WHERE title = 'Standard StarMould Preset');
+  END IF;
+END $$;

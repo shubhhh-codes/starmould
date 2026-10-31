@@ -2,6 +2,15 @@
 
 TRUNCATE TABLE public.quotation_terms_presets RESTART IDENTITY CASCADE;
 
+ALTER TABLE public.quotation_terms_presets
+ADD COLUMN IF NOT EXISTS term_type VARCHAR(50),
+ADD COLUMN IF NOT EXISTS content TEXT,
+ADD COLUMN IF NOT EXISTS price_terms TEXT,
+ADD COLUMN IF NOT EXISTS delivery_terms TEXT,
+ADD COLUMN IF NOT EXISTS payment_terms TEXT,
+ADD COLUMN IF NOT EXISTS validity_terms TEXT,
+ADD COLUMN IF NOT EXISTS force_majeure TEXT;
+
 -- 1. PRICE TERMS PRESETS
 INSERT INTO public.quotation_terms_presets (term_type, title, content, price_terms, is_default, updated_at) VALUES
 ('price', 'Ex-Works Rajkot + 18% GST (Official)', 

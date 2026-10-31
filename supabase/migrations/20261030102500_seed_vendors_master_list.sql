@@ -1,6 +1,8 @@
 -- Migration: 20261030102500_seed_vendors_master_list.sql
 -- Description: Import 360 official vendors/transporters into public.vendors
 
+DROP INDEX IF EXISTS idx_vendors_vendor_code_unique;
+
 INSERT INTO public.vendors (
     id,
     vendor_code,
@@ -399,3 +401,16 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- Advance sequence past the highest inserted ID
 SELECT setval(pg_get_serial_sequence('public.vendors', 'id'), COALESCE((SELECT MAX(id) FROM public.vendors), 1));
+
+-- Deduplicate any duplicate vendor_code before creating unique index
+DELETE FROM public.vendors WHERE id IN (
+  SELECT id FROM (
+    SELECT id, ROW_NUMBER() OVER(PARTITION BY vendor_code ORDER BY id DESC) as rn
+    FROM public.vendors
+    WHERE deleted_at IS NULL AND vendor_code IS NOT NULL
+  ) t WHERE t.rn > 1
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendors_vendor_code_unique 
+  ON public.vendors(vendor_code) 
+  WHERE deleted_at IS NULL AND vendor_code IS NOT NULL;
