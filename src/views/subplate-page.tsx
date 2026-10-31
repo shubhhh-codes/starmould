@@ -488,6 +488,10 @@ function SubplatePageContent() {
 	const { currentUser } = useAuth();
 	const { hasPermission } = useRolePermissions();
 	const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+	const allowedStages = useMemo(
+		() => getAllowedStagesForUser(currentUser, isAdmin),
+		[currentUser, isAdmin]
+	);
 	const canCreateSubplate = hasPermission("action_create_subplate");
 	const canExportCSV = hasPermission("financial_export_csv");
 	const canEditSubplate = hasPermission("action_edit_subplate");
@@ -611,6 +615,8 @@ function SubplatePageContent() {
 	}, [scans, subplates]);
 
 	// Quick Staff Assignment Modal (Admin only)
+	// Studio View Mode and Stage Inspection Preview per subplate row
+
 	const [assignStaffModal, setAssignStaffModal] = useState<{
 		isOpen: boolean;
 		subplate: Subplate | null;
@@ -2073,7 +2079,7 @@ function SubplatePageContent() {
 																										? "bg-slate-200 text-slate-800 hover:bg-slate-300"
 																										: "text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200/90 font-bold"
 																								}`}
-																								title={isRowExpanded ? "Close stage studio" : "Open 9-stage management studio"}
+																								title={isRowExpanded ? "Close stage studio" : "Open stage tracking studio"}
 																							>
 																								<span>{isRowExpanded ? "Hide Studio" : "Open Studio"}</span>
 																								{isRowExpanded ? (
@@ -2141,40 +2147,56 @@ function SubplatePageContent() {
 																	{isRowExpanded && (
 																		<tr className="bg-slate-50/90">
 																			<td colSpan={6} className="p-3 sm:p-4 border-y border-slate-200">
-																				<div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-4">
+																				<div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-5">
+																					{/* Studio Header */}
 																					<div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
-																						<div className="flex items-center gap-2">
-																							<div className="p-2 bg-cyan-50 text-cyan-600 rounded-lg">
-																								<Layers className="w-4 h-4" />
+																						<div className="flex items-center gap-3">
+																							<div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+																								<Layers className="w-5 h-5" />
 																							</div>
 																							<div>
-																								<h4 className="text-sm font-bold text-slate-900">
-																									9-Stage Production Tracking Studio for &quot;{row.platename}&quot;
-																								</h4>
-																								<p className="text-xs text-slate-500">
+																								<div className="flex items-center gap-2">
+																									<h4 className="text-sm font-bold text-slate-900">
+																										{allowedStages.length === STAGE_DEFINITIONS.length
+																											? `9-Stage Production Tracking Studio for "${row.platename}"`
+																											: `${allowedStages.map((s) => s.label.replace(/^\d+\.\s*/, "")).join(" & ")} Workstation for "${row.platename}"`}
+																									</h4>
+																									{allowedStages.length < STAGE_DEFINITIONS.length && (
+																										<span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+																											Stage {allowedStages.map((s) => s.step).join(", ")} of 9
+																										</span>
+																									)}
+																								</div>
+																								<p className="text-xs text-slate-500 mt-0.5">
 																									{isAdmin
 																										? "Click any stage to assign or change staff. Timestamp is recorded automatically."
-																										: "Assign yourself to pending stages or manage your active assignments."}
+																										: "Review workpiece blueprint specifications and manage your active stage assignment."}
 																								</p>
 																							</div>
 																						</div>
 
-																						<div className="flex items-center gap-2.5 text-xs">
-																							<span className="font-bold text-slate-800">
-																								Progress: {completedCount}/9 Completed
-																							</span>
-																							<div className="w-28 h-2.5 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60">
-																								<div
-																									className="h-full bg-blue-600 rounded-full transition-all duration-300"
-																									style={{ width: `${(completedCount / 9) * 100}%` }}
-																								/>
-																							</div>
+																						<div className="flex items-center gap-3 text-xs">
+																							<SubplateJobworkLocationBadge
+																								subplate={row}
+																								size="sm"
+																							/>
+																							{isAdmin && (
+																								<div className="flex items-center gap-2 font-bold text-slate-800">
+																									<span>Progress: {completedCount}/9 Completed</span>
+																									<div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300/60">
+																										<div
+																											className="h-full bg-blue-600 rounded-full transition-all duration-300"
+																											style={{ width: `${(completedCount / 9) * 100}%` }}
+																										/>
+																									</div>
+																								</div>
+																							)}
 																						</div>
 																					</div>
 
-																					{/* 9-Stage Cards Grid */}
-																					<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2.5">
-																						{STAGE_DEFINITIONS.map((stage) => {
+																					{/* Studio Main Body */}
+																					{(() => {
+																						const renderStageCard = (stage: (typeof STAGE_DEFINITIONS)[number], isRoleCard: boolean = false) => {
 																							const val = (row as any)[stage.key];
 																							const timestamp = (row as any)[stage.atKey];
 																							const isAssigned = Boolean(val && val !== 0);
@@ -2191,7 +2213,9 @@ function SubplatePageContent() {
 																							return (
 																								<div
 																									key={stage.key}
-																									className={`p-3 rounded-xl border transition-all space-y-2.5 flex flex-col justify-between ${
+																									className={`p-4 rounded-xl border transition-all space-y-3.5 flex flex-col justify-between ${
+																										isRoleCard ? "shadow-sm bg-white ring-1 ring-blue-500/15" : ""
+																									} ${
 																										isPartial
 																											? "bg-white border-amber-300 shadow-xs ring-1 ring-amber-400/20"
 																											: isStageDone
@@ -2201,9 +2225,9 @@ function SubplatePageContent() {
 																								>
 																									<div>
 																										{/* Step Header */}
-																										<div className="flex items-center justify-between gap-1 mb-1.5">
+																										<div className="flex items-center justify-between gap-1 mb-2">
 																											<span
-																												className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded font-mono ${
+																												className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-mono ${
 																													isPartial
 																														? "bg-amber-50 text-amber-700 border border-amber-200/80"
 																														: isStageDone
@@ -2224,12 +2248,15 @@ function SubplatePageContent() {
 																													<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
 																												)
 																											) : isAssigned ? (
-																												<CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+																												<div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
+																													<CheckCircle2 className="w-4 h-4 shrink-0" />
+																													<span>Assigned</span>
+																												</div>
 																											) : (
-																												<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+																												<span className="text-xs text-slate-400 font-medium">Pending</span>
 																											)}
 																										</div>
-																										<div className="text-xs font-bold text-slate-900 leading-snug">
+																										<div className="text-sm font-bold text-slate-900 leading-snug">
 																											{stage.label.replace(/^\d+\.\s*/, "")}
 																										</div>
 																									</div>
@@ -2339,7 +2366,7 @@ function SubplatePageContent() {
 																																		currentUser.name?.slice(0, 2).toUpperCase() ||
 																																		"ME",
 																																} as any,
-																														  ]
+																															  ]
 																														: []
 																												}
 																												disabled={!isAdmin && isAssignedToOther}
@@ -2354,7 +2381,7 @@ function SubplatePageContent() {
 																									<div className="pt-2 border-t border-slate-100 text-[10px]">
 																										{isAssigned && timestamp ? (
 																											<div className="flex items-center gap-1.5 text-slate-600 font-mono text-[10px] font-medium truncate">
-																												<Clock className="w-3 h-3 text-slate-400 shrink-0" />
+																												<Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
 																												<span>{formatTimestamp(timestamp)}</span>
 																											</div>
 																										) : isAssigned ? (
@@ -2365,8 +2392,135 @@ function SubplatePageContent() {
 																									</div>
 																								</div>
 																							);
-																						})}
-																					</div>
+																						};
+
+																						{/* Non-Admin Focused Role Workstation: NO other departments' tasks or assign systems */}
+																						if (allowedStages.length < STAGE_DEFINITIONS.length) {
+																							const currentMold = scans.find(
+																								(s) =>
+																									String(s.id) === String(row.projectid) ||
+																									String((s as any).mold_code) === String(row.mold_code) ||
+																									String((s as any).projectid) === String(row.projectid)
+																							);
+																							const customerName = currentMold?.customername || currentMold?.cname || (row as any).customer_name || "";
+
+																							return (
+																								<div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+																									{/* Left Column: Dedicated Role Action & Assignment Card */}
+																									<div className={`space-y-3 ${allowedStages.length === 1 ? "lg:col-span-5 xl:col-span-4" : "lg:col-span-6 xl:col-span-5"}`}>
+																										<div className="flex items-center justify-between text-xs px-1">
+																											<span className="flex items-center gap-1.5 font-bold text-blue-700">
+																												<Sparkles className="w-3.5 h-3.5 text-blue-600" />
+																												<span>Your Assigned Stage{allowedStages.length > 1 ? "s" : ""}</span>
+																											</span>
+																											<span className="text-[11px] text-slate-500 font-medium">
+																												Active Department Task
+																											</span>
+																										</div>
+
+																										<div className={`grid gap-3 ${allowedStages.length === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+																											{allowedStages.map((stage) => renderStageCard(stage, true))}
+																										</div>
+
+																										{/* Simple Next-Stage Handoff Note */}
+																										<div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200/80 text-xs space-y-1">
+																											<span className="font-bold text-blue-800 flex items-center gap-1.5 text-[11px]">
+																												<span>&rarr; Downstream Handoff</span>
+																											</span>
+																											<p className="text-[11px] text-slate-600 leading-relaxed">
+																												Once your stage is complete, this plate will automatically transition to the subsequent manufacturing department.
+																											</p>
+																										</div>
+																									</div>
+
+																									{/* Right Column: Workpiece Engineering Blueprint & Technical Specifications */}
+																									<div className={`${allowedStages.length === 1 ? "lg:col-span-7 xl:col-span-8" : "lg:col-span-6 xl:col-span-7"} bg-slate-50/70 rounded-xl border border-slate-200/90 p-4 space-y-4 shadow-2xs flex flex-col justify-between`}>
+																										<div className="space-y-3.5">
+																											{/* Blueprint Title Bar */}
+																											<div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/70 pb-2.5">
+																												<div className="flex items-center gap-2 min-w-0">
+																													<div className="p-1.5 bg-white rounded-lg border border-slate-200 text-slate-700 shadow-2xs">
+																														<Package className="w-4 h-4 text-slate-600" />
+																													</div>
+																													<div>
+																														<div className="flex items-center gap-2">
+																															<span className="text-xs font-bold text-slate-900 truncate">
+																																{row.platename}
+																															</span>
+																															<span className="text-[10px] font-mono text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200/80">
+																																{row.subprojectid}
+																															</span>
+																														</div>
+																														<div className="text-[10px] text-slate-500">
+																															Engineering Workpiece Specifications
+																														</div>
+																													</div>
+																												</div>
+
+																												<span className="text-[10px] font-mono text-slate-600 bg-white px-2 py-1 rounded-md border border-slate-200 shadow-2xs">
+																													ID #{row.id}
+																												</span>
+																											</div>
+
+																											{/* 4-Pill Specs Grid */}
+																											<div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+																												<div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+																													<span className="text-[10px] text-slate-500 font-semibold uppercase block">Dimensions</span>
+																													<span className="font-bold text-slate-900 text-xs truncate block mt-0.5">
+																														{row.length && row.width ? `${row.length} × ${row.width}${row.height ? ` × ${row.height}` : ""} mm` : "Custom Dimensions"}
+																													</span>
+																													<span className="text-[10px] text-slate-400 block mt-0.5">Length × Width × Height</span>
+																												</div>
+
+																												<div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+																													<span className="text-[10px] text-slate-500 font-semibold uppercase block">Material</span>
+																													<span className="font-bold text-amber-700 text-xs truncate block mt-0.5">
+																														{row.material || "Unspecified"}
+																													</span>
+																													<span className="text-[10px] text-slate-400 block mt-0.5">{row.shape || "Plate Shape"}</span>
+																												</div>
+
+																												<div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+																													<span className="text-[10px] text-slate-500 font-semibold uppercase block">Quantity</span>
+																													<span className="font-bold text-slate-900 text-xs truncate block mt-0.5">
+																														{row.sqty || 1} pc{(Number(row.sqty) || 1) > 1 ? "s" : ""}
+																													</span>
+																													<span className="text-[10px] text-slate-400 block mt-0.5">Component Qty</span>
+																												</div>
+
+																												<div className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+																													<span className="text-[10px] text-slate-500 font-semibold uppercase block">Calculated Weight</span>
+																													<span className="font-bold text-slate-900 text-xs truncate block font-mono mt-0.5">
+																														{row.weight ? `${Number(row.weight).toFixed(3)} kg` : "—"}
+																													</span>
+																													<span className="text-[10px] text-slate-400 block mt-0.5">Net Component Weight</span>
+																												</div>
+																											</div>
+																										</div>
+
+																										{/* Mould / Project Reference Banner */}
+																										<div className="p-3 bg-white rounded-xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+																											<div>
+																												<div className="text-[10px] text-slate-500 uppercase font-semibold">Mould Project</div>
+																												<div className="font-bold text-slate-800 text-xs">{row.mold_code || row.projectid} {customerName ? `• ${customerName}` : ""}</div>
+																											</div>
+																											<div className="text-right">
+																												<div className="text-[10px] text-slate-500 uppercase font-semibold">Plate Category</div>
+																												<div className="font-semibold text-slate-700 text-xs">{row.plate_category || "General Component"}</div>
+																											</div>
+																										</div>
+																									</div>
+																								</div>
+																							);
+																						}
+
+																						{/* Full 9-Stage Cards Grid (Admin / Manager Only) */}
+																						return (
+																							<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2.5">
+																								{STAGE_DEFINITIONS.map((stage) => renderStageCard(stage, false))}
+																							</div>
+																						);
+																					})()}
 																				</div>
 																			</td>
 																		</tr>
@@ -2472,7 +2626,7 @@ function SubplatePageContent() {
 															{/* Mobile Expanded Stepper */}
 															{isRowExpanded && (
 																<div className="mt-2 pt-2 border-t border-slate-200 space-y-2">
-																	{STAGE_DEFINITIONS.map((stage) => {
+																	{allowedStages.map((stage) => {
 																		const val = (row as any)[stage.key];
 																		const timestamp = (row as any)[stage.atKey];
 																		const isAssigned = Boolean(val && val !== 0);
@@ -3370,7 +3524,10 @@ function SubplatePageContent() {
 								// Overview utility for non-admin
 								items.push({
 									separator: true,
-									label: "Open 9-Stage Studio",
+									label:
+										allowedStages.length === 1
+											? `Open ${allowedStages[0].label.replace(/^\d+\.\s*/, "")} Studio`
+											: "Open Tracking Studio",
 									icon: Layers,
 									onClick: () => toggleRow(sp.id),
 								});

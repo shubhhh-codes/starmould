@@ -84,7 +84,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_dashboard: true,
     nav_customer_creator: false,
     nav_vendor_transport: true,
-    nav_subplate: false,
+    nav_subplate: true,
     nav_scanning: false,
     nav_project_register: false,
     nav_purchase: true,
@@ -101,7 +101,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -228,7 +228,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: true,
     action_edit_subplate: true,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -274,7 +274,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_dashboard: true,
     nav_customer_creator: false,
     nav_vendor_transport: false,
-    nav_subplate: false,
+    nav_subplate: true,
     nav_scanning: true,
     nav_project_register: true,
     nav_purchase: false,
@@ -292,7 +292,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -338,7 +338,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_dashboard: true,
     nav_customer_creator: false,
     nav_vendor_transport: true,
-    nav_subplate: false,
+    nav_subplate: true,
     nav_scanning: false,
     nav_project_register: false,
     nav_purchase: true,
@@ -356,7 +356,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -420,7 +420,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: true,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -484,7 +484,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -548,7 +548,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -612,7 +612,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: true,
     action_edit_subplate: true,
     action_delete_subplate: false,
-    action_assign_subplate_designer: false,
+    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
@@ -677,6 +677,7 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
   ],
   1: [
     "nav_dashboard",
+    "nav_subplate",
     "nav_vendor_transport",
     "nav_purchase",
     "nav_purchase_inward",
@@ -707,12 +708,14 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
   ],
   4: [
     "nav_dashboard",
+    "nav_subplate",
     "nav_scanning",
     "nav_project_register",
     "nav_work",
   ],
   5: [
     "nav_dashboard",
+    "nav_subplate",
     "nav_purchase",
     "nav_purchase_inward",
     "nav_vendor_transport",

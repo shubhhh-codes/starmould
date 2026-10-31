@@ -4,13 +4,14 @@ export interface UserSessionMinimal {
   role_id?: number | null;
   role?: string | null;
   id?: number | string | null;
+  usertype?: string | null;
 }
 
 // 9 Production Stages configuration
 export const STAGE_DEFINITIONS = [
   { key: "design_by", atKey: "design_at", nameKey: "design_by_name", short: "DES", label: "1. Design Order", assignTitle: "Assign to Designer", step: 1, color: "blue", roleId: 3, roleName: "Designer" },
   { key: "order_by", atKey: "order_at", nameKey: "order_by_name", short: "PUR", label: "2. Purchase", assignTitle: "Assign to Purchase", step: 2, color: "amber", roleId: 5, roleName: "Purchase Incharge" },
-  { key: "received_workby", atKey: "received_work_at", nameKey: "received_workby_name", short: "REC", label: "3. Mat. Inward", assignTitle: "Assign to Mat. Inward", step: 3, color: "emerald", roleId: 4, roleName: "Worker" },
+  { key: "received_workby", atKey: "received_work_at", nameKey: "received_workby_name", short: "REC", label: "3. Mat. Inward", assignTitle: "Assign to Mat. Inward", step: 3, color: "emerald", roleId: 5, roleName: "Purchase Incharge" },
   { key: "received_qcby", atKey: "received_qc_at", nameKey: "received_qcby_name", short: "PROG", label: "4. Programming Work", assignTitle: "Assign to Programmer", step: 4, color: "teal", roleId: 10, roleName: "Programmer" },
   { key: "vmc_workby", atKey: "vmc_work_at", nameKey: "vmc_workby_name", short: "VMC", label: "5. VMC Work", assignTitle: "Assign to VMC Work", step: 5, color: "indigo", roleId: 6, roleName: "VMC Department" },
   { key: "vmc_qcby", atKey: "vmc_qc_at", nameKey: "vmc_qcby_name", short: "VQC", label: "6. VMC QC", assignTitle: "Assign to VMC QC", step: 6, color: "purple", roleId: 7, roleName: "Quality Checking (QC)" },
@@ -25,7 +26,7 @@ export type StageDefinition = (typeof STAGE_DEFINITIONS)[number];
  * Filter stages strictly based on the logged-in user's role:
  * - Admin (role 0) & Manager (role 1): All 9 stages
  * - Designer (role 3): ONLY Stage 1 (design_by)
- * - Purchase Incharge (role 5): ONLY Stage 2 (order_by)
+ * - Purchase Incharge (role 5): Stage 2 (order_by) & Stage 3 (received_workby)
  * - Programmer (role 10): ONLY Stage 4 (received_qcby)
  * - VMC (role 6): ONLY Stage 5 (vmc_workby)
  * - QC (role 7): ONLY Stage 6 (vmc_qcby) & Stage 8 (final_qcby)
@@ -40,29 +41,31 @@ export function getAllowedStagesForUser(currentUser: UserSessionMinimal | null, 
 
   const roleId = Number(currentUser.role_id ?? -1);
   const roleName = (currentUser.role || "").toLowerCase();
+  const userType = (currentUser.usertype || "").toLowerCase();
+  const match = (term: string) => roleName.includes(term) || userType.includes(term);
 
-  if (roleId === 3 || roleName.includes("designer")) {
+  if (roleId === 3 || match("designer")) {
     return STAGE_DEFINITIONS.filter((s) => s.key === "design_by");
   }
-  if (roleId === 5 || roleName.includes("purchase")) {
-    return STAGE_DEFINITIONS.filter((s) => s.key === "order_by");
+  if (roleId === 5 || match("purchase")) {
+    return STAGE_DEFINITIONS.filter((s) => s.key === "order_by" || s.key === "received_workby");
   }
-  if (roleId === 10 || roleName.includes("programmer")) {
+  if (roleId === 10 || match("programmer")) {
     return STAGE_DEFINITIONS.filter((s) => s.key === "received_qcby");
   }
-  if (roleId === 6 || roleName.includes("vmc")) {
+  if (roleId === 6 || match("vmc")) {
     return STAGE_DEFINITIONS.filter((s) => s.key === "vmc_workby");
   }
-  if (roleId === 7 || roleName.includes("qc") || roleName.includes("quality")) {
+  if (roleId === 7 || match("qc") || match("quality")) {
     return STAGE_DEFINITIONS.filter((s) => s.key === "vmc_qcby" || s.key === "final_qcby");
   }
-  if (roleId === 9 || roleName.includes("dispatch") || roleName.includes("packing")) {
+  if (roleId === 9 || match("dispatch") || match("packing")) {
     return STAGE_DEFINITIONS.filter((s) => s.key === "packing_workby");
   }
-  if (roleId === 4 || roleName.includes("worker") || roleName.includes("operator")) {
+  if (roleId === 4 || match("worker") || match("operator")) {
     return STAGE_DEFINITIONS.filter((s) => s.key === "drilltap_workby" || s.key === "received_workby");
   }
-  if (roleId === 1 || roleName.includes("manager")) {
+  if (roleId === 1 || match("manager")) {
     return [...STAGE_DEFINITIONS];
   }
 

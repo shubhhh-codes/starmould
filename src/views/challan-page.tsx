@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
   ArrowUpRight,
@@ -781,9 +782,9 @@ function ChallanPageContent() {
     <AppLayout>
       <div className="space-y-6 w-full">
         {/* Toast Notification */}
-        {notification && (
+        {notification && typeof document !== "undefined" && createPortal(
           <div
-            className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
+            className={`fixed top-4 right-4 z-[99999] pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
               notification.type === "success"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                 : "bg-rose-50 border-rose-200 text-rose-800"
@@ -801,7 +802,8 @@ function ChallanPageContent() {
             >
               <X className="w-3.5 h-3.5" />
             </button>
-          </div>
+          </div>,
+          document.body
         )}
 
         {fetchError && (

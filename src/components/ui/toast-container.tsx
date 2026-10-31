@@ -1,16 +1,22 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAppStore, appStore } from "@/lib/state/store";
 import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from "lucide-react";
 
 export function ToastContainer() {
+  const [mounted, setMounted] = useState(false);
   const toasts = useAppStore((s) => s.toasts);
 
-  if (toasts.length === 0) return null;
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
-  return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+  if (!mounted || toasts.length === 0) return null;
+
+  const content = (
+    <div className="fixed bottom-4 right-4 z-[99999] flex flex-col gap-2 max-w-sm w-full pointer-events-none">
       {toasts.map((toast) => {
         const icons = {
           success: <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />,
@@ -30,7 +36,7 @@ export function ToastContainer() {
           <div
             key={toast.id}
             role="status"
-            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-lg transition-all animate-in slide-in-from-bottom-2 ${
+            className={`pointer-events-auto flex items-start gap-3 p-3.5 rounded-xl border shadow-2xl transition-all animate-in slide-in-from-bottom-2 ${
               borderStyles[toast.type]
             }`}
           >
@@ -39,7 +45,7 @@ export function ToastContainer() {
             <button
               type="button"
               onClick={() => appStore.removeToast(toast.id)}
-              className="text-slate-400 hover:text-slate-600 transition-colors shrink-0 p-0.5 rounded-md hover:bg-slate-100"
+              className="text-slate-400 hover:text-slate-600 transition-colors shrink-0 p-0.5 rounded-md hover:bg-slate-100 cursor-pointer"
               aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />
@@ -49,4 +55,6 @@ export function ToastContainer() {
       })}
     </div>
   );
+
+  return createPortal(content, document.body);
 }

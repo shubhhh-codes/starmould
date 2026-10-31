@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  AlertTriangle,
   Plus,
   ShoppingCart,
   Trash2,
@@ -147,13 +148,27 @@ function ProjectSubplatesRow({
     return Array.isArray(project.subplates) && project.subplates.length > 0 ? project.subplates : null;
   }, [project.subplates]);
 
+  const [showAllPlates, setShowAllPlates] = useState(false);
+
   // 2. On-Demand Single Lean Query: ONLY triggers if plates are not already preloaded
   const targetId = project.id || project.projectid || undefined;
   const platesQuery = useSubplatesByProjectQuery(targetId, {
     enabled: !preloadedPlates,
   });
 
-  const plates = preloadedPlates || platesQuery.data || [];
+  const allPlates = preloadedPlates || platesQuery.data || [];
+  const activePlates = useMemo(() => {
+    return allPlates.filter(
+      (sp) =>
+        sp.location !== "Customer" &&
+        sp.dispatch_status !== "dispatched" &&
+        sp.dispatch_status !== "closed_without_challan" &&
+        (sp as any).isDispatched !== true
+    );
+  }, [allPlates]);
+
+  const completedPlatesCount = allPlates.length - activePlates.length;
+  const plates = showAllPlates ? allPlates : activePlates;
   const isLoading = !preloadedPlates && platesQuery.isLoading;
   const isError = !preloadedPlates && platesQuery.isError;
 
@@ -173,8 +188,17 @@ function ProjectSubplatesRow({
                     Subplate Register: {project.projectid || `#${project.id}`}
                   </h4>
                   <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100/70 text-blue-700">
-                    {plates.length} Plates Active
+                    {activePlates.length} Plates Active
                   </span>
+                  {completedPlatesCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllPlates((v) => !v)}
+                      className="text-[11px] font-medium text-slate-500 hover:text-blue-600 underline transition-colors cursor-pointer"
+                    >
+                      {showAllPlates ? "Show Active Only" : `+${completedPlatesCount} Archived`}
+                    </button>
+                  )}
                 </div>
                 <p className="text-[11px] text-slate-500 truncate">
                   {project.description} • {project.customername || project.cname || "Customer"}
@@ -229,18 +253,28 @@ function ProjectSubplatesRow({
           ) : plates.length === 0 ? (
             <div className="py-6 px-4 text-center rounded-xl border border-dashed border-slate-300 bg-white/70 space-y-2">
               <p className="text-xs text-slate-500 font-medium">
-                No subplates have been defined for this mould project yet.
+                {completedPlatesCount > 0
+                  ? `All ${allPlates.length} subplates are archived / dispatched.`
+                  : "No subplates have been defined for this mould project yet."}
               </p>
-              {canCreateSubplate && (
+              {completedPlatesCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllPlates(true)}
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline cursor-pointer"
+                >
+                  <span>View {completedPlatesCount} Archived Subplates</span>
+                </button>
+              ) : canCreateSubplate ? (
                 <button
                   type="button"
                   onClick={() => onAddPlate(project)}
-                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add First Subplate</span>
                 </button>
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -372,8 +406,8 @@ interface MouldProjectsTableProps {
   isLoading?: boolean;
   isRefreshing?: boolean;
   onRefresh?: () => void;
-  onDeleteProject?: (id: number | string) => Promise<boolean>;
-  onDeleteProjects?: (ids: (number | string)[]) => Promise<boolean>;
+  onDeleteProject?: (id: number | string, force?: boolean) => Promise<boolean>;
+  onDeleteProjects?: (ids: (number | string)[], force?: boolean) => Promise<boolean>;
 }
 
 const columnHelper = createColumnHelper<ScanProject>();
@@ -480,7 +514,6 @@ export function MouldProjectsTable({
   const canEditSubplate = hasPermission("action_edit_subplate");
   const canDeleteSubplate = hasPermission("action_delete_subplate");
   const canCreatePurchase = hasPermission("action_create_purchase");
-  const canAssignStaff = hasPermission("action_assign_subplate_designer");
 
   // Real-time permission revocation guard: auto-close modal if admin revokes permission while open
   useEffect(() => {
@@ -722,93 +755,161 @@ export function MouldProjectsTable({
     }
   };
 
-  const handleDeleteSingleProject = (project: ScanProject) => {
-    const code = project.projectid || `#${project.id}`;
+  const promptDeleteMoulds = async (projectsToDelete: ScanProject[]) => {
+    if (!projectsToDelete || projectsToDelete.length === 0) return;
+    const ids = projectsToDelete.map((p) => p.id);
+    const isSingle = projectsToDelete.length === 1;
+    const title = isSingle
+      ? `Delete Mould: ${projectsToDelete[0].projectid || `#${projectsToDelete[0].id}`}`
+      : `Delete ${projectsToDelete.length} Selected Moulds`;
+
+    // 1. Show pre-check loading modal
     setConfirmDialog({
       isOpen: true,
-      title: "Delete Mould Project",
+      title,
       description: (
-        <div className="space-y-2 text-xs">
-          <p className="text-slate-700">
-            Are you sure you want to permanently delete mould project{" "}
-            <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded">
-              {code}
-            </span>
-            ?
-          </p>
-          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-relaxed">
-            <span className="font-semibold">⚠️ Cascade Deletion:</span> This will also permanently delete all linked child subplates and operator worklogs. This action cannot be undone.
-          </div>
+        <div className="flex items-center gap-2 py-3 text-xs text-slate-600">
+          <Loader2 className="h-4 w-4 animate-spin text-blue-600 shrink-0" />
+          <span>Checking active challans, POs, and dispatches...</span>
         </div>
       ),
-      confirmLabel: "Delete Mould",
+      confirmLabel: "Checking...",
       cancelLabel: "Cancel",
       variant: "danger",
-      isLoading: false,
-      onConfirm: async () => {
-        setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
-        try {
-          if (onDeleteProject) {
-            // Primary path: delegates to page.tsx which handles optimistic removal
-            // from IndexedDB + React state BEFORE the API call (0ms UI lag)
-            await onDeleteProject(project.id);
-          } else {
-            // Fallback path (table used standalone without onDeleteProject prop):
-            // Optimistically remove from TanStack Query cache first so UI updates immediately
-            queryClient.setQueriesData<any>({ queryKey: queryKeys.projects.all() }, (old: any) => {
-              if (!old || !Array.isArray(old.scans)) return old;
-              return {
-                ...old,
-                scans: old.scans.filter((s: any) => String(s.id) !== String(project.id) && Number(s.id) !== Number(project.id)),
-                pagination: old.pagination
-                  ? { ...old.pagination, total: Math.max(0, old.pagination.total - 1) }
-                  : old.pagination,
-              };
-            });
-
-            const res = await fetch(`/api/scanning?id=${project.id}`, { method: "DELETE" });
-            if (res.ok) {
-              queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-              queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-              queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-              queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-              broadcastQueryInvalidation(queryKeys.projects.all());
-              broadcastQueryInvalidation(queryKeys.purchases.all());
-              broadcastQueryInvalidation(queryKeys.subplates.all());
-              broadcastQueryInvalidation(queryKeys.dashboard.counts());
-              onRefresh?.();
-            } else {
-              // Rollback: restore the removed row immediately before invalidating
-              queryClient.setQueriesData<any>({ queryKey: queryKeys.projects.all() }, (old: any) => {
-                if (!old || !Array.isArray(old.scans)) return old;
-                if (old.scans.some((s: any) => String(s.id) === String(project.id) || Number(s.id) === Number(project.id))) return old;
-                return {
-                  ...old,
-                  scans: [project, ...old.scans],
-                  pagination: old.pagination
-                    ? { ...old.pagination, total: old.pagination.total + 1 }
-                    : old.pagination,
-                };
-              });
-              queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-              const err = await res.json().catch(() => ({}));
-              throw new Error(err.error || "Failed to delete project");
-            }
-          }
-          appStore.addToast({
-            type: "success",
-            message: `Mould project ${code} deleted successfully`,
-          });
-          setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
-        } catch (err: any) {
-          setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
-          appStore.addToast({
-            type: "error",
-            message: err.message || "Failed to delete project",
-          });
-        }
-      },
+      isLoading: true,
+      onConfirm: async () => {},
     });
+
+    try {
+      const res = await fetch(`/api/scanning?ids=${ids.join(",")}&checkOnly=true`);
+      const checkData = await res.json().catch(() => ({}));
+      const hasDeps = Boolean(checkData?.hasDependencies);
+      const dependencies = checkData?.dependencies || [];
+
+      setConfirmDialog({
+        isOpen: true,
+        title,
+        description: hasDeps ? (
+          <div className="space-y-2.5 text-xs">
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 leading-relaxed shadow-2xs">
+              <div className="flex items-center gap-1.5 font-bold text-amber-800 text-[13px] mb-1">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>Pending Challans & Linked Records Detected</span>
+              </div>
+              <p className="text-[11.5px] text-amber-800 mb-2">
+                In selected moulds ke sath active GST challans ya delivery dispatches linked hain. Agar aap delete karenge to ye saare pending records bhi <strong>poore cancel / delete ho jayenge</strong>:
+              </p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {dependencies
+                  .filter((d: any) => d.has_dependencies)
+                  .map((d: any) => (
+                    <div key={d.id} className="p-2 rounded-lg bg-white/90 border border-amber-200/90 text-[11px] shadow-2xs">
+                      <div className="font-semibold text-slate-900 flex items-center justify-between">
+                        <span className="font-mono">{d.projectid || `#${d.id}`}</span>
+                        <span className="text-slate-500 font-normal">{d.subplate_count || 0} subplates</span>
+                      </div>
+                      <div className="mt-1 space-y-0.5 text-slate-700">
+                        {d.active_challans?.map((c: any) => (
+                          <div key={c.id} className="flex items-center gap-1 text-[11px] text-amber-900 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                            <span>Job Work Challan: <strong>#{c.challanno}</strong></span>
+                          </div>
+                        ))}
+                        {d.active_dispatches?.map((dp: any) => (
+                          <div key={dp.id} className="flex items-center gap-1 text-[11px] text-blue-900 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                            <span>Delivery Dispatch: <strong>#{dp.challanno}</strong></span>
+                          </div>
+                        ))}
+                        {d.active_pos?.map((po: any) => (
+                          <div key={po.id} className="flex items-center gap-1 text-[11px] text-emerald-900 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                            <span>Purchase Order: <strong>#{po.srno}</strong></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              ⚠️ <strong>Atomic All-or-Nothing Deletion:</strong> Saare selected moulds aur unke linked records ek saath atomic database transaction mein delete honge. Koi bhi adha-adhura record database mein nahi bachega.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2 text-xs">
+            <p className="text-slate-700">
+              Are you sure you want to permanently delete{" "}
+              {isSingle ? (
+                <>mould project <strong className="text-slate-900 font-mono">{projectsToDelete[0].projectid || `#${projectsToDelete[0].id}`}</strong>?</>
+              ) : (
+                <><strong className="text-slate-900">{projectsToDelete.length}</strong> selected mould projects?</>
+              )}
+            </p>
+            <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-relaxed">
+              <span className="font-semibold">⚠️ Cascade Deletion:</span> All associated child subplates and operator worklogs will be permanently deleted from the database. This action cannot be undone.
+            </div>
+          </div>
+        ),
+        confirmLabel: hasDeps ? "Force Delete & Cancel Linked Records" : (isSingle ? "Delete Mould" : `Delete ${projectsToDelete.length} Moulds`),
+        cancelLabel: "Cancel",
+        variant: "danger",
+        isLoading: false,
+        onConfirm: async () => {
+          setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+          try {
+            let ok = false;
+            if (onDeleteProjects) {
+              ok = await onDeleteProjects(ids, true);
+            } else if (onDeleteProject && isSingle) {
+              ok = await onDeleteProject(ids[0], true);
+            } else {
+              const res = await fetch(`/api/scanning?ids=${ids.join(",")}&force=true`, { method: "DELETE" });
+              const result = await res.json().catch(() => ({}));
+              ok = res.ok && result.success;
+              if (ok) {
+                queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+                queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+                queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+                queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
+                queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
+                queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+                onRefresh?.();
+              } else {
+                throw new Error(result.error || "Failed to delete moulds");
+              }
+            }
+
+            if (ok) {
+              setRowSelection({});
+              appStore.addToast({
+                type: "success",
+                message: `${projectsToDelete.length} mould project(s) and all linked records deleted successfully`,
+              });
+              setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
+            } else {
+              setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+            }
+          } catch (err: any) {
+            setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+            appStore.addToast({
+              type: "error",
+              message: err.message || "Failed to delete moulds",
+            });
+          }
+        },
+      });
+    } catch (err: any) {
+      setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+      appStore.addToast({
+        type: "error",
+        message: err.message || "Failed to inspect project dependencies",
+      });
+    }
+  };
+
+  const handleDeleteSingleProject = (project: ScanProject) => {
+    promptDeleteMoulds([project]);
   };
 
   // Handlers for View & Add Plate Modals
@@ -1329,11 +1430,18 @@ export function MouldProjectsTable({
           const percent = Math.min(100, Math.round((completed / (total || 1)) * 100));
           const isDone = percent === 100 && total > 0;
           const subplates = row.original.subplates || [];
-          const jwPlates = subplates.filter(
-            (sp) =>
-              (sp.jobwork_balance?.outward_jobwork_qty ?? 0) > 0 ||
-              (sp.location && sp.location !== "SM" && sp.location.trim() !== "")
-          );
+          const jwPlates = subplates.filter((sp) => {
+            const outQty = Number(sp.jobwork_balance?.outward_jobwork_qty) || 0;
+            if (outQty > 0) return true;
+            const loc = (sp.location || "").trim();
+            return loc !== "" && loc !== "SM" && loc !== "Customer";
+          });
+
+          const dispatchedPlates = subplates.filter((sp) => {
+            const dispQty = Number((sp.jobwork_balance as any)?.customer_dispatched_qty) || 0;
+            if (dispQty > 0) return true;
+            return (sp.location || "").trim() === "Customer";
+          });
 
           return (
             <div className="flex flex-col gap-1 min-w-[130px]">
@@ -1354,6 +1462,12 @@ export function MouldProjectsTable({
                 <div className="flex items-center gap-1 text-[10px] text-amber-700 font-semibold" title={`${jwPlates.length} subplate(s) currently out on Job Work`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
                   <span>{jwPlates.length} {jwPlates.length === 1 ? "plate" : "plates"} on Job Work</span>
+                </div>
+              )}
+              {dispatchedPlates.length > 0 && jwPlates.length === 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-blue-700 font-semibold" title={`${dispatchedPlates.length} subplate(s) dispatched to Customer`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                  <span>{dispatchedPlates.length} {dispatchedPlates.length === 1 ? "plate" : "plates"} Dispatched</span>
                 </div>
               )}
             </div>
@@ -1498,65 +1612,7 @@ export function MouldProjectsTable({
 
   const handleBatchDelete = () => {
     const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
-    if (selectedRows.length === 0) return;
-
-    setConfirmDialog({
-      isOpen: true,
-      title: `Delete ${selectedRows.length} Selected Moulds`,
-      description: (
-        <div className="space-y-2 text-xs">
-          <p className="text-slate-700">
-            Are you sure you want to permanently delete{" "}
-            <strong className="text-slate-900 font-semibold">{selectedRows.length}</strong> selected mould projects?
-          </p>
-          <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-relaxed">
-            <span className="font-semibold">⚠️ Cascade Deletion:</span> All associated child subplates and worklogs will also be permanently deleted. This action cannot be undone.
-          </div>
-        </div>
-      ),
-      confirmLabel: `Delete ${selectedRows.length} Moulds`,
-      cancelLabel: "Cancel",
-      variant: "danger",
-      isLoading: false,
-      onConfirm: async () => {
-        setConfirmDialog((prev) => ({ ...prev, isLoading: true }));
-        try {
-          const selectedIds = selectedRows.map((r) => r.id);
-          if (onDeleteProjects) {
-            await onDeleteProjects(selectedIds);
-          } else if (onDeleteProject) {
-            for (const id of selectedIds) {
-              await onDeleteProject(id);
-            }
-          } else {
-            for (const id of selectedIds) {
-              await fetch(`/api/scanning?id=${id}`, { method: "DELETE" });
-            }
-            queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-            queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-            queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-            broadcastQueryInvalidation(queryKeys.projects.all());
-            broadcastQueryInvalidation(queryKeys.subplates.all());
-            broadcastQueryInvalidation(queryKeys.purchases.all());
-            broadcastQueryInvalidation(queryKeys.dashboard.counts());
-            onRefresh?.();
-          }
-          setRowSelection({});
-          appStore.addToast({
-            type: "success",
-            message: `${selectedRows.length} moulds deleted successfully`,
-          });
-          setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
-        } catch (err: any) {
-          setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
-          appStore.addToast({
-            type: "error",
-            message: err.message || "Failed to delete moulds",
-          });
-        }
-      },
-    });
+    promptDeleteMoulds(selectedRows);
   };
 
   return (
@@ -2677,7 +2733,14 @@ export function MouldProjectsTable({
 
             const items: ContextMenuItem[] = [];
 
-            if (isAdmin || canAssignStaff) {
+            const isManagerial =
+              isAdmin ||
+              currentUser?.role_id === 1 ||
+              currentUser?.role_id === 2 ||
+              currentUser?.role?.toLowerCase() === "supervisor" ||
+              currentUser?.role?.toLowerCase() === "manager";
+
+            if (isManagerial) {
               // =====================================================================
               // ADMIN ACTIONS:
               // Show all 9 production stages with department-targeted actions:

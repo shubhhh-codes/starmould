@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
 import { getCached, getCachedUsers, invalidateCache } from "@/lib/cache";
 import { calculateSubplateWeight } from "@/lib/weight-calculator";
 
@@ -25,9 +26,9 @@ function inferPlateCategory(platename: string): string {
 }
 
 
-// GET /api/subplate - fetch subplates with project and staff lookups (Roles 0, 1, 2, 3)
+// GET /api/subplate - fetch subplates with project and staff lookups (All staff roles)
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3, 6, 7, 9, 10], "nav_subplate");
+  const auth = await authenticateRequest(req, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "nav_subplate");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -546,7 +547,7 @@ export async function POST(req: NextRequest) {
 
 // PUT/PATCH /api/subplate - Update subplate (Staff & Admin roles)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], "action_edit_subplate");
+  const auth = await authenticateRequest(req, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -591,6 +592,38 @@ export async function PUT(req: NextRequest) {
     }
 
     // Strict validation for updated fields
+    const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";
+    const specFields = [
+      "platename",
+      "plate_category",
+      "category",
+      "length",
+      "width",
+      "height",
+      "shape",
+      "material",
+      "sqty",
+      "unit",
+      "weight",
+      "remarks",
+      "process_remarks",
+      "location",
+      "projectid",
+      "mold_id",
+      "mold_code",
+    ];
+
+    const hasSpecUpdates = specFields.some((field) => field in updatePayload);
+    if (hasSpecUpdates && !isUserAdmin) {
+      const matrix = await loadEffectivePermissions();
+      if (!roleHasPermission(auth.user.role_id, "action_edit_subplate", matrix)) {
+        return NextResponse.json(
+          { error: "Access denied: permission to edit subplate specifications not granted by administrator" },
+          { status: 403 }
+        );
+      }
+    }
+
     if (updatePayload.platename !== undefined) {
       const cleanName = String(updatePayload.platename || "").trim();
       if (!cleanName) {
@@ -714,9 +747,15 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Enforce that non-admin users (e.g. Designers, Workers) can only assign tasks to themselves, and strictly for their department's stages
-    const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";
-    if (!isUserAdmin && auth.user.role_id !== 1) {
+    // Enforce that non-managerial users (e.g. Designers, Workers) can only assign tasks to themselves, and strictly for their department's stages
+    const isManagerial =
+      isUserAdmin ||
+      auth.user.role_id === 1 ||
+      auth.user.role_id === 2 ||
+      auth.user.role?.toLowerCase() === "supervisor" ||
+      auth.user.role?.toLowerCase() === "manager";
+
+    if (!isManagerial) {
       const userRoleId = Number(auth.user.role_id);
       const userRoleName = (auth.user.role || "").toLowerCase();
 
@@ -725,6 +764,7 @@ export async function PUT(req: NextRequest) {
         allowedKeys.add("design_by");
       } else if (userRoleId === 5 || userRoleName.includes("purchase")) {
         allowedKeys.add("order_by");
+        allowedKeys.add("received_workby");
       } else if (userRoleId === 10 || userRoleName.includes("programmer")) {
         allowedKeys.add("received_qcby");
       } else if (userRoleId === 6 || userRoleName.includes("vmc")) {

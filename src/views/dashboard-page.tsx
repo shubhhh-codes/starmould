@@ -210,7 +210,7 @@ export function DashboardPage() {
   };
 
   // Optimistic Instant Removal (0ms UI lag) + Cascade Deletion
-  const handleDeleteProject = async (id: number | string): Promise<boolean> => {
+  const handleDeleteProject = async (id: number | string, force: boolean = true): Promise<boolean> => {
     const original = projectsStream.scans.find((p) => String(p.id) === String(id) || Number(p.id) === Number(id));
 
     // 1. Capture the CURRENT lastSyncTime BEFORE removal so we can use it for
@@ -252,8 +252,8 @@ export function DashboardPage() {
     }
   };
 
-  // Batch Optimistic Instant Removal + Cascade Deletion
-  const handleDeleteProjects = async (ids: (number | string)[]): Promise<boolean> => {
+  // Batch Optimistic Instant Removal + Atomic Cascade Deletion
+  const handleDeleteProjects = async (ids: (number | string)[], force: boolean = true): Promise<boolean> => {
     if (!ids || ids.length === 0) return true;
     const idSet = new Set(ids.map(String));
     const originals = projectsStream.scans.filter((p) => idSet.has(String(p.id)));
@@ -263,25 +263,29 @@ export function DashboardPage() {
     await projectsStream.removeProjectsLocally(ids);
 
     try {
-      // 2. Perform all deletions on server
-      for (const id of ids) {
-        const res = await fetch(`/api/scanning?id=${id}`, { method: "DELETE" });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || `Failed to delete mould project #${id}`);
-        }
+      // 2. Perform atomic batch deletion on server via PostgreSQL RPC in a single HTTP call
+      const res = await fetch(`/api/scanning?ids=${ids.join(",")}${force ? "&force=true" : ""}`, {
+        method: "DELETE",
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || result.blocked || !result.success) {
+        throw new Error(result.error || "Failed to delete mould projects");
       }
 
-      // 3. ONLY after ALL server deletes complete, perform a single delta sync!
+      // 3. ONLY after server delete completes, perform a single delta sync!
       if (syncTimeBefore) {
         await projectsStream.syncDelta(syncTimeBefore);
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
       broadcastQueryInvalidation(queryKeys.subplates.all());
       broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.challans.all());
+      broadcastQueryInvalidation(queryKeys.dispatch.all());
       return true;
     } catch (err: any) {
       for (const orig of originals) {
@@ -365,12 +369,26 @@ export function DashboardPage() {
     };
   }, [countsQuery.data?.pipeline]);
 
+  // Active moulds only (strictly exclude moulds completed or registered to Project Register)
+  const activeProjects = useMemo(() => {
+    return projects.filter((p) => {
+      const st = String(p.status || "").toLowerCase();
+      return st !== "completed" && st !== "registered";
+    });
+  }, [projects]);
+
   // Stage filtering based on department-wise pending backlog queues
   const displayedProjects = useMemo(() => {
-    if (!activeStage) return projects;
+    if (!activeStage) return activeProjects;
 
-    return projects.filter((p) => {
-      const plates = p.subplates || [];
+    return activeProjects.filter((p) => {
+      const plates = (p.subplates || []).filter(
+        (sp) =>
+          sp.location !== "Customer" &&
+          sp.dispatch_status !== "dispatched" &&
+          sp.dispatch_status !== "closed_without_challan" &&
+          (sp as any).isDispatched !== true
+      );
       if (activeStage === "design") {
         return plates.some((sp) => !sp.design_by || Number(sp.design_by) === 0);
       } else if (activeStage === "order") {
@@ -408,7 +426,7 @@ export function DashboardPage() {
       }
       return true;
     });
-  }, [projects, activeStage]);
+  }, [activeProjects, activeStage]);
 
   return (
     <AppLayout>

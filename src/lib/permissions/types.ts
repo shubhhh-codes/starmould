@@ -237,15 +237,6 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
     moduleLabel: "Subplate Master",
     moduleIcon: "Layers",
   },
-  {
-    key: "action_assign_subplate_designer",
-    label: "Assign Staff to Stages",
-    description: "Authorize assigning designers, programmers, and floor staff to subplate stages.",
-    category: "actions",
-    module: "subplate",
-    moduleLabel: "Subplate Master",
-    moduleIcon: "Layers",
-  },
 
   // --- MOULD & 3D SCANNING PIPELINE ---
   {

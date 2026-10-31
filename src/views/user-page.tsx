@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
@@ -405,9 +406,9 @@ export function UserPage() {
         <AppLayout>
             <div className="space-y-6 w-full">
                 {/* Toast Notification */}
-                {notification && (
+                {notification && typeof document !== "undefined" && createPortal(
                     <div
-                        className={`fixed top-5 right-5 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-sm font-semibold max-w-md ${
+                        className={`fixed top-5 right-5 z-[99999] pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-sm font-semibold max-w-md ${
                             notification.type === "success"
                                 ? "bg-emerald-600 border-emerald-700 text-white"
                                 : "bg-rose-600 border-rose-700 text-white"
@@ -425,7 +426,8 @@ export function UserPage() {
                         >
                             <X className="w-4 h-4" />
                         </button>
-                    </div>
+                    </div>,
+                    document.body
                 )}
 
                 {/* Module Header */}

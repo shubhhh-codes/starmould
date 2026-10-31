@@ -24,6 +24,8 @@ import { MouldTimelineDrawer } from "@/components/mould/mould-timeline-drawer";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { appStore } from "@/lib/state/store";
 import { useAuth } from "@/components/providers/auth-provider";
+import { queryKeys } from "@/lib/query/keys";
+import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 
 export function ProjectRegisterPage() {
   const queryClient = useQueryClient();
@@ -153,7 +155,11 @@ export function ProjectRegisterPage() {
       });
 
       queryClient.invalidateQueries({ queryKey: ["project_register_completed"] });
-      queryClient.invalidateQueries({ queryKey: ["scanning_projects"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(["project_register_completed"]);
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
       setReopenProject(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error reopening project";

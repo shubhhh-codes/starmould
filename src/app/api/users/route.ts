@@ -262,7 +262,7 @@ export async function PUT(req: NextRequest) {
     // Fetch existing user to check role and status transitions
     const { data: targetUser } = await supabaseAdmin
       .from("users")
-      .select("id, username, email, role_id, status")
+      .select("id, username, email, role_id, status, auth_id")
       .eq("id", numId)
       .is("deleted_at", null)
       .single();
@@ -355,8 +355,12 @@ export async function PUT(req: NextRequest) {
     if (body.password && typeof body.password === "string" && body.password.trim().length > 0) {
       const passwordHash = await bcrypt.hash(body.password.trim(), 10);
       updatePayload.password_hash = passwordHash;
-      updatePayload.password = passwordHash;
       updatePayload.must_change_password = false;
+      if (targetUser.auth_id) {
+        await supabaseAdmin.auth.admin.updateUserById(targetUser.auth_id, {
+          password: body.password.trim(),
+        }).catch(() => {});
+      }
     }
 
     const { data, error } = await supabaseAdmin

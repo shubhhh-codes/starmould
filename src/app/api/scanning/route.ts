@@ -700,124 +700,81 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url);
-    let id = searchParams.get("id");
-    if (!id) {
-      const body = await req.json().catch(() => ({}));
-      id = body.id;
+    const body = req.method === "DELETE" && req.headers.get("content-type")?.includes("json")
+      ? await req.json().catch(() => ({}))
+      : {};
+
+    const rawId = searchParams.get("id") || body.id;
+    const rawIds = searchParams.get("ids") || body.ids;
+    const isForce = searchParams.get("force") === "true" || body.force === true;
+    const isCheckOnly = searchParams.get("checkOnly") === "true" || body.checkOnly === true;
+
+    const idList: (number | string)[] = [];
+    if (rawIds) {
+      if (Array.isArray(rawIds)) idList.push(...rawIds);
+      else if (typeof rawIds === "string") idList.push(...rawIds.split(",").map((s) => s.trim()));
+    } else if (rawId) {
+      idList.push(rawId);
     }
 
-    if (!id) {
-      return NextResponse.json({ error: "Missing project id" }, { status: 400 });
+    const numericIds = Array.from(new Set(idList.map(Number).filter((n) => !isNaN(n) && n > 0)));
+
+    if (numericIds.length === 0) {
+      return NextResponse.json({ error: "Missing or invalid project id(s)" }, { status: 400 });
     }
 
-    // 1. Fetch project to ensure it exists and get details
-    const { data: project, error: fetchErr } = await supabaseAdmin
-      .from("scan")
-      .select("id, projectid, cname")
-      .eq("id", id)
-      .single();
+    // Call PostgreSQL atomic cascade deletion & dependency inspection RPC
+    const { data, error: rpcErr } = await supabaseAdmin.rpc("delete_mould_projects_cascade", {
+      p_ids: numericIds,
+      p_force: isCheckOnly ? false : isForce,
+    });
 
-    if (fetchErr || !project) {
-      return NextResponse.json({ error: "Project not found" }, { status: 404 });
+    if (rpcErr) {
+      return NextResponse.json({ error: rpcErr.message }, { status: 500 });
     }
 
-    // Safety Guard: Check if project has active POs, Outward Challans, or Dispatches
-    const projectCode = project.projectid ? String(project.projectid).trim() : "";
-    if (projectCode) {
-      const [activePOs, activeChallans, activeDispatches] = await Promise.all([
-        supabaseAdmin
-          .from("purchase")
-          .select("srno")
-          .eq("projectid", projectCode)
-          .neq("status", "0")
-          .limit(1),
-        supabaseAdmin
-          .from("challan")
-          .select("challanno")
-          .eq("projectid", projectCode)
-          .neq("status", "0")
-          .limit(1),
-        supabaseAdmin
-          .from("dispatch")
-          .select("challanno")
-          .eq("projectid", projectCode)
-          .neq("status", "0")
-          .limit(1),
-      ]);
+    const result = data as any;
 
-      const activeList: string[] = [];
-      if (activePOs.data && activePOs.data.length > 0) {
-        activeList.push(`Purchase Order #${activePOs.data[0].srno}`);
+    // 1. If checkOnly requested, return dependencies report immediately
+    if (isCheckOnly) {
+      return NextResponse.json({
+        success: true,
+        hasDependencies: (result?.dependency_count || 0) > 0,
+        dependencyCount: result?.dependency_count || 0,
+        dependencies: result?.dependencies || [],
+      });
+    }
+
+    // 2. If blocked due to active dependencies and not forced, return structured dependency warning
+    if (result?.blocked) {
+      const depList: string[] = [];
+      for (const d of result.dependencies || []) {
+        if (!d.has_dependencies) continue;
+        const sub: string[] = [];
+        if (d.active_challans?.length) {
+          sub.push(`${d.active_challans.length} Job Work Challan(s) [${d.active_challans.map((c: any) => c.challanno).join(", ")}]`);
+        }
+        if (d.active_dispatches?.length) {
+          sub.push(`${d.active_dispatches.length} Delivery Dispatch(es) [${d.active_dispatches.map((c: any) => c.challanno).join(", ")}]`);
+        }
+        if (d.active_pos?.length) {
+          sub.push(`${d.active_pos.length} Purchase Order(s) [${d.active_pos.map((c: any) => c.srno).join(", ")}]`);
+        }
+        depList.push(`${d.projectid || `#${d.id}`}: ${sub.join("; ")}`);
       }
-      if (activeChallans.data && activeChallans.data.length > 0) {
-        activeList.push(`Job Work Challan #${activeChallans.data[0].challanno}`);
-      }
-      if (activeDispatches.data && activeDispatches.data.length > 0) {
-        activeList.push(`Delivery Dispatch #${activeDispatches.data[0].challanno}`);
-      }
 
-      if (activeList.length > 0) {
-        return NextResponse.json(
-          {
-            error: `Cannot delete project "${projectCode}" because it is actively referenced in: ${activeList.join(", ")}. Cancel or remove those records first to protect inventory and order history.`,
-          },
-          { status: 400 }
-        );
-      }
+      return NextResponse.json(
+        {
+          blocked: true,
+          error: `Cannot delete project(s) because active records exist:\n${depList.join("\n")}`,
+          dependencyCount: result.dependency_count,
+          dependencies: result.dependencies,
+        },
+        { status: 409 }
+      );
     }
 
-    // 2. Cascade Delete: Find all child subplates linked to this mould project
-    const subplateOrFilters = [`mold_id.eq.${id}`, `projectid.eq.${id}`];
-    if (project.projectid) {
-      subplateOrFilters.push(`projectid.eq.${project.projectid}`);
-      subplateOrFilters.push(`mold_code.eq.${project.projectid}`);
-    }
-
-    const { data: childSubplates } = await supabaseAdmin
-      .from("subplate")
-      .select("id")
-      .or(subplateOrFilters.join(","));
-
-    const subplateIds = (childSubplates || []).map((sp) => sp.id);
-
-    // 3. Cascade Delete: Remove associated operator worklogs
-    const worklogOrFilters = [`scan_print_id.eq.${id}`];
-    if (project.projectid) {
-      worklogOrFilters.push(`projectid.eq.${project.projectid}`);
-    }
-    if (subplateIds.length > 0) {
-      worklogOrFilters.push(`subplateid.in.(${subplateIds.join(",")})`);
-    }
-
-    await supabaseAdmin
-      .from("worklog")
-      .delete()
-      .or(worklogOrFilters.join(","));
-
-    // 4. Cascade Hard Delete: Permanently remove child subplates from database table
-    if (subplateIds.length > 0) {
-      await supabaseAdmin
-        .from("subplate")
-        .delete()
-        .in("id", subplateIds);
-    }
-    // Also delete any remaining matching subplates to ensure no orphans remain
-    await supabaseAdmin
-      .from("subplate")
-      .delete()
-      .or(subplateOrFilters.join(","));
-
-    // 5. Delete mould project row from scan table
-    const { error: deleteErr } = await supabaseAdmin
-      .from("scan")
-      .delete()
-      .eq("id", id);
-
-    if (deleteErr) {
-      return NextResponse.json({ error: deleteErr.message }, { status: 500 });
-    }
-
-    // 6. Invalidate server-side caches
+    // 3. Deletion succeeded atomically! Invalidate server-side caches
     invalidateCache("scanning_default_");
     invalidateCache("subplate_default_");
     invalidateCache("shared_scans_lookup");
@@ -829,8 +786,8 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Project ${project.projectid || id} and ${subplateIds.length} subplates deleted successfully`,
-      deletedSubplatesCount: subplateIds.length,
+      deletedCount: result?.deleted_count || numericIds.length,
+      message: `${result?.deleted_count || numericIds.length} mould(s) and all linked records deleted successfully`,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
