@@ -81,7 +81,7 @@ export const navigationItems: NavItem[] = [
     title: "Project Register",
     href: "/project-register",
     icon: Archive,
-    allowedRoles: [0, 1, 2, 3, 4, 5, 6, 7, 9, 10],
+    allowedRoles: [0],
     permKey: "nav_project_register",
   },
   {
@@ -269,7 +269,7 @@ export function Sidebar({
     // First, filter items that the role has permission to view
     const allowed = navigationItems.filter((item) => {
       // Role & Permissions (/settings) is strictly Admin only
-      if (item.href === "/settings" || item.permKey === "nav_settings") {
+      if (item.href === "/settings" || item.permKey === "nav_settings" || item.href === "/project-register" || item.permKey === "nav_project_register") {
         return roleId === 0;
       }
       if (roleId === 0) return true; // Admin has universal access

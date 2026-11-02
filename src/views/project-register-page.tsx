@@ -19,6 +19,7 @@ import {
   RotateCcw,
   Sparkles,
   ExternalLink,
+  ShieldAlert,
 } from "lucide-react";
 import { MouldTimelineDrawer } from "@/components/mould/mould-timeline-drawer";
 import { ConfirmDialog } from "@/components/ui/dialog";
@@ -30,7 +31,8 @@ import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 export function ProjectRegisterPage() {
   const queryClient = useQueryClient();
   const { currentUser } = useAuth();
-  const isAdminOrManager = currentUser?.role_id === 0 || currentUser?.role_id === 1;
+  const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
+  const isAdminOrManager = isAdmin || currentUser?.role_id === 1;
 
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => {
@@ -211,6 +213,28 @@ export function ProjectRegisterPage() {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (isMounted && !isAdmin) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+          <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mb-4">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Access Denied</h2>
+          <p className="text-sm text-slate-500 max-w-md mb-6">
+            The Project Register is strictly restricted to Administrators only.
+          </p>
+          <a
+            href="/"
+            className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-block"
+          >
+            Return to Dashboard
+          </a>
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -459,14 +483,16 @@ export function ProjectRegisterPage() {
                         </td>
                         <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenTimeline(p)}
-                              title="View Lifecycle Timeline & History Dossier"
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
-                            >
-                              <Sparkles className="w-4 h-4" />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenTimeline(p)}
+                                title="View Lifecycle Timeline & History Dossier"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                              </button>
+                            )}
                             {isAdminOrManager && (
                               <button
                                 type="button"
@@ -488,12 +514,14 @@ export function ProjectRegisterPage() {
           </div>
         </div>
 
-        {/* Mould Lifecycle Timeline Drawer */}
-        <MouldTimelineDrawer
-          projectId={timelineProjectId}
-          isOpen={isTimelineOpen}
-          onClose={() => setIsTimelineOpen(false)}
-        />
+        {/* Mould Lifecycle Timeline Drawer (Admin Only) */}
+        {isAdmin && (
+          <MouldTimelineDrawer
+            projectId={timelineProjectId}
+            isOpen={isTimelineOpen}
+            onClose={() => setIsTimelineOpen(false)}
+          />
+        )}
 
         {/* Reopen Confirmation Dialog */}
         <ConfirmDialog

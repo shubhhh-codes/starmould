@@ -1450,17 +1450,19 @@ export function MouldProjectsTable({
         header: "Actions",
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => {
-                setTimelineProjectId(row.original.projectid || row.original.id);
-                setIsTimelineOpen(true);
-              }}
-              title="View Lifecycle Timeline"
-              className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-colors cursor-pointer"
-            >
-              <Sparkles className="h-4 w-4" />
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTimelineProjectId(row.original.projectid || row.original.id);
+                  setIsTimelineOpen(true);
+                }}
+                title="View Lifecycle Timeline"
+                className="p-1.5 rounded-lg hover:bg-purple-50 text-slate-400 hover:text-purple-600 transition-colors cursor-pointer"
+              >
+                <Sparkles className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={() => handleOpenView(row.original)}
@@ -2760,17 +2762,21 @@ export function MouldProjectsTable({
                     if (contextMenu.project) handleOpenView(contextMenu.project);
                   },
                 },
-                {
-                  label:
-                    (contextMenu.project.status || "").toLowerCase() === "completed"
-                      ? "Mark In Progress"
-                      : "Mark Completed",
-                  icon: CheckCircle2,
-                  variant: "success" as const,
-                  onClick: () => {
-                    if (contextMenu.project) handleToggleProjectStatus(contextMenu.project);
-                  },
-                },
+                ...(isAdmin
+                  ? [
+                      {
+                        label:
+                          (contextMenu.project.status || "").toLowerCase() === "completed"
+                            ? "Mark In Progress"
+                            : "Mark Completed",
+                        icon: CheckCircle2,
+                        variant: "success" as const,
+                        onClick: () => {
+                          if (contextMenu.project) handleToggleProjectStatus(contextMenu.project);
+                        },
+                      },
+                    ]
+                  : []),
                 ...(canDeleteMould
                   ? [
                       {
@@ -3014,15 +3020,17 @@ export function MouldProjectsTable({
         />
       )}
 
-      {/* Mould Lifecycle Timeline & History Drawer */}
-      <MouldTimelineDrawer
-        projectId={timelineProjectId}
-        isOpen={isTimelineOpen}
-        onClose={() => {
-          setIsTimelineOpen(false);
-          setTimelineProjectId(null);
-        }}
-      />
+      {/* Mould Lifecycle Timeline & History Drawer (Admin Only) */}
+      {isAdmin && (
+        <MouldTimelineDrawer
+          projectId={timelineProjectId}
+          isOpen={isTimelineOpen}
+          onClose={() => {
+            setIsTimelineOpen(false);
+            setTimelineProjectId(null);
+          }}
+        />
+      )}
 
       {/* Move to Project Register Modal with Partial Dispatch Detection */}
       <MoveToRegisterModal
