@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
@@ -95,13 +96,26 @@ export function PurchaseInwardPage() {
     const [viewMode, setViewMode] = useState<"grouped" | "flat">("grouped");
     const [collapsedMoulds, setCollapsedMoulds] = useState<Record<string, boolean>>({});
 
+    const searchParams = useSearchParams();
+    const urlSearch = searchParams.get("search") || searchParams.get("po") || searchParams.get("q") || "";
+    const urlMould = searchParams.get("mould") || searchParams.get("mold") || "";
+
     // Filter states
-    const [searchQuery, setSearchQuery] = useState("");
-    const [mouldFilter, setMouldFilter] = useState<string>("ALL");
+    const [searchQuery, setSearchQuery] = useState(urlSearch);
+    const [mouldFilter, setMouldFilter] = useState<string>(urlMould || "ALL");
     const [vendorFilter, setVendorFilter] = useState<string>("ALL");
     const [pageSize, setPageSize] = useState(25);
     const [currentPage, setCurrentPage] = useState(1);
     const [expandedInwardRows, setExpandedInwardRows] = useState<Record<number, boolean>>({});
+
+    useEffect(() => {
+        if (urlSearch) {
+            setSearchQuery(urlSearch);
+        }
+        if (urlMould) {
+            setMouldFilter(urlMould);
+        }
+    }, [urlSearch, urlMould]);
 
     const deleteInwardMutation = useDeletePurchaseInwardMutation();
     const [revertingReceipt, setRevertingReceipt] = useState<PurchaseInwardReceipt | null>(null);

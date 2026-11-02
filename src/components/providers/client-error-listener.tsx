@@ -167,6 +167,17 @@ export function ClientErrorListener() {
       if (!event.message && !event.error) return;
       if (isPageUnloading) return;
 
+      // Ignore benign hydration warnings triggered by browser extensions injecting DOM attributes
+      const lowerMsg = (event.message || "").toLowerCase();
+      if (
+        lowerMsg.includes("hydration") ||
+        lowerMsg.includes("server rendered html") ||
+        lowerMsg.includes("didn't match") ||
+        lowerMsg.includes("__gcr")
+      ) {
+        return;
+      }
+
       const isChunkError =
         event.error?.name === "ChunkLoadError" ||
         event.message?.includes("ChunkLoadError") ||
@@ -354,9 +365,15 @@ export function ClientErrorListener() {
 
         const fullMessage = messageParts.join(" ");
 
-        // Ignore benign React warnings (e.g. hydration suppressions, realtime channel reconnects, stale chunk loads)
+        // Ignore benign React warnings (e.g. hydration suppressions, browser extensions injecting attributes, realtime reconnects)
         const isBenign =
           fullMessage.includes("Extra attributes from the server") ||
+          fullMessage.includes("A tree hydrated") ||
+          fullMessage.includes("didn't match the client properties") ||
+          fullMessage.includes("hydration-error") ||
+          fullMessage.includes("hydration") ||
+          fullMessage.includes("Hydration") ||
+          fullMessage.includes("__gcr") ||
           fullMessage.includes("client-error") ||
           fullMessage.includes("Warning: An error occurred during hydration") ||
           fullMessage.includes("transport failure") ||

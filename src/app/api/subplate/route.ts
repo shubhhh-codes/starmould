@@ -757,6 +757,36 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Strict business rule: Stage 3 (received_workby) cannot be manually assigned without physical inward gate receipt.
+    // It is strictly unlocked by the Purchase Inward gate receipt workflow:
+    // 1) Plates must be physically received at factory gate (purchase_inward_items qty > 0).
+    // 2) If 0 inward items exist, manual assignment is blocked.
+    if ("received_workby" in updatePayload) {
+      const targetUserId = updatePayload.received_workby;
+      if (targetUserId !== null && targetUserId !== 0 && targetUserId !== "" && targetUserId !== undefined) {
+        const { data: inwardItems } = await supabaseAdmin
+          .from("purchase_inward_items")
+          .select("id, inward_qty")
+          .eq("plateid", subplateId);
+
+        const totalInwardQty = (inwardItems || []).reduce(
+          (sum, it) => sum + (Number(it.inward_qty) || 0),
+          0
+        );
+
+        if (!inwardItems || inwardItems.length === 0 || totalInwardQty <= 0) {
+          return NextResponse.json(
+            {
+              error:
+                "Stage 3 (Material Inward) cannot be assigned manually. Steel has not been received at factory gate. Record receipt in Purchase Inward first.",
+              code: "STAGE3_INWARD_REQUIRED",
+            },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Enforce that non-managerial users (e.g. Designers, Workers) can only assign tasks to themselves, and strictly for their department's stages
     const isManagerial =
       isUserAdmin ||

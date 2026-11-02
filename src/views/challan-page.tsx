@@ -233,6 +233,7 @@ function ChallanPageContent() {
       particulars: string;
       qty: number;
       sqty: number; // Available quantity
+      available_sm_qty?: number;
     }>;
   }>({
     chdate: new Date().toISOString().slice(0, 10),
@@ -304,7 +305,7 @@ function ChallanPageContent() {
   }, [scans, modalForm.projectid]);
 
   const lookupProjectId = selectedScan ? selectedScan.id : (modalForm.projectid || undefined);
-  const { data: dynamicSubplates = [] } = useSubplatesByProjectQuery(lookupProjectId);
+  const { data: dynamicSubplates = [], isLoading: isLoadingDynamicSubplates } = useSubplatesByProjectQuery(lookupProjectId);
 
   const allSubplates = useMemo(() => {
     const map = new Map<number, Subplate>();
@@ -337,6 +338,8 @@ function ChallanPageContent() {
         noPOPlates: [],
         isAllPending: false,
         isPartialPending: false,
+        totalPendingInwardPieces: 0,
+        totalReadyPieces: 0,
       };
     }
 
@@ -354,8 +357,20 @@ function ChallanPageContent() {
         !p.has_active_po
     );
 
+    // Calculate piece-level sums for partial inward awareness across this mould
+    let totalPendingInwardPieces = 0;
+    let totalReadyPieces = 0;
+    allPlates.forEach((p) => {
+      const total = p.sqty || 1;
+      const avail = Number(p.jobwork_balance?.available_sm_qty ?? 0);
+      const outward = Number(p.jobwork_balance?.outward_jobwork_qty ?? 0);
+      const pending = Math.max(0, total - avail - outward);
+      totalPendingInwardPieces += pending;
+      totalReadyPieces += avail;
+    });
+
     const isAllPending = allPlates.length > 0 && readyPlates.length === 0;
-    const isPartialPending = readyPlates.length > 0 && (pendingInwardPlates.length > 0 || noPOPlates.length > 0);
+    const isPartialPending = readyPlates.length > 0 && (pendingInwardPlates.length > 0 || noPOPlates.length > 0 || totalPendingInwardPieces > 0);
 
     return {
       allPlates,
@@ -364,6 +379,8 @@ function ChallanPageContent() {
       noPOPlates,
       isAllPending,
       isPartialPending,
+      totalPendingInwardPieces,
+      totalReadyPieces,
     };
   }, [availablePlates, modalForm.projectid]);
 
@@ -374,34 +391,38 @@ function ChallanPageContent() {
       return;
     }
 
-    // Auto-populate when available plates are loaded and items are empty
-    if (availablePlates.length > 0 && modalForm.items.length === 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
-      lastLoadedMouldRef.current = modalForm.projectid;
-      const cust = customers.find((c) => c.id === Number(modalForm.customerid));
-      const customerName = cust?.customername || selectedCustomer?.customername || "";
-
+    // Auto-populate when available plates are loaded and we haven't auto-loaded this mould yet
+    if (availablePlates.length > 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
       const readyPlates = availablePlates.filter((p) => Number(p.jobwork_balance?.available_sm_qty ?? 0) > 0);
-      const autoPopulatedItems = readyPlates.map((plate) => {
-        const avail = Number(plate.jobwork_balance?.available_sm_qty || 1);
-        const total = plate.sqty || 1;
-        return {
-          plateid: String(plate.id),
-          platename: plate.platename || plate.subprojectid || `Plate #${plate.id}`,
-          customer: customerName,
-          project: modalForm.projectid,
-          particulars: "",
-          qty: avail,
-          sqty: total,
-          available_sm_qty: avail,
-        };
-      });
+      
+      // Only lock once we have resolved the ready plates with jobwork balance
+      if (readyPlates.length > 0) {
+        lastLoadedMouldRef.current = modalForm.projectid;
+        const cust = customers.find((c) => c.id === Number(modalForm.customerid));
+        const customerName = cust?.customername || selectedCustomer?.customername || "";
 
-      setModalForm((prev) => ({
-        ...prev,
-        items: autoPopulatedItems,
-      }));
+        const autoPopulatedItems = readyPlates.map((plate) => {
+          const avail = Number(plate.jobwork_balance?.available_sm_qty || 1);
+          const total = plate.sqty || 1;
+          return {
+            plateid: String(plate.id),
+            platename: plate.platename || plate.subprojectid || `Plate #${plate.id}`,
+            customer: customerName,
+            project: modalForm.projectid,
+            particulars: "",
+            qty: avail,
+            sqty: total,
+            available_sm_qty: avail,
+          };
+        });
+
+        setModalForm((prev) => ({
+          ...prev,
+          items: autoPopulatedItems,
+        }));
+      }
     }
-  }, [availablePlates, modalForm.projectid, modalForm.items.length, modalForm.customerid, customers, selectedCustomer]);
+  }, [availablePlates, modalForm.projectid, modalForm.customerid, customers, selectedCustomer]);
 
   const vendorOptions: ERPSelectOption[] = useMemo(() => {
     return vendors.map((v: any) => ({
@@ -422,11 +443,12 @@ function ChallanPageContent() {
   const subplateOptions: ERPSelectOption[] = useMemo(() => {
     return availablePlates.map((p) => {
       const total = p.sqty || 1;
-      const avail = p.jobwork_balance?.available_sm_qty ?? 0;
-      const outward = p.jobwork_balance?.outward_jobwork_qty ?? 0;
+      const avail = Number(p.jobwork_balance?.available_sm_qty ?? 0);
+      const outward = Number(p.jobwork_balance?.outward_jobwork_qty ?? 0);
+      const pendingInward = Math.max(0, total - avail - outward);
       const hasPO = Boolean(p.jobwork_balance?.has_po || p.has_active_po);
       const isPendingPOOrder = !hasPO && avail <= 0;
-      const isPendingPOInward = hasPO && avail <= 0 && Number(p.jobwork_balance?.pending_po_inward_qty ?? 1) > 0;
+      const isPendingPOInward = hasPO && avail <= 0 && pendingInward > 0;
       const isOut = avail <= 0;
       const vendorInitials = p.jobwork_balance?.active_vendor_initials;
       const vendorNames = p.jobwork_balance?.active_vendors;
@@ -442,16 +464,24 @@ function ChallanPageContent() {
         badgeVariant = "amber";
         disabledReason = "PO Required";
       } else if (isPendingPOInward) {
-        locationText = "⏳ Material isn't inwarded from purchase. Please INWARD first.";
+        locationText = `⏳ Material (${pendingInward} pcs) isn't inwarded from purchase. Please INWARD first.`;
         badgeLabel = "Material Not Inwarded";
         badgeVariant = "amber";
         disabledReason = "Inward Required";
-      } else if (outward === 0) {
-        locationText = `📍 All ${total} in Star Mould (Ready for Job Work)`;
-        badgeLabel = `${avail} in SM`;
       } else if (avail > 0) {
-        locationText = `📍 ${avail} in Star Mould • ${outward} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""}`;
-        badgeLabel = `${avail} in SM`;
+        if (pendingInward > 0) {
+          locationText = `📍 ${avail} in Star Mould (Ready) • ${pendingInward} pending gate inward from supplier${outward > 0 ? ` • ${outward} at ${vendorNames || "Job Work"}` : ""}`;
+          badgeLabel = `${avail} in SM • ${pendingInward} Pending`;
+          badgeVariant = "amber";
+        } else if (outward > 0) {
+          locationText = `📍 ${avail} in Star Mould (Ready) • ${outward} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""}`;
+          badgeLabel = `${avail} in SM`;
+          badgeVariant = "green";
+        } else {
+          locationText = `📍 All ${total} in Star Mould (Ready for Job Work)`;
+          badgeLabel = `${avail} in SM`;
+          badgeVariant = "green";
+        }
       } else {
         locationText = `📍 All ${total} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""} — Inward required before sending again`;
         badgeLabel = `${vendorInitials || "JW"} (${outward})`;
@@ -462,7 +492,9 @@ function ChallanPageContent() {
       const badgeTooltip = isPendingPOOrder
         ? "Raw material not purchased yet: please create a Purchase Order and receive inward first"
         : isPendingPOInward
-        ? `Pending Purchase Inward: ${p.jobwork_balance?.pending_po_inward_qty || 1} pcs not received from supplier yet`
+        ? `Pending Purchase Inward: ${pendingInward} pcs not received from supplier yet`
+        : pendingInward > 0
+        ? `${avail} pcs in Star Mould ready for job work, ${pendingInward} pcs awaiting gate inward from supplier`
         : outward > 0
         ? `${avail} pcs in Star Mould, ${outward} pcs with ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""}`
         : `All ${avail} pcs available in Star Mould workshop`;
@@ -714,11 +746,14 @@ function ChallanPageContent() {
       const updated = [...prev.items];
       if (field === "plateid") {
         const foundPlate = allSubplates.find((p) => String(p.id) === String(value));
+        const avail = Number(foundPlate?.jobwork_balance?.available_sm_qty || foundPlate?.sqty || 1);
         updated[index] = {
           ...updated[index],
           plateid: value,
           platename: foundPlate?.platename || `Plate #${value}`,
           sqty: foundPlate?.sqty || 1,
+          qty: avail,
+          available_sm_qty: avail,
         };
       } else {
         updated[index] = {
@@ -1740,80 +1775,15 @@ function ChallanPageContent() {
               <ProjectSelect
                 projects={availableProjects}
                 value={modalForm.projectid}
-                onChange={async (val, project) => {
+                onChange={(val, project) => {
                   lastLoadedMouldRef.current = null;
                   const newProjectId = project?.projectid || val;
-                  const scanId = project?.id ? String(project.id) : "";
-                  const targetId = project?.id || newProjectId;
-
-                  const cust = customers.find((c) => c.id === Number(modalForm.customerid));
-                  const customerName = cust?.customername || selectedCustomer?.customername || "";
 
                   setModalForm((prev) => ({
                     ...prev,
                     projectid: newProjectId,
                     items: [],
                   }));
-
-                  // 1. Check if plates are already in memory
-                  let platesList: Subplate[] = [];
-                  if (Array.isArray(project?.subplates) && project.subplates.length > 0) {
-                    platesList = project.subplates;
-                  } else {
-                    const inMem = allSubplates.filter(
-                      (sp: Subplate) =>
-                        String(sp.projectid) === String(newProjectId) ||
-                        (scanId && String(sp.projectid) === scanId) ||
-                        (sp.mold_id && project?.id && Number(sp.mold_id) === Number(project.id)) ||
-                        (sp.mold_code && sp.mold_code === newProjectId) ||
-                        (sp.subprojectid && sp.subprojectid.includes(newProjectId))
-                    );
-                    if (inMem.length > 0) {
-                      platesList = inMem;
-                    }
-                  }
-
-                  // 2. If not yet in memory, fetch directly from /api/subplate
-                  if (platesList.length === 0 && targetId) {
-                    setIsLoadingMouldPlates(true);
-                    try {
-                      const res = await fetch(`/api/subplate?projectid=${encodeURIComponent(String(targetId))}`);
-                      const json = await res.json();
-                      if (Array.isArray(json.subplates) && json.subplates.length > 0) {
-                        platesList = json.subplates;
-                      }
-                    } catch (err) {
-                      console.error("Failed to fetch subplates on mould selection:", err);
-                    } finally {
-                      setIsLoadingMouldPlates(false);
-                    }
-                  }
-
-                  // 3. Automatically populate ready subplates into Challan Items
-                  if (platesList.length > 0) {
-                    lastLoadedMouldRef.current = newProjectId;
-                    const readyPlates = platesList.filter((p) => Number(p.jobwork_balance?.available_sm_qty ?? 0) > 0);
-                    const autoItems = readyPlates.map((plate) => {
-                      const avail = Number(plate.jobwork_balance?.available_sm_qty || 1);
-                      const total = plate.sqty || 1;
-                      return {
-                        plateid: String(plate.id),
-                        platename: plate.platename || plate.subprojectid || `Plate #${plate.id}`,
-                        customer: customerName,
-                        project: newProjectId,
-                        particulars: "",
-                        qty: avail,
-                        sqty: total,
-                        available_sm_qty: avail,
-                      };
-                    });
-
-                    setModalForm((prev) => ({
-                      ...prev,
-                      projectid: newProjectId,
-                      items: autoItems,
-                    }));
-                  }
                 }}
                 disabled={!modalForm.customerid}
                 placeholder={
@@ -1894,19 +1864,26 @@ function ChallanPageContent() {
 
                   {/* Partial Inward Notice Banner */}
                   {mouldStatus.isPartialPending && (
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+                    <div className="flex items-center gap-2.5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs leading-relaxed shadow-2xs">
                       <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                       <span>
-                        <strong>Note:</strong> {mouldStatus.pendingInwardPlates.length + mouldStatus.noPOPlates.length} subplate(s) (
-                        {[...mouldStatus.pendingInwardPlates, ...mouldStatus.noPOPlates]
-                          .map((p) => p.platename || p.subprojectid)
-                          .join(", ")}
-                        ) are excluded because raw material is not inwarded from purchase yet.
+                        <strong>Partial Inward Notice:</strong>{" "}
+                        {mouldStatus.totalPendingInwardPieces > 0 && (
+                          <>
+                            <span className="font-semibold text-amber-950">{mouldStatus.totalPendingInwardPieces} pcs</span> across this mould are still awaiting Purchase Inward.{" "}
+                          </>
+                        )}
+                        Only in-house verified pieces ({mouldStatus.totalReadyPieces} pcs) can be dispatched for Job Work.
+                        {mouldStatus.pendingInwardPlates.length + mouldStatus.noPOPlates.length > 0 && (
+                          <span className="block mt-0.5 text-amber-800">
+                            Entirely pending plates: {[...mouldStatus.pendingInwardPlates, ...mouldStatus.noPOPlates].map((p) => p.platename || p.subprojectid).join(", ")}.
+                          </span>
+                        )}
                       </span>
                     </div>
                   )}
 
-                  {isLoadingMouldPlates ? (
+                  {isLoadingDynamicSubplates ? (
                     <div className="flex items-center justify-center gap-2 py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-500 text-xs">
                       <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                       <span>Loading all subplates for {modalForm.projectid}...</span>
@@ -1986,6 +1963,23 @@ function ChallanPageContent() {
                                         : "No PO Created"}
                                     </span>
                                   )}
+                                  {(() => {
+                                    const total = selectedPlate.sqty || 1;
+                                    const avail = Number(selectedPlate.jobwork_balance?.available_sm_qty ?? 0);
+                                    const outward = Number(selectedPlate.jobwork_balance?.outward_jobwork_qty ?? 0);
+                                    const pendingInward = Math.max(0, total - avail - outward);
+                                    if (pendingInward > 0) {
+                                      return (
+                                        <span
+                                          className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300 font-semibold cursor-help"
+                                          title={`${pendingInward} pcs pending Purchase Inward from supplier`}
+                                        >
+                                          Pending: {pendingInward}
+                                        </span>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
                                   {(selectedPlate.jobwork_balance?.outward_jobwork_qty ?? 0) > 0 && (
                                     <span
                                       className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold cursor-help"
@@ -2038,18 +2032,23 @@ function ChallanPageContent() {
                             {(() => {
                               const avail = (selectedPlate?.jobwork_balance?.available_sm_qty ?? item.sqty) || 1;
                               return (
-                                <input
-                                  type="number"
-                                  min="1"
-                                  max={avail}
-                                  value={item.qty}
-                                  onChange={(e) => {
-                                    const val = Math.max(1, Number(e.target.value) || 1);
-                                    handleItemChange(idx, "qty", Math.min(val, avail));
-                                  }}
-                                  required
-                                  className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 text-center"
-                                />
+                                <div>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max={avail}
+                                    value={item.qty}
+                                    onChange={(e) => {
+                                      const val = Math.max(1, Number(e.target.value) || 1);
+                                      handleItemChange(idx, "qty", Math.min(val, avail));
+                                    }}
+                                    required
+                                    className="w-full px-2.5 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 text-center"
+                                  />
+                                  <span className="block text-[10px] text-slate-500 text-center mt-1 font-medium">
+                                    Max {avail} in SM
+                                  </span>
+                                </div>
                               );
                             })()}
                           </div>

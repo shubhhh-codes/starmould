@@ -477,7 +477,7 @@ function StageChipPicker({
 	);
 });
 
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
 import { useQueryClient, useIsRestoring } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
@@ -485,6 +485,7 @@ import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 import { useSubplatesQuery, useProjectsQuery, useCreateSubplateMutation, useUpdateSubplateMutation, useDeleteSubplateMutation } from "@/lib/query/hooks";
 
 function SubplatePageContent() {
+	const router = useRouter();
 	const { currentUser } = useAuth();
 	const { hasPermission } = useRolePermissions();
 	const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
@@ -982,10 +983,29 @@ function SubplatePageContent() {
 				return;
 			}
 			if (targetSp && (targetSp.has_active_po || (targetSp.order_by && targetSp.order_by > 0))) {
+				const poText = targetSp.linked_pos && targetSp.linked_pos.length > 1
+					? ` (${targetSp.linked_pos.map((p) => `#${p.po_srno}`).join(", ")})`
+					: targetSp.po_srno ? ` (#${targetSp.po_srno})` : "";
 				appStore.addToast({
 					type: "warning",
-					message: `Stage 2 (Purchase) is locked by Purchase Order${targetSp.po_srno ? ` (#${targetSp.po_srno})` : ""}. It cannot be changed or unassigned manually.`,
+					message: `Stage 2 (Purchase) is locked by Purchase Order${poText}. It cannot be changed or unassigned manually.`,
 				});
+				return;
+			}
+		}
+
+		if (field === "received_workby" && userId !== 0) {
+			const targetSp = subplates.find((s) => Number(s.id) === Number(subplateId));
+			const inwardQty = Number((targetSp as any)?.po_inward_qty) || 0;
+			if (inwardQty <= 0) {
+				appStore.addToast({
+					type: "error",
+					message: "Stage 3 (Material Inward) cannot be assigned manually. Steel has not been received at factory gate. Record receipt in Purchase Inward first.",
+				});
+				const mouldCode = targetSp?.subprojectid || (targetSp as any)?.mould_project_code || "";
+				if (mouldCode) {
+					router.push(`/purchase-inward?mould=${encodeURIComponent(mouldCode)}`);
+				}
 				return;
 			}
 		}
@@ -1520,6 +1540,10 @@ function SubplatePageContent() {
 								type="text"
 								placeholder="Universal Search (mould, plate, customer, specs, staff)..."
 								data-shortcut-search="true"
+								autoComplete="off"
+								data-form-type="other"
+								data-lpignore="true"
+								suppressHydrationWarning
 								value={searchQuery}
 								onChange={(e) => {
 									setSearchQuery(e.target.value);
@@ -2060,6 +2084,7 @@ function SubplatePageContent() {
 																						<div className="flex items-center justify-between gap-2.5">
 																							<div className="flex items-center gap-2 flex-wrap">
 																								<span
+																									title={progress.subtext}
 																									className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border ${progress.badgeStyle}`}
 																								>
 																									<span className={`w-1.5 h-1.5 rounded-full ${progress.dotColor}`} />
@@ -2276,48 +2301,152 @@ function SubplatePageContent() {
 																												const staffName = staffMember?.name || (row as any).order_by_name || `Staff #${val}`;
 																												const staffInitials = staffMember?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || "PO";
 
+																												const linkedPOs: any[] =
+																													row.linked_pos && row.linked_pos.length > 0
+																														? row.linked_pos
+																														: row.po_srno
+																														? [
+																																{
+																																	po_id: row.po_id || 0,
+																																	po_srno: row.po_srno,
+																																	qty: orderedQty || totalQty,
+																																	created_by: row.order_by,
+																																	created_at: (row as any).order_at,
+																																},
+																														  ]
+																														: [];
+
 																												if (isFullyOrdered) {
+																													if (linkedPOs.length > 1) {
+																														return (
+																															<div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+																																{linkedPOs.map((po, idx) => {
+																																	const poStaff = activeStaff.find((u) => u.id === Number(po.created_by)) || staffMember;
+																																	const poStaffName = poStaff?.name || (row as any).order_by_name || staffName;
+																																	const poInitials = poStaff?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || staffInitials;
+																																	return (
+																																		<a
+																																			key={po.po_id || idx}
+																																			href={`/purchase-inward?search=${encodeURIComponent(po.po_srno)}`}
+																																			target="_blank"
+																																			rel="noopener noreferrer"
+																																			title={`Click to inward PO #${po.po_srno} in Purchase Inward`}
+																																			className="h-9 px-2 rounded-lg bg-emerald-50/80 border border-emerald-200/90 hover:border-emerald-400 hover:bg-emerald-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																																		>
+																																			<div className="flex items-center gap-1.5 min-w-0">
+																																				<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																					{poInitials}
+																																				</div>
+																																				<div className="min-w-0">
+																																					<div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-emerald-900">
+																																						{poStaffName}
+																																					</div>
+																																					<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
+																																						PO #{po.po_srno} • {po.qty} pcs
+																																					</div>
+																																				</div>
+																																			</div>
+																																			<Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+																																		</a>
+																																	);
+																																})}
+																															</div>
+																														);
+																													}
+
+																													const singlePO = linkedPOs[0];
+																													const poStaff = activeStaff.find((u) => u.id === Number(singlePO?.created_by)) || staffMember;
+																													const poStaffName = poStaff?.name || (row as any).order_by_name || staffName;
+																													const poInitials = poStaff?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || staffInitials;
+
 																													return (
-																														<div className="h-9 px-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-1.5 shadow-2xs">
+																														<a
+																															href={`/purchase-inward?search=${encodeURIComponent(singlePO?.po_srno || row.po_srno || "")}`}
+																															target="_blank"
+																															rel="noopener noreferrer"
+																															title={`Click to inward PO #${singlePO?.po_srno || row.po_srno} in Purchase Inward`}
+																															className="h-9 px-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 hover:border-emerald-400 hover:bg-emerald-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																														>
 																															<div className="flex items-center gap-1.5 min-w-0">
 																																<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
-																																	{staffInitials}
+																																	{poInitials}
 																																</div>
 																																<div className="min-w-0">
-																																	<div className="text-[11px] font-bold text-slate-800 truncate leading-tight">
-																																		{staffName}
+																																	<div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-emerald-900">
+																																		{poStaffName}
 																																	</div>
 																																	<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
-																																		{row.po_srno ? `PO #${row.po_srno}` : "PO"} • {totalQty} pcs
+																																		{singlePO?.po_srno || row.po_srno ? `PO #${singlePO?.po_srno || row.po_srno}` : "PO"} • {totalQty} pcs
 																																	</div>
 																																</div>
 																															</div>
-																															<Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-																														</div>
+																															<Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+																														</a>
 																													);
 																												}
 
 																												if (isPartial) {
 																													return (
 																														<div className="space-y-1.5">
-																															<div className="h-9 px-2 rounded-lg bg-amber-50/70 border border-amber-200/80 flex items-center justify-between gap-1.5 shadow-2xs">
-																																<div className="flex items-center gap-1.5 min-w-0">
-																																	<div className="w-5 h-5 rounded-md bg-amber-500 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
-																																		{staffInitials}
-																																	</div>
-																																	<div className="min-w-0">
-																																		<div className="text-[11px] font-bold text-slate-900 truncate leading-tight">
-																																			{staffName}
-																																		</div>
-																																		<div className="text-[9px] font-mono text-amber-700 truncate font-semibold leading-none">
-																																			{row.po_srno ? `PO #${row.po_srno}` : "PO"}
-																																		</div>
-																																	</div>
+																															{linkedPOs.length > 1 ? (
+																																<div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5">
+																																	{linkedPOs.map((po, idx) => {
+																																		const poStaff = activeStaff.find((u) => u.id === Number(po.created_by)) || staffMember;
+																																		const poStaffName = poStaff?.name || (row as any).order_by_name || staffName;
+																																		const poInitials = poStaff?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || staffInitials;
+																																		return (
+																																			<a
+																																				key={po.po_id || idx}
+																																				href={`/purchase-inward?search=${encodeURIComponent(po.po_srno)}`}
+																																				target="_blank"
+																																				rel="noopener noreferrer"
+																																				title={`Click to inward PO #${po.po_srno} in Purchase Inward`}
+																																				className="h-9 px-2 rounded-lg bg-amber-50/80 border border-amber-200/90 hover:border-amber-400 hover:bg-amber-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																																			>
+																																				<div className="flex items-center gap-1.5 min-w-0">
+																																					<div className="w-5 h-5 rounded-md bg-amber-500 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																						{poInitials}
+																																					</div>
+																																					<div className="min-w-0">
+																																						<div className="text-[11px] font-bold text-slate-900 truncate leading-tight group-hover:text-amber-950">
+																																							{poStaffName}
+																																						</div>
+																																						<div className="text-[9px] font-mono text-amber-700 truncate font-semibold leading-none">
+																																							PO #{po.po_srno} • {po.qty} pcs
+																																						</div>
+																																					</div>
+																																				</div>
+																																				<Lock className="w-3.5 h-3.5 text-amber-600 shrink-0 group-hover:scale-110 transition-transform" />
+																																			</a>
+																																		);
+																																	})}
 																																</div>
-																																<span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300/80 px-1.5 py-0.5 rounded font-mono shrink-0">
-																																	{orderedQty}/{totalQty}
-																																</span>
-																															</div>
+																															) : (
+																																<a
+																																	href={`/purchase-inward?search=${encodeURIComponent(row.po_srno || "")}`}
+																																	target="_blank"
+																																	rel="noopener noreferrer"
+																																	title={`Click to inward PO #${row.po_srno} in Purchase Inward`}
+																																	className="h-9 px-2 rounded-lg bg-amber-50/70 border border-amber-200/80 hover:border-amber-400 hover:bg-amber-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																																>
+																																	<div className="flex items-center gap-1.5 min-w-0">
+																																		<div className="w-5 h-5 rounded-md bg-amber-500 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																			{staffInitials}
+																																		</div>
+																																		<div className="min-w-0">
+																																			<div className="text-[11px] font-bold text-slate-900 truncate leading-tight group-hover:text-amber-950">
+																																				{staffName}
+																																			</div>
+																																			<div className="text-[9px] font-mono text-amber-700 truncate font-semibold leading-none">
+																																				{row.po_srno ? `PO #${row.po_srno}` : "PO"}
+																																			</div>
+																																		</div>
+																																	</div>
+																																	<span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300/80 px-1.5 py-0.5 rounded font-mono shrink-0">
+																																		{orderedQty}/{totalQty}
+																																	</span>
+																																</a>
+																															)}
 																															<button
 																																type="button"
 																																onClick={() => handleOpenCreatePOForPlate(row)}
@@ -2347,6 +2476,21 @@ function SubplatePageContent() {
 																													</button>
 																												);
 																											})()
+																										) : stage.key === "received_workby" && !isAssigned && (Number((row as any).po_inward_qty) || 0) <= 0 ? (
+																											<button
+																												type="button"
+																												onClick={() => router.push(`/purchase-inward?mould=${encodeURIComponent(row.subprojectid || (row as any).mould_project_code || "")}`)}
+																												className="w-full h-9 px-2.5 rounded-lg border border-dashed border-sky-300 bg-sky-50/60 hover:bg-sky-100/80 text-sky-900 transition flex items-center justify-between gap-1 cursor-pointer shadow-2xs group"
+																												title="Material Gate Entry Required in Purchase Inward"
+																											>
+																												<span className="text-[11px] font-bold text-sky-900 flex items-center gap-1.5 truncate">
+																													<Package className="w-3.5 h-3.5 text-sky-600 shrink-0 group-hover:scale-110 transition-transform" />
+																													<span className="truncate">Gate Inward</span>
+																												</span>
+																												<span className="text-[9px] font-mono font-bold text-sky-700 bg-sky-100 border border-sky-200/80 px-1.5 py-0.5 rounded shrink-0">
+																													Pending
+																												</span>
+																											</button>
 																										) : (
 																											<StaffSelect
 																												value={val}
@@ -2648,6 +2792,21 @@ function SubplatePageContent() {
 																			const staffName = staffMember?.name || (row as any).order_by_name || (val ? `Staff #${val}` : "PO Created");
 																			const staffInitials = staffMember?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || "PO";
 
+																			const linkedPOs: any[] =
+																				row.linked_pos && row.linked_pos.length > 0
+																					? row.linked_pos
+																					: row.po_srno
+																					? [
+																							{
+																								po_id: row.po_id || 0,
+																								po_srno: row.po_srno,
+																								qty: orderedQty || totalQty,
+																								created_by: row.order_by,
+																								created_at: (row as any).order_at,
+																							},
+																					  ]
+																					: [];
+
 																			if (isFullyOrdered) {
 																				return (
 																					<div
@@ -2660,7 +2819,7 @@ function SubplatePageContent() {
 																									{stage.label}
 																								</span>
 																								<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono whitespace-nowrap">
-																									All {totalQty} pcs
+																									{linkedPOs.length > 1 ? `${linkedPOs.length} POs • All ${totalQty} pcs` : `All ${totalQty} pcs`}
 																								</span>
 																							</div>
 
@@ -2673,15 +2832,40 @@ function SubplatePageContent() {
 																							</div>
 																						</div>
 
-																						<div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-mono pt-1.5 border-t border-emerald-100/80">
-																							<span className="font-semibold text-emerald-800">
-																								{row.po_srno ? `PO #${row.po_srno}` : "PO"}
-																							</span>
+																						<div className="pt-1.5 border-t border-emerald-100/80 space-y-1">
+																							{linkedPOs.length > 1 ? (
+																								<div className="space-y-1 max-h-28 overflow-y-auto pr-0.5">
+																									{linkedPOs.map((po, idx) => (
+																										<a
+																											key={po.po_id || idx}
+																											href={`/purchase-inward?search=${encodeURIComponent(po.po_srno)}`}
+																											target="_blank"
+																											rel="noopener noreferrer"
+																											className="flex items-center justify-between text-[10px] text-slate-600 font-mono py-0.5 hover:text-emerald-700"
+																										>
+																											<span className="font-semibold text-emerald-800">
+																												PO #{po.po_srno}
+																											</span>
+																											<span className="text-emerald-700 font-bold">
+																												{po.qty} pcs
+																											</span>
+																										</a>
+																									))}
+																								</div>
+																							) : (
+																								<a
+																									href={`/purchase-inward?search=${encodeURIComponent(row.po_srno || "")}`}
+																									target="_blank"
+																									rel="noopener noreferrer"
+																									className="font-semibold text-emerald-800 block hover:underline"
+																								>
+																									{row.po_srno ? `PO #${row.po_srno}` : "PO"}
+																								</a>
+																							)}
 																							{timestamp && (
-																								<>
-																									<span>•</span>
-																									<span>{formatTimestamp(timestamp)}</span>
-																								</>
+																								<div className="text-[9px] text-slate-400 font-mono">
+																									{formatTimestamp(timestamp)}
+																								</div>
 																							)}
 																						</div>
 																					</div>
@@ -2715,15 +2899,40 @@ function SubplatePageContent() {
 
 																						{/* Tier 2: PO number & timestamp on left, Action Button on right */}
 																						<div className="flex items-center justify-between gap-2 pt-1.5 border-t border-amber-200/60 text-[10px]">
-																							<div className="min-w-0 text-slate-500 font-mono flex items-center gap-1 truncate">
-																								<span className="font-semibold text-amber-800 shrink-0">
-																									{row.po_srno ? `PO #${row.po_srno}` : "PO"}
-																								</span>
+																							<div className="min-w-0 text-slate-500 font-mono flex-1">
+																								{linkedPOs.length > 1 ? (
+																									<div className="space-y-0.5 max-h-24 overflow-y-auto pr-0.5">
+																										{linkedPOs.map((po, idx) => (
+																											<a
+																												key={po.po_id || idx}
+																												href={`/purchase-inward?search=${encodeURIComponent(po.po_srno)}`}
+																												target="_blank"
+																												rel="noopener noreferrer"
+																												className="flex items-center justify-between text-[10px] py-0.5 hover:text-amber-900"
+																											>
+																												<span className="font-semibold text-amber-800">
+																													PO #{po.po_srno}
+																												</span>
+																												<span className="text-amber-700 font-bold">
+																													{po.qty} pcs
+																												</span>
+																											</a>
+																										))}
+																									</div>
+																								) : (
+																									<a
+																										href={`/purchase-inward?search=${encodeURIComponent(row.po_srno || "")}`}
+																										target="_blank"
+																										rel="noopener noreferrer"
+																										className="font-semibold text-amber-800 hover:underline"
+																									>
+																										{row.po_srno ? `PO #${row.po_srno}` : "PO"}
+																									</a>
+																								)}
 																								{timestamp && (
-																									<>
-																										<span>•</span>
-																										<span className="truncate">{formatTimestamp(timestamp)}</span>
-																									</>
+																									<div className="text-[9px] text-slate-400 font-mono mt-0.5">
+																										{formatTimestamp(timestamp)}
+																									</div>
 																								)}
 																							</div>
 
@@ -2761,6 +2970,33 @@ function SubplatePageContent() {
 																					>
 																						<ShoppingCart className="w-3.5 h-3.5" />
 																						<span>Create PO</span>
+																					</button>
+																				</div>
+																			);
+																		}
+
+																		const isInwardGateRequired = stage.key === "received_workby" && !isAssigned && (Number((row as any).po_inward_qty) || 0) <= 0;
+																		if (isInwardGateRequired) {
+																			return (
+																				<div
+																					key={stage.key}
+																					className="p-2 rounded-lg bg-sky-50/40 border border-sky-200/70 flex items-center justify-between gap-2"
+																				>
+																					<div className="flex-1 min-w-0">
+																						<div className="text-[11px] font-bold text-slate-800 truncate">
+																							{stage.label}
+																						</div>
+																						<div className="text-[10px] text-sky-700 font-medium">
+																							Gate Entry Required
+																						</div>
+																					</div>
+																					<button
+																						type="button"
+																						onClick={() => router.push(`/purchase-inward?mould=${encodeURIComponent(row.subprojectid || (row as any).mould_project_code || "")}`)}
+																						className="h-7 px-3 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[11px] shadow-2xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
+																					>
+																						<Package className="w-3.5 h-3.5" />
+																						<span>Inward</span>
 																					</button>
 																				</div>
 																			);
@@ -3427,6 +3663,22 @@ function SubplatePageContent() {
 									const staffMember = activeStaff.find((u) => u.id === Number(val));
 									const staffName = (sp as any)[st.nameKey] || staffMember?.name || staffMember?.initials || `Staff #${val}`;
 
+									if (st.key === "received_workby") {
+										const inwardQty = Number((sp as any).po_inward_qty) || 0;
+										if (!isDone && inwardQty <= 0) {
+											items.push({
+												label: `Material Inward (Gate Entry Required)`,
+												subtext: `Stage 3 • Receive steel at factory gate to unlock`,
+												icon: Lock,
+												variant: "primary",
+												onClick: () => {
+													router.push(`/purchase-inward?mould=${encodeURIComponent(sp.subprojectid || (sp as any).mould_project_code || "")}`);
+												},
+											});
+											return;
+										}
+									}
+
 									if (isDone) {
 										items.push({
 											label: `Unassign ${staffName} (${st.label.replace(/^\d+\.\s*/, "")})`,
@@ -3512,6 +3764,16 @@ function SubplatePageContent() {
 												icon: Lock,
 												disabled: true,
 												onClick: () => {},
+											});
+										} else if (st.key === "received_workby" && (Number((sp as any).po_inward_qty) || 0) <= 0) {
+											items.push({
+												label: `Material Inward (Gate Entry Required)`,
+												subtext: `Stage 3 • Receive steel at factory gate to unlock`,
+												icon: Lock,
+												variant: "primary",
+												onClick: () => {
+													router.push(`/purchase-inward?mould=${encodeURIComponent(sp.subprojectid || (sp as any).mould_project_code || "")}`);
+												},
 											});
 										} else {
 											items.push({

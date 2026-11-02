@@ -614,6 +614,30 @@ export function MouldProjectsTable({
       });
       return;
     }
+
+    if (stageKey === "received_workby" && userId !== 0) {
+      let foundSubplate: any = null;
+      let parentProject: ScanProject | undefined = undefined;
+      for (const p of data) {
+        const sp = p.subplates?.find((s: any) => s.id === subplateId);
+        if (sp) {
+          foundSubplate = sp;
+          parentProject = p;
+          break;
+        }
+      }
+      const inwardQty = Number(foundSubplate?.po_inward_qty) || 0;
+      if (inwardQty <= 0) {
+        appStore.addToast({
+          type: "error",
+          message: "Stage 3 (Material Inward) cannot be assigned manually. Steel has not been received yet. Go to Purchase Inward.",
+        });
+        if (parentProject?.projectid) {
+          router.push(`/purchase-inward?mould=${encodeURIComponent(parentProject.projectid)}`);
+        }
+        return;
+      }
+    }
     // Non-admin users cannot unassign once assigned
     if (!isAdmin && userId === 0) {
       appStore.addToast({
@@ -2869,6 +2893,22 @@ export function MouldProjectsTable({
                   return;
                 }
 
+                if (st.key === "received_workby") {
+                  const inwardQty = Number((sp as any).po_inward_qty) || 0;
+                  if (!isDone && inwardQty <= 0) {
+                    items.push({
+                      label: `Material Inward (Gate Entry Required)`,
+                      subtext: `Stage 3 • Receive steel at factory gate to unlock`,
+                      icon: Lock,
+                      variant: "primary",
+                      onClick: () => {
+                        router.push(`/purchase-inward?mould=${encodeURIComponent(subplateContextMenu.project?.projectid || "")}`);
+                      },
+                    });
+                    return;
+                  }
+                }
+
                 if (isDone) {
                   items.push({
                     label: `Unassign ${staffName} (${st.label.replace(/^\d+\.\s*/, "")})`,
@@ -2952,6 +2992,16 @@ export function MouldProjectsTable({
                       icon: Lock,
                       disabled: true,
                       onClick: () => {},
+                    });
+                  } else if (st.key === "received_workby" && (Number((sp as any).po_inward_qty) || 0) <= 0) {
+                    items.push({
+                      label: `Material Inward (Gate Entry Required)`,
+                      subtext: `Stage 3 • Receive steel at factory gate to unlock`,
+                      icon: Lock,
+                      variant: "primary",
+                      onClick: () => {
+                        router.push(`/purchase-inward?mould=${encodeURIComponent(subplateContextMenu.project?.projectid || "")}`);
+                      },
                     });
                   } else {
                     items.push({

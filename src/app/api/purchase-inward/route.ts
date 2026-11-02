@@ -167,10 +167,10 @@ export async function DELETE(req: NextRequest) {
 
     // 4. Downstream Dependency Checks
     if (plateIds.length > 0) {
-      // A. Check Subplate Machining Status (Stages 4 & 5)
+      // A. Check Subplate Machining Status (Downstream Stages 4-9)
       const { data: plates, error: platesErr } = await supabaseAdmin
         .from("subplate")
-        .select("id, platename, vmc_workby, drilltap_workby, finish_workby")
+        .select("id, platename, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
         .in("id", plateIds);
 
       if (platesErr) {
@@ -180,10 +180,10 @@ export async function DELETE(req: NextRequest) {
       const plateMap = new Map((plates || []).map((p: any) => [p.id, p.platename]));
 
       for (const p of plates || []) {
-        if (p.vmc_workby || p.drilltap_workby || p.finish_workby) {
+        if (p.received_qcby || p.vmc_workby || p.drilltap_workby || p.final_qcby || p.packing_workby) {
           return NextResponse.json(
             {
-              error: `Cannot revert inward receipt: Machining (VMC / Drill-Tap) has already commenced on subplate "${p.platename}". Reverting raw material would corrupt production tracking.`,
+              error: `Cannot revert inward receipt: Downstream production (Machining / Programming / QC) has already commenced on subplate "${p.platename}". Reverting raw material would corrupt production tracking.`,
             },
             { status: 409 }
           );
@@ -274,6 +274,7 @@ export async function DELETE(req: NextRequest) {
             received_work_at: null,
             received_qcby: null,
             received_qc_at: null,
+            location: "Raw Stock",
             updated_at: new Date().toISOString(),
           })
           .in("id", platesToReset);
@@ -427,18 +428,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: itErr.message }, { status: 500 });
     }
 
-    // Auto-sync subplates received_workby & received_work_at so programming queue updates
+    // Auto-sync subplates received_workby, received_work_at, and location so programming queue updates
     const inwardPlateIds = inwardItemsToInsert.map((it: any) => it.plateid).filter(Boolean);
     if (inwardPlateIds.length > 0) {
       await supabaseAdmin
         .from("subplate")
         .update({
-          received_workby: auth.user.id || 1,
-          received_work_at: new Date().toISOString(),
+          received_workby: Number(auth.user.id) || 1,
+          received_work_at: odate ? new Date(odate).toISOString() : new Date().toISOString(),
+          location: "In-House",
           updated_at: new Date().toISOString(),
         })
-        .in("id", inwardPlateIds)
-        .is("received_workby", null);
+        .in("id", inwardPlateIds);
     }
 
     invalidateCache("api_counts_all");

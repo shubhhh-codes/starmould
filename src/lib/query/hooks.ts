@@ -1909,6 +1909,10 @@ export function useCreatePurchaseInwardMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.purchaseInward.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -1925,6 +1929,10 @@ export function useDeletePurchaseInwardMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.purchaseInward.all());
+      broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }

@@ -126,17 +126,42 @@ export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
   const validRawName = rawName && rawName !== "-" ? rawName : null;
   const staffName = validRawName || staffMember?.name || staffMember?.initials || null;
 
-  if (stage.key === "order_by" && isPartialPO) {
-    return {
-      badgeLabel: `Stage 2: Purchase (Partial)`,
-      subtext: `${sp.ordered_qty}/${sp.sqty || 1} ordered (${sp.remaining_qty} pending)`,
-      badgeStyle: "bg-amber-50 text-amber-900 border-amber-300 font-bold shadow-2xs",
-      dotColor: "bg-amber-500",
-      completed,
-      isCompleted: false,
-      activeStage: stage,
-      assignee: staffName ? `${staffName} (${sp.ordered_qty}/${sp.sqty} pcs)` : null,
-    };
+  if (stage.key === "order_by") {
+    const linkedPOs = sp.linked_pos && sp.linked_pos.length > 0 ? sp.linked_pos : [];
+    const isMultiPO = linkedPOs.length > 1;
+    const poListStr = linkedPOs.map((p) => `#${p.po_srno}`).join(", ");
+
+    if (isPartialPO) {
+      return {
+        badgeLabel: isMultiPO
+          ? `Stage 2: Purchase (${linkedPOs.length} POs • ${sp.ordered_qty}/${sp.sqty || 1} pcs)`
+          : `Stage 2: Purchase (Partial)`,
+        subtext: isMultiPO
+          ? `${linkedPOs.length} POs: ${poListStr} (${sp.remaining_qty} pending)`
+          : `${sp.ordered_qty}/${sp.sqty || 1} ordered (${sp.remaining_qty} pending)`,
+        badgeStyle: "bg-amber-50 text-amber-900 border-amber-300 font-bold shadow-2xs",
+        dotColor: "bg-amber-500",
+        completed,
+        isCompleted: false,
+        activeStage: stage,
+        assignee: isMultiPO
+          ? `${linkedPOs.length} POs (${sp.ordered_qty}/${sp.sqty} pcs)`
+          : (staffName ? `${staffName} (${sp.ordered_qty}/${sp.sqty} pcs)` : null),
+      };
+    }
+
+    if (isMultiPO) {
+      return {
+        badgeLabel: `Stage 2: Purchase (${linkedPOs.length} POs • ${sp.sqty || sp.ordered_qty} pcs)`,
+        subtext: `${linkedPOs.length} POs: ${poListStr}`,
+        badgeStyle: "bg-blue-50 text-blue-900 border-blue-200/90 font-bold shadow-2xs",
+        dotColor: "bg-blue-600",
+        completed,
+        isCompleted: false,
+        activeStage: stage,
+        assignee: `${linkedPOs.length} POs • ${sp.sqty || sp.ordered_qty} pcs`,
+      };
+    }
   }
 
   return {
