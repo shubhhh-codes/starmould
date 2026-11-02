@@ -29,6 +29,7 @@ import {
   List,
   Maximize2,
   Minimize2,
+  Loader2,
 } from "lucide-react";
 import type {
   Challan,
@@ -187,6 +188,7 @@ function ChallanPageContent() {
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingMouldPlates, setIsLoadingMouldPlates] = useState(false);
 
   // Navigation Tabs: Job Work Challan Register vs Pending Outward Items
   const [activeTab, setActiveTab] = useState<"challan_list" | "pending_outward">("challan_list");
@@ -325,6 +327,46 @@ function ChallanPageContent() {
     );
   }, [allSubplates, modalForm.projectid, selectedScan]);
 
+  // Categorize subplates of the selected mould for clear guardrails
+  const mouldStatus = useMemo(() => {
+    if (!modalForm.projectid) {
+      return {
+        allPlates: [],
+        readyPlates: [],
+        pendingInwardPlates: [],
+        noPOPlates: [],
+        isAllPending: false,
+        isPartialPending: false,
+      };
+    }
+
+    const allPlates = availablePlates;
+    const readyPlates = allPlates.filter((p) => Number(p.jobwork_balance?.available_sm_qty ?? 0) > 0);
+    const pendingInwardPlates = allPlates.filter(
+      (p) =>
+        Number(p.jobwork_balance?.available_sm_qty ?? 0) <= 0 &&
+        Boolean(p.jobwork_balance?.has_po || p.has_active_po)
+    );
+    const noPOPlates = allPlates.filter(
+      (p) =>
+        Number(p.jobwork_balance?.available_sm_qty ?? 0) <= 0 &&
+        !p.jobwork_balance?.has_po &&
+        !p.has_active_po
+    );
+
+    const isAllPending = allPlates.length > 0 && readyPlates.length === 0;
+    const isPartialPending = readyPlates.length > 0 && (pendingInwardPlates.length > 0 || noPOPlates.length > 0);
+
+    return {
+      allPlates,
+      readyPlates,
+      pendingInwardPlates,
+      noPOPlates,
+      isAllPending,
+      isPartialPending,
+    };
+  }, [availablePlates, modalForm.projectid]);
+
   // Automatically populate all subplates of the mould into Challan Items
   useEffect(() => {
     if (!modalForm.projectid) {
@@ -332,36 +374,34 @@ function ChallanPageContent() {
       return;
     }
 
-    if (availablePlates.length > 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
+    // Auto-populate when available plates are loaded and items are empty
+    if (availablePlates.length > 0 && modalForm.items.length === 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
       lastLoadedMouldRef.current = modalForm.projectid;
       const cust = customers.find((c) => c.id === Number(modalForm.customerid));
       const customerName = cust?.customername || selectedCustomer?.customername || "";
 
-      const autoPopulatedItems = availablePlates
-        .filter((plate) => {
-          const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
-          return avail > 0;
-        })
-        .map((plate) => {
-          const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
-          return {
-            plateid: String(plate.id),
-            platename: plate.platename || `Plate #${plate.id}`,
-            customer: customerName,
-            project: modalForm.projectid,
-            particulars: "",
-            qty: avail,
-            sqty: plate.sqty || 1,
-            available_sm_qty: avail,
-          };
-        });
+      const readyPlates = availablePlates.filter((p) => Number(p.jobwork_balance?.available_sm_qty ?? 0) > 0);
+      const autoPopulatedItems = readyPlates.map((plate) => {
+        const avail = Number(plate.jobwork_balance?.available_sm_qty || 1);
+        const total = plate.sqty || 1;
+        return {
+          plateid: String(plate.id),
+          platename: plate.platename || plate.subprojectid || `Plate #${plate.id}`,
+          customer: customerName,
+          project: modalForm.projectid,
+          particulars: "",
+          qty: avail,
+          sqty: total,
+          available_sm_qty: avail,
+        };
+      });
 
       setModalForm((prev) => ({
         ...prev,
         items: autoPopulatedItems,
       }));
     }
-  }, [availablePlates, modalForm.projectid, modalForm.customerid, customers, selectedCustomer]);
+  }, [availablePlates, modalForm.projectid, modalForm.items.length, modalForm.customerid, customers, selectedCustomer]);
 
   const vendorOptions: ERPSelectOption[] = useMemo(() => {
     return vendors.map((v: any) => ({
@@ -382,41 +422,60 @@ function ChallanPageContent() {
   const subplateOptions: ERPSelectOption[] = useMemo(() => {
     return availablePlates.map((p) => {
       const total = p.sqty || 1;
-      const avail = p.jobwork_balance?.available_sm_qty ?? total;
+      const avail = p.jobwork_balance?.available_sm_qty ?? 0;
       const outward = p.jobwork_balance?.outward_jobwork_qty ?? 0;
+      const hasPO = Boolean(p.jobwork_balance?.has_po || p.has_active_po);
+      const isPendingPOOrder = !hasPO && avail <= 0;
+      const isPendingPOInward = hasPO && avail <= 0 && Number(p.jobwork_balance?.pending_po_inward_qty ?? 1) > 0;
       const isOut = avail <= 0;
       const vendorInitials = p.jobwork_balance?.active_vendor_initials;
       const vendorNames = p.jobwork_balance?.active_vendors;
 
-      // Structured location subtitle (replaces raw Code: 0001...)
       let locationText = "";
-      if (outward === 0) {
-        locationText = `📍 All ${total} in Star Mould (Ready for dispatch)`;
+      let badgeLabel = "";
+      let badgeVariant: ERPSelectOption["badgeVariant"] = "green";
+      let disabledReason = "";
+
+      if (isPendingPOOrder) {
+        locationText = "⚠️ Purchase Order not created. Please create PO & Inward first.";
+        badgeLabel = "No PO Created";
+        badgeVariant = "amber";
+        disabledReason = "PO Required";
+      } else if (isPendingPOInward) {
+        locationText = "⏳ Material isn't inwarded from purchase. Please INWARD first.";
+        badgeLabel = "Material Not Inwarded";
+        badgeVariant = "amber";
+        disabledReason = "Inward Required";
+      } else if (outward === 0) {
+        locationText = `📍 All ${total} in Star Mould (Ready for Job Work)`;
+        badgeLabel = `${avail} in SM`;
       } else if (avail > 0) {
         locationText = `📍 ${avail} in Star Mould • ${outward} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""}`;
+        badgeLabel = `${avail} in SM`;
       } else {
-        locationText = `📍 All ${total} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""} — Inward required`;
+        locationText = `📍 All ${total} at ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""} — Inward required before sending again`;
+        badgeLabel = `${vendorInitials || "JW"} (${outward})`;
+        badgeVariant = "amber";
+        disabledReason = "At Job Work";
       }
 
-      const badgeLabel = isOut
-        ? `${vendorInitials || "JW"} (${outward})`
+      const badgeTooltip = isPendingPOOrder
+        ? "Raw material not purchased yet: please create a Purchase Order and receive inward first"
+        : isPendingPOInward
+        ? `Pending Purchase Inward: ${p.jobwork_balance?.pending_po_inward_qty || 1} pcs not received from supplier yet`
         : outward > 0
-        ? `${avail} in SM`
-        : `${avail} in SM`;
-
-      const badgeTooltip = outward > 0
         ? `${avail} pcs in Star Mould, ${outward} pcs with ${vendorNames || "Job Work"}${vendorInitials ? ` (${vendorInitials})` : ""}`
         : `All ${avail} pcs available in Star Mould workshop`;
 
       return {
         value: String(p.id),
-        label: p.platename,
+        label: p.platename?.trim() || p.subprojectid || `Plate #${p.id}`,
         subtitle: locationText,
         badge: badgeLabel,
         badgeTitle: badgeTooltip,
-        badgeVariant: isOut ? ("amber" as const) : ("green" as const),
+        badgeVariant,
         disabled: isOut,
-        disabledReason: isOut ? `At ${vendorInitials || vendorNames || "Job Work"}` : undefined,
+        disabledReason: disabledReason || (isOut ? `At ${vendorInitials || vendorNames || "Job Work"}` : undefined),
       };
     });
   }, [availablePlates]);
@@ -1591,7 +1650,7 @@ function ChallanPageContent() {
           description="Sequential Outward Movement Challan (SM/JW/xx)"
           size="4xl"
         >
-          <form onSubmit={handleSubmitChallan} className="space-y-6">
+          <form onSubmit={handleSubmitChallan} className="space-y-4">
             {formError && (
               <div className="p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm flex items-center gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0" />
@@ -1600,7 +1659,7 @@ function ChallanPageContent() {
             )}
 
             {/* Header Fields (Source: challan/index.blade.php lines 86-143) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Today’s Date <span className="text-rose-500">*</span>
@@ -1681,51 +1740,80 @@ function ChallanPageContent() {
               <ProjectSelect
                 projects={availableProjects}
                 value={modalForm.projectid}
-                onChange={(val, project) => {
+                onChange={async (val, project) => {
                   lastLoadedMouldRef.current = null;
                   const newProjectId = project?.projectid || val;
                   const scanId = project?.id ? String(project.id) : "";
-
-                  const matchingPlates = allSubplates.filter(
-                    (sp: Subplate) =>
-                      String(sp.projectid) === String(newProjectId) ||
-                      (scanId && String(sp.projectid) === scanId) ||
-                      (sp.mold_id && project?.id && Number(sp.mold_id) === Number(project.id)) ||
-                      (sp.mold_code && sp.mold_code === newProjectId) ||
-                      (sp.subprojectid && sp.subprojectid.includes(newProjectId))
-                  );
+                  const targetId = project?.id || newProjectId;
 
                   const cust = customers.find((c) => c.id === Number(modalForm.customerid));
                   const customerName = cust?.customername || selectedCustomer?.customername || "";
 
-                  const autoItems = matchingPlates
-                    .filter((plate) => {
-                      const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
-                      return avail > 0;
-                    })
-                    .map((plate) => {
-                      const avail = plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1);
+                  setModalForm((prev) => ({
+                    ...prev,
+                    projectid: newProjectId,
+                    items: [],
+                  }));
+
+                  // 1. Check if plates are already in memory
+                  let platesList: Subplate[] = [];
+                  if (Array.isArray(project?.subplates) && project.subplates.length > 0) {
+                    platesList = project.subplates;
+                  } else {
+                    const inMem = allSubplates.filter(
+                      (sp: Subplate) =>
+                        String(sp.projectid) === String(newProjectId) ||
+                        (scanId && String(sp.projectid) === scanId) ||
+                        (sp.mold_id && project?.id && Number(sp.mold_id) === Number(project.id)) ||
+                        (sp.mold_code && sp.mold_code === newProjectId) ||
+                        (sp.subprojectid && sp.subprojectid.includes(newProjectId))
+                    );
+                    if (inMem.length > 0) {
+                      platesList = inMem;
+                    }
+                  }
+
+                  // 2. If not yet in memory, fetch directly from /api/subplate
+                  if (platesList.length === 0 && targetId) {
+                    setIsLoadingMouldPlates(true);
+                    try {
+                      const res = await fetch(`/api/subplate?projectid=${encodeURIComponent(String(targetId))}`);
+                      const json = await res.json();
+                      if (Array.isArray(json.subplates) && json.subplates.length > 0) {
+                        platesList = json.subplates;
+                      }
+                    } catch (err) {
+                      console.error("Failed to fetch subplates on mould selection:", err);
+                    } finally {
+                      setIsLoadingMouldPlates(false);
+                    }
+                  }
+
+                  // 3. Automatically populate ready subplates into Challan Items
+                  if (platesList.length > 0) {
+                    lastLoadedMouldRef.current = newProjectId;
+                    const readyPlates = platesList.filter((p) => Number(p.jobwork_balance?.available_sm_qty ?? 0) > 0);
+                    const autoItems = readyPlates.map((plate) => {
+                      const avail = Number(plate.jobwork_balance?.available_sm_qty || 1);
+                      const total = plate.sqty || 1;
                       return {
                         plateid: String(plate.id),
-                        platename: plate.platename || `Plate #${plate.id}`,
+                        platename: plate.platename || plate.subprojectid || `Plate #${plate.id}`,
                         customer: customerName,
                         project: newProjectId,
                         particulars: "",
                         qty: avail,
-                        sqty: plate.sqty || 1,
+                        sqty: total,
                         available_sm_qty: avail,
                       };
                     });
 
-                  if (matchingPlates.length > 0) {
-                    lastLoadedMouldRef.current = newProjectId;
+                    setModalForm((prev) => ({
+                      ...prev,
+                      projectid: newProjectId,
+                      items: autoItems,
+                    }));
                   }
-
-                  setModalForm((prev) => ({
-                    ...prev,
-                    projectid: newProjectId,
-                    items: autoItems,
-                  }));
                 }}
                 disabled={!modalForm.customerid}
                 placeholder={
@@ -1741,28 +1829,95 @@ function ChallanPageContent() {
 
             {/* Dynamic Line Items Section (Source: challan/index.blade.php lines 661-796) */}
             <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                <h4 className="text-sm font-bold text-slate-900">
-                  Challan Items ({modalForm.items.length})
-                </h4>
-                <button
-                  type="button"
-                  onClick={handleAddItemRow}
-                  disabled={!modalForm.projectid}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition disabled:opacity-50 cursor-pointer"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>Add Plate</span>
-                </button>
-              </div>
+              {/* Case A: Material Not Inwarded Alert Card (When 100% of plates are pending inward / no PO) */}
+              {mouldStatus.isAllPending ? (
+                <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 border border-amber-200/90 rounded-2xl p-5 shadow-xs">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-100/90 border border-amber-200 flex items-center justify-center shrink-0 text-amber-700 shadow-2xs">
+                      <ShieldAlert className="w-6 h-6" />
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-bold text-amber-950">
+                          {mouldStatus.noPOPlates.length > 0 && mouldStatus.pendingInwardPlates.length === 0
+                            ? "Purchase Order Not Created Yet"
+                            : "Raw Material Not Inwarded From Purchase"}
+                        </h4>
+                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-md bg-amber-200/70 text-amber-900 border border-amber-300">
+                          Action Required
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        {mouldStatus.noPOPlates.length > 0 && mouldStatus.pendingInwardPlates.length === 0
+                          ? `Purchase Order has not been created yet for "${modalForm.projectid}". Material must be ordered and inwarded before sending to Job Work.`
+                          : `Raw material for "${modalForm.projectid}" has not physically arrived at Star Mould workshop. Please receive Purchase Inward first before dispatching for Job Work.`}
+                      </p>
+                    </div>
+                  </div>
 
-              {modalForm.items.length === 0 ? (
-                <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                  {modalForm.projectid
-                    ? "No subplates found for this mould project. Click 'Add Plate' to append manual items."
-                    : "Select Customer and Mould Name above to automatically load all subplates."}
+                  {/* Direct Action Routing Buttons */}
+                  <div className="mt-4 pt-3.5 border-t border-amber-200/70 flex flex-wrap items-center justify-end gap-2.5">
+                    {mouldStatus.pendingInwardPlates.length > 0 && (
+                      <Link
+                        href="/purchase-inward"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition"
+                      >
+                        <ArrowDownLeft className="w-3.5 h-3.5" />
+                        <span>Go to Purchase Inward</span>
+                      </Link>
+                    )}
+                    <Link
+                      href="/purchase"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-white hover:bg-amber-50 text-amber-900 border border-amber-300 shadow-2xs transition"
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                      <span>View / Create Purchase Order</span>
+                    </Link>
+                  </div>
                 </div>
               ) : (
+                <>
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Challan Items ({modalForm.items.length})
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={handleAddItemRow}
+                      disabled={!modalForm.projectid}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 text-xs font-semibold transition disabled:opacity-50 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>Add Plate</span>
+                    </button>
+                  </div>
+
+                  {/* Partial Inward Notice Banner */}
+                  {mouldStatus.isPartialPending && (
+                    <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>
+                        <strong>Note:</strong> {mouldStatus.pendingInwardPlates.length + mouldStatus.noPOPlates.length} subplate(s) (
+                        {[...mouldStatus.pendingInwardPlates, ...mouldStatus.noPOPlates]
+                          .map((p) => p.platename || p.subprojectid)
+                          .join(", ")}
+                        ) are excluded because raw material is not inwarded from purchase yet.
+                      </span>
+                    </div>
+                  )}
+
+                  {isLoadingMouldPlates ? (
+                    <div className="flex items-center justify-center gap-2 py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-500 text-xs">
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      <span>Loading all subplates for {modalForm.projectid}...</span>
+                    </div>
+                  ) : modalForm.items.length === 0 ? (
+                    <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
+                      {modalForm.projectid
+                        ? "No subplates found for this mould project. Click 'Add Plate' to append manual items."
+                        : "Select Customer and Mould Name above to automatically load all subplates."}
+                    </div>
+                  ) : (
                 <div className="space-y-3">
                   {modalForm.items.map((item, idx) => {
                     const selectedPlate = allSubplates.find(
@@ -1812,12 +1967,25 @@ function ChallanPageContent() {
                               </label>
                               {selectedPlate && (
                                 <div className="flex items-center gap-1.5 text-[10px] font-mono">
-                                  <span
-                                    className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold cursor-help"
-                                    title={`Star Mould workshop: ${selectedPlate.jobwork_balance?.available_sm_qty ?? selectedPlate.sqty ?? 1} pcs available for dispatch`}
-                                  >
-                                    SM: {selectedPlate.jobwork_balance?.available_sm_qty ?? selectedPlate.sqty ?? 1}
-                                  </span>
+                                  {Number(selectedPlate.jobwork_balance?.available_sm_qty ?? 0) > 0 ? (
+                                    <span
+                                      className="text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 font-bold cursor-help"
+                                      title={`Star Mould workshop: ${selectedPlate.jobwork_balance?.available_sm_qty} pcs ready for Job Work`}
+                                    >
+                                      SM: {selectedPlate.jobwork_balance?.available_sm_qty}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300 font-semibold text-[10px]"
+                                      title={selectedPlate.jobwork_balance?.has_po
+                                        ? "Material isn't inwarded from purchase. Please INWARD first."
+                                        : "Purchase Order not created. Please create PO first."}
+                                    >
+                                      {selectedPlate.jobwork_balance?.has_po
+                                        ? "Material Not Inwarded"
+                                        : "No PO Created"}
+                                    </span>
+                                  )}
                                   {(selectedPlate.jobwork_balance?.outward_jobwork_qty ?? 0) > 0 && (
                                     <span
                                       className="text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-semibold cursor-help"
@@ -1891,6 +2059,8 @@ function ChallanPageContent() {
                   })}
                 </div>
               )}
+                </>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -1905,7 +2075,8 @@ function ChallanPageContent() {
               <MotionButton
                 type="submit"
                 loading={createChallanMutation.isPending}
-                disabled={createChallanMutation.isPending || modalForm.items.length === 0}
+                disabled={createChallanMutation.isPending || modalForm.items.length === 0 || mouldStatus.isAllPending}
+                title={mouldStatus.isAllPending ? "Cannot generate challan: Raw material is not inwarded yet" : undefined}
                 variant="primary"
                 size="md"
               >

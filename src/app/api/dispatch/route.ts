@@ -163,6 +163,56 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+
+      // Check real-time physical availability in Star Mould workshop
+      const { data: balances } = await supabaseAdmin
+        .from("view_subplate_jobwork_balance")
+        .select("plateid, platename, available_sm_qty, outward_jobwork_qty, pending_po_inward_qty, has_po, active_vendors")
+        .in("plateid", requestedPlateIds);
+
+      const balMap = new Map((balances || []).map((b: any) => [Number(b.plateid), b]));
+
+      for (const it of items) {
+        const pid = Number(it.plateid);
+        if (!pid) continue;
+        const bal = balMap.get(pid);
+        const reqQty = Number(it.qty) || 1;
+
+        if (bal && reqQty > bal.available_sm_qty) {
+          if (bal.available_sm_qty === 0) {
+            if (bal.has_po && bal.pending_po_inward_qty > 0) {
+              return NextResponse.json(
+                {
+                  error: `Cannot dispatch "${bal.platename}" to customer: Material has not arrived from supplier yet (Pending Purchase Inward: ${bal.pending_po_inward_qty} pcs). Please inward it first.`,
+                },
+                { status: 400 }
+              );
+            }
+            if (!bal.has_po) {
+              return NextResponse.json(
+                {
+                  error: `Cannot dispatch "${bal.platename}" to customer: Raw material has not been purchased or inwarded yet. Please create a Purchase Order and receive it via Purchase Inward first.`,
+                },
+                { status: 400 }
+              );
+            }
+          }
+          if (bal.outward_jobwork_qty > 0) {
+            return NextResponse.json(
+              {
+                error: `Cannot dispatch "${bal.platename}" to customer: Plate is currently away on Job Work (${bal.active_vendors || "Vendor"}). It must be received via Inward Jobwork first.`,
+              },
+              { status: 400 }
+            );
+          }
+          return NextResponse.json(
+            {
+              error: `Cannot dispatch ${reqQty} pcs of "${bal.platename}". Only ${bal.available_sm_qty} pcs currently available in Star Mould workshop.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     let newDispatch: any = null;

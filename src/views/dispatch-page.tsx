@@ -189,8 +189,8 @@ export function DispatchPage() {
     return scans.find((s: ScanProject) => s.projectid === modalForm.projectid || String(s.id) === modalForm.projectid) || null;
   }, [scans, modalForm.projectid]);
 
-  // Available subplates for selected project that are ready for dispatch (location = 'SM')
-  const availablePlates = useMemo(() => {
+  // All subplates registered to the selected mould
+  const mouldPlates = useMemo(() => {
     if (!modalForm.projectid) return [];
     const targetCode = selectedScan?.projectid || modalForm.projectid;
     const targetId = selectedScan ? String(selectedScan.id) : null;
@@ -204,37 +204,54 @@ export function DispatchPage() {
     );
   }, [subplates, modalForm.projectid, selectedScan]);
 
-  // Automatically populate all subplates of the mould into Dispatch Items
+  // Subplates eligible for customer delivery (has available in-house quantity at SM and not already dispatched)
+  const eligiblePlates = useMemo(() => {
+    return mouldPlates.filter((sp) => {
+      const isDispatched =
+        sp.location === "Customer" ||
+        sp.dispatch_status === "dispatched" ||
+        Number((sp as any).isDispatched) === 1 ||
+        (sp as any).isDispatched === true ||
+        Number(sp.jobwork_balance?.customer_dispatched_qty || 0) >= (sp.sqty || 1);
+      const avail = Number(sp.jobwork_balance?.available_sm_qty ?? (sp.jobwork_balance?.has_po ? 0 : (sp.sqty || 1)));
+      return !isDispatched && avail > 0;
+    });
+  }, [mouldPlates]);
+
+  // Automatically populate only eligible subplates of the mould into Dispatch Items
   useEffect(() => {
     if (!modalForm.projectid) {
       lastLoadedMouldRef.current = null;
       return;
     }
 
-    if (availablePlates.length > 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
+    if (lastLoadedMouldRef.current !== modalForm.projectid) {
       lastLoadedMouldRef.current = modalForm.projectid;
       const cust = customers.find((c) => c.id === Number(modalForm.customerid));
       const customerVal = cust?.id ? String(cust.id) : (modalForm.customerid || "");
 
-      const autoPopulatedItems = availablePlates.map((plate) => ({
-        itemType: "regular" as const,
-        plateid: String(plate.id),
-        custom_plate_name: "",
-        customer: customerVal,
-        project: modalForm.projectid,
-        particulars: "",
-        condition: "",
-        work: "",
-        qty: plate.sqty || 1,
-        sqty: plate.sqty || 1,
-      }));
+      const autoPopulatedItems = eligiblePlates.map((plate) => {
+        const avail = Number(plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1));
+        return {
+          itemType: "regular" as const,
+          plateid: String(plate.id),
+          custom_plate_name: "",
+          customer: customerVal,
+          project: modalForm.projectid,
+          particulars: "",
+          condition: "",
+          work: "",
+          qty: Math.min(avail, plate.sqty || 1),
+          sqty: plate.sqty || 1,
+        };
+      });
 
       setModalForm((prev) => ({
         ...prev,
         items: autoPopulatedItems,
       }));
     }
-  }, [availablePlates, modalForm.projectid, modalForm.customerid, customers]);
+  }, [eligiblePlates, modalForm.projectid, modalForm.customerid, customers]);
 
   const transporterOptions: ERPSelectOption[] = useMemo(() => {
     return transporters.map((t) => ({
@@ -262,23 +279,75 @@ export function DispatchPage() {
     []
   );
 
+  // Show all plates for the mould, but keep ineligible plates disabled with clear reason badges
   const subplateOptions: ERPSelectOption[] = useMemo(() => {
-    return availablePlates.map((p) => {
+    return mouldPlates.map((p) => {
       const seq = p.subprojectid ? p.subprojectid.split("_").pop() : "";
+      const avail = Number(p.jobwork_balance?.available_sm_qty ?? (p.jobwork_balance?.has_po ? 0 : (p.sqty || 1)));
+      const isDispatched =
+        p.location === "Customer" ||
+        p.dispatch_status === "dispatched" ||
+        Number((p as any).isDispatched) === 1 ||
+        (p as any).isDispatched === true ||
+        Number(p.jobwork_balance?.customer_dispatched_qty || 0) >= (p.sqty || 1);
+      const hasPO = Boolean(p.jobwork_balance?.has_po || p.has_active_po);
+      const isPendingPOOrder = !hasPO && avail === 0;
+      const isPendingPO =
+        hasPO &&
+        avail === 0 &&
+        Number(p.jobwork_balance?.pending_po_inward_qty ?? 1) > 0;
+      const isAtVendor = Number(p.jobwork_balance?.outward_jobwork_qty || 0) > 0 && avail === 0;
+
+      let disabled = false;
+      let disabledReason = "";
+      let badge = seq ? `#${seq}` : undefined;
+      let badgeVariant: ERPSelectOption["badgeVariant"] = "blue";
+
+      if (isDispatched) {
+        disabled = true;
+        disabledReason = "Already Dispatched to Customer";
+        badge = "Already Dispatched";
+        badgeVariant = "slate";
+      } else if (isPendingPOOrder) {
+        disabled = true;
+        disabledReason = "Purchase Order not created yet. Please create Purchase Order & Inward first.";
+        badge = "No PO Created";
+        badgeVariant = "amber";
+      } else if (isPendingPO) {
+        disabled = true;
+        disabledReason = "Material isn't inwarded from purchase. Please INWARD first.";
+        badge = "Material Not Inwarded";
+        badgeVariant = "amber";
+      } else if (isAtVendor) {
+        disabled = true;
+        const vName = p.jobwork_balance?.active_vendor_initials || p.jobwork_balance?.active_vendors || "Vendor";
+        disabledReason = `Currently on Job Work at ${vName} — Inward required`;
+        badge = `At Job Work (${vName})`;
+        badgeVariant = "purple";
+      } else if (avail <= 0) {
+        disabled = true;
+        disabledReason = "0 pcs available in Star Mould workshop";
+        badge = "0 In-House";
+        badgeVariant = "slate";
+      }
+
       return {
         value: String(p.id),
-        label: p.platename,
-        subtitle: [
+        label: p.platename?.trim() || p.subprojectid || `Plate #${p.id}`,
+        subtitle: disabledReason || [
           p.subprojectid ? `Code: ${p.subprojectid}` : "",
           p.material ? `Material: ${p.material}` : "",
+          `In-House: ${avail} pcs`,
         ]
           .filter(Boolean)
-          .join(" • ") || undefined,
-        badge: seq ? `#${seq}` : undefined,
-        badgeVariant: "blue" as const,
+          .join(" • "),
+        badge,
+        badgeVariant,
+        disabled,
+        disabledReason,
       };
     });
-  }, [availablePlates]);
+  }, [mouldPlates]);
 
   const customerFilterOptions: ERPSelectOption[] = useMemo(() => {
     return [
@@ -402,11 +471,21 @@ export function DispatchPage() {
         (String(d.status) === "1" || (d as any).status === 1) &&
         String(d.projectid).trim().toLowerCase() === String(modalForm.projectid).trim().toLowerCase()
     );
-    if (alreadyDispatched && availablePlates.length === 0) {
+    if (alreadyDispatched && eligiblePlates.length === 0) {
       setFormError(
         `All subplates for mould "${modalForm.projectid}" have already been dispatched (${alreadyDispatched.challanno}).`
       );
       return;
+    }
+
+    if (eligiblePlates.length === 0) {
+      const pendingPOPlates = mouldPlates.filter((p) => (p.jobwork_balance?.has_po || p.has_active_po) && (p.jobwork_balance?.available_sm_qty ?? 0) === 0);
+      if (pendingPOPlates.length > 0) {
+        setFormError(
+          `Cannot create dispatch: Subplates for mould "${modalForm.projectid}" are awaiting Purchase Inward (material not received from supplier yet).`
+        );
+        return;
+      }
     }
 
     if (modalForm.items.length === 0) {

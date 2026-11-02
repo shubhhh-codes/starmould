@@ -35,7 +35,8 @@ function getRoleIdFromUsertype(usertype: string): number {
 
 // GET /api/users - fetch users from Supabase users table with roles
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 2], "nav_user_mgmt");
+  // Any authenticated ERP user can read the active staff directory for badges and dropdowns
+  const auth = await authenticateRequest(req);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

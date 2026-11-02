@@ -3,13 +3,25 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
 import { getCached, getCachedCustomers, getCachedUsers, invalidateCache } from "@/lib/cache";
 
 // GET /api/scanning - Fetch scan projects, linked subplates, worklog hours, and KPIs
 export async function GET(req: NextRequest) {
-  const auth = await authenticateRequest(req, undefined, "nav_scanning");
+  const auth = await authenticateRequest(req);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  // Allow access if user is Admin (0) or has permission for nav_scanning OR nav_dashboard
+  if (auth.user.role_id !== 0) {
+    const matrix = await loadEffectivePermissions();
+    const canView =
+      roleHasPermission(auth.user.role_id, "nav_scanning", matrix) ||
+      roleHasPermission(auth.user.role_id, "nav_dashboard", matrix);
+    if (!canView) {
+      return NextResponse.json({ error: "Access denied: permission not granted by administrator", status: 403 });
+    }
   }
 
   try {
@@ -33,20 +45,23 @@ export async function GET(req: NextRequest) {
     // Old records are strictly rendered from client cache without DB re-queries!
     // =========================================================================
     if (since) {
-      // 1. Find all scan projects created or updated since `since`
-      // 2. Also find scan projects whose subplates were updated since `since`
+      // 5-second clock-skew buffer ensures rows created/updated within microsecond boundaries are never dropped
+      const safeSince = new Date(Math.max(0, Date.parse(since) - 5000)).toISOString();
+
+      // 1. Find all scan projects created or updated since `safeSince`
+      // 2. Also find scan projects whose subplates were updated since `safeSince`
       // 3. Query all active scan IDs to enable 100% accurate deletion & truncate synchronization!
       const [updatedScansRes, updatedSubplatesRes, allScansCountRes] = await Promise.all([
         supabaseAdmin
           .from("scan")
           .select("id, projectid, description, worktype, customer_id, cname, status, scan_by, qc_by, modeldesign_by, rdate, cdate, scan_hr, model_hr, note, subnote, created_at, updated_at")
-          .or(`updated_at.gt.${since},created_at.gt.${since}`)
+          .or(`updated_at.gte.${safeSince},created_at.gte.${safeSince}`)
           .order("id", { ascending: false })
           .limit(10000),
         supabaseAdmin
           .from("subplate")
           .select("mold_id, projectid")
-          .or(`updated_at.gt.${since},created_at.gt.${since}`)
+          .or(`updated_at.gte.${safeSince},created_at.gte.${safeSince}`)
           .is("deleted_at", null)
           .limit(10000),
         supabaseAdmin
@@ -173,7 +188,7 @@ export async function GET(req: NextRequest) {
       const { data: deltaJwBalances } = deltaPlateIds.length > 0
         ? await supabaseAdmin
             .from("view_subplate_jobwork_balance")
-            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials, po_ordered_qty, po_inward_qty, pending_po_inward_qty, has_po, customer_dispatched_qty")
             .in("plateid", deltaPlateIds)
         : { data: [] };
 
@@ -299,7 +314,13 @@ export async function GET(req: NextRequest) {
       scanQuery = scanQuery.limit(limit);
     }
 
-    const isDefaultQuery = !search && (!status || status === "ALL") && (!worktype || worktype === "ALL") && (!customer || customer === "ALL");
+    const isFresh = searchParams.get("fresh") === "true";
+    if (isFresh) {
+      invalidateCache("scanning_default_");
+      invalidateCache("scanning_kpi_");
+    }
+
+    const isDefaultQuery = !isFresh && !search && (!status || status === "ALL") && (!worktype || worktype === "ALL") && (!customer || customer === "ALL");
     const cacheKey = isDefaultQuery ? `scanning_default_${limit}_p${page || 1}` : null;
 
     const executeFetch = async () => {
@@ -376,7 +397,7 @@ export async function GET(req: NextRequest) {
       const { data: jwBalances } = allPlateIds.length > 0
         ? await supabaseAdmin
             .from("view_subplate_jobwork_balance")
-            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials, po_ordered_qty, po_inward_qty, pending_po_inward_qty, has_po, customer_dispatched_qty")
             .in("plateid", allPlateIds)
         : { data: [] };
 

@@ -163,6 +163,11 @@ export interface Subplate {
     available_sm_qty: number;
     active_vendors: string | null;
     active_vendor_initials: string | null;
+    po_ordered_qty?: number;
+    po_inward_qty?: number;
+    pending_po_inward_qty?: number;
+    has_po?: boolean;
+    customer_dispatched_qty?: number;
   } | null;
   created_at: string;
   updated_at: string;
@@ -254,6 +259,7 @@ export interface PurchaseInwardReceipt {
   odate: string; // receive date
   status: '1' | '0' | string;
   created_at?: string;
+  created_by?: number | null;
   vendorname?: string;
   customername?: string;
   customer_name?: string | null;

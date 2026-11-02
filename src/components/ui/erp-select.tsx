@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, Check, Search, X } from "lucide-react";
 
 export interface ERPSelectOption {
@@ -53,10 +54,17 @@ export function ERPSelect({
   const [openUpward, setOpenUpward] = useState(false);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const [isTyping, setIsTyping] = useState(false);
+  const [popoverCoords, setPopoverCoords] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    placeAbove: boolean;
+  } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   // Selected option
   const selectedOption = useMemo(() => {
@@ -95,7 +103,13 @@ export function ERPSelect({
   // Close when clicking outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        popoverRef.current &&
+        !popoverRef.current.contains(target)
+      ) {
         setIsOpen(false);
         setIsTyping(false);
         setSearchQuery("");
@@ -111,17 +125,31 @@ export function ERPSelect({
     };
   }, [isOpen]);
 
-  // Check available screen space when dropdown opens
+  // Dynamically calculate fixed portal position to escape modals and avoid scrollbars
   useEffect(() => {
-    if (isOpen && containerRef.current) {
+    if (!isOpen || !containerRef.current) return;
+
+    const updatePosition = () => {
+      if (!containerRef.current) return;
       const rect = containerRef.current.getBoundingClientRect();
+      const popoverHeight = 250;
       const spaceBelow = window.innerHeight - rect.bottom;
-      if (spaceBelow < 240 && rect.top > 250) {
-        setOpenUpward(true);
-      } else {
-        setOpenUpward(false);
-      }
-    }
+      const placeAbove = spaceBelow < popoverHeight && rect.top > popoverHeight;
+
+      const top = placeAbove ? rect.top - 4 : rect.bottom + 4;
+      const width = Math.max(rect.width, 320);
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 12));
+
+      setPopoverCoords({ top, left, width, placeAbove });
+    };
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
   }, [isOpen]);
 
   const handleSelect = useCallback(
@@ -388,13 +416,20 @@ export function ERPSelect({
         </div>
       </div>
 
-      {/* Custom Theme Dropdown Popup */}
-      {isOpen && (
+      {/* Custom Theme Dropdown Popup Rendered via Portal */}
+      {isOpen && popoverCoords && typeof document !== "undefined" && createPortal(
         <div
-          onMouseDown={(e) => e.preventDefault()}
-          className={`absolute left-0 right-0 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 min-w-full ${
-            openUpward ? "bottom-full mb-1.5" : "top-full mt-1.5"
-          }`}
+          ref={popoverRef}
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            top: popoverCoords.placeAbove ? "auto" : `${popoverCoords.top}px`,
+            bottom: popoverCoords.placeAbove ? `${Math.max(8, window.innerHeight - popoverCoords.top)}px` : "auto",
+            left: `${popoverCoords.left}px`,
+            width: `${popoverCoords.width}px`,
+            zIndex: 99999,
+          }}
+          className="bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100"
         >
           {/* Options List */}
           <div
@@ -429,7 +464,7 @@ export function ERPSelect({
                     onMouseEnter={() => setActiveIndex(idx)}
                     className={`flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg text-xs transition-colors ${
                       opt.disabled
-                        ? "opacity-50 cursor-not-allowed bg-slate-50/60 text-slate-400"
+                        ? "cursor-not-allowed bg-slate-50 text-slate-500 border border-slate-200/60"
                         : isSelected
                         ? "bg-blue-50 text-blue-700 font-semibold cursor-pointer"
                         : isActive
@@ -439,15 +474,15 @@ export function ERPSelect({
                   >
                     <div className="flex flex-col min-w-0 flex-1 pr-1">
                       <div className="flex items-center gap-1.5 truncate">
-                        <span className="truncate">{opt.label}</span>
+                        <span className={`font-semibold shrink-0 ${opt.disabled ? "text-slate-800" : "text-slate-900"}`}>{opt.label}</span>
                         {opt.disabled && opt.disabledReason && (
-                          <span className="text-[10px] text-amber-600/90 font-medium italic shrink-0">
-                            ({opt.disabledReason})
+                          <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 truncate">
+                            {opt.disabledReason}
                           </span>
                         )}
                       </div>
                       {opt.subtitle && (
-                        <span className="text-[10.5px] text-slate-500 truncate mt-0.5 font-normal">
+                        <span className="text-[11px] text-slate-500 truncate mt-0.5 font-normal">
                           {opt.subtitle}
                         </span>
                       )}
@@ -473,7 +508,8 @@ export function ERPSelect({
               })
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

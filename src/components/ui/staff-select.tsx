@@ -213,7 +213,7 @@ export function StaffSelect({
           setIsOpen((prev) => !prev);
         }}
         title={hoverTooltip}
-        className={`group relative ${isFullWidth ? "w-full" : "inline-flex"} flex items-center justify-between gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 ${
+        className={`group relative ${isFullWidth ? "w-full" : "inline-flex"} flex items-center justify-between gap-1 px-2 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 ${
           disabled
             ? "bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed"
             : selectedUser
@@ -228,11 +228,6 @@ export function StaffSelect({
               <span className="font-bold text-slate-900 truncate text-xs">
                 {selectedUser.name}
               </span>
-              {selectedUser.initials && (
-                <span className="font-mono text-[10px] text-slate-600 font-semibold bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 shrink-0">
-                  {selectedUser.initials}
-                </span>
-              )}
             </>
           ) : (
             <span className="text-slate-400 italic text-xs font-normal">{placeholder}</span>

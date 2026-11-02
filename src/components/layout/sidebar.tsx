@@ -201,7 +201,7 @@ export function Sidebar({
   const { currentUser: authUser, logout } = useAuth();
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
   const { prefetchRoute } = useSmartPrefetch();
-  useBackgroundPrefetchWarmup();
+  useBackgroundPrefetchWarmup(hasPermission);
   const [isMounted, setIsMounted] = React.useState(false);
   React.useEffect(() => {
     setIsMounted(true);

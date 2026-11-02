@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
             .neq("purchase.status", "0"),
           supabaseAdmin
             .from("view_subplate_jobwork_balance")
-            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials, po_ordered_qty, po_inward_qty, pending_po_inward_qty, has_po, customer_dispatched_qty")
             .in("plateid", plateIds),
         ]);
 
@@ -132,9 +132,14 @@ export async function GET(req: NextRequest) {
           linked_pos: linkedPOs,
           jobwork_balance: {
             outward_jobwork_qty: jwBalanceMap.get(p.id)?.outward_jobwork_qty ?? 0,
-            available_sm_qty: jwBalanceMap.get(p.id)?.available_sm_qty ?? total,
+            available_sm_qty: jwBalanceMap.get(p.id)?.available_sm_qty ?? (hasPO ? 0 : total),
             active_vendors: jwBalanceMap.get(p.id)?.active_vendors ?? null,
             active_vendor_initials: jwBalanceMap.get(p.id)?.active_vendor_initials ?? null,
+            po_ordered_qty: jwBalanceMap.get(p.id)?.po_ordered_qty ?? ordered,
+            po_inward_qty: jwBalanceMap.get(p.id)?.po_inward_qty ?? 0,
+            pending_po_inward_qty: jwBalanceMap.get(p.id)?.pending_po_inward_qty ?? (hasPO ? ordered : 0),
+            has_po: jwBalanceMap.get(p.id)?.has_po ?? hasPO,
+            customer_dispatched_qty: jwBalanceMap.get(p.id)?.customer_dispatched_qty ?? 0,
           },
           design_by_name: userMap.get(Number(p.design_by))?.name || userMap.get(Number(p.design_by))?.initials || null,
           order_by_name: userMap.get(Number(p.order_by))?.name || userMap.get(Number(p.order_by))?.initials || null,
@@ -236,7 +241,7 @@ export async function GET(req: NextRequest) {
             .neq("purchase.status", "0"),
           supabaseAdmin
             .from("view_subplate_jobwork_balance")
-            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials")
+            .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials, po_ordered_qty, po_inward_qty, pending_po_inward_qty, has_po, customer_dispatched_qty")
             .in("plateid", plateIds),
         ]);
 
@@ -299,9 +304,14 @@ export async function GET(req: NextRequest) {
           linked_pos: linkedPOs,
           jobwork_balance: {
             outward_jobwork_qty: jwBalanceMap.get(sp.id)?.outward_jobwork_qty ?? 0,
-            available_sm_qty: jwBalanceMap.get(sp.id)?.available_sm_qty ?? total,
+            available_sm_qty: jwBalanceMap.get(sp.id)?.available_sm_qty ?? (hasPO ? 0 : total),
             active_vendors: jwBalanceMap.get(sp.id)?.active_vendors ?? null,
             active_vendor_initials: jwBalanceMap.get(sp.id)?.active_vendor_initials ?? null,
+            po_ordered_qty: jwBalanceMap.get(sp.id)?.po_ordered_qty ?? ordered,
+            po_inward_qty: jwBalanceMap.get(sp.id)?.po_inward_qty ?? 0,
+            pending_po_inward_qty: jwBalanceMap.get(sp.id)?.pending_po_inward_qty ?? (hasPO ? ordered : 0),
+            has_po: jwBalanceMap.get(sp.id)?.has_po ?? hasPO,
+            customer_dispatched_qty: jwBalanceMap.get(sp.id)?.customer_dispatched_qty ?? 0,
           },
           mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
           mould_description: scan?.description || "",

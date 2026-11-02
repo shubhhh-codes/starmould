@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useProgressiveProjectsStream, useDashboardCountsQuery } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
-import { broadcastQueryInvalidation } from "@/lib/query/realtime";
+import { broadcastQueryInvalidation, broadcastProjectDeletion, broadcastProjectSync } from "@/lib/query/realtime";
 import { NewMouldModal } from "@/components/mould/new-mould-modal";
 import { clearLocalProjectsStore } from "@/lib/cache/projects-local-store";
 import { appStore } from "@/lib/state/store";
@@ -178,9 +178,8 @@ export function DashboardPage() {
   // Ultra-fast loading guard:
   // If data exists in local storage (warm start), loading is false in 0ms!
   const isLoading = isRestoring || (projectsStream.isLoading && projects.length === 0);
-  const isFetching = projectsStream.isFetching || countsQuery.isFetching;
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-  const isRefreshing = isManualRefreshing || isFetching;
+  const isRefreshing = isManualRefreshing;
 
   // Manual refresh button strictly runs an Incremental Delta Sync:
   // If user holds Shift + clicks Refresh, it clears local cache and executes live chunk streaming!
@@ -236,6 +235,7 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      broadcastProjectDeletion(id);
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
       broadcastQueryInvalidation(queryKeys.subplates.all());
       broadcastQueryInvalidation(queryKeys.purchases.all());
@@ -281,6 +281,7 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
+      broadcastProjectDeletion(ids);
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
       broadcastQueryInvalidation(queryKeys.subplates.all());
       broadcastQueryInvalidation(queryKeys.purchases.all());
@@ -479,6 +480,9 @@ export function DashboardPage() {
           {isMounted && canCreateProject && (
             <button
               type="button"
+              data-shortcut-create="true"
+              accessKey="n"
+              title="Create New Mould Entry (Alt+N or press N)"
               onClick={() => setIsCreateModalOpen(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"
             >
@@ -574,6 +578,7 @@ export function DashboardPage() {
               queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() }),
               queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() }),
             ]);
+            broadcastProjectSync();
             broadcastQueryInvalidation(queryKeys.dashboard.counts());
             broadcastQueryInvalidation(queryKeys.purchases.all());
             broadcastQueryInvalidation(queryKeys.subplates.all());

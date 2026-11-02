@@ -51,23 +51,8 @@ export async function POST(
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
     }
 
-    // 3. If any undispatched plates are closed directly, update their closure metadata
-    if (Array.isArray(directClosePlateIds) && directClosePlateIds.length > 0) {
-      const formattedReason = closureNotes
-        ? `${closureReason} - ${closureNotes}`
-        : closureReason;
-
-      await supabaseAdmin
-        .from("subplate")
-        .update({
-          dispatch_status: "closed_without_challan",
-          closure_reason: formattedReason,
-          closed_at: nowIso,
-          closed_by: auth.user?.id || 1,
-          updated_at: nowIso,
-        })
-        .in("id", directClosePlateIds.map(Number));
-    }
+    // Note: Subplates always remain in their active state in all conditions.
+    // They are never transitioned to closed_without_challan or archived.
 
     return NextResponse.json({
       success: true,

@@ -501,7 +501,7 @@ function SubplatePageContent() {
 
 	const isRestoring = useIsRestoring();
 	const queryClient = useQueryClient();
-	const { data, isLoading: queryLoading, error: fetchQueryError } = useSubplatesQuery();
+	const { data, isLoading: queryLoading, error: fetchQueryError, refetch: refetchSubplates, isFetching } = useSubplatesQuery();
 	// Modal State for Add / Edit Subplate (declared early for on-demand query gating)
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
@@ -1434,6 +1434,9 @@ function SubplatePageContent() {
 						)}
 						{canCreateSubplate && (
 							<button
+								data-shortcut-create="true"
+								accessKey="n"
+								title="Add Subplate (Alt+N or press N)"
 								onClick={handleOpenAddModal}
 								className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow-xs shadow-blue-500/20 text-xs sm:text-sm cursor-pointer"
 							>
@@ -1516,6 +1519,7 @@ function SubplatePageContent() {
 							<input
 								type="text"
 								placeholder="Universal Search (mould, plate, customer, specs, staff)..."
+								data-shortcut-search="true"
 								value={searchQuery}
 								onChange={(e) => {
 									setSearchQuery(e.target.value);

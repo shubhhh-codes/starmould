@@ -68,9 +68,15 @@ export const appStore = {
   },
 
   addToast: (toast: Omit<ToastMessage, "id">) => {
+    // Prevent duplicate toast spamming
+    const duplicate = state.toasts.find((t) => t.message === toast.message);
+    if (duplicate) return duplicate.id;
+
     const id = `${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const newToast: ToastMessage = { ...toast, id };
-    state = { ...state, toasts: [...state.toasts, newToast] };
+    // Keep max 3 visible toasts to prevent viewport stacking
+    const trimmed = [...state.toasts, newToast].slice(-3);
+    state = { ...state, toasts: trimmed };
     notify();
 
     const duration = toast.duration ?? 4000;

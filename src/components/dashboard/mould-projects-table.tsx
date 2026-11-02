@@ -2,7 +2,7 @@
 
 import { SubplateJobworkLocationBadge } from "@/components/subplate/subplate-jobwork-location-badge";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   useReactTable,
@@ -148,27 +148,13 @@ function ProjectSubplatesRow({
     return Array.isArray(project.subplates) && project.subplates.length > 0 ? project.subplates : null;
   }, [project.subplates]);
 
-  const [showAllPlates, setShowAllPlates] = useState(false);
-
   // 2. On-Demand Single Lean Query: ONLY triggers if plates are not already preloaded
   const targetId = project.id || project.projectid || undefined;
   const platesQuery = useSubplatesByProjectQuery(targetId, {
     enabled: !preloadedPlates,
   });
 
-  const allPlates = preloadedPlates || platesQuery.data || [];
-  const activePlates = useMemo(() => {
-    return allPlates.filter(
-      (sp) =>
-        sp.location !== "Customer" &&
-        sp.dispatch_status !== "dispatched" &&
-        sp.dispatch_status !== "closed_without_challan" &&
-        (sp as any).isDispatched !== true
-    );
-  }, [allPlates]);
-
-  const completedPlatesCount = allPlates.length - activePlates.length;
-  const plates = showAllPlates ? allPlates : activePlates;
+  const plates = preloadedPlates || platesQuery.data || [];
   const isLoading = !preloadedPlates && platesQuery.isLoading;
   const isError = !preloadedPlates && platesQuery.isError;
 
@@ -188,17 +174,8 @@ function ProjectSubplatesRow({
                     Subplate Register: {project.projectid || `#${project.id}`}
                   </h4>
                   <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100/70 text-blue-700">
-                    {activePlates.length} Plates Active
+                    {plates.length} Plates Active
                   </span>
-                  {completedPlatesCount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllPlates((v) => !v)}
-                      className="text-[11px] font-medium text-slate-500 hover:text-blue-600 underline transition-colors cursor-pointer"
-                    >
-                      {showAllPlates ? "Show Active Only" : `+${completedPlatesCount} Archived`}
-                    </button>
-                  )}
                 </div>
                 <p className="text-[11px] text-slate-500 truncate">
                   {project.description} • {project.customername || project.cname || "Customer"}
@@ -253,19 +230,9 @@ function ProjectSubplatesRow({
           ) : plates.length === 0 ? (
             <div className="py-6 px-4 text-center rounded-xl border border-dashed border-slate-300 bg-white/70 space-y-2">
               <p className="text-xs text-slate-500 font-medium">
-                {completedPlatesCount > 0
-                  ? `All ${allPlates.length} subplates are archived / dispatched.`
-                  : "No subplates have been defined for this mould project yet."}
+                No subplates have been defined for this mould project yet.
               </p>
-              {completedPlatesCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setShowAllPlates(true)}
-                  className="inline-flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline cursor-pointer"
-                >
-                  <span>View {completedPlatesCount} Archived Subplates</span>
-                </button>
-              ) : canCreateSubplate ? (
+              {canCreateSubplate && (
                 <button
                   type="button"
                   onClick={() => onAddPlate(project)}
@@ -274,7 +241,7 @@ function ProjectSubplatesRow({
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add First Subplate</span>
                 </button>
-              ) : null}
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-2xs">
@@ -436,6 +403,7 @@ export function MouldProjectsTable({
   const [selectedCustomer, setSelectedCustomer] = useState<string>("ALL");
   const [selectedWorktype, setSelectedWorktype] = useState<string>("ALL");
   const [rowSelection, setRowSelection] = useState({});
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Custom Website Confirmation Dialog State
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -1306,6 +1274,7 @@ export function MouldProjectsTable({
               checked={table.getIsAllPageRowsSelected()}
               onChange={table.getToggleAllPageRowsSelectedHandler()}
               onClick={(e) => e.stopPropagation()}
+              title="Select all moulds (Ctrl+A)"
               className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 h-4 w-4 cursor-pointer accent-blue-600 transition"
             />
           </div>
@@ -1319,6 +1288,7 @@ export function MouldProjectsTable({
               disabled={!row.getCanSelect()}
               onChange={row.getToggleSelectedHandler()}
               onClick={(e) => e.stopPropagation()}
+              title="Select all moulds (Ctrl+A)"
               className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/20 focus:ring-offset-0 h-4 w-4 cursor-pointer accent-blue-600 transition"
             />
           </div>
@@ -1615,6 +1585,101 @@ export function MouldProjectsTable({
     promptDeleteMoulds(selectedRows);
   };
 
+  // Keyboard Shortcuts:
+  // - Ctrl+A: Select All
+  // - Delete / Del: Batch Delete
+  // - Escape: Deselect / Exit Search
+  // - / or Ctrl+F: Focus Search
+  // - M or Ctrl+Enter: Mark Selected Completed
+  // - R: Refresh Table
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl instanceof HTMLSelectElement ||
+        activeEl?.getAttribute("contenteditable") === "true";
+
+      // 1. Search focus with '/' or Ctrl+F / Cmd+F
+      if ((e.key === "/" && !isInput) || ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F"))) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        return;
+      }
+
+      // If inside search input and press Escape -> clear and blur
+      if (e.key === "Escape" && activeEl === searchInputRef.current) {
+        e.preventDefault();
+        setGlobalFilter("");
+        searchInputRef.current?.blur();
+        return;
+      }
+
+      // 2. Ctrl+A or Cmd+A -> Select all rows in the table
+      if ((e.ctrlKey || e.metaKey) && (e.key === "a" || e.key === "A")) {
+        if (isInput) return;
+        e.preventDefault();
+        table.toggleAllRowsSelected(true);
+        return;
+      }
+
+      // 3. Delete or Backspace -> Trigger delete on selected moulds
+      if (e.key === "Delete" || e.key === "Del") {
+        if (isInput) return;
+        const selectedRows = table.getSelectedRowModel().rows.map((r) => r.original);
+        if (selectedRows.length > 0) {
+          e.preventDefault();
+          if (canDeleteMould) {
+            promptDeleteMoulds(selectedRows);
+          } else {
+            appStore.addToast({
+              type: "error",
+              message: "Access Denied: You do not have permission to delete moulds.",
+            });
+          }
+        }
+        return;
+      }
+
+      // 4. M or Ctrl+Enter -> Mark selected moulds as completed
+      if ((e.key === "m" || e.key === "M" || ((e.ctrlKey || e.metaKey) && e.key === "Enter")) && !isInput) {
+        if (selectedCount > 0) {
+          e.preventDefault();
+          handleBatchMarkDone();
+          return;
+        }
+      }
+
+      // 5. Alt+R -> Refresh mould register table silently
+      if ((e.key === "r" || e.key === "R") && (e.altKey || e.shiftKey) && !isInput) {
+        e.preventDefault();
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+        onRefresh?.();
+        return;
+      }
+
+      // 6. Escape -> Deselect all rows, or close context menu
+      if (e.key === "Escape") {
+        if (confirmDialog.isOpen) return;
+        if (contextMenu.isOpen) {
+          setContextMenu((prev) => ({ ...prev, isOpen: false }));
+          return;
+        }
+        if (selectedCount > 0) {
+          e.preventDefault();
+          setRowSelection({});
+          return;
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [table, selectedCount, canDeleteMould, confirmDialog.isOpen, contextMenu.isOpen, promptDeleteMoulds, queryClient, onRefresh]);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Table Action & Filter Toolbar */}
@@ -1625,6 +1690,7 @@ export function MouldProjectsTable({
           <div className="relative w-full sm:w-60">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
             <input
+              ref={searchInputRef}
               type="text"
               suppressHydrationWarning
               value={globalFilter ?? ""}
@@ -1632,15 +1698,19 @@ export function MouldProjectsTable({
               placeholder="Search in table..."
               className="w-full pl-8 pr-8 py-2 sm:py-1.5 text-xs rounded-lg bg-white border border-slate-300 text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs transition-all"
             />
-            {globalFilter && (
+            {globalFilter ? (
               <button
                 type="button"
                 onClick={() => setGlobalFilter("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                title="Clear search"
+                title="Clear search (Esc)"
               >
                 <X className="h-3 w-3" />
               </button>
+            ) : (
+              <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none hidden sm:inline-block text-[9px] font-mono text-slate-400 bg-slate-100 px-1 py-0.2 rounded border border-slate-200">
+                /
+              </kbd>
             )}
           </div>
 
@@ -1683,22 +1753,36 @@ export function MouldProjectsTable({
                   type="button"
                   onClick={handleBatchMarkDone}
                   className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                  title="Mark selected moulds as completed"
+                  title="Mark selected moulds as completed (M or Ctrl+Enter)"
                 >
                   <CheckCircle2 className="h-3 w-3 inline" />
                   <span>Mark Completed</span>
+                  <kbd className="hidden sm:inline-block text-[9px] font-mono px-1 py-0.2 rounded bg-blue-700 text-white font-bold ml-0.5">
+                    M
+                  </kbd>
                 </button>
                 {canDeleteMould && (
                   <button
                     type="button"
                     onClick={handleBatchDelete}
                     className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white hover:bg-rose-50 text-rose-600 hover:text-rose-700 border border-rose-200 shadow-2xs transition-colors cursor-pointer flex items-center gap-1 whitespace-nowrap"
-                    title="Delete selected moulds"
+                    title="Delete selected moulds (Delete key)"
                   >
                     <Trash2 className="h-3 w-3 inline text-rose-600" />
                     <span>Delete</span>
+                    <kbd className="hidden sm:inline-block text-[9px] font-mono px-1 py-0.2 rounded bg-rose-100 text-rose-700 font-bold border border-rose-200 ml-0.5">
+                      Del
+                    </kbd>
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setRowSelection({})}
+                  className="p-0.5 text-slate-400 hover:text-slate-600 hover:bg-blue-100 rounded transition-colors ml-0.5 cursor-pointer"
+                  title="Deselect all (Esc)"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </div>
             )}
           </div>

@@ -33,6 +33,10 @@ import {
     Plus,
     RefreshCw,
     Filter,
+    RotateCcw,
+    Lock,
+    AlertTriangle,
+    Loader2,
 } from "lucide-react";
 import type {
     PurchaseOrder,
@@ -49,6 +53,7 @@ import { useIsRestoring, useQueryClient } from "@tanstack/react-query";
 import {
     usePurchaseInwardQuery,
     useCreatePurchaseInwardMutation,
+    useDeletePurchaseInwardMutation,
     useCustomerDropdownQuery,
     useVendorDropdownQuery,
 } from "@/lib/query/hooks";
@@ -97,6 +102,35 @@ export function PurchaseInwardPage() {
     const [pageSize, setPageSize] = useState(25);
     const [currentPage, setCurrentPage] = useState(1);
     const [expandedInwardRows, setExpandedInwardRows] = useState<Record<number, boolean>>({});
+
+    const deleteInwardMutation = useDeletePurchaseInwardMutation();
+    const [revertingReceipt, setRevertingReceipt] = useState<PurchaseInwardReceipt | null>(null);
+    const [revertError, setRevertError] = useState<string | null>(null);
+    const [isReverting, setIsReverting] = useState(false);
+    const [currentTime, setCurrentTime] = useState(Date.now());
+
+    useEffect(() => {
+        const interval = setInterval(() => setCurrentTime(Date.now()), 15000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const roleId = Number(currentUser?.role_id);
+    const roleName = (currentUser?.role || "").toLowerCase();
+    const isAdminOrSuper = roleId === 0 || roleId === 1 || roleName === "admin" || roleName === "superadmin";
+
+    const handleConfirmRevert = async () => {
+        if (!revertingReceipt) return;
+        setIsReverting(true);
+        setRevertError(null);
+        try {
+            await deleteInwardMutation.mutateAsync(revertingReceipt.id);
+            setRevertingReceipt(null);
+        } catch (err: any) {
+            setRevertError(err?.message || "Failed to revert inward receipt.");
+        } finally {
+            setIsReverting(false);
+        }
+    };
 
     // Receive Modal State (Supports single item or batch receive for a mould)
     const [isReceiveModalOpen, setIsReceiveModalOpen] = useState(false);
@@ -1208,17 +1242,18 @@ export function PurchaseInwardPage() {
                                         <th className="py-3 px-4 w-[12%]">Inward No.</th>
                                         <th className="py-3 px-3 w-[12%]">Delivery No.</th>
                                         <th className="py-3 px-3 w-[10%]">Receive Date</th>
-                                        <th className="py-3 px-4 w-[14%]">Mould Project</th>
-                                        <th className="py-3 px-4 w-[24%]">Supplier Name</th>
-                                        <th className="py-3 px-4 w-[24%]">Customer Name</th>
+                                        <th className="py-3 px-4 w-[12%]">Mould Project</th>
+                                        <th className="py-3 px-4 w-[20%]">Supplier Name</th>
+                                        <th className="py-3 px-4 w-[18%]">Customer Name</th>
+                                        <th className="py-3 px-4 w-[12%] text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {isLoading ? (
-                                        <TableSkeletonRows rows={8} columns={7} />
+                                        <TableSkeletonRows rows={8} columns={8} />
                                     ) : paginatedInwardReceipts.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="py-12 text-center text-slate-400">
+                                            <td colSpan={8} className="py-12 text-center text-slate-400">
                                                 <PackagePlus className="w-8 h-8 mx-auto mb-2 opacity-50" />
                                                 <p>No historical purchase inward records found.</p>
                                             </td>
@@ -1271,12 +1306,71 @@ export function PurchaseInwardPage() {
                                                         <td className="py-3 px-4 text-slate-600">
                                                             {clientName}
                                                         </td>
+                                                        <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                                            {(() => {
+                                                                const createdAtTime = inw.created_at ? new Date(inw.created_at).getTime() : 0;
+                                                                const elapsedMin = createdAtTime > 0 ? (currentTime - createdAtTime) / (60 * 1000) : 999;
+                                                                const remainingMin = Math.max(0, Math.ceil(20 - elapsedMin));
+                                                                const isCreator = Boolean(
+                                                                    currentUser?.id &&
+                                                                    inw.created_by &&
+                                                                    Number(currentUser.id) === Number(inw.created_by)
+                                                                );
+
+                                                                if (isAdminOrSuper) {
+                                                                    return (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                setRevertError(null);
+                                                                                setRevertingReceipt(inw);
+                                                                            }}
+                                                                            title="Admin Revert: Reverse inward receipt and restore PO pending status"
+                                                                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-md transition-colors"
+                                                                        >
+                                                                            <RotateCcw className="w-3 h-3" />
+                                                                            Revert
+                                                                        </button>
+                                                                    );
+                                                                }
+
+                                                                if (isCreator) {
+                                                                    if (remainingMin > 0) {
+                                                                        return (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setRevertError(null);
+                                                                                    setRevertingReceipt(inw);
+                                                                                }}
+                                                                                title={`Undo inward receipt within grace window (${remainingMin}m remaining)`}
+                                                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-md transition-colors shadow-2xs animate-pulse"
+                                                                            >
+                                                                                <RotateCcw className="w-3 h-3" />
+                                                                                Undo ({remainingMin}m)
+                                                                            </button>
+                                                                        );
+                                                                    }
+                                                                    return (
+                                                                        <span
+                                                                            title="20-minute undo window expired. Contact an Administrator to revert."
+                                                                            className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200 cursor-not-allowed"
+                                                                        >
+                                                                            <Lock className="w-2.5 h-2.5 text-slate-400" />
+                                                                            Locked (20m)
+                                                                        </span>
+                                                                    );
+                                                                }
+
+                                                                return <span className="text-slate-300 text-xs">—</span>;
+                                                            })()}
+                                                        </td>
                                                     </tr>
 
                                                     {/* Expanded Items for this inward receipt */}
                                                     {isExpanded && (
                                                         <tr className="bg-slate-50/90">
-                                                            <td colSpan={7} className="p-4 pl-12 border-y border-slate-200">
+                                                            <td colSpan={8} className="p-4 pl-12 border-y border-slate-200">
                                                                 <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
                                                                     <div className="px-4 py-2 bg-slate-100/80 border-b border-slate-200 text-xs font-semibold text-slate-700">
                                                                         Received Items for {inw.insrno}
@@ -1759,6 +1853,113 @@ export function PurchaseInwardPage() {
                             </form>
                         );
                     })()}
+                </Modal>
+
+                {/* REVERT INWARD CONFIRMATION MODAL */}
+                <Modal
+                    isOpen={Boolean(revertingReceipt)}
+                    onClose={() => {
+                        if (!isReverting) {
+                            setRevertingReceipt(null);
+                            setRevertError(null);
+                        }
+                    }}
+                    title={
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-200/80 flex items-center justify-center shrink-0">
+                                <RotateCcw className="w-5 h-5 text-rose-600" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-slate-900 leading-tight">
+                                    Revert Purchase Inward Receipt
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    {revertingReceipt?.insrno} &bull; {revertingReceipt?.projectid}
+                                </p>
+                            </div>
+                        </div>
+                    }
+                >
+                    <div className="space-y-4 pt-2">
+                        {revertError && (
+                            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-lg flex items-start gap-2.5 text-rose-800 text-xs">
+                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                <div className="space-y-1">
+                                    <div className="font-semibold">Reversion Blocked</div>
+                                    <div className="text-rose-700 leading-relaxed">{revertError}</div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="p-3.5 bg-amber-50/80 border border-amber-200/90 rounded-lg text-xs text-amber-900 space-y-2">
+                            <div className="font-semibold flex items-center gap-1.5 text-amber-800">
+                                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                What happens when you revert this inward receipt:
+                            </div>
+                            <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                                <li>
+                                    Inward receipt <span className="font-mono font-semibold text-slate-900">{revertingReceipt?.insrno}</span> will be permanently removed.
+                                </li>
+                                <li>
+                                    The Purchase Order will reopen for inwarding (pending balance restored).
+                                </li>
+                                <li>
+                                    Stage 3 (<em>Material Inward</em>) for affected subplates will reset to <strong className="text-amber-700">Pending</strong>.
+                                </li>
+                                <li>
+                                    Star Mould workshop available balance will decrease back to <span className="font-mono font-semibold">0</span>.
+                                </li>
+                            </ul>
+                        </div>
+
+                        {revertingReceipt?.items && revertingReceipt.items.length > 0 && (
+                            <div className="border border-slate-200 rounded-lg overflow-hidden">
+                                <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase">
+                                    Affected Plates ({revertingReceipt.items.length})
+                                </div>
+                                <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 text-xs">
+                                    {revertingReceipt.items.map((it, idx) => (
+                                        <div key={idx} className="px-3 py-2 flex items-center justify-between">
+                                            <span className="font-medium text-slate-800">{it.platename || getSubplateName(it.plateid)}</span>
+                                            <span className="font-mono text-rose-700 font-semibold">Qty: -{it.inward_qty}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setRevertingReceipt(null);
+                                    setRevertError(null);
+                                }}
+                                disabled={isReverting}
+                                className="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmRevert}
+                                disabled={isReverting}
+                                className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
+                            >
+                                {isReverting ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                        Reverting Inward...
+                                    </>
+                                ) : (
+                                    <>
+                                        <RotateCcw className="w-3.5 h-3.5" />
+                                        Confirm Revert
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
                 </Modal>
             </div>
         </AppLayout>

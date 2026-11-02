@@ -6,12 +6,17 @@ import { MapPin, Building2 } from "lucide-react";
 export interface SubplateLocationInfo {
   sqty?: number;
   location?: string | null;
+  has_active_po?: boolean;
   jobwork_balance?: {
     outward_jobwork_qty: number;
     available_sm_qty: number;
     customer_dispatched_qty?: number;
     active_vendors: string | null;
     active_vendor_initials: string | null;
+    po_ordered_qty?: number;
+    po_inward_qty?: number;
+    pending_po_inward_qty?: number;
+    has_po?: boolean;
   } | null;
 }
 
@@ -83,6 +88,47 @@ export function SubplateJobworkLocationBadge({
         <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
         <span>Dispatched (Customer)</span>
         {totalQty > 1 && <span className="opacity-75 font-mono text-[9px]">({totalQty})</span>}
+      </span>
+    );
+  }
+
+  // Case 0.4: Raw material not yet ordered (Pending Purchase Order)
+  const isPendingPOOrder =
+    !bal?.has_po &&
+    !subplate.has_active_po &&
+    smQty === 0 &&
+    outwardQty === 0 &&
+    dispatchedQty === 0;
+  if (isPendingPOOrder) {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded-md font-bold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs ${padClass} ${className}`}
+        title="Purchase Order not created yet: please create a Purchase Order and receive inward first"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+        <span>No PO Created</span>
+        {totalQty > 1 && <span className="opacity-75 font-mono text-[9px]">({totalQty})</span>}
+      </span>
+    );
+  }
+
+  // Case 0.5: Awaiting Purchase Inward (raw material not yet received from supplier)
+  const isPendingPO =
+    (bal?.has_po || subplate.has_active_po) &&
+    smQty === 0 &&
+    outwardQty === 0 &&
+    dispatchedQty === 0 &&
+    Number(bal?.pending_po_inward_qty ?? 1) > 0;
+  if (isPendingPO) {
+    const pendingQty = Number(bal?.pending_po_inward_qty) || totalQty;
+    return (
+      <span
+        className={`inline-flex items-center gap-1 rounded-md font-bold bg-amber-50 text-amber-800 border border-amber-300 shadow-2xs ${padClass} ${className}`}
+        title="Material isn't inwarded from purchase: please INWARD first"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+        <span>Material Not Inwarded</span>
+        {totalQty > 1 && <span className="opacity-75 font-mono text-[9px]">({pendingQty})</span>}
       </span>
     );
   }

@@ -324,6 +324,37 @@ export function ConfirmDialog({
   variant = "danger",
   isLoading = false,
 }: ConfirmDialogProps) {
+  const onConfirmRef = useRef(onConfirm);
+  const onCloseRef = useRef(onClose);
+  const isLoadingRef = useRef(isLoading);
+
+  useEffect(() => {
+    onConfirmRef.current = onConfirm;
+    onCloseRef.current = onClose;
+    isLoadingRef.current = isLoading;
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isLoadingRef.current) return;
+
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        onConfirmRef.current();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        onCloseRef.current();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
+  }, [isOpen]);
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="sm" showCloseButton={false}>
       <div className="space-y-4">
@@ -358,8 +389,12 @@ export function ConfirmDialog({
             size="sm"
             onClick={onClose}
             disabled={isLoading}
+            className="flex items-center gap-1.5"
           >
-            {cancelLabel}
+            <span>{cancelLabel}</span>
+            <kbd className="text-[9px] font-mono text-slate-400 bg-slate-100 px-1 py-0.5 rounded border border-slate-200">
+              Esc
+            </kbd>
           </MotionButton>
           <MotionButton
             type="button"
@@ -367,8 +402,18 @@ export function ConfirmDialog({
             size="sm"
             onClick={onConfirm}
             loading={isLoading}
+            className="flex items-center gap-1.5"
           >
-            {confirmLabel}
+            <span>{confirmLabel}</span>
+            <kbd
+              className={`text-[9px] font-mono px-1 py-0.5 rounded border ${
+                variant === "danger"
+                  ? "bg-rose-700 text-white border-rose-800"
+                  : "bg-blue-700 text-white border-blue-800"
+              }`}
+            >
+              ↵ Enter
+            </kbd>
           </MotionButton>
         </div>
       </div>

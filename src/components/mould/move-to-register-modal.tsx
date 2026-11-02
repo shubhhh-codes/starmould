@@ -231,13 +231,13 @@ export function MoveToRegisterModal({
                   <span>No Delivery Challan Created</span>
                 </div>
                 <p className="text-slate-600 leading-relaxed">
-                  None of the {subplates.length} subplates have a customer Dispatch Challan. You can either generate a delivery challan first or archive directly to the Project Register.
+                  None of the {subplates.length} subplates have a customer Dispatch Challan. You can either generate a delivery challan first or move the mould directly to the Project Register.
                 </p>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700">
-                  Direct Archive Reason
+                  Project Closure Reason
                 </label>
                 <select
                   value={selectedReason}

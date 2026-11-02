@@ -249,10 +249,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
   // Only fetches modified / added records from database! Old records NEVER re-queried!
   const syncDelta = React.useCallback(
     async (sinceTime?: string | null) => {
-      const effectiveSince = sinceTime || lastSyncTimeRef.current;
-      if (!effectiveSince) {
-        return null;
-      }
+      const effectiveSince = sinceTime || lastSyncTimeRef.current || "1970-01-01T00:00:00.000Z";
 
       try {
         setIsSyncingDelta(true);
@@ -490,44 +487,44 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
   ]);
 
   // 4. Manual Refetch / User Refresh Button:
-  // Strictly performs a DELTA SYNC! Does NOT wipe cache, does NOT re-query old records!
   const refetch = React.useCallback(async () => {
-    if (streamedScansRef.current.length > 0) {
-      const deltaResult = await syncDelta(lastSyncTimeRef.current);
-      if (deltaResult) return deltaResult;
+    // 1. Try delta sync first
+    const deltaResult = await syncDelta(lastSyncTimeRef.current || "1970-01-01T00:00:00.000Z");
+    if (deltaResult && (deltaResult.deltaCount > 0 || streamedScansRef.current.length > 0)) {
+      return deltaResult;
     }
 
+    // 2. Direct clean fetch if delta sync produces no result or cache was empty
     try {
-      const res = await chunk1Query.refetch();
-      if (res.data) {
-        const scans = (res.data.scans || []) as ScanProject[];
-        const total = res.data.pagination?.total ?? scans.length;
-        // Never replace non-empty cache with only 1 chunk!
-        if (streamedScansRef.current.length === 0) {
-          setStreamedScans(scans);
-          streamedScansRef.current = scans;
-          setTotalCount(total);
-          totalCountRef.current = total;
-          const now = new Date().toISOString();
-          setLastSyncTime(now);
+      const res = await fetchJson<any>(`/api/scanning?limit=${initialChunkSize}&offset=0&fresh=true`);
+      if (res) {
+        const scans = (res.scans || res.data || []) as ScanProject[];
+        const total = res.pagination?.total ?? scans.length;
+        setStreamedScans(scans);
+        streamedScansRef.current = scans;
+        setTotalCount(total);
+        totalCountRef.current = total;
+        const now = new Date().toISOString();
+        setLastSyncTime(now);
 
-          saveLocalProjectsStore({
-            scans,
-            lastSyncTime: now,
-            customers: res.data.customers || extraMetadataRef.current.customers,
-            users: res.data.users || extraMetadataRef.current.users,
-            kpis: res.data.kpis || extraMetadataRef.current.kpis,
-            totalCount: total,
-            isInitialComplete: scans.length >= total,
-          });
-        }
-        return res.data;
+        await saveLocalProjectsStore({
+          scans,
+          lastSyncTime: now,
+          customers: res.customers || extraMetadataRef.current.customers,
+          users: res.users || extraMetadataRef.current.users,
+          kpis: res.kpis || extraMetadataRef.current.kpis,
+          totalCount: total,
+          isInitialComplete: scans.length >= total,
+        });
+
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        return res;
       }
     } catch (err) {
       console.warn("[ProgressiveStream] Refetch error:", err);
     }
     return null;
-  }, [syncDelta, chunk1Query]);
+  }, [syncDelta, initialChunkSize, queryClient]);
 
   // Optimistic Instant Removal of a mould project (0ms UI lag)
   const removeProjectLocally = React.useCallback(
@@ -751,6 +748,35 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
       setIsStreaming(false);
     }
   }, [queryClient]);
+
+  // Realtime Cross-Tab & Multi-Device Event Listeners:
+  // Instantly prunes deleted projects from UI & IndexedDB without requiring manual page refresh!
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const onProjectDeleted = (evt: Event) => {
+      const customEvt = evt as CustomEvent<{ id?: number | string; ids?: (number | string)[] }>;
+      const id = customEvt.detail?.id;
+      const ids = customEvt.detail?.ids;
+      if (ids && Array.isArray(ids) && ids.length > 0) {
+        removeProjectsLocally(ids);
+      } else if (id !== undefined && id !== null) {
+        removeProjectLocally(id);
+      }
+    };
+
+    const onProjectSynced = () => {
+      refetch();
+    };
+
+    window.addEventListener("starmould:project-deleted", onProjectDeleted);
+    window.addEventListener("starmould:project-synced", onProjectSynced);
+
+    return () => {
+      window.removeEventListener("starmould:project-deleted", onProjectDeleted);
+      window.removeEventListener("starmould:project-synced", onProjectSynced);
+    };
+  }, [removeProjectLocally, removeProjectsLocally, refetch]);
 
   const isLoading = !hasHydratedLocal && streamedScans.length === 0 && chunk1Query.isLoading;
 
@@ -1407,11 +1433,11 @@ export function useDashboardCountsQuery() {
         pipeline: data.pipeline || null,
       };
     },
-    staleTime: 0,
+    staleTime: 60 * 1000,
     gcTime: CACHE_TIERS.DASHBOARD.gcTime,
     refetchOnMount: "always",
-    refetchOnWindowFocus: true,
-    refetchInterval: 10000,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
   });
 }
 

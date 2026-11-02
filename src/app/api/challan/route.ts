@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
       if (plateIds.length > 0) {
         const { data: balances } = await supabaseAdmin
           .from("view_subplate_jobwork_balance")
-          .select("plateid, platename, total_qty, outward_jobwork_qty, available_sm_qty")
+          .select("plateid, platename, total_qty, outward_jobwork_qty, available_sm_qty, pending_po_inward_qty, has_po")
           .in("plateid", plateIds);
 
         const balMap = new Map((balances || []).map((b: any) => [Number(b.plateid), b]));
@@ -213,6 +213,24 @@ export async function POST(req: NextRequest) {
         for (const [pid, reqQty] of requestedByPlate.entries()) {
           const bal = balMap.get(pid);
           if (bal && reqQty > bal.available_sm_qty) {
+            if (bal.available_sm_qty === 0) {
+              if (bal.has_po && bal.pending_po_inward_qty > 0) {
+                return NextResponse.json(
+                  {
+                    error: `Cannot send "${bal.platename}" on outward jobwork: Material has not arrived from supplier yet (Pending Purchase Inward: ${bal.pending_po_inward_qty} pcs). Please inward it first.`,
+                  },
+                  { status: 400 }
+                );
+              }
+              if (!bal.has_po) {
+                return NextResponse.json(
+                  {
+                    error: `Cannot send "${bal.platename}" on outward jobwork: Raw material has not been purchased or inwarded yet. Please create a Purchase Order and receive it via Purchase Inward first.`,
+                  },
+                  { status: 400 }
+                );
+              }
+            }
             return NextResponse.json(
               {
                 error: `Cannot dispatch ${reqQty} pcs of "${bal.platename}". Only ${bal.available_sm_qty} pcs currently available in Star Mould (SM). ${bal.outward_jobwork_qty} pcs are currently out on Job Work.`,

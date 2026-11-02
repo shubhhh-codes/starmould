@@ -300,9 +300,10 @@ export function useSmartPrefetch() {
 
 /**
  * Idle Background Warmup Hook
- * Warms up high-priority routes in the background when the main thread is idle
+ * Warms up high-priority routes in the background when the main thread is idle.
+ * Respects user role permissions to avoid unauthorized 403 API calls.
  */
-export function useBackgroundPrefetchWarmup() {
+export function useBackgroundPrefetchWarmup(hasPermission?: (perm: string) => boolean) {
   const { prefetchProjects, prefetchSubplates, prefetchCustomers, prefetchWorklogs } = useSmartPrefetch();
 
   useEffect(() => {
@@ -318,11 +319,16 @@ export function useBackgroundPrefetchWarmup() {
       }
     };
 
-    // Stagger warmups so network and CPU aren't choked
-    const cancel1 = scheduleWarmup(() => prefetchProjects(), 1500);
-    const cancel2 = scheduleWarmup(() => prefetchSubplates(), 2800);
-    const cancel3 = scheduleWarmup(() => prefetchCustomers(), 4200);
-    const cancel4 = scheduleWarmup(() => prefetchWorklogs(), 5800);
+    // Stagger warmups so network and CPU aren't choked, ONLY if authorized
+    const canScans = !hasPermission || hasPermission("nav_dashboard") || hasPermission("nav_scanning");
+    const canSubplates = !hasPermission || hasPermission("nav_subplate");
+    const canCustomers = !hasPermission || hasPermission("nav_customers");
+    const canWorklogs = !hasPermission || hasPermission("nav_work");
+
+    const cancel1 = canScans ? scheduleWarmup(() => prefetchProjects(), 1500) : () => {};
+    const cancel2 = canSubplates ? scheduleWarmup(() => prefetchSubplates(), 2800) : () => {};
+    const cancel3 = canCustomers ? scheduleWarmup(() => prefetchCustomers(), 4200) : () => {};
+    const cancel4 = canWorklogs ? scheduleWarmup(() => prefetchWorklogs(), 5800) : () => {};
 
     return () => {
       cancel1();
@@ -330,5 +336,5 @@ export function useBackgroundPrefetchWarmup() {
       cancel3();
       cancel4();
     };
-  }, [prefetchProjects, prefetchSubplates, prefetchCustomers, prefetchWorklogs]);
+  }, [prefetchProjects, prefetchSubplates, prefetchCustomers, prefetchWorklogs, hasPermission]);
 }
