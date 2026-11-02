@@ -298,6 +298,9 @@ export function StaffSelect({
                   placeholder="Search staff or machine..."
                   className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-cyan-500 text-slate-800 placeholder:text-slate-400"
                   autoFocus
+                  autoComplete="off"
+                  data-form-type="other"
+                  suppressHydrationWarning
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>

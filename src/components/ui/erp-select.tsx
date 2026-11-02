@@ -279,6 +279,8 @@ export function ERPSelect({
           required
           onChange={() => {}}
           tabIndex={-1}
+          autoComplete="off"
+          suppressHydrationWarning
         />
       )}
 
@@ -316,6 +318,10 @@ export function ERPSelect({
             disabled={disabled}
             value={displayValue}
             placeholder={placeholder}
+            autoComplete="off"
+            data-form-type="other"
+            data-lpignore="true"
+            suppressHydrationWarning
             onClick={(e) => {
               e.stopPropagation();
               if (disabled) return;
