@@ -221,16 +221,17 @@ export function DashboardPage() {
     await projectsStream.removeProjectLocally(id);
 
     try {
-      const res = await fetch(`/api/scanning?id=${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/scanning?id=${id}${force ? "&force=true" : ""}`, { method: "DELETE" });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || "Failed to delete mould project");
       }
-      // 3. After successful server delete, run a lightweight delta sync using the
-      //    pre-delete syncTime. This confirms the deletion via activeIds and updates
-      //    lastSyncTime to the current server time — preventing ghost re-appearances.
+      // 3. After successful server delete, trigger a lightweight delta sync in background
+      //    using the pre-delete syncTime to update server time and active IDs non-blockingly.
       if (syncTimeBefore) {
-        await projectsStream.syncDelta(syncTimeBefore);
+        projectsStream.syncDelta(syncTimeBefore).catch((err) => {
+          console.warn("[DeleteProject] Post-delete delta sync warning:", err);
+        });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -272,9 +273,11 @@ export function DashboardPage() {
         throw new Error(result.error || "Failed to delete mould projects");
       }
 
-      // 3. ONLY after server delete completes, perform a single delta sync!
+      // 3. Post-delete delta sync runs non-blocking in background to reconcile server time & active IDs
       if (syncTimeBefore) {
-        await projectsStream.syncDelta(syncTimeBefore);
+        projectsStream.syncDelta(syncTimeBefore).catch((err) => {
+          console.warn("[DeleteProjects] Post-delete delta sync warning:", err);
+        });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
