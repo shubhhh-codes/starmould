@@ -880,10 +880,10 @@ export function MouldProjectsTable({
               });
               setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
             } else {
-              setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+              setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
             }
           } catch (err: any) {
-            setConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+            setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }));
             appStore.addToast({
               type: "error",
               message: err.message || "Failed to delete moulds",
@@ -3048,7 +3048,7 @@ export function MouldProjectsTable({
       {/* Website Custom Delete & Action Confirmation Modal */}
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
-        onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false }))}
+        onClose={() => setConfirmDialog((prev) => ({ ...prev, isOpen: false, isLoading: false }))}
         onConfirm={confirmDialog.onConfirm}
         title={confirmDialog.title}
         description={confirmDialog.description}
