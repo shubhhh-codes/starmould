@@ -76,19 +76,25 @@ export async function loadLocalProjectsStore(): Promise<StoredProjectsState | nu
 let writeQueuePromise: Promise<void> = Promise.resolve();
 let pendingStateToSave: StoredProjectsState | null = null;
 let writeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingResolvers: (() => void)[] = [];
 
 export function saveLocalProjectsStore(state: StoredProjectsState): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
 
   pendingStateToSave = state;
 
-  return new Promise((resolve) => {
+  return new Promise<void>((resolve) => {
+    pendingResolvers.push(resolve);
+
     if (writeDebounceTimer) {
       clearTimeout(writeDebounceTimer);
     }
 
     writeDebounceTimer = setTimeout(() => {
       writeDebounceTimer = null;
+      const resolvers = pendingResolvers;
+      pendingResolvers = [];
+
       writeQueuePromise = writeQueuePromise
         .then(async () => {
           if (!pendingStateToSave) return;
@@ -96,10 +102,20 @@ export function saveLocalProjectsStore(state: StoredProjectsState): Promise<void
           pendingStateToSave = null;
           await set(LOCAL_PROJECTS_KEY, snapshot);
         })
-        .then(() => resolve())
+        .then(() => {
+          for (const res of resolvers) {
+            try {
+              res();
+            } catch {}
+          }
+        })
         .catch((err) => {
           console.warn("[LocalStore] Failed to save projects cache:", err);
-          resolve();
+          for (const res of resolvers) {
+            try {
+              res();
+            } catch {}
+          }
         });
     }, 40);
   });

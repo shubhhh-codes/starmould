@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     resetRateLimit(ip);
 
     // Role definitions:
-    // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker
+    // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker, 5: Purchase Incharge, 6: VMC, 7: QC, 9: Dispatch, 10: Programmer
     const roleId = user.role_id !== null && user.role_id !== undefined ? Number(user.role_id) : 4;
     const roleNames: Record<number, string> = {
       0: "Admin",
@@ -90,6 +90,11 @@ export async function POST(req: NextRequest) {
       2: "Supervisor",
       3: "Designer",
       4: "Worker",
+      5: "Purchase Incharge",
+      6: "VMC Department",
+      7: "Quality Checking (QC)",
+      9: "Dispatch",
+      10: "Programmer",
     };
 
     const sessionUser: SessionUser = {

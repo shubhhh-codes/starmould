@@ -858,7 +858,9 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     };
   }, [removeProjectLocally, removeProjectsLocally]);
 
-  const isLoading = !hasHydratedLocal && streamedScans.length === 0 && chunk1Query.isLoading;
+  const isLoading =
+    streamedScans.length === 0 &&
+    (chunk1Query.isLoading || chunk1Query.isPending || !hasHydratedLocal);
 
   return {
     scans: streamedScans,
