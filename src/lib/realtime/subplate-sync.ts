@@ -231,18 +231,29 @@ export function applySubplateToScans(
       newPlates = [...existingPlates, plate as Subplate];
     } else {
       const cached = existingPlates[plateIdx];
-      // Requirement 3: Skip ONLY if cached row's updated_at is STRICTLY newer
+      // Skip ONLY if cached row's updated_at is STRICTLY newer
       if (cached.updated_at && plate.updated_at) {
         const cachedTs = new Date(cached.updated_at).getTime();
         const incomingTs = new Date(plate.updated_at).getTime();
         if (cachedTs > incomingTs) return scans;
       }
 
-      // Merge plate
-      const emptyUserMap = new Map();
-      const merged = mergePlateWithNames(cached, plate, emptyUserMap);
+      // Merge plate (Part 2: plate is already enriched before applySubplateToScans)
+      const merged: any = { ...cached, ...plate };
+      for (const { idKey, nameKey } of USER_NAME_FIELDS) {
+        if (idKey in plate) {
+          const incomingId = (plate as any)[idKey];
+          if (incomingId === null || incomingId === 0 || incomingId === "") {
+            merged[idKey] = null;
+            merged[nameKey] = null;
+          } else if ((plate as any)[nameKey]) {
+            merged[nameKey] = (plate as any)[nameKey];
+          }
+        }
+      }
+
       newPlates = [...existingPlates];
-      newPlates[plateIdx] = merged;
+      newPlates[plateIdx] = merged as Subplate;
     }
 
     // Recompute derived project fields
@@ -385,6 +396,25 @@ export function ingestSubplateChange(
   const onUnresolved = () => {
     hasUnresolvedUser = true;
   };
+
+  // Part 2: Resolve user names ONCE at the top of ingestSubplateChange for all origins
+  let enrichedPlate: Partial<Subplate> | undefined = plate;
+  if (plate && kind === "upsert") {
+    const copy: any = { ...plate };
+    for (const { idKey, nameKey } of USER_NAME_FIELDS) {
+      const idVal = copy[idKey];
+      if (idVal != null && Number(idVal) > 0 && !copy[nameKey]) {
+        const u = userMap.get(Number(idVal));
+        const resolved = u?.name || u?.initials || null;
+        if (resolved) {
+          copy[nameKey] = resolved;
+        } else {
+          onUnresolved();
+        }
+      }
+    }
+    enrichedPlate = copy;
+  }
 
   let isStructuralChange = false;
 
@@ -556,7 +586,7 @@ export function ingestSubplateChange(
   // Progressive stream & IndexedDB patches
   const effectiveChange: SubplateChange = {
     kind,
-    plate,
+    plate: enrichedPlate,
     id: effectiveId,
     origin,
   };
@@ -573,7 +603,7 @@ export function ingestSubplateChange(
         type: "SUBPLATE_CHANGE",
         tabId: TAB_ID,
         kind,
-        plate,
+        plate: enrichedPlate,
         id: effectiveId,
       });
     } catch {

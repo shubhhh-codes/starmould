@@ -1212,12 +1212,18 @@ export function useDeleteSubplateMutation() {
       });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.subplates.all() });
 
-      ingestSubplateChange(queryClient, {
-        kind: "remove",
-        plate: cachedPlate,
-        id: deletedId,
-        origin: "local",
-      });
+      // Part 3 Fix: Optimistically filter from React Query caches only (no stream/IndexedDB/broadcast)
+      queryClient.setQueriesData<any>(
+        { queryKey: queryKeys.subplates.all() },
+        (old: any) => {
+          if (!old) return old;
+          const filterList = (list: any[]) => list.filter((item) => item && item.id !== deletedId);
+          if (Array.isArray(old)) return filterList(old);
+          if (old.subplates) return { ...old, subplates: filterList(old.subplates) };
+          if (old.data) return { ...old, data: filterList(old.data) };
+          return old;
+        }
+      );
 
       return { previousData, cachedPlate };
     },
