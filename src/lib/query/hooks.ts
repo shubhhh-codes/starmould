@@ -824,9 +824,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
-        if (lastSyncTimeRef.current) {
-          syncDelta(lastSyncTimeRef.current);
-        }
+        syncDelta(lastSyncTimeRef.current || "1970-01-01T00:00:00.000Z");
       }, 300);
     };
 

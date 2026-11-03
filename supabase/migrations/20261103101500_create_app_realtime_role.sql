@@ -8,14 +8,22 @@ BEGIN
   GRANT app_realtime TO authenticator;
   GRANT USAGE ON SCHEMA public TO app_realtime;
 
-  -- Read-only SELECT permissions on all 6 realtime operational tables (no insert/update/delete)
-  GRANT SELECT ON public.scan, public.subplate, public.purchase, public.po_inward, public.challan, public.dispatch TO app_realtime;
+  -- Read-only SELECT permissions on all 7 realtime operational tables (no insert/update/delete)
+  GRANT SELECT ON public.scan, public.subplate, public.purchase, public.po_inward, public.challan, public.dispatch, public.app_config TO app_realtime;
+
+  -- Ensure app_config is added to supabase_realtime publication
+  BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.app_config;
+  EXCEPTION
+    WHEN duplicate_object THEN NULL;
+  END;
+  ALTER TABLE public.app_config REPLICA IDENTITY FULL;
 
   -- Remove legacy public read policies from scan & subplate so anon cannot read data
   DROP POLICY IF EXISTS "Allow authenticated read" ON public.scan;
   DROP POLICY IF EXISTS "Allow authenticated read" ON public.subplate;
 
-  -- Create FOR SELECT policy for app_realtime on each of the 6 tables
+  -- Create FOR SELECT policy for app_realtime on each of the tables
   DROP POLICY IF EXISTS realtime_scan_select_app ON public.scan;
   CREATE POLICY realtime_scan_select_app ON public.scan FOR SELECT TO app_realtime USING (public.current_user_role() IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 
@@ -33,4 +41,7 @@ BEGIN
 
   DROP POLICY IF EXISTS realtime_dispatch_select_app ON public.dispatch;
   CREATE POLICY realtime_dispatch_select_app ON public.dispatch FOR SELECT TO app_realtime USING (public.current_user_role() IN (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+
+  DROP POLICY IF EXISTS realtime_app_config_select_app ON public.app_config;
+  CREATE POLICY realtime_app_config_select_app ON public.app_config FOR SELECT TO app_realtime USING (true);
 END $$;
