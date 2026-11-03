@@ -68,10 +68,18 @@ export async function GET(req: NextRequest) {
         created_by?: string | null;
         created_at?: string | null;
       }>>();
+      const plateInwardsMap = new Map<number, Array<{
+        inward_id: number;
+        inward_no: string;
+        qty: number;
+        odate?: string | null;
+        created_by?: string | number | null;
+        created_at?: string | null;
+      }>>();
 
       const jwBalanceMap = new Map<number, any>();
       if (plateIds.length > 0) {
-        const [{ data: orderedRows }, { data: jwBalances }] = await Promise.all([
+        const [{ data: orderedRows }, { data: jwBalances }, { data: inwardRows }] = await Promise.all([
           supabaseAdmin
             .from("purchase_items")
             .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
@@ -80,6 +88,10 @@ export async function GET(req: NextRequest) {
           supabaseAdmin
             .from("view_subplate_jobwork_balance")
             .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials, po_ordered_qty, po_inward_qty, pending_po_inward_qty, has_po, customer_dispatched_qty")
+            .in("plateid", plateIds),
+          supabaseAdmin
+            .from("purchase_inward_items")
+            .select("plateid, qty, po_inward:inpid(id, insrno, odate, created_by, created_at)")
             .in("plateid", plateIds),
         ]);
 
@@ -103,6 +115,26 @@ export async function GET(req: NextRequest) {
           });
         }
 
+        if (inwardRows) {
+          inwardRows.forEach((row: any) => {
+            const pid = Number(row.plateid);
+            const q = Number(row.qty) || 0;
+            const inData = Array.isArray(row.po_inward) ? row.po_inward[0] : row.po_inward;
+            if (inData) {
+              const existingList = plateInwardsMap.get(pid) || [];
+              existingList.push({
+                inward_id: inData.id,
+                inward_no: inData.insrno || `IN#${inData.id}`,
+                qty: q,
+                odate: inData.odate || null,
+                created_by: inData.created_by || null,
+                created_at: inData.created_at || null,
+              });
+              plateInwardsMap.set(pid, existingList);
+            }
+          });
+        }
+
         if (jwBalances) {
           jwBalances.forEach((b: any) => jwBalanceMap.set(Number(b.plateid), b));
         }
@@ -121,6 +153,12 @@ export async function GET(req: NextRequest) {
         const poStatus: 'UNORDERED' | 'PARTIAL' | 'FULLY_ORDERED' =
           ordered >= total ? 'FULLY_ORDERED' : ordered > 0 ? 'PARTIAL' : 'UNORDERED';
 
+        const linkedInwards = plateInwardsMap.get(p.id) || [];
+        const inwardQty = Number(jwBalanceMap.get(p.id)?.po_inward_qty ?? 0);
+        const remainingInward = Math.max(0, total - inwardQty);
+        const inwardStatus: 'PENDING' | 'PARTIAL' | 'FULLY_INWARDED' =
+          inwardQty >= total ? 'FULLY_INWARDED' : inwardQty > 0 ? 'PARTIAL' : 'PENDING';
+
         return {
           ...p,
           ordered_qty: ordered,
@@ -130,6 +168,10 @@ export async function GET(req: NextRequest) {
           po_id: latestPO?.po_id || null,
           po_status: poStatus,
           linked_pos: linkedPOs,
+          inward_qty: inwardQty,
+          remaining_inward_qty: remainingInward,
+          inward_status: inwardStatus,
+          linked_inwards: linkedInwards,
           jobwork_balance: {
             outward_jobwork_qty: jwBalanceMap.get(p.id)?.outward_jobwork_qty ?? 0,
             available_sm_qty: jwBalanceMap.get(p.id)?.available_sm_qty ?? (hasPO ? 0 : total),
@@ -230,10 +272,18 @@ export async function GET(req: NextRequest) {
         created_by?: string | null;
         created_at?: string | null;
       }>>();
+      const plateInwardsMap = new Map<number, Array<{
+        inward_id: number;
+        inward_no: string;
+        qty: number;
+        odate?: string | null;
+        created_by?: string | number | null;
+        created_at?: string | null;
+      }>>();
 
       const jwBalanceMap = new Map<number, any>();
       if (plateIds.length > 0) {
-        const [{ data: orderedRows }, { data: jwBalances }] = await Promise.all([
+        const [{ data: orderedRows }, { data: jwBalances }, { data: inwardRows }] = await Promise.all([
           supabaseAdmin
             .from("purchase_items")
             .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
@@ -242,6 +292,10 @@ export async function GET(req: NextRequest) {
           supabaseAdmin
             .from("view_subplate_jobwork_balance")
             .select("plateid, outward_jobwork_qty, available_sm_qty, active_vendors, active_vendor_initials, po_ordered_qty, po_inward_qty, pending_po_inward_qty, has_po, customer_dispatched_qty")
+            .in("plateid", plateIds),
+          supabaseAdmin
+            .from("purchase_inward_items")
+            .select("plateid, qty, po_inward:inpid(id, insrno, odate, created_by, created_at)")
             .in("plateid", plateIds),
         ]);
 
@@ -261,6 +315,26 @@ export async function GET(req: NextRequest) {
                 created_at: poData.created_at || null,
               });
               platePOsMap.set(pid, existingList);
+            }
+          });
+        }
+
+        if (inwardRows) {
+          inwardRows.forEach((row: any) => {
+            const pid = Number(row.plateid);
+            const q = Number(row.qty) || 0;
+            const inData = Array.isArray(row.po_inward) ? row.po_inward[0] : row.po_inward;
+            if (inData) {
+              const existingList = plateInwardsMap.get(pid) || [];
+              existingList.push({
+                inward_id: inData.id,
+                inward_no: inData.insrno || `IN#${inData.id}`,
+                qty: q,
+                odate: inData.odate || null,
+                created_by: inData.created_by || null,
+                created_at: inData.created_at || null,
+              });
+              plateInwardsMap.set(pid, existingList);
             }
           });
         }
@@ -293,6 +367,12 @@ export async function GET(req: NextRequest) {
         const poStatus: 'UNORDERED' | 'PARTIAL' | 'FULLY_ORDERED' =
           ordered >= total ? 'FULLY_ORDERED' : ordered > 0 ? 'PARTIAL' : 'UNORDERED';
 
+        const linkedInwards = plateInwardsMap.get(sp.id) || [];
+        const inwardQty = Number(jwBalanceMap.get(sp.id)?.po_inward_qty ?? 0);
+        const remainingInward = Math.max(0, total - inwardQty);
+        const inwardStatus: 'PENDING' | 'PARTIAL' | 'FULLY_INWARDED' =
+          inwardQty >= total ? 'FULLY_INWARDED' : inwardQty > 0 ? 'PARTIAL' : 'PENDING';
+
         return {
           ...sp,
           ordered_qty: ordered,
@@ -302,6 +382,10 @@ export async function GET(req: NextRequest) {
           po_id: latestPO?.po_id || null,
           po_status: poStatus,
           linked_pos: linkedPOs,
+          inward_qty: inwardQty,
+          remaining_inward_qty: remainingInward,
+          inward_status: inwardStatus,
+          linked_inwards: linkedInwards,
           jobwork_balance: {
             outward_jobwork_qty: jwBalanceMap.get(sp.id)?.outward_jobwork_qty ?? 0,
             available_sm_qty: jwBalanceMap.get(sp.id)?.available_sm_qty ?? (hasPO ? 0 : total),

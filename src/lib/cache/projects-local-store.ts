@@ -122,6 +122,28 @@ export function saveLocalProjectsStore(state: StoredProjectsState): Promise<void
 }
 
 /**
+ * Atomically mutate the cached scan list via the existing write queue.
+ * Never does an unserialized load-then-save. Safe for concurrent callers.
+ */
+export function updateLocalProjectsStore(
+  mutator: (scans: ScanProject[]) => ScanProject[]
+): void {
+  if (typeof window === "undefined") return;
+  // Chain onto the existing write queue so reads and writes never race
+  writeQueuePromise = writeQueuePromise.then(async () => {
+    try {
+      const stored = await get<StoredProjectsState>(LOCAL_PROJECTS_KEY);
+      if (!stored || !Array.isArray(stored.scans)) return;
+      const next = mutator(stored.scans);
+      if (next === stored.scans) return; // nothing changed, skip write
+      await set(LOCAL_PROJECTS_KEY, { ...stored, scans: next });
+    } catch (err) {
+      console.warn("[LocalStore] updateLocalProjectsStore failed:", err);
+    }
+  });
+}
+
+/**
  * Merge delta scans into an existing array of ScanProjects:
  * 1. Existing modified entries are updated in-place.
  * 2. Brand new entries are prepended at the top.

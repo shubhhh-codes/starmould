@@ -94,18 +94,12 @@ function AppLayoutContent({ children }: AppLayoutProps) {
           ) : isPrintRoute ? (
             <div className="corbel-view-container w-full h-full min-w-0">{children}</div>
           ) : (
-            <motion.div
+            <div
               key={pathname}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.22,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              className="w-full h-full min-w-0"
+              className="w-full h-full min-w-0 animate-in fade-in duration-150"
             >
               {children}
-            </motion.div>
+            </div>
           )}
         </main>
       </div>

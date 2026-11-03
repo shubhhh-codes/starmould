@@ -2232,12 +2232,20 @@ function SubplatePageContent() {
 																							const isAssignedToMe = Boolean(currentUser?.id && Number(val) === Number(currentUser.id));
 																							const isAssignedToOther = isAssigned && !isAssignedToMe;
 																							const isStage2 = stage.key === "order_by";
+																							const isStage3 = stage.key === "received_workby";
 																							const totalQty = Number(row.sqty) || 1;
 																							const orderedQty = row.ordered_qty ?? 0;
 																							const remainingQty = row.remaining_qty !== undefined ? row.remaining_qty : Math.max(0, totalQty - orderedQty);
 																							const isPartial = isStage2 && (row.po_status === "PARTIAL" || (orderedQty > 0 && remainingQty > 0));
 																							const isFullyOrdered = isStage2 && (row.po_status === "FULLY_ORDERED" || (orderedQty >= totalQty && orderedQty > 0));
-																							const isStageDone = isStage2 ? isFullyOrdered : isAssigned;
+
+																							const inwardQty = Number((row as any).inward_qty ?? row.jobwork_balance?.po_inward_qty ?? 0);
+																							const remainingInwardQty = (row as any).remaining_inward_qty !== undefined ? (row as any).remaining_inward_qty : Math.max(0, totalQty - inwardQty);
+																							const isPartialInward = isStage3 && ((row as any).inward_status === "PARTIAL" || (inwardQty > 0 && remainingInwardQty > 0));
+																							const isFullyInwarded = isStage3 && ((row as any).inward_status === "FULLY_INWARDED" || (inwardQty >= totalQty && inwardQty > 0));
+
+																							const isCardPartial = isPartial || isPartialInward;
+																							const isStageDone = isStage2 ? isFullyOrdered : isStage3 ? isFullyInwarded : isAssigned;
 
 																							return (
 																								<div
@@ -2245,7 +2253,7 @@ function SubplatePageContent() {
 																									className={`p-4 rounded-xl border transition-all space-y-3.5 flex flex-col justify-between ${
 																										isRoleCard ? "shadow-sm bg-white ring-1 ring-blue-500/15" : ""
 																									} ${
-																										isPartial
+																										isCardPartial
 																											? "bg-white border-amber-300 shadow-xs ring-1 ring-amber-400/20"
 																											: isStageDone
 																											? "bg-white border-blue-200 shadow-xs ring-1 ring-blue-500/10"
@@ -2257,7 +2265,7 @@ function SubplatePageContent() {
 																										<div className="flex items-center justify-between gap-1 mb-2">
 																											<span
 																												className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-mono ${
-																													isPartial
+																													isCardPartial
 																														? "bg-amber-50 text-amber-700 border border-amber-200/80"
 																														: isStageDone
 																														? "bg-blue-50 text-blue-700 border border-blue-200/60"
@@ -2275,6 +2283,24 @@ function SubplatePageContent() {
 																													</span>
 																												) : (
 																													<span className="w-2 h-2 rounded-full bg-slate-300 shrink-0" />
+																												)
+																											) : isStage3 ? (
+																												isFullyInwarded ? (
+																													<div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
+																														<CheckCircle2 className="w-4 h-4 shrink-0" />
+																														<span>Fully Inwarded</span>
+																													</div>
+																												) : isPartialInward ? (
+																													<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 font-mono">
+																														Partial ({inwardQty}/{totalQty})
+																													</span>
+																												) : isAssigned ? (
+																													<div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
+																														<CheckCircle2 className="w-4 h-4 shrink-0" />
+																														<span>Assigned</span>
+																													</div>
+																												) : (
+																													<span className="text-xs text-slate-400 font-medium">Pending</span>
 																												)
 																											) : isAssigned ? (
 																												<div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
@@ -2476,21 +2502,191 @@ function SubplatePageContent() {
 																													</button>
 																												);
 																											})()
-																										) : stage.key === "received_workby" && !isAssigned && (Number((row as any).po_inward_qty) || 0) <= 0 ? (
-																											<button
-																												type="button"
-																												onClick={() => router.push(`/purchase-inward?mould=${encodeURIComponent(row.subprojectid || (row as any).mould_project_code || "")}`)}
-																												className="w-full h-9 px-2.5 rounded-lg border border-dashed border-sky-300 bg-sky-50/60 hover:bg-sky-100/80 text-sky-900 transition flex items-center justify-between gap-1 cursor-pointer shadow-2xs group"
-																												title="Material Gate Entry Required in Purchase Inward"
-																											>
-																												<span className="text-[11px] font-bold text-sky-900 flex items-center gap-1.5 truncate">
-																													<Package className="w-3.5 h-3.5 text-sky-600 shrink-0 group-hover:scale-110 transition-transform" />
-																													<span className="truncate">Gate Inward</span>
-																												</span>
-																												<span className="text-[9px] font-mono font-bold text-sky-700 bg-sky-100 border border-sky-200/80 px-1.5 py-0.5 rounded shrink-0">
-																													Pending
-																												</span>
-																											</button>
+																										) : isStage3 ? (
+																											(() => {
+																												const staffMember = activeStaff.find((u) => u.id === Number(val));
+																												const staffName = staffMember?.name || (row as any).received_workby_name || (val ? `Staff #${val}` : "Gate Inward");
+																												const staffInitials = staffMember?.initials || (row as any).received_workby_name?.slice(0, 2).toUpperCase() || "PI";
+																												const mouldParam = encodeURIComponent(row.subprojectid || (row as any).mould_project_code || (row as any).mold_code || "");
+
+																												const linkedInwards: any[] =
+																													row.linked_inwards && row.linked_inwards.length > 0
+																														? row.linked_inwards
+																														: inwardQty > 0
+																														? [
+																																{
+																																	inward_id: 0,
+																																	inward_no: "Gate Inward",
+																																	qty: inwardQty,
+																																	created_by: val,
+																																	created_at: timestamp,
+																																},
+																														  ]
+																														: [];
+
+																												if (isFullyInwarded) {
+																													if (linkedInwards.length > 1) {
+																														return (
+																															<div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+																																{linkedInwards.map((inw, idx) => {
+																																	const inwStaff = activeStaff.find((u) => u.id === Number(inw.created_by)) || staffMember;
+																																	const inwStaffName = inwStaff?.name || (row as any).received_workby_name || staffName;
+																																	const inwInitials = inwStaff?.initials || (row as any).received_workby_name?.slice(0, 2).toUpperCase() || staffInitials;
+																																	return (
+																																		<a
+																																			key={inw.inward_id || idx}
+																																			href={`/purchase-inward?mould=${mouldParam}`}
+																																			target="_blank"
+																																			rel="noopener noreferrer"
+																																			title={`View Inward #${inw.inward_no} in Purchase Inward`}
+																																			className="h-9 px-2 rounded-lg bg-emerald-50/80 border border-emerald-200/90 hover:border-emerald-400 hover:bg-emerald-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																																		>
+																																			<div className="flex items-center gap-1.5 min-w-0">
+																																				<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																					{inwInitials}
+																																				</div>
+																																				<div className="min-w-0">
+																																					<div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-emerald-900">
+																																						{inwStaffName}
+																																					</div>
+																																					<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
+																																						{inw.inward_no ? `Inward #${inw.inward_no}` : "Inward"} • {inw.qty} pcs
+																																					</div>
+																																				</div>
+																																			</div>
+																																			<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+																																		</a>
+																																	);
+																																})}
+																															</div>
+																														);
+																													}
+
+																													const singleInw = linkedInwards[0];
+																													const inwStaff = activeStaff.find((u) => u.id === Number(singleInw?.created_by)) || staffMember;
+																													const inwStaffName = inwStaff?.name || (row as any).received_workby_name || staffName;
+																													const inwInitials = inwStaff?.initials || (row as any).received_workby_name?.slice(0, 2).toUpperCase() || staffInitials;
+
+																													return (
+																														<a
+																															href={`/purchase-inward?mould=${mouldParam}`}
+																															target="_blank"
+																															rel="noopener noreferrer"
+																															title="View Inward in Purchase Inward"
+																															className="h-9 px-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 hover:border-emerald-400 hover:bg-emerald-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																														>
+																															<div className="flex items-center gap-1.5 min-w-0">
+																																<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																	{inwInitials}
+																																</div>
+																																<div className="min-w-0">
+																																	<div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-emerald-900">
+																																		{inwStaffName}
+																																	</div>
+																																	<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
+																																		{singleInw?.inward_no ? `Inward #${singleInw.inward_no}` : "Inward"} • {totalQty} pcs
+																																	</div>
+																																</div>
+																															</div>
+																															<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+																														</a>
+																													);
+																												}
+
+																												if (isPartialInward) {
+																													return (
+																														<div className="space-y-1.5">
+																															{linkedInwards.length > 1 ? (
+																																<div className="space-y-1.5 max-h-32 overflow-y-auto pr-0.5">
+																																	{linkedInwards.map((inw, idx) => {
+																																		const inwStaff = activeStaff.find((u) => u.id === Number(inw.created_by)) || staffMember;
+																																		const inwStaffName = inwStaff?.name || (row as any).received_workby_name || staffName;
+																																		const inwInitials = inwStaff?.initials || (row as any).received_workby_name?.slice(0, 2).toUpperCase() || staffInitials;
+																																		return (
+																																			<a
+																																				key={inw.inward_id || idx}
+																																				href={`/purchase-inward?mould=${mouldParam}`}
+																																				target="_blank"
+																																				rel="noopener noreferrer"
+																																				title={`View Inward #${inw.inward_no} in Purchase Inward`}
+																																				className="h-8 px-2 rounded-lg bg-amber-50/70 border border-amber-200/80 hover:border-amber-400 hover:bg-amber-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																																			>
+																																				<div className="flex items-center gap-1.5 min-w-0">
+																																					<div className="w-4 h-4 rounded bg-amber-500 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+																																						{inwInitials}
+																																					</div>
+																																					<div className="min-w-0">
+																																						<div className="text-[10px] font-bold text-slate-900 truncate leading-tight group-hover:text-amber-950">
+																																							{inwStaffName}
+																																						</div>
+																																						<div className="text-[8px] font-mono text-amber-700 truncate font-semibold leading-none">
+																																							{inw.inward_no ? `Inward #${inw.inward_no}` : "Inward"}
+																																						</div>
+																																					</div>
+																																				</div>
+																																				<span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300/80 px-1 py-0.2 rounded font-mono shrink-0">
+																																					{inw.qty} pcs
+																																				</span>
+																																			</a>
+																																		);
+																																	})}
+																																</div>
+																															) : (
+																																<a
+																																	href={`/purchase-inward?mould=${mouldParam}`}
+																																	target="_blank"
+																																	rel="noopener noreferrer"
+																																	title="View Inward in Purchase Inward"
+																																	className="h-9 px-2 rounded-lg bg-amber-50/70 border border-amber-200/80 hover:border-amber-400 hover:bg-amber-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																																>
+																																	<div className="flex items-center gap-1.5 min-w-0">
+																																		<div className="w-5 h-5 rounded-md bg-amber-500 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																			{staffInitials}
+																																		</div>
+																																		<div className="min-w-0">
+																																			<div className="text-[11px] font-bold text-slate-900 truncate leading-tight group-hover:text-amber-950">
+																																				{staffName}
+																																			</div>
+																																			<div className="text-[9px] font-mono text-amber-700 truncate font-semibold leading-none">
+																																				{linkedInwards[0]?.inward_no ? `Inward #${linkedInwards[0].inward_no}` : "Inward"}
+																																			</div>
+																																		</div>
+																																	</div>
+																																	<span className="text-[9px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300/80 px-1.5 py-0.5 rounded font-mono shrink-0">
+																																		{inwardQty}/{totalQty}
+																																	</span>
+																																</a>
+																															)}
+																															<button
+																																type="button"
+																																onClick={() => router.push(`/purchase-inward?mould=${mouldParam}`)}
+																																className="w-full h-8 px-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-[11px] shadow-2xs transition flex items-center justify-center gap-1.5 cursor-pointer group"
+																															>
+																																<Package className="w-3.5 h-3.5 shrink-0 group-hover:scale-110 transition-transform" />
+																																<span className="truncate">Inward Rem. ({remainingInwardQty} pcs)</span>
+																															</button>
+																														</div>
+																													);
+																												}
+
+																												// 0 pcs inwarded (Uninwarded)
+																												return (
+																													<button
+																														type="button"
+																														onClick={() => router.push(`/purchase-inward?mould=${mouldParam}`)}
+																														className="w-full h-9 px-2.5 rounded-lg border border-dashed border-sky-300 bg-sky-50/60 hover:bg-sky-100/80 text-sky-900 transition flex items-center justify-between gap-1 cursor-pointer shadow-2xs group"
+																														title="Material Gate Entry Required in Purchase Inward"
+																													>
+																														<span className="text-[11px] font-bold text-sky-900 flex items-center gap-1.5 truncate">
+																															<Package className="w-3.5 h-3.5 text-sky-600 shrink-0 group-hover:scale-110 transition-transform" />
+																															<span className="truncate">Gate Inward</span>
+																														</span>
+																														<span className="text-[9px] font-mono font-bold text-sky-700 bg-sky-100 border border-sky-200/80 px-1.5 py-0.5 rounded shrink-0">
+																															Pending
+																														</span>
+																													</button>
+																												);
+																											})()
 																										) : (
 																											<StaffSelect
 																												value={val}
@@ -2781,11 +2977,17 @@ function SubplatePageContent() {
 																		const isAssignedToMe = Boolean(currentUser?.id && Number(val) === Number(currentUser.id));
 																		const isAssignedToOther = isAssigned && !isAssignedToMe;
 																		const isStage2 = stage.key === "order_by";
+																		const isStage3 = stage.key === "received_workby";
 																		const totalQty = Number(row.sqty) || 1;
 																		const orderedQty = row.ordered_qty ?? 0;
 																		const remainingQty = row.remaining_qty !== undefined ? row.remaining_qty : Math.max(0, totalQty - orderedQty);
 																		const isPartial = isStage2 && (row.po_status === "PARTIAL" || (orderedQty > 0 && remainingQty > 0));
 																		const isFullyOrdered = isStage2 && (row.po_status === "FULLY_ORDERED" || (orderedQty >= totalQty && orderedQty > 0));
+
+																		const inwardQty = Number((row as any).inward_qty ?? row.jobwork_balance?.po_inward_qty ?? 0);
+																		const remainingInwardQty = (row as any).remaining_inward_qty !== undefined ? (row as any).remaining_inward_qty : Math.max(0, totalQty - inwardQty);
+																		const isPartialInward = isStage3 && ((row as any).inward_status === "PARTIAL" || (inwardQty > 0 && remainingInwardQty > 0));
+																		const isFullyInwarded = isStage3 && ((row as any).inward_status === "FULLY_INWARDED" || (inwardQty >= totalQty && inwardQty > 0));
 
 																		if (isStage2) {
 																			const staffMember = activeStaff.find((u) => u.id === Number(val));
@@ -2975,8 +3177,89 @@ function SubplatePageContent() {
 																			);
 																		}
 
-																		const isInwardGateRequired = stage.key === "received_workby" && !isAssigned && (Number((row as any).po_inward_qty) || 0) <= 0;
-																		if (isInwardGateRequired) {
+																		if (isStage3) {
+																			const staffMember = activeStaff.find((u) => u.id === Number(val));
+																			const staffName = staffMember?.name || (row as any).received_workby_name || (val ? `Staff #${val}` : "Gate Inward");
+																			const staffInitials = staffMember?.initials || (row as any).received_workby_name?.slice(0, 2).toUpperCase() || "PI";
+																			const mouldParam = encodeURIComponent(row.subprojectid || (row as any).mould_project_code || (row as any).mold_code || "");
+
+																			const linkedInwards: any[] =
+																				row.linked_inwards && row.linked_inwards.length > 0
+																					? row.linked_inwards
+																					: inwardQty > 0
+																					? [
+																							{
+																								inward_id: 0,
+																								inward_no: "Gate Inward",
+																								qty: inwardQty,
+																								created_by: val,
+																								created_at: timestamp,
+																							},
+																					  ]
+																					: [];
+
+																			if (isFullyInwarded) {
+																				return (
+																					<div
+																						key={stage.key}
+																						className="p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-200/90 shadow-2xs space-y-1.5"
+																					>
+																						<div className="flex items-center justify-between gap-2">
+																							<div className="flex items-center gap-2 min-w-0">
+																								<span className="text-[11px] font-bold text-slate-900 whitespace-nowrap">
+																									{stage.label}
+																								</span>
+																								<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono whitespace-nowrap">
+																									{linkedInwards.length > 1 ? `${linkedInwards.length} Receipts • All ${totalQty} pcs` : `All ${totalQty} pcs`}
+																								</span>
+																							</div>
+
+																							<a
+																								href={`/purchase-inward?mould=${mouldParam}`}
+																								target="_blank"
+																								rel="noopener noreferrer"
+																								className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-emerald-200 text-slate-800 text-[11px] font-medium shrink-0 max-w-[140px] shadow-2xs hover:bg-emerald-50"
+																							>
+																								<div className="w-4 h-4 rounded-full bg-emerald-600 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+																									{staffInitials}
+																								</div>
+																								<span className="truncate font-semibold">{staffName}</span>
+																								<CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0 ml-0.5" />
+																							</a>
+																						</div>
+																					</div>
+																				);
+																			}
+
+																			if (isPartialInward) {
+																				return (
+																					<div
+																						key={stage.key}
+																						className="p-2.5 rounded-xl bg-amber-50/50 border border-amber-300 shadow-2xs space-y-2"
+																					>
+																						<div className="flex items-center justify-between gap-2">
+																							<div className="flex items-center gap-2 min-w-0">
+																								<span className="text-[11px] font-bold text-slate-900 whitespace-nowrap">
+																									{stage.label}
+																								</span>
+																								<span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-mono whitespace-nowrap">
+																									Partial ({inwardQty}/{totalQty} pcs)
+																								</span>
+																							</div>
+																							<button
+																								type="button"
+																								onClick={() => router.push(`/purchase-inward?mould=${mouldParam}`)}
+																								className="h-7 px-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold text-[10px] shadow-2xs transition flex items-center gap-1.5 shrink-0 cursor-pointer"
+																							>
+																								<Package className="w-3 h-3" />
+																								<span>+ Inward {remainingInwardQty} pcs</span>
+																							</button>
+																						</div>
+																					</div>
+																				);
+																			}
+
+																			// 0 pcs inwarded
 																			return (
 																				<div
 																					key={stage.key}
@@ -2987,16 +3270,16 @@ function SubplatePageContent() {
 																							{stage.label}
 																						</div>
 																						<div className="text-[10px] text-sky-700 font-medium">
-																							Gate Entry Required
+																							Gate Entry Required ({totalQty} pcs)
 																						</div>
 																					</div>
 																					<button
 																						type="button"
-																						onClick={() => router.push(`/purchase-inward?mould=${encodeURIComponent(row.subprojectid || (row as any).mould_project_code || "")}`)}
+																						onClick={() => router.push(`/purchase-inward?mould=${mouldParam}`)}
 																						className="h-7 px-3 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[11px] shadow-2xs transition flex items-center gap-1.5 cursor-pointer shrink-0"
 																					>
 																						<Package className="w-3.5 h-3.5" />
-																						<span>Inward</span>
+																						<span>Gate Inward</span>
 																					</button>
 																				</div>
 																			);

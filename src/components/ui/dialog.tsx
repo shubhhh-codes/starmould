@@ -311,6 +311,7 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   variant?: "danger" | "warning" | "primary";
   isLoading?: boolean;
+  loadingText?: string;
 }
 
 export function ConfirmDialog({
@@ -323,6 +324,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "danger",
   isLoading = false,
+  loadingText,
 }: ConfirmDialogProps) {
   const onConfirmRef = useRef(onConfirm);
   const onCloseRef = useRef(onClose);
@@ -402,6 +404,7 @@ export function ConfirmDialog({
             size="sm"
             onClick={onConfirm}
             loading={isLoading}
+            loadingText={loadingText || (variant === "danger" ? "Deleting..." : "Saving...")}
             className="flex items-center gap-1.5"
           >
             <span>{confirmLabel}</span>
