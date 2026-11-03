@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
 import { getCached, getCachedCustomers, getCachedUsers, invalidateCache } from "@/lib/cache";
+import { computeSubplateDerivedMetrics } from "@/lib/realtime/derived-metrics";
 
 // GET /api/scanning - Fetch scan projects, linked subplates, worklog hours, and KPIs
 export async function GET(req: NextRequest) {
@@ -225,9 +226,7 @@ export async function GET(req: NextRequest) {
         const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
         const sublist = subplateMap[s.id] || [];
         const hours = worklogMap[s.id] || { scan_hr: 0, model_hr: 0 };
-        const completedCount = sublist.filter((sp: any) => sp.packing_workby && Number(sp.packing_workby) > 0).length;
-        const totalPlates = sublist.length;
-        const completionPct = totalPlates > 0 ? Math.round((completedCount / totalPlates) * 100) : 0;
+        const derived = computeSubplateDerivedMetrics(sublist);
 
         return {
           ...s,
@@ -237,11 +236,7 @@ export async function GET(req: NextRequest) {
           qc_by_name: qcUser?.initials || qcUser?.name || "—",
           modeldesign_by_name: modelUser?.initials || modelUser?.name || "—",
           subplates: sublist,
-          subplate_count: totalPlates,
-          total_plates: totalPlates,
-          completed_plates: completedCount,
-          completion_percentage: completionPct,
-          is_ready_for_dispatch: totalPlates > 0 && completedCount === totalPlates,
+          ...derived,
           calc_scan_hr: hours.scan_hr || s.scan_hr || 0,
           calc_model_hr: hours.model_hr || s.model_hr || 0,
         };
@@ -434,9 +429,7 @@ export async function GET(req: NextRequest) {
         const modelUser = userMap.get(Number(s.modeldesign_by)) || userMap.get(s.modeldesign_by);
         const sublist = subplateMap[s.id] || [];
         const hours = worklogMap[s.id] || { scan_hr: 0, model_hr: 0 };
-        const completedCount = sublist.filter((sp: any) => sp.packing_workby && Number(sp.packing_workby) > 0).length;
-        const totalPlates = sublist.length;
-        const completionPct = totalPlates > 0 ? Math.round((completedCount / totalPlates) * 100) : 0;
+        const derived = computeSubplateDerivedMetrics(sublist);
 
         return {
           ...s,
@@ -446,11 +439,7 @@ export async function GET(req: NextRequest) {
           qc_by_name: qcUser?.initials || qcUser?.name || "—",
           modeldesign_by_name: modelUser?.initials || modelUser?.name || "—",
           subplates: sublist,
-          subplate_count: totalPlates,
-          total_plates: totalPlates,
-          completed_plates: completedCount,
-          completion_percentage: completionPct,
-          is_ready_for_dispatch: totalPlates > 0 && completedCount === totalPlates,
+          ...derived,
           calc_scan_hr: hours.scan_hr || s.scan_hr || 0,
           calc_model_hr: hours.model_hr || s.model_hr || 0,
         };

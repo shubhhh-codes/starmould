@@ -1,9 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { queryKeys } from "@/lib/query/keys";
+import {
+  ingestSubplateChange,
+  scheduleCountsInvalidate,
+  applyScanUpdateToScans,
+} from "@/lib/realtime/subplate-sync";
+import { emitScanUpdate } from "@/lib/cache/projects-stream-store";
+import { updateLocalProjectsStore } from "@/lib/cache/projects-local-store";
+import type { Subplate, ScanProject } from "@/lib/supabase/types";
 
 const TAB_CHANNEL_NAME = "starmould_tabs_sync";
 
@@ -51,14 +60,14 @@ export function broadcastProjectDeletion(idOrIds: number | string | (number | st
 }
 
 /**
- * Broadcast project creation / synchronization across tabs on the same device
+ * Broadcast project scan change / synchronization across tabs on the same device
  */
 export function broadcastProjectSync() {
   if (typeof window === "undefined") return;
   try {
-    window.dispatchEvent(new CustomEvent("starmould:project-synced"));
+    window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
     const bc = getSharedBroadcastChannel();
-    bc?.postMessage({ type: "PROJECT_SYNCED" });
+    bc?.postMessage({ type: "SCAN_CHANGED" });
   } catch {
     // Non-blocking fallback
   }
@@ -79,6 +88,7 @@ export function broadcastProjectSync() {
  */
 export function useRealtimeManufacturingSync() {
   const queryClient = useQueryClient();
+  const realtimeDisconnectedRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -94,16 +104,36 @@ export function useRealtimeManufacturingSync() {
           window.dispatchEvent(
             new CustomEvent("starmould:project-deleted", { detail: { id, ids } })
           );
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-        } else if (event.data?.type === "PROJECT_SYNCED") {
-          window.dispatchEvent(new CustomEvent("starmould:project-synced"));
-          queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+          scheduleCountsInvalidate(queryClient);
+        } else if (event.data?.type === "SCAN_CHANGED" || event.data?.type === "PROJECT_SYNCED") {
+          window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
+          scheduleCountsInvalidate(queryClient);
         } else if (event.data?.type === "PERMISSIONS_UPDATED") {
           queryClient.invalidateQueries({ queryKey: ["role_permissions"] });
+        } else if (event.data?.type === "SUBPLATE_CHANGE") {
+          // Received from another tab that originated the change locally
+          const { kind, plate, id } = event.data;
+          ingestSubplateChange(queryClient, { kind, plate, id, origin: "bc" });
         }
       };
     }
+
+    // Gap recovery on tab visibility (>30s hidden)
+    let hiddenAt: number | null = null;
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+      } else if (hiddenAt !== null) {
+        const elapsedMs = Date.now() - hiddenAt;
+        hiddenAt = null;
+        if (elapsedMs > 30000) {
+          window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
+          queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+          scheduleCountsInvalidate(queryClient);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // 2. Supabase Realtime WebSocket channel for database-wide multi-device sync
     const channel = supabase
@@ -124,15 +154,20 @@ export function useRealtimeManufacturingSync() {
                 new CustomEvent("starmould:project-deleted", { detail: { id: deletedId } })
               );
               broadcastProjectDeletion(deletedId);
-            } else {
-              window.dispatchEvent(new CustomEvent("starmould:project-synced"));
             }
+            scheduleCountsInvalidate(queryClient);
+          } else if (payload.eventType === "UPDATE") {
+            // Scan UPDATE (Correction 5): merge scalar columns, keep subplates and derived metrics untouched
+            const updatedScan = payload.new as Partial<ScanProject>;
+            emitScanUpdate(updatedScan);
+            updateLocalProjectsStore((scans) => applyScanUpdateToScans(scans, updatedScan));
+            scheduleCountsInvalidate(queryClient);
           } else {
-            // INSERT or UPDATE
-            window.dispatchEvent(new CustomEvent("starmould:project-synced"));
+            // INSERT: raw scan row is not render-complete (missing subplates[], customername, etc.)
+            // Emit event so the stream hook can coalesce and call syncDelta() once.
+            window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
+            scheduleCountsInvalidate(queryClient);
           }
-          queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
         }
       )
       // B. SUBPLATES (MANUFACTURING LIFE-CYCLE)
@@ -143,10 +178,25 @@ export function useRealtimeManufacturingSync() {
           schema: "public",
           table: "subplate",
         },
-        () => {
-          window.dispatchEvent(new CustomEvent("starmould:project-synced"));
-          queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const deletedId = (payload.old as any)?.id;
+            if (deletedId) {
+              ingestSubplateChange(queryClient, {
+                kind: "remove",
+                id: Number(deletedId),
+                origin: "ws",
+              });
+            }
+          } else {
+            // INSERT or UPDATE — payload.new is the full row (REPLICA IDENTITY FULL)
+            const plate = payload.new as Subplate;
+            ingestSubplateChange(queryClient, {
+              kind: "upsert",
+              plate,
+              origin: "ws",
+            });
+          }
         }
       )
       // C. PURCHASE ORDERS
@@ -159,7 +209,7 @@ export function useRealtimeManufacturingSync() {
         },
         () => {
           queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+          scheduleCountsInvalidate(queryClient);
         }
       )
       // D. PURCHASE INWARD RECEIPTS
@@ -174,7 +224,7 @@ export function useRealtimeManufacturingSync() {
           queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
           queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
           queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+          scheduleCountsInvalidate(queryClient);
         }
       )
       // E. JOB WORK CHALLANS
@@ -188,7 +238,7 @@ export function useRealtimeManufacturingSync() {
         () => {
           queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
           queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+          scheduleCountsInvalidate(queryClient);
         }
       )
       // F. CUSTOMER DISPATCH
@@ -202,7 +252,7 @@ export function useRealtimeManufacturingSync() {
         () => {
           queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
           queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-          queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+          scheduleCountsInvalidate(queryClient);
         }
       )
       // G. ROLE PERMISSIONS CONFIG
@@ -222,9 +272,28 @@ export function useRealtimeManufacturingSync() {
         if (err) {
           console.warn("[RealtimeSync] Channel status:", status, err);
         }
+        if (status === "SUBSCRIBED") {
+          // Channel (re)connected — run gap recovery if we were previously disconnected
+          if (realtimeDisconnectedRef.current) {
+            realtimeDisconnectedRef.current = false;
+            // 1. Trigger a delta sync to catch any missed scan/subplate changes
+            window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
+            // 2. Invalidate subplates.all() to catch any missed subplate events
+            queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+            // 3. Schedule counts invalidate
+            scheduleCountsInvalidate(queryClient);
+          }
+        } else if (
+          status === "CHANNEL_ERROR" ||
+          status === "TIMED_OUT" ||
+          status === "CLOSED"
+        ) {
+          realtimeDisconnectedRef.current = true;
+        }
       });
 
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (bc) {
         bc.onmessage = null;
       }

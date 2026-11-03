@@ -78,7 +78,11 @@ export function getAllowedStagesForUser(currentUser: UserSessionMinimal | null, 
 export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
   let completed = 0;
   let lastAssignedIndex = -1;
+  const totalQty = Number(sp.sqty) || 1;
   const isPartialPO = sp.po_status === "PARTIAL" || ((sp.ordered_qty ?? 0) > 0 && (sp.remaining_qty ?? 0) > 0);
+  const inwardQty = Number((sp as any).inward_qty ?? sp.jobwork_balance?.po_inward_qty ?? 0);
+  const isPartialInward = sp.inward_status === "PARTIAL" || (inwardQty > 0 && inwardQty < totalQty);
+  const remainingInward = Math.max(0, totalQty - inwardQty);
 
   for (let i = 0; i < STAGE_DEFINITIONS.length; i++) {
     const stageDef = STAGE_DEFINITIONS[i];
@@ -86,6 +90,8 @@ export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
     if (val && Number(val) !== 0) {
       if (stageDef.key === "order_by" && isPartialPO) {
         // Stage 2 is only partially completed
+      } else if (stageDef.key === "received_workby" && isPartialInward) {
+        // Stage 3 is only partially completed
       } else {
         completed++;
       }
@@ -160,6 +166,44 @@ export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
         isCompleted: false,
         activeStage: stage,
         assignee: `${linkedPOs.length} POs • ${sp.sqty || sp.ordered_qty} pcs`,
+      };
+    }
+  }
+
+  if (stage.key === "received_workby") {
+    const linkedInwards = sp.linked_inwards && sp.linked_inwards.length > 0 ? sp.linked_inwards : [];
+    const isMultiInward = linkedInwards.length > 1;
+    const inwardListStr = linkedInwards.map((inw) => `#${inw.inward_no}`).join(", ");
+
+    if (isPartialInward) {
+      return {
+        badgeLabel: isMultiInward
+          ? `Stage 3: Mat. Inward (${linkedInwards.length} Receipts • ${inwardQty}/${totalQty} pcs)`
+          : `Stage 3: Mat. Inward (Partial: ${inwardQty}/${totalQty} pcs)`,
+        subtext: isMultiInward
+          ? `${linkedInwards.length} Inwards: ${inwardListStr} (${remainingInward} pending)`
+          : `${inwardQty}/${totalQty} inwarded (${remainingInward} pending)`,
+        badgeStyle: "bg-amber-50 text-amber-900 border-amber-300 font-bold shadow-2xs",
+        dotColor: "bg-amber-500",
+        completed,
+        isCompleted: false,
+        activeStage: stage,
+        assignee: isMultiInward
+          ? `${linkedInwards.length} Inwards (${inwardQty}/${totalQty} pcs)`
+          : (staffName ? `${staffName} (${inwardQty}/${totalQty} pcs)` : null),
+      };
+    }
+
+    if (isMultiInward) {
+      return {
+        badgeLabel: `Stage 3: Mat. Inward (${linkedInwards.length} Receipts • ${totalQty} pcs)`,
+        subtext: `${linkedInwards.length} Inwards: ${inwardListStr}`,
+        badgeStyle: "bg-blue-50 text-blue-900 border-blue-200/90 font-bold shadow-2xs",
+        dotColor: "bg-blue-600",
+        completed,
+        isCompleted: false,
+        activeStage: stage,
+        assignee: `${linkedInwards.length} Inwards • ${totalQty} pcs`,
       };
     }
   }

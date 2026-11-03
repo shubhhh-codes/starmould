@@ -107,6 +107,13 @@ export interface ScanProject {
   completion_percentage?: number;
   subplates?: Subplate[];
   subplate_count?: number;
+  is_ready_for_dispatch?: boolean;
+  customer_initials?: string;
+  scan_by_name?: string;
+  qc_by_name?: string;
+  modeldesign_by_name?: string;
+  calc_scan_hr?: number;
+  calc_model_hr?: number;
 }
 
 export interface Subplate {
@@ -158,6 +165,10 @@ export interface Subplate {
   po_id?: number | null;
   po_status?: 'UNORDERED' | 'PARTIAL' | 'FULLY_ORDERED';
   linked_pos?: LinkedPOInfo[];
+  inward_qty?: number;
+  remaining_inward_qty?: number;
+  inward_status?: 'PENDING' | 'PARTIAL' | 'FULLY_INWARDED';
+  linked_inwards?: LinkedInwardInfo[];
   jobwork_balance?: {
     outward_jobwork_qty: number;
     available_sm_qty: number;
@@ -178,6 +189,15 @@ export interface LinkedPOInfo {
   po_srno: string;
   qty: number;
   created_by?: string | null;
+  created_at?: string | null;
+}
+
+export interface LinkedInwardInfo {
+  inward_id: number;
+  inward_no: string;
+  qty: number;
+  odate?: string | null;
+  created_by?: string | number | null;
   created_at?: string | null;
 }
 

@@ -25,6 +25,17 @@ import {
   mergeDeltaScans,
   clearLocalProjectsStore,
 } from "@/lib/cache/projects-local-store";
+import {
+  ingestSubplateChange,
+  applySubplateToScans,
+  applyScanUpdateToScans,
+  type SubplateChange,
+} from "@/lib/realtime/subplate-sync";
+import {
+  subscribeSubplateChanges,
+  subscribeScanUpdates,
+  setCachedStreamUsers,
+} from "@/lib/cache/projects-stream-store";
 
 // Standard pagination response structure
 export interface PaginatedResponse<T> {
@@ -218,6 +229,9 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     totalCountRef.current = totalCount;
     extraMetadataRef.current = extraMetadata;
     lastSyncTimeRef.current = lastSyncTime;
+    if (extraMetadata.users && extraMetadata.users.length > 0) {
+      setCachedStreamUsers(extraMetadata.users);
+    }
   }, [streamedScans, totalCount, extraMetadata, lastSyncTime]);
 
   const streamAbortControllerRef = React.useRef<AbortController | null>(null);
@@ -749,7 +763,76 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
     }
   }, [queryClient]);
 
-  // Realtime Cross-Tab & Multi-Device Event Listeners:
+  // Bridge to Realtime Subplate Stream:
+  // Subscribes to subplate changes in-memory, applies immutable update to streamed scans,
+  // updates UI state immediately, and writes to IndexedDB preserving lastSyncTime.
+  React.useEffect(() => {
+    return subscribeSubplateChanges((change: SubplateChange) => {
+      const next = applySubplateToScans(streamedScansRef.current, change);
+      if (next === streamedScansRef.current) return;
+      streamedScansRef.current = next;
+      setStreamedScans([...next]);
+
+      if (lastSyncTimeRef.current) {
+        saveLocalProjectsStore({
+          scans: next,
+          lastSyncTime: lastSyncTimeRef.current,
+          customers: extraMetadataRef.current.customers,
+          users: extraMetadataRef.current.users,
+          kpis: extraMetadataRef.current.kpis,
+          totalCount: totalCountRef.current,
+          isInitialComplete: next.length >= totalCountRef.current,
+        });
+      }
+    });
+  }, []);
+
+  // Bridge to Realtime Scan Scalar Updates (Correction 5):
+  // Subscribes to raw scan UPDATE events, merges scalar columns while keeping subplates and derived metrics intact
+  React.useEffect(() => {
+    return subscribeScanUpdates((rawScan: Partial<ScanProject>) => {
+      const next = applyScanUpdateToScans(streamedScansRef.current, rawScan);
+      if (next === streamedScansRef.current) return;
+      streamedScansRef.current = next;
+      setStreamedScans([...next]);
+
+      if (lastSyncTimeRef.current) {
+        saveLocalProjectsStore({
+          scans: next,
+          lastSyncTime: lastSyncTimeRef.current,
+          customers: extraMetadataRef.current.customers,
+          users: extraMetadataRef.current.users,
+          kpis: extraMetadataRef.current.kpis,
+          totalCount: totalCountRef.current,
+          isInitialComplete: next.length >= totalCountRef.current,
+        });
+      }
+    });
+  }, []);
+
+  // Coalesced Realtime Scan Changes (e.g. from Supabase Realtime or multi-tab events):
+  // Since raw scan rows are not render-complete, coalesce scan changes with a 300ms trailing debounce
+  // and run syncDelta once to fetch enriched project data.
+  React.useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const handleScanChanged = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        if (lastSyncTimeRef.current) {
+          syncDelta(lastSyncTimeRef.current);
+        }
+      }, 300);
+    };
+
+    window.addEventListener("starmould:scan-changed", handleScanChanged);
+    return () => {
+      window.removeEventListener("starmould:scan-changed", handleScanChanged);
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
+  }, [syncDelta]);
+
+  // Realtime Cross-Tab & Multi-Device Project Deletion Listeners:
   // Instantly prunes deleted projects from UI & IndexedDB without requiring manual page refresh!
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -765,18 +848,12 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
       }
     };
 
-    const onProjectSynced = () => {
-      refetch();
-    };
-
     window.addEventListener("starmould:project-deleted", onProjectDeleted);
-    window.addEventListener("starmould:project-synced", onProjectSynced);
 
     return () => {
       window.removeEventListener("starmould:project-deleted", onProjectDeleted);
-      window.removeEventListener("starmould:project-synced", onProjectSynced);
     };
-  }, [removeProjectLocally, removeProjectsLocally, refetch]);
+  }, [removeProjectLocally, removeProjectsLocally]);
 
   const isLoading = !hasHydratedLocal && streamedScans.length === 0 && chunk1Query.isLoading;
 
@@ -1028,18 +1105,20 @@ export function useCreateSubplateMutation() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-      if (variables?.projectid) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
+    onSuccess: (resData, variables) => {
+      const serverPlate = resData?.subplate || resData?.data;
+      if (serverPlate) {
+        ingestSubplateChange(queryClient, {
+          kind: "upsert",
+          plate: serverPlate,
+          origin: "local",
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+        if (variables?.projectid) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
+        }
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-      broadcastQueryInvalidation(queryKeys.subplates.all());
-      broadcastQueryInvalidation(queryKeys.projects.all());
-      broadcastQueryInvalidation(queryKeys.purchases.all());
-      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -1080,39 +1159,21 @@ export function useUpdateSubplateMutation() {
     onSuccess: (resData, variables) => {
       const serverPlate = resData?.subplate || resData?.data;
       if (serverPlate) {
-        queryClient.setQueriesData({ queryKey: queryKeys.subplates.all() }, (old: any) => {
-          if (!old) return old;
-          const updateList = (list: any[]) =>
-            list.map((item) => (item.id === serverPlate.id ? { ...item, ...serverPlate } : item));
-          if (Array.isArray(old)) return updateList(old);
-          if (old.subplates) return { ...old, subplates: updateList(old.subplates) };
-          if (old.data) return { ...old, data: updateList(old.data) };
-          return old;
+        ingestSubplateChange(queryClient, {
+          kind: "upsert",
+          plate: serverPlate,
+          origin: "local",
         });
+      } else {
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+        if (variables?.projectid) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
+        }
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-      if (variables?.projectid) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
+      // Invalidate purchases ONLY if a purchase order dependency changed
+      if (variables?.order_by || variables?.updates?.order_by || variables?.ordered) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       }
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-      broadcastQueryInvalidation(queryKeys.subplates.all());
-      broadcastQueryInvalidation(queryKeys.projects.all());
-      broadcastQueryInvalidation(queryKeys.dashboard.counts());
-    },
-    onSettled: (_data, _err, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-      if (variables?.projectid) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
-      }
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-      broadcastQueryInvalidation(queryKeys.subplates.all());
-      broadcastQueryInvalidation(queryKeys.projects.all());
-      broadcastQueryInvalidation(queryKeys.purchases.all());
-      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -1146,15 +1207,12 @@ export function useDeleteSubplateMutation() {
         }
       }
     },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-      broadcastQueryInvalidation(queryKeys.subplates.all());
-      broadcastQueryInvalidation(queryKeys.projects.all());
-      broadcastQueryInvalidation(queryKeys.purchases.all());
-      broadcastQueryInvalidation(queryKeys.dashboard.counts());
+    onSuccess: (_data, deletedId) => {
+      ingestSubplateChange(queryClient, {
+        kind: "remove",
+        id: deletedId,
+        origin: "local",
+      });
     },
   });
 }
