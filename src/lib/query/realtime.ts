@@ -12,22 +12,8 @@ import {
 } from "@/lib/realtime/subplate-sync";
 import { emitScanUpdate } from "@/lib/cache/projects-stream-store";
 import { updateLocalProjectsStore } from "@/lib/cache/projects-local-store";
+import { getSharedBroadcastChannel, TAB_ID } from "@/lib/realtime/tab-channel";
 import type { Subplate, ScanProject } from "@/lib/supabase/types";
-
-const TAB_CHANNEL_NAME = "starmould_tabs_sync";
-
-let sharedBc: BroadcastChannel | null = null;
-function getSharedBroadcastChannel(): BroadcastChannel | null {
-  if (typeof window === "undefined" || !("BroadcastChannel" in window)) return null;
-  if (!sharedBc) {
-    try {
-      sharedBc = new BroadcastChannel(TAB_CHANNEL_NAME);
-    } catch {
-      return null;
-    }
-  }
-  return sharedBc;
-}
 
 /**
  * Broadcast an invalidation event across all open browser tabs/windows on the same device
@@ -36,7 +22,7 @@ export function broadcastQueryInvalidation(queryKey: readonly unknown[]) {
   if (typeof window === "undefined") return;
   try {
     const bc = getSharedBroadcastChannel();
-    bc?.postMessage({ type: "INVALIDATE", queryKey });
+    bc?.postMessage({ type: "INVALIDATE", tabId: TAB_ID, queryKey });
   } catch {
     // Graceful fallback if BroadcastChannel fails or is blocked
   }
@@ -53,7 +39,7 @@ export function broadcastProjectDeletion(idOrIds: number | string | (number | st
       new CustomEvent("starmould:project-deleted", { detail: { id: ids[0], ids } })
     );
     const bc = getSharedBroadcastChannel();
-    bc?.postMessage({ type: "PROJECT_DELETED", id: ids[0], ids });
+    bc?.postMessage({ type: "PROJECT_DELETED", tabId: TAB_ID, id: ids[0], ids });
   } catch {
     // Non-blocking fallback
   }
@@ -67,7 +53,7 @@ export function broadcastProjectSync() {
   try {
     window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
     const bc = getSharedBroadcastChannel();
-    bc?.postMessage({ type: "SCAN_CHANGED" });
+    bc?.postMessage({ type: "SCAN_CHANGED", tabId: TAB_ID });
   } catch {
     // Non-blocking fallback
   }
@@ -97,6 +83,9 @@ export function useRealtimeManufacturingSync() {
     const bc = getSharedBroadcastChannel();
     if (bc) {
       bc.onmessage = (event) => {
+        // Requirement 7: Ignore messages from the same TAB_ID
+        if (event.data?.tabId === TAB_ID) return;
+
         if (event.data?.type === "INVALIDATE" && event.data.queryKey) {
           queryClient.invalidateQueries({ queryKey: event.data.queryKey });
         } else if (event.data?.type === "PROJECT_DELETED") {
@@ -157,7 +146,7 @@ export function useRealtimeManufacturingSync() {
             }
             scheduleCountsInvalidate(queryClient);
           } else if (payload.eventType === "UPDATE") {
-            // Scan UPDATE (Correction 5): merge scalar columns, keep subplates and derived metrics untouched
+            // Scan UPDATE (Requirement 8): checked and merged inside applyScanUpdateToScans
             const updatedScan = payload.new as Partial<ScanProject>;
             emitScanUpdate(updatedScan);
             updateLocalProjectsStore((scans) => applyScanUpdateToScans(scans, updatedScan));
@@ -180,10 +169,13 @@ export function useRealtimeManufacturingSync() {
         },
         (payload) => {
           if (payload.eventType === "DELETE") {
-            const deletedId = (payload.old as any)?.id;
+            // Requirement 5: WS DELETE must pass plate: payload.old
+            const oldPlate = payload.old as Partial<Subplate>;
+            const deletedId = oldPlate?.id;
             if (deletedId) {
               ingestSubplateChange(queryClient, {
                 kind: "remove",
+                plate: oldPlate,
                 id: Number(deletedId),
                 origin: "ws",
               });
@@ -265,7 +257,7 @@ export function useRealtimeManufacturingSync() {
         },
         () => {
           broadcastQueryInvalidation(["role_permissions"]);
-          getSharedBroadcastChannel()?.postMessage({ type: "PERMISSIONS_UPDATED" });
+          getSharedBroadcastChannel()?.postMessage({ type: "PERMISSIONS_UPDATED", tabId: TAB_ID });
         }
       )
       .subscribe((status, err) => {

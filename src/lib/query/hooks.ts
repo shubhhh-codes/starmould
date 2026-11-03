@@ -29,6 +29,7 @@ import {
   ingestSubplateChange,
   applySubplateToScans,
   applyScanUpdateToScans,
+  setIdbCachedUsers,
   type SubplateChange,
 } from "@/lib/realtime/subplate-sync";
 import {
@@ -246,6 +247,10 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
         setStreamedScans(cached.scans);
         setLastSyncTime(cached.lastSyncTime || null);
         setTotalCount(cached.totalCount || cached.scans.length);
+        if (cached.users && cached.users.length > 0) {
+          setIdbCachedUsers(cached.users);
+          setCachedStreamUsers(cached.users);
+        }
         setExtraMetadata({
           customers: cached.customers || [],
           users: cached.users || [],
@@ -1170,8 +1175,9 @@ export function useUpdateSubplateMutation() {
           queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
         }
       }
-      // Invalidate purchases ONLY if a purchase order dependency changed
-      if (variables?.order_by || variables?.updates?.order_by || variables?.ordered) {
+      // Invalidate purchases ONLY when order_by key is present (including null/0)
+      const vars = variables?.updates ?? variables;
+      if (vars && "order_by" in vars) {
         queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       }
     },
@@ -1186,19 +1192,34 @@ export function useDeleteSubplateMutation() {
         method: "DELETE",
       }),
     onMutate: async (deletedId) => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.subplates.all() });
+      // Look up plate from cache before removal (Requirement 5)
+      let cachedPlate: Partial<Subplate> | undefined;
+      const subplateQueries = queryClient.getQueriesData<any>({ queryKey: queryKeys.subplates.all() });
+      for (const [, data] of subplateQueries) {
+        const list = Array.isArray(data) ? data : data?.subplates || data?.data;
+        if (Array.isArray(list)) {
+          const found = list.find((p: any) => p && p.id === deletedId);
+          if (found) {
+            cachedPlate = found;
+            break;
+          }
+        }
+      }
+
+      await queryClient.cancelQueries({
+        queryKey: queryKeys.subplates.all(),
+        predicate: (query) => query.state.data !== undefined,
+      });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.subplates.all() });
 
-      queryClient.setQueriesData({ queryKey: queryKeys.subplates.all() }, (old: any) => {
-        if (!old) return old;
-        const filterList = (list: any[]) => list.filter((item) => item.id !== deletedId);
-        if (Array.isArray(old)) return filterList(old);
-        if (old.subplates) return { ...old, subplates: filterList(old.subplates) };
-        if (old.data) return { ...old, data: filterList(old.data) };
-        return old;
+      ingestSubplateChange(queryClient, {
+        kind: "remove",
+        plate: cachedPlate,
+        id: deletedId,
+        origin: "local",
       });
 
-      return { previousData };
+      return { previousData, cachedPlate };
     },
     onError: (_err, _id, context: any) => {
       if (context?.previousData) {
@@ -1207,9 +1228,10 @@ export function useDeleteSubplateMutation() {
         }
       }
     },
-    onSuccess: (_data, deletedId) => {
+    onSuccess: (_data, deletedId, context) => {
       ingestSubplateChange(queryClient, {
         kind: "remove",
+        plate: context?.cachedPlate,
         id: deletedId,
         origin: "local",
       });
