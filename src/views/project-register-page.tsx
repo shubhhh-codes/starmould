@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
 import {
@@ -225,12 +226,12 @@ export function ProjectRegisterPage() {
           <p className="text-sm text-slate-500 max-w-md mb-6">
             The Project Register is strictly restricted to Administrators only.
           </p>
-          <a
+          <Link
             href="/"
             className="px-4 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors inline-block"
           >
             Return to Dashboard
-          </a>
+          </Link>
         </div>
       </AppLayout>
     );

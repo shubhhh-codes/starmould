@@ -121,7 +121,7 @@ export function PurchaseInwardPage() {
     const [revertingReceipt, setRevertingReceipt] = useState<PurchaseInwardReceipt | null>(null);
     const [revertError, setRevertError] = useState<string | null>(null);
     const [isReverting, setIsReverting] = useState(false);
-    const [currentTime, setCurrentTime] = useState(Date.now());
+    const [currentTime, setCurrentTime] = useState(() => Date.now());
 
     useEffect(() => {
         const interval = setInterval(() => setCurrentTime(Date.now()), 15000);
