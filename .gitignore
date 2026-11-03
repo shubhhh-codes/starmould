@@ -58,3 +58,6 @@ yarn-error.log*
 refrence/
 reference/
 MOLD_SUBPLATE_DATABASE_REORGANIZATION_PLAN.md
+
+# Realtime signing key
+.realtime-signing-key.json
