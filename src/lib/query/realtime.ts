@@ -95,28 +95,30 @@ export function useRealtimeManufacturingSync() {
 
     // 1. Cross-tab synchronization via BroadcastChannel
     const bc = getSharedBroadcastChannel();
-    if (bc) {
-      bc.onmessage = (event) => {
-        if (event.data?.tabId === TAB_ID) return;
+    const handleBroadcastMessage = (event: MessageEvent) => {
+      if (event.data?.tabId === TAB_ID) return;
 
-        if (event.data?.type === "INVALIDATE" && event.data.queryKey) {
-          queryClient.invalidateQueries({ queryKey: event.data.queryKey });
-        } else if (event.data?.type === "PROJECT_DELETED") {
-          const { id, ids } = event.data;
-          window.dispatchEvent(
-            new CustomEvent("starmould:project-deleted", { detail: { id, ids } })
-          );
-          scheduleCountsInvalidate(queryClient);
-        } else if (event.data?.type === "SCAN_CHANGED" || event.data?.type === "PROJECT_SYNCED") {
-          window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
-          scheduleCountsInvalidate(queryClient);
-        } else if (event.data?.type === "PERMISSIONS_UPDATED") {
-          queryClient.invalidateQueries({ queryKey: ["role_permissions"] });
-        } else if (event.data?.type === "SUBPLATE_CHANGE") {
-          const { kind, plate, id } = event.data;
-          ingestSubplateChange(queryClient, { kind, plate, id, origin: "bc" });
-        }
-      };
+      if (event.data?.type === "INVALIDATE" && event.data.queryKey) {
+        queryClient.invalidateQueries({ queryKey: event.data.queryKey });
+      } else if (event.data?.type === "PROJECT_DELETED") {
+        const { id, ids } = event.data;
+        window.dispatchEvent(
+          new CustomEvent("starmould:project-deleted", { detail: { id, ids } })
+        );
+        scheduleCountsInvalidate(queryClient);
+      } else if (event.data?.type === "SCAN_CHANGED" || event.data?.type === "PROJECT_SYNCED") {
+        window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
+        scheduleCountsInvalidate(queryClient);
+      } else if (event.data?.type === "PERMISSIONS_UPDATED") {
+        queryClient.invalidateQueries({ queryKey: ["role_permissions"] });
+      } else if (event.data?.type === "SUBPLATE_CHANGE") {
+        const { kind, plate, id } = event.data;
+        ingestSubplateChange(queryClient, { kind, plate, id, origin: "bc" });
+      }
+    };
+
+    if (bc) {
+      bc.addEventListener("message", handleBroadcastMessage);
     }
 
     // Gap recovery on tab visibility (>30s hidden) + Realtime token refresh
@@ -340,7 +342,7 @@ export function useRealtimeManufacturingSync() {
       if (refreshTimer) clearTimeout(refreshTimer);
       if (retryTimer) clearTimeout(retryTimer);
       if (bc) {
-        bc.onmessage = null;
+        bc.removeEventListener("message", handleBroadcastMessage);
       }
       if (channel) {
         supabase.removeChannel(channel);

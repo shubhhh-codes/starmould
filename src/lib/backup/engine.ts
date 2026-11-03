@@ -111,6 +111,10 @@ export async function generateDatabaseBackup(options: BackupOptions = {}): Promi
     if (match) dbUrl = match[1].trim();
   }
 
+  if (dbUrl) {
+    dbUrl = dbUrl.trim().replace(/^["']|["']$/g, "");
+  }
+
   if (!dbUrl) {
     throw new Error("DATABASE_URL connection string not found in environment or .env.local");
   }

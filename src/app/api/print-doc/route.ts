@@ -46,14 +46,20 @@ export async function GET(req: NextRequest) {
     // Role checks only apply to session-authenticated users (valid print token holders bypass session role gates)
     if (authUser) {
       const userRoleId = authUser.role_id;
-      if (type === "purchase" && ![0, 1].includes(userRoleId)) {
-        return NextResponse.json({ error: "Access denied: Purchase document is restricted to Admin and Manager" }, { status: 403 });
+      if (type === "purchase" && ![0, 1, 5].includes(userRoleId)) {
+        return NextResponse.json({ error: "Access denied: Purchase document is restricted to Admin, Manager, and Purchase Incharge" }, { status: 403 });
       }
       if (type === "quotation" && ![0, 1, 5].includes(userRoleId)) {
         return NextResponse.json({ error: "Access denied: Quotation document is restricted to Admin, Manager, and Sales" }, { status: 403 });
       }
-      if (["challan", "inward", "dispatch"].includes(type) && ![0, 1, 2].includes(userRoleId)) {
-        return NextResponse.json({ error: "Access denied: Logistics documents are restricted to Admin, Manager, and Supervisor" }, { status: 403 });
+      if (type === "dispatch" && ![0, 1, 2, 9].includes(userRoleId)) {
+        return NextResponse.json({ error: "Access denied: Dispatch document is restricted to Admin, Manager, Supervisor, and Dispatch" }, { status: 403 });
+      }
+      if (type === "inward" && ![0, 1, 2, 5, 7, 9].includes(userRoleId)) {
+        return NextResponse.json({ error: "Access denied: Inward document is restricted to Admin, Manager, Supervisor, Purchase, and QC" }, { status: 403 });
+      }
+      if (type === "challan" && ![0, 1, 2].includes(userRoleId)) {
+        return NextResponse.json({ error: "Access denied: Challan document is restricted to Admin, Manager, and Supervisor" }, { status: 403 });
       }
     }
 

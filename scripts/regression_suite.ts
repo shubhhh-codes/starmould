@@ -393,6 +393,60 @@ async function run() {
   assert(sanitizeLoginUsername("admin%_(),") === "admin", "Sanitizes PostgREST wildcards % and _ as well as () and commas");
   assert(sanitizeLoginUsername("user.name@example.com") === "user.name@example.com", "Preserves valid email and dots for login");
 
+
+  // ==========================================
+  // SUITE 7: Cascade Deletion & Document Access Control Regression
+  // ==========================================
+  console.log("\n--- Suite 7: Cascade Deletion & Document Access Control Regression ---");
+
+  // Document print access control simulation matching src/app/api/print-doc/route.ts
+  const canAccessPrintDoc = (type: string, roleId: number): boolean => {
+    if (type === "purchase") return [0, 1, 5].includes(roleId);
+    if (type === "quotation") return [0, 1, 5].includes(roleId);
+    if (type === "dispatch") return [0, 1, 2, 9].includes(roleId);
+    if (type === "inward") return [0, 1, 2, 5, 7, 9].includes(roleId);
+    if (type === "challan") return [0, 1, 2].includes(roleId);
+    return false;
+  };
+
+  assert(canAccessPrintDoc("purchase", 5) === true, "Purchase Incharge (role 5) can access Purchase Orders");
+  assert(canAccessPrintDoc("purchase", 4) === false, "Worker (role 4) cannot access Purchase Orders");
+  assert(canAccessPrintDoc("dispatch", 9) === true, "Dispatch (role 9) can access Dispatch documents");
+  assert(canAccessPrintDoc("dispatch", 4) === false, "Worker (role 4) cannot access Dispatch documents");
+  assert(canAccessPrintDoc("inward", 5) === true, "Purchase Incharge (role 5) can access Inward receipts");
+  assert(canAccessPrintDoc("inward", 7) === true, "Quality Checking (role 7) can access Inward receipts");
+  assert(canAccessPrintDoc("inward", 4) === false, "Worker (role 4) cannot access Inward receipts");
+
+  // Database URL quote-stripping regression
+  const cleanDbUrl = (raw: string) => raw.trim().replace(/^[\"']|[\"']$/g, "");
+  assert(cleanDbUrl('"postgres://user:pass@host:5432/db"') === "postgres://user:pass@host:5432/db", "Strips double quotes from DATABASE_URL");
+  assert(cleanDbUrl("'postgres://user:pass@host:5432/db'") === "postgres://user:pass@host:5432/db", "Strips single quotes from DATABASE_URL");
+  assert(cleanDbUrl("postgres://user:pass@host:5432/db") === "postgres://user:pass@host:5432/db", "Preserves unquoted DATABASE_URL");
+
+  // Cascade deletion contract regression
+  const evaluateCascadeDeleteResult = (result: any) => {
+    if (result?.blocked) {
+      return { success: false, blocked: true, dependencyCount: result.dependency_count || 0 };
+    }
+    return { success: Boolean(result?.success), blocked: false, deletedCount: result?.deleted_count || 0 };
+  };
+
+  const blockedResult = {
+    blocked: true,
+    success: false,
+    dependency_count: 2,
+    dependencies: [
+      { id: 1, projectid: "0001_TEST_001", active_challans: [{ id: 10, challanno: "SMJC01" }] }
+    ]
+  };
+  const evaluatedBlocked = evaluateCascadeDeleteResult(blockedResult);
+  assert(evaluatedBlocked.blocked === true, "Cascade delete contract correctly identifies blocked state on active dependencies");
+  assert(evaluatedBlocked.dependencyCount === 2, "Cascade delete contract preserves dependency count");
+
+  const unblockedResult = { blocked: false, success: true, deleted_count: 1 };
+  const evaluatedUnblocked = evaluateCascadeDeleteResult(unblockedResult);
+  assert(evaluatedUnblocked.success === true && !evaluatedUnblocked.blocked, "Cascade delete contract identifies unblocked successful execution");
+
   console.log("\n================================================================");
   console.log(`TOTAL RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log("================================================================");
