@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useRouter, usePathname } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { createIDBPersister } from "@/lib/query/persister";
+import { RealtimeSyncListener } from "@/lib/query/realtime";
 
 export interface UserSession {
   id?: number;
@@ -202,6 +203,7 @@ export function AuthProvider({
         logout,
       }}
     >
+      <RealtimeSyncListener isAuthenticated={Boolean(currentUser)} />
       {children}
     </AuthContext.Provider>
   );

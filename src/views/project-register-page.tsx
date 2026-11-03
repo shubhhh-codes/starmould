@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
+import { exportToCsv } from "@/lib/utils";
 import {
   Archive,
   Search,
@@ -192,27 +193,24 @@ export function ProjectRegisterPage() {
       const dispCount = sublist.filter((sp: any) => sp.location === "Customer" || sp.dispatch_status === "dispatched").length;
       const closedCount = sublist.filter((sp: any) => sp.dispatch_status === "closed_without_challan").length;
       return [
-        `"${p.projectid || p.id}"`,
-        `"${p.customername || ""}"`,
-        `"${p.worktype || ""}"`,
-        `"${(p.description || "").replace(/"/g, '""')}"`,
-        `"${p.rdate || ""}"`,
-        `"${p.dispatchdate || ""}"`,
+        p.projectid || p.id,
+        p.customername || "",
+        p.worktype || "",
+        p.description || "",
+        p.rdate || "",
+        p.dispatchdate || "",
         sublist.length,
         dispCount,
         closedCount,
         p.scan_hr || 0,
-      ].join(",");
+      ];
     });
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `project_register_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    exportToCsv(
+      `projects_${new Date().toISOString().slice(0, 10)}`,
+      headers,
+      rows,
+    );
   };
 
   if (isMounted && !isAdmin) {

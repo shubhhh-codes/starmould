@@ -4,6 +4,8 @@ import React, { useState, useMemo, useEffect, useCallback, useRef, Suspense } fr
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
+import { TablePagination } from "@/components/ui/table-pagination";
+import { exportToCsv } from "@/lib/utils";
 import { motion } from "motion/react";
 import {
     ShoppingCart,
@@ -1396,26 +1398,19 @@ function PurchasePageContent() {
             "Total Items",
         ];
         const rows = filteredPurchases.map((p) => [
-            `"${p.srno}"`,
-            `"${p.odate}"`,
-            `"${getVendorName(p.vname).replace(/"/g, '""')}"`,
-            `"${getCustomerName(p.cname).replace(/"/g, '""')}"`,
-            `"${p.projectid}"`,
-            `"${p.created_by}"`,
+            p.srno,
+            p.odate,
+            getVendorName(p.vname),
+            getCustomerName(p.cname),
+            p.projectid,
+            p.created_by,
             p.items ? p.items.length : 0,
         ]);
-        const csvContent =
-            "data:text/csv;charset=utf-8," +
-            [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-        const link = document.createElement("a");
-        link.setAttribute("href", encodeURI(csvContent));
-        link.setAttribute(
-            "download",
-            `starmould_purchase_orders_${new Date().toISOString().slice(0, 10)}.csv`,
+        exportToCsv(
+            `starmould_purchase_orders_${new Date().toISOString().slice(0, 10)}`,
+            headers,
+            rows,
         );
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     };
 
     // Render desktop row for a Purchase Order (supports multi-item expand)
@@ -2453,58 +2448,13 @@ function PurchasePageContent() {
                         </div>
 
                         {/* Pagination Footer */}
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 border-t border-slate-200 text-xs text-slate-500">
-                            <div>
-                                Showing{" "}
-                                <span className="font-semibold text-slate-800">
-                                    {filteredPurchases.length === 0
-                                        ? 0
-                                        : (currentPage - 1) * pageSize + 1}
-                                </span>{" "}
-                                to{" "}
-                                <span className="font-semibold text-slate-800">
-                                    {Math.min(
-                                        currentPage * pageSize,
-                                        filteredPurchases.length,
-                                    )}
-                                </span>{" "}
-                                of{" "}
-                                <span className="font-semibold text-slate-800">
-                                    {filteredPurchases.length}
-                                </span>{" "}
-                                purchase orders
-                            </div>
-
-                            <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setCurrentPage((p) =>
-                                            Math.max(1, p - 1),
-                                        )
-                                    }
-                                    disabled={currentPage === 1}
-                                    className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700"
-                                >
-                                    Previous
-                                </button>
-                                <span className="px-3 py-1 font-mono text-xs">
-                                    {currentPage} / {totalPages}
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setCurrentPage((p) =>
-                                            Math.min(totalPages, p + 1),
-                                        )
-                                    }
-                                    disabled={currentPage === totalPages}
-                                    className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700"
-                                >
-                                    Next
-                                </button>
-                            </div>
-                        </div>
+                        <TablePagination
+                        currentPage={currentPage}
+                        totalItems={filteredPurchases.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        itemLabel="purchase orders"
+                    />
                     </div>
                 )}
 

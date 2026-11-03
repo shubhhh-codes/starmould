@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
+import { exportToCsv } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -385,30 +386,18 @@ export function ExpensePage() {
         const rows = filteredExpenses.map((e) => [
             e.id,
             e.rdate,
-            `"${e.customername || "General"}"`,
-            `"${e.description || ""}"`,
+            e.customername || "General",
+            e.description || "",
             e.payment_mode,
             e.payment_type,
             e.amount,
             e.balance,
         ]);
-        const csvContent = [
-            headers.join(","),
-            ...rows.map((r) => r.join(",")),
-        ].join("\n");
-        const blob = new Blob([csvContent], {
-            type: "text/csv;charset=utf-8;",
-        });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute(
-            "download",
-            `Expenses_${new Date().toISOString().split("T")[0]}.csv`,
+        exportToCsv(
+            `expenses_${new Date().toISOString().slice(0, 10)}`,
+            headers,
+            rows,
         );
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     };
 
     return (

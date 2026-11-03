@@ -3,8 +3,9 @@
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { createPortal } from "react-dom";
+// removed createPortal
 import { AppLayout } from "@/components/layout/app-layout";
+import { appStore } from "@/lib/state/store";
 import {
   ArrowUpRight,
   ArrowDownLeft,
@@ -165,10 +166,7 @@ function ChallanPageContent() {
       });
 
       setInwardModalChallan(null);
-      setNotification({
-        type: "success",
-        message: `Inward receipt ${res?.inward?.inchallanno || ""} recorded successfully.`,
-      });
+      appStore.addToast({ type: "success", message: `Inward receipt ${res?.inward?.inchallanno || ""} recorded successfully.`, });
       setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {
       setInwardError(err.message || "Failed to record inward receipt");
@@ -875,30 +873,7 @@ function ChallanPageContent() {
   return (
     <AppLayout>
       <div className="space-y-6 w-full">
-        {/* Toast Notification */}
-        {notification && typeof document !== "undefined" && createPortal(
-          <div
-            className={`fixed top-4 right-4 z-[99999] pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
-              notification.type === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                : "bg-rose-50 border-rose-200 text-rose-800"
-            }`}
-          >
-            {notification.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            )}
-            <span>{notification.message}</span>
-            <button
-              onClick={() => setNotification(null)}
-              className="ml-2 text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>,
-          document.body
-        )}
+        {/* Toast notification handled globally via appStore */}
 
         {fetchError && (
           <div className="p-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center justify-between">

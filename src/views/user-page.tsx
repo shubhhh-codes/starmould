@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+// removed createPortal
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
@@ -43,7 +43,9 @@ import {
     type UserSubtype,
 } from "@/lib/roles";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
-import { Modal } from "@/components/ui/dialog";
+import { Modal, ConfirmDialog } from "@/components/ui/dialog";
+import { TablePagination } from "@/components/ui/table-pagination";
+import { appStore } from "@/lib/state/store";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useIsRestoring } from "@tanstack/react-query";
 import {
@@ -95,14 +97,7 @@ export function UserPage() {
         message: string;
     } | null>(null);
 
-    const showNotification = (type: "success" | "error", message: string) => {
-        setNotification({ type, message });
-        setTimeout(() => {
-            setNotification((curr) =>
-                curr?.message === message ? null : curr,
-            );
-        }, 4000);
-    };
+    const showNotification = (type: "success" | "error", message: string) => { appStore.addToast({ type, message }); };
 
     // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -405,30 +400,7 @@ export function UserPage() {
     return (
         <AppLayout>
             <div className="space-y-6 w-full">
-                {/* Toast Notification */}
-                {notification && typeof document !== "undefined" && createPortal(
-                    <div
-                        className={`fixed top-5 right-5 z-[99999] pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-sm font-semibold max-w-md ${
-                            notification.type === "success"
-                                ? "bg-emerald-600 border-emerald-700 text-white"
-                                : "bg-rose-600 border-rose-700 text-white"
-                        }`}
-                    >
-                        {notification.type === "success" ? (
-                            <CheckCircle2 className="w-5 h-5 text-white shrink-0" />
-                        ) : (
-                            <AlertCircle className="w-5 h-5 text-white shrink-0" />
-                        )}
-                        <span className="flex-1 leading-snug">{notification.message}</span>
-                        <button
-                            onClick={() => setNotification(null)}
-                            className="ml-2 text-white/80 hover:text-white"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>,
-                    document.body
-                )}
+                {/* Toast notification handled globally via appStore */}
 
                 {/* Module Header */}
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -910,55 +882,13 @@ export function UserPage() {
                         )}
                     </div>
 
-                    {/* Table Footer */}
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 border-t border-slate-200 text-xs text-slate-500 ">
-                        <div>
-                            Showing{" "}
-                            <span className="font-semibold text-slate-800 ">
-                                {filteredUsers.length === 0
-                                    ? 0
-                                    : (currentPage - 1) * pageSize + 1}
-                            </span>{" "}
-                            to{" "}
-                            <span className="font-semibold text-slate-800 ">
-                                {Math.min(
-                                    currentPage * pageSize,
-                                    filteredUsers.length,
-                                )}
-                            </span>{" "}
-                            of{" "}
-                            <span className="font-semibold text-slate-800 ">
-                                {filteredUsers.length}
-                            </span>{" "}
-                            users
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={() =>
-                                    setCurrentPage((p) => Math.max(1, p - 1))
-                                }
-                                disabled={currentPage === 1}
-                                className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-slate-700 "
-                            >
-                                Previous
-                            </button>
-                            <span className="px-3 py-1 font-mono text-xs">
-                                {currentPage} / {totalPages}
-                            </span>
-                            <button
-                                onClick={() =>
-                                    setCurrentPage((p) =>
-                                        Math.min(totalPages, p + 1),
-                                    )
-                                }
-                                disabled={currentPage === totalPages}
-                                className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 text-slate-700 "
-                            >
-                                Next
-                            </button>
-                        </div>
-                    </div>
+                    <TablePagination
+                        currentPage={currentPage}
+                        totalItems={filteredUsers.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        itemLabel="users"
+                    />
                 </div>
 
                 {/* ========================================================================= */}
@@ -1359,57 +1289,23 @@ export function UserPage() {
                                 </div>
                             </form>
                 </Modal>
-                <Modal
+                <ConfirmDialog
                     isOpen={!!deleteTarget}
                     onClose={() => setDeleteTarget(null)}
+                    onConfirm={handleConfirmDelete}
                     title="Confirm User Deletion"
-                    description="Deactivate user account and access permissions"
-                    size="sm"
-                >
-                    {deleteTarget && (
-                        <div className="text-xs space-y-4">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                                    <Trash2 className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <h4 className="text-sm font-bold text-slate-900">
-                                        Delete User Account
-                                    </h4>
-                                    <p className="text-slate-500">
-                                        Remove login access for this user
-                                    </p>
-                                </div>
-                            </div>
-                            <p className="text-slate-600 leading-relaxed">
-                                Are you sure you want to delete user{" "}
-                                <span className="font-semibold text-slate-900">
-                                    &quot;{deleteTarget.name}&quot;
-                                </span>{" "}
-                                (@{deleteTarget.username})? They will no longer be able to log in or
-                                access the ERP system.
-                            </p>
-                            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setDeleteTarget(null)}
-                                    className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition btn-interactive"
-                                >
-                                    Cancel
-                                </button>
-                                <MotionButton
-                                    type="button"
-                                    onClick={handleConfirmDelete}
-                                    loading={isDeleting}
-                                    variant="danger"
-                                    size="sm"
-                                >
-                                    Yes, Delete User
-                                </MotionButton>
-                            </div>
-                        </div>
-                    )}
-                </Modal>
+                    description={
+                        deleteTarget ? (
+                            <span>
+                                Are you sure you want to delete user <strong>&quot;{deleteTarget.name}&quot;</strong> (@{deleteTarget.username})? They will no longer be able to log in or access the ERP system.
+                            </span>
+                        ) : ""
+                    }
+                    confirmLabel="Yes, Delete User"
+                    isLoading={isDeleting}
+                    loadingText="Deleting..."
+                    variant="danger"
+                />
             </div>
         </AppLayout>
     );

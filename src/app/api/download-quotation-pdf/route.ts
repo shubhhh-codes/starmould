@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { verifySecurePrintToken } from "@/lib/print-token";
-import { escapeHtml } from "@/lib/utils";
+import { escapeHtml, formatDate } from "@/lib/utils";
+import { COMPANY_PROFILE as COMPANY } from "@/lib/constants/company";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
@@ -23,39 +24,7 @@ function findChromePath(): string {
   return "chrome";
 }
 
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    const parts = new Intl.DateTimeFormat("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).formatToParts(d);
-    const day = parts.find((p) => p.type === "day")?.value || "";
-    const month = parts.find((p) => p.type === "month")?.value || "";
-    const year = parts.find((p) => p.type === "year")?.value || "";
-    return `${day}/${month}/${year}`;
-  } catch {
-    return dateStr;
-  }
-}
 
-// ─── Company constants ─────────────────────────────────────────────────────────
-const COMPANY = {
-  name: "STARMOULD TECHNOLOGY PRIVATE LIMITED",
-  displayName: "Starmould Technology Private Limited",
-  address1: "G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,",
-  address2: "Rajkot-360 021. (Gujarat) INDIA.",
-  cin: "U25910GJ2023PTC142461",
-  gstin: "24ABLCS1427Q1ZV",
-  pan: "ABLCS1427Q",
-  mobile: "8238451671",
-  email: "starmoulda@yahoo.in",
-  website: "www.starmould.in",
-} as const;
 
 export async function GET(req: NextRequest) {
   try {

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback, Suspense } fr
 import { SubplateJobworkLocationBadge } from "@/components/subplate/subplate-jobwork-location-badge";
 import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/app-layout";
+import { TablePagination } from "@/components/ui/table-pagination";
 import {
 	Layers,
 	Search,

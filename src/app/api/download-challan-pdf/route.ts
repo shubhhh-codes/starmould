@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { verifySecurePrintToken } from "@/lib/print-token";
-import { escapeHtml } from "@/lib/utils";
+import { escapeHtml, formatDate } from "@/lib/utils";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
@@ -20,25 +20,7 @@ function findChromePath(): string {
   return "chrome";
 }
 
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    const parts = new Intl.DateTimeFormat("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).formatToParts(d);
-    const day = parts.find((p) => p.type === "day")?.value || "";
-    const month = parts.find((p) => p.type === "month")?.value || "";
-    const year = parts.find((p) => p.type === "year")?.value || "";
-    return `${day}/${month}/${year}`;
-  } catch {
-    return dateStr;
-  }
-}
+
 
 export async function GET(req: NextRequest) {
   let browser: any = null;

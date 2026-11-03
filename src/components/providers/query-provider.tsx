@@ -6,7 +6,6 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { createQueryClient } from "@/lib/query/client";
 import { createIDBPersister } from "@/lib/query/persister";
 import { getCachedSession } from "@/components/providers/auth-provider";
-import { RealtimeSyncListener } from "@/lib/query/realtime";
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => createQueryClient());
@@ -21,7 +20,6 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
   if (!persister) {
     return (
       <QueryClientProvider client={queryClient}>
-        <RealtimeSyncListener />
         {children}
       </QueryClientProvider>
     );
@@ -53,7 +51,6 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      <RealtimeSyncListener />
       {children}
     </PersistQueryClientProvider>
   );

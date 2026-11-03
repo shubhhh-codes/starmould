@@ -4,6 +4,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
+import { TablePagination } from "@/components/ui/table-pagination";
+import { exportToCsv } from "@/lib/utils";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -541,29 +543,22 @@ export function PurchaseInwardPage() {
             "Pending Qty",
         ];
         const rows = filteredPendingItems.map((it) => [
-            `"${it.srno}"`,
-            `"${it.odate}"`,
-            `"${it.vendorname.replace(/"/g, '""')}"`,
-            `"${it.customername.replace(/"/g, '""')}"`,
-            `"${it.projectid}"`,
-            `"${it.platename.replace(/"/g, '""')}"`,
-            `"${it.materialtype}"`,
+            it.srno,
+            it.odate,
+            it.vendorname,
+            it.customername,
+            it.projectid,
+            it.platename,
+            it.materialtype,
             it.qty,
             it.inward_qty,
             it.pending_qty,
         ]);
-        const csvContent =
-            "data:text/csv;charset=utf-8," +
-            [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-        const link = document.createElement("a");
-        link.setAttribute("href", encodeURI(csvContent));
-        link.setAttribute(
-            "download",
-            `starmould_pending_receive_${new Date().toISOString().slice(0, 10)}.csv`,
+        exportToCsv(
+            `starmould_pending_receive_${new Date().toISOString().slice(0, 10)}`,
+            headers,
+            rows,
         );
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
     };
 
     return (
@@ -1201,43 +1196,13 @@ export function PurchaseInwardPage() {
                                 </div>
 
                                 {/* Pagination for Flat Table */}
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 border-t border-slate-200 text-xs text-slate-500">
-                                    <div>
-                                        Showing{" "}
-                                        <span className="font-semibold text-slate-800">
-                                            {filteredPendingItems.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
-                                        </span>{" "}
-                                        to{" "}
-                                        <span className="font-semibold text-slate-800">
-                                            {Math.min(currentPage * pageSize, filteredPendingItems.length)}
-                                        </span>{" "}
-                                        of{" "}
-                                        <span className="font-semibold text-slate-800">
-                                            {filteredPendingItems.length}
-                                        </span>{" "}
-                                        items pending receipt
-                                    </div>
-
-                                    <div className="flex items-center gap-1">
-                                        <button
-                                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                            disabled={currentPage === 1}
-                                            className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700"
-                                        >
-                                            Previous
-                                        </button>
-                                        <span className="px-3 py-1 font-mono text-xs">
-                                            {currentPage} / {totalPages}
-                                        </span>
-                                        <button
-                                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                            disabled={currentPage === totalPages}
-                                            className="px-2.5 py-1 text-xs border border-slate-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed text-slate-700"
-                                        >
-                                            Next
-                                        </button>
-                                    </div>
-                                </div>
+                                <TablePagination
+                        currentPage={currentPage}
+                        totalItems={filteredPendingItems.length}
+                        pageSize={pageSize}
+                        onPageChange={setCurrentPage}
+                        itemLabel="items pending receipt"
+                    />
                             </div>
                         )}
                     </div>

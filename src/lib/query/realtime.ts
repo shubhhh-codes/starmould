@@ -61,6 +61,10 @@ export function broadcastProjectSync() {
 
 async function fetchRealtimeToken(signal?: AbortSignal): Promise<string | null> {
   const res = await fetch("/api/realtime/token", { signal });
+  if (res.status === 401) {
+    // Unauthenticated / expired session: cleanly return null without retrying
+    return null;
+  }
   if (!res.ok) {
     throw new Error(`Realtime token request failed with HTTP ${res.status}`);
   }
@@ -81,12 +85,14 @@ async function fetchRealtimeToken(signal?: AbortSignal): Promise<string | null> 
  *    - dispatch (Customer Shipments)
  *    - app_config (Dynamic Role Permissions)
  */
-export function useRealtimeManufacturingSync() {
+export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boolean }) {
   const queryClient = useQueryClient();
   const realtimeDisconnectedRef = useRef(false);
+  const isAuthenticated = options?.isAuthenticated ?? true;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!isAuthenticated) return;
 
     let isMounted = true;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -348,14 +354,14 @@ export function useRealtimeManufacturingSync() {
         supabase.removeChannel(channel);
       }
     };
-  }, [queryClient]);
+  }, [queryClient, isAuthenticated]);
 }
 
 /**
  * RealtimeSyncListener
  * Headless component to mount the realtime sync hook inside QueryClientProvider context.
  */
-export function RealtimeSyncListener() {
-  useRealtimeManufacturingSync();
+export function RealtimeSyncListener({ isAuthenticated = true }: { isAuthenticated?: boolean }) {
+  useRealtimeManufacturingSync({ isAuthenticated });
   return null;
 }

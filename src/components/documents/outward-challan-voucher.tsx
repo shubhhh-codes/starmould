@@ -2,6 +2,8 @@
 
 import React from "react";
 import { Printer, X } from "lucide-react";
+import { formatDate } from "@/lib/utils";
+import { COMPANY_PROFILE as COMPANY, VOUCHER_THEME } from "@/lib/constants/company";
 
 export interface OutwardChallanItem {
   srNo?: number;
@@ -42,49 +44,15 @@ export interface OutwardChallanVoucherProps {
   isModal?: boolean;
 }
 
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return "—";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    const parts = new Intl.DateTimeFormat("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).formatToParts(d);
-    const day = parts.find((p) => p.type === "day")?.value || "";
-    const month = parts.find((p) => p.type === "month")?.value || "";
-    const year = parts.find((p) => p.type === "year")?.value || "";
-    return `${day}/${month}/${year}`;
-  } catch {
-    return dateStr;
-  }
-}
-
-// ─── Company Constants (Starmould = Consignor / Principal Manufacturer) ─────
-const COMPANY = {
-  name: "STARMOULD TECHNOLOGY PRIVATE LIMITED",
-  displayName: "Starmould Technology Private Limited",
-  address1: "G 705, Near Swaminarayan Restaurant, Road-5, G.I.D.C. Metoda,",
-  address2: "Rajkot-360 021. (Gujarat) INDIA.",
-  cin: "U25910GJ2023PTC142461",
-  gstin: "24ABLCS1427Q1ZV",
-  pan: "ABLCS1427Q",
-  mobile: "8238451671",
-  email: "starmoulda@yahoo.in",
-  website: "www.starmould.in",
-} as const;
-
-// ─── Exact Color Palette from Star Mould Brand System ─────────────────────────
-const TEAL_PRIMARY = "#006181";
-const GREY_LINE    = "#62676b";
-const TEAL_LIGHT   = "#e5f1f6";
-const TEAL_SECTION = "#cfe6ef";
-const TEAL_BORDER  = "#a8d2de";
-const TEXT_DARK    = "#1f2a30";
-const TEXT_MUTED   = "#3d4a52";
-const TEXT_LABEL   = "#4a575e";
+// ─── Colors from Voucher Theme ──────────────────────────────────────────────────
+const TEAL_PRIMARY = VOUCHER_THEME.tealPrimary;
+const GREY_LINE    = VOUCHER_THEME.greyLine;
+const TEAL_LIGHT   = VOUCHER_THEME.tealLight;
+const TEAL_SECTION = VOUCHER_THEME.tealSection;
+const TEAL_BORDER  = VOUCHER_THEME.tealBorder;
+const TEXT_DARK    = VOUCHER_THEME.textDark;
+const TEXT_MUTED   = VOUCHER_THEME.textMuted;
+const TEXT_LABEL   = VOUCHER_THEME.textLabel;
 
 export function OutwardChallanVoucher({
   challan,

@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
+// removed createPortal
 import { AppLayout } from "@/components/layout/app-layout";
+import { appStore } from "@/lib/state/store";
 import {
   Shield,
   ShieldAlert,
@@ -372,12 +373,7 @@ export function SettingsPage() {
     return false;
   }, [localPermissions, localMenuOrder, matrix, menuOrders, selectedRoleId, isRoleAdmin]);
 
-  const showToast = useCallback((type: "success" | "error", message: string) => {
-    setNotification({ type, message });
-    setTimeout(() => {
-      setNotification((curr) => (curr?.message === message ? null : curr));
-    }, 4000);
-  }, []);
+  const showToast = useCallback((type: "success" | "error", message: string) => { appStore.addToast({ type, message }); }, []);
 
   // Drag and Drop Event Handlers
   const handleDragStart = (e: React.DragEvent, itemKey: string, sourceColumn: "active" | "inactive", sourceIndex: number) => {
@@ -707,30 +703,7 @@ export function SettingsPage() {
   return (
     <AppLayout>
       <div className="space-y-4 w-full pb-28">
-        {/* Toast Notification */}
-        {notification && typeof document !== "undefined" && createPortal(
-          <div
-            className={`fixed top-4 right-4 z-[99999] pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-2xl transition-all animate-in fade-in slide-in-from-top-2 text-xs font-medium ${
-              notification.type === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                : "bg-rose-50 border-rose-200 text-rose-800"
-            }`}
-          >
-            {notification.type === "success" ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            )}
-            <span>{notification.message}</span>
-            <button
-              onClick={() => setNotification(null)}
-              className="ml-2 text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>,
-          document.body
-        )}
+        {/* Toast notification handled globally via appStore */}
 
         {/* ========================================================================= */}
         {/* TOP COMMAND DECK: CLEAN LIGHT ROLE SELECTOR & ACTIONS */}
