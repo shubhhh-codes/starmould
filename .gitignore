@@ -61,3 +61,7 @@ MOLD_SUBPLATE_DATABASE_REORGANIZATION_PLAN.md
 
 # Realtime signing key
 .realtime-signing-key.json
+AUDIT_REPORT.md
+PERF_AUDIT.md
+docs/SECURITY_IMPLEMENTATION.md
+REMEDIATION_PLAN.md

@@ -599,7 +599,7 @@ export function WorkPage() {
                       <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100" suppressHydrationWarning>
                     {isLoading ? (
                       <TableSkeletonRows rows={8} columns={10} />
                     ) : dailyWorklogs.length === 0 ? (

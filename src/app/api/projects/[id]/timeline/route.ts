@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
+import { createSecurePrintToken } from "@/lib/print-token";
 
 export interface LifecycleMilestone {
   step: number;
@@ -12,7 +13,7 @@ export interface LifecycleMilestone {
   description: string;
   authorName?: string;
   documentLink?: {
-    type: "challan" | "dispatch" | "purchase" | "inward";
+    type: "challan" | "dispatch" | "purchase" | "inward" | "work" | "quotation";
     id: number | string;
     label: string;
   };
@@ -25,6 +26,42 @@ export interface LifecycleMilestone {
     status: string;
     note?: string;
   }[];
+}
+
+export interface ProjectDocumentItem {
+  id: number | string;
+  docType: "dispatch" | "purchase" | "challan" | "inward" | "work" | "quotation";
+  docCategory: "Delivery Challan" | "Purchase Order" | "Job Work Challan" | "Job Work Inward" | "Work Order" | "Quotation";
+  docNumber: string;
+  docDate: string;
+  partyName: string;
+  transporter?: string;
+  invoiceNo?: string;
+  vehicleNo?: string;
+  deliveryType?: string;
+  itemCount: number;
+  totalAmount?: number;
+  workHours?: string;
+  description?: string;
+  status?: string;
+  items?: {
+    name: string;
+    particulars?: string;
+    qty?: number;
+    rate?: number | null;
+  }[];
+  viewUrl: string;
+  downloadUrl: string;
+}
+
+export interface ProjectDocumentsSummary {
+  total: number;
+  dispatchesCount: number;
+  purchasesCount: number;
+  challansCount: number;
+  inwardsCount: number;
+  workOrdersCount: number;
+  quotationsCount: number;
 }
 
 export interface TimelineEvent {
@@ -116,22 +153,22 @@ export async function GET(
         .order("rdate", { ascending: false }),
       supabaseAdmin
         .from("challan")
-        .select("id, challanno, chdate, vendortid, status, challan_items(*)")
+        .select("id, challanno, chdate, vendorid, vendortid, status, challan_items(*)")
         .or(`projectid.eq.${projectCode},projectid.eq.${projectIdNum}`)
         .neq("status", "0"),
       supabaseAdmin
         .from("inward")
-        .select("id, challanno, in_date, vendortid, status, inward_items(*)")
+        .select("id, challanno, inchallanno, in_date, chdate, vendorid, vendortid, status, inward_items(*)")
         .or(`projectid.eq.${projectCode},projectid.eq.${projectIdNum}`)
         .neq("status", "0"),
       supabaseAdmin
         .from("purchase")
-        .select("id, srno, rdate, vname, status, purchase_items(*)")
+        .select("id, srno, odate, idate, vname, cname, status, purchase_items(*)")
         .or(`projectid.eq.${projectCode},projectid.eq.${projectIdNum}`)
         .neq("status", "0"),
       supabaseAdmin
         .from("dispatch")
-        .select("id, challanno, chdate, invoiceno, vehicleno, vendortid, status, dispatch_items(*)")
+        .select("id, challanno, chdate, invoiceno, vehicleno, customerid, vendortid, deliverytype, freightmode, noofcases, status, dispatch_items(*)")
         .or(`projectid.eq.${projectCode},projectid.eq.${projectIdNum}`)
         .neq("status", "0"),
     ]);
@@ -146,6 +183,65 @@ export async function GET(
     const inwards = inwardsRes.data || [];
     const purchases = purchasesRes.data || [];
     const dispatches = dispatchesRes.data || [];
+
+    // Query extra records linked via subplate IDs if not already captured
+    const subplateIds = subplates.map((sp) => sp.id).filter(Boolean);
+    const subplateNameMap = new Map(subplates.map((sp) => [sp.id, sp.platename]));
+
+    if (subplateIds.length > 0) {
+      const existingDispIds = new Set(dispatches.map((d) => d.id));
+      const existingChallanIds = new Set(challans.map((c) => c.id));
+      const existingPoIds = new Set(purchases.map((p) => p.id));
+      const existingInwardIds = new Set(inwards.map((i) => i.id));
+
+      const [extraDispItemsRes, extraChallanItemsRes, extraPoItemsRes, extraInwardItemsRes] = await Promise.all([
+        supabaseAdmin.from("dispatch_items").select("dispatchid").in("plateid", subplateIds),
+        supabaseAdmin.from("challan_items").select("challanid").in("plateid", subplateIds),
+        supabaseAdmin.from("purchase_items").select("pid").in("plateid", subplateIds),
+        supabaseAdmin.from("inward_items").select("inchallanid").in("plateid", subplateIds),
+      ]);
+
+      const extraDispIds = Array.from(new Set((extraDispItemsRes.data || []).map((i: any) => i.dispatchid).filter((id: any) => id && !existingDispIds.has(id))));
+      const extraChallanIds = Array.from(new Set((extraChallanItemsRes.data || []).map((i: any) => i.challanid).filter((id: any) => id && !existingChallanIds.has(id))));
+      const extraPoIds = Array.from(new Set((extraPoItemsRes.data || []).map((i: any) => i.pid).filter((id: any) => id && !existingPoIds.has(id))));
+      const extraInwardIds = Array.from(new Set((extraInwardItemsRes.data || []).map((i: any) => i.inchallanid).filter((id: any) => id && !existingInwardIds.has(id))));
+
+      const [extraDispatchesRes, extraChallansRes, extraPurchasesRes, extraInwardsRes] = await Promise.all([
+        extraDispIds.length > 0
+          ? supabaseAdmin
+              .from("dispatch")
+              .select("id, challanno, chdate, invoiceno, vehicleno, customerid, vendortid, deliverytype, freightmode, noofcases, status, dispatch_items(*)")
+              .in("id", extraDispIds)
+              .neq("status", "0")
+          : Promise.resolve({ data: [] }),
+        extraChallanIds.length > 0
+          ? supabaseAdmin
+              .from("challan")
+              .select("id, challanno, chdate, vendorid, vendortid, status, challan_items(*)")
+              .in("id", extraChallanIds)
+              .neq("status", "0")
+          : Promise.resolve({ data: [] }),
+        extraPoIds.length > 0
+          ? supabaseAdmin
+              .from("purchase")
+              .select("id, srno, odate, idate, vname, cname, status, purchase_items(*)")
+              .in("id", extraPoIds)
+              .neq("status", "0")
+          : Promise.resolve({ data: [] }),
+        extraInwardIds.length > 0
+          ? supabaseAdmin
+              .from("inward")
+              .select("id, challanno, inchallanno, in_date, chdate, vendorid, vendortid, status, inward_items(*)")
+              .in("id", extraInwardIds)
+              .neq("status", "0")
+          : Promise.resolve({ data: [] }),
+      ]);
+
+      if (extraDispatchesRes.data) dispatches.push(...extraDispatchesRes.data);
+      if (extraChallansRes.data) challans.push(...extraChallansRes.data);
+      if (extraPurchasesRes.data) purchases.push(...extraPurchasesRes.data);
+      if (extraInwardsRes.data) inwards.push(...extraInwardsRes.data);
+    }
 
     const customer = custMap.get(project.customer_id) || custMap.get(Number(project.cname));
     const customerName = customer?.customername || project.cname || "Unknown Customer";
@@ -202,7 +298,7 @@ export async function GET(
     // --- C. Raw Material Purchase Orders ---
     for (const po of purchases) {
       const vendorName = vendMap.get(po.vname) || `Vendor #${po.vname}`;
-      const poDate = po.rdate ? `${po.rdate}T00:00:00.000Z` : createdAt;
+      const poDate = po.odate || po.idate ? `${po.odate || po.idate}T00:00:00.000Z` : createdAt;
       const itemCount = po.purchase_items?.length || 0;
       events.push({
         id: `po_${po.id}`,
@@ -481,7 +577,7 @@ export async function GET(
       milestones.push({
         step: stepNumber++,
         id: `ms_purchases_${project.id}`,
-        timestamp: firstPo.rdate ? `${firstPo.rdate}T00:00:00.000Z` : createdAt,
+        timestamp: (firstPo.odate || firstPo.idate) ? `${firstPo.odate || firstPo.idate}T00:00:00.000Z` : createdAt,
         title: `Raw Material Orders (${purchases.length} PO${purchases.length > 1 ? "s" : ""})`,
         badgeLabel: "Procurement",
         badgeColor: "teal",
@@ -494,7 +590,7 @@ export async function GET(
         subItems: purchases.map((p) => ({
           name: p.srno || `PO #${p.id}`,
           status: vendMap.get(p.vname) || `Vendor #${p.vname}`,
-          note: p.rdate || undefined,
+          note: p.odate || p.idate || undefined,
         })),
       });
     }
@@ -608,6 +704,136 @@ export async function GET(
       });
     }
 
+    // Deduplicate documents by ID
+    const uniqueDispatches = Array.from(new Map(dispatches.map((d: any) => [d.id, d])).values());
+    const uniquePurchases = Array.from(new Map(purchases.map((p: any) => [p.id, p])).values());
+    const uniqueChallans = Array.from(new Map(challans.map((c: any) => [c.id, c])).values());
+    const uniqueInwards = Array.from(new Map(inwards.map((i: any) => [i.id, i])).values());
+    const uniqueWorklogs = Array.from(new Map(worklogs.map((w: any) => [w.id, w])).values());
+
+    const documentRecords: ProjectDocumentItem[] = [
+      ...uniqueDispatches.map((d: any) => ({
+        id: d.id,
+        docType: "dispatch" as const,
+        docCategory: "Delivery Challan" as const,
+        docNumber: d.challanno || `DC-${d.id}`,
+        docDate: d.chdate || "",
+        partyName: customerName,
+        transporter: vendMap.get(d.vendortid) || "",
+        invoiceNo: d.invoiceno || "",
+        vehicleNo: d.vehicleno || "",
+        deliveryType: d.deliverytype || "",
+        itemCount: d.dispatch_items?.length || 0,
+        status: d.status,
+        items: (d.dispatch_items || []).map((it: any) => ({
+          name: it.custom_plate_name || subplateNameMap.get(it.plateid) || it.particulars || "Mould Plate",
+          particulars: it.particulars || it.condition || "",
+          qty: it.qty || 1,
+        })),
+        viewUrl: `/print/dispatch/${createSecurePrintToken({ type: "dispatch", id: d.id })}`,
+        downloadUrl: `/api/download-dispatch-pdf?id=${d.id}`,
+      })),
+      ...uniquePurchases.map((p: any) => ({
+        id: p.id,
+        docType: "purchase" as const,
+        docCategory: "Purchase Order" as const,
+        docNumber: p.srno || `PO-${p.id}`,
+        docDate: p.odate || p.idate || "",
+        partyName: vendMap.get(p.vname) || custMap.get(p.vname)?.customername || "Vendor",
+        transporter: "",
+        invoiceNo: "",
+        vehicleNo: "",
+        deliveryType: "",
+        itemCount: p.purchase_items?.length || 0,
+        status: p.status,
+        items: (p.purchase_items || []).map((it: any) => ({
+          name: subplateNameMap.get(it.plateid) || it.material || "Plate Material",
+          particulars: it.material || it.materialtype || "",
+          qty: it.qty || 1,
+          rate: it.rate,
+        })),
+        viewUrl: `/print/purchase/${createSecurePrintToken({ type: "purchase", id: p.id })}`,
+        downloadUrl: `/api/download-po-pdf?type=purchase&id=${p.id}`,
+      })),
+      ...uniqueChallans.map((c: any) => ({
+        id: c.id,
+        docType: "challan" as const,
+        docCategory: "Job Work Challan" as const,
+        docNumber: c.challanno || `JC-${c.id}`,
+        docDate: c.chdate || "",
+        partyName: vendMap.get(c.vendorid || c.vendortid) || "Vendor",
+        transporter: vendMap.get(c.vendortid) || "",
+        invoiceNo: "",
+        vehicleNo: "",
+        deliveryType: "",
+        itemCount: c.challan_items?.length || 0,
+        status: c.status,
+        items: (c.challan_items || []).map((it: any) => ({
+          name: subplateNameMap.get(it.plateid) || it.particulars || "Jobwork Plate",
+          particulars: it.particulars || "",
+          qty: it.qty || 1,
+        })),
+        viewUrl: `/print/challan/${createSecurePrintToken({ type: "challan", id: c.id })}`,
+        downloadUrl: `/api/download-challan-pdf?id=${c.id}`,
+      })),
+      ...uniqueInwards.map((inw: any) => ({
+        id: inw.id,
+        docType: "inward" as const,
+        docCategory: "Job Work Inward" as const,
+        docNumber: inw.inchallanno || inw.challanno || `INW-${inw.id}`,
+        docDate: inw.in_date || inw.chdate || "",
+        partyName: vendMap.get(inw.vendorid || inw.vendortid) || "Vendor",
+        transporter: "",
+        invoiceNo: "",
+        vehicleNo: "",
+        deliveryType: "",
+        itemCount: inw.inward_items?.length || 0,
+        status: inw.status,
+        items: (inw.inward_items || []).map((it: any) => ({
+          name: subplateNameMap.get(it.plateid) || it.particulars || "Inward Component",
+          particulars: it.particulars || "",
+          qty: it.inward_qty || it.qty || 1,
+        })),
+        viewUrl: `/print/inward/${createSecurePrintToken({ type: "inward", id: inw.id })}`,
+        downloadUrl: `/print/inward/${inw.id}`,
+      })),
+      ...uniqueWorklogs.map((w: any) => ({
+        id: w.id,
+        docType: "work" as const,
+        docCategory: "Work Order" as const,
+        docNumber: `WO-${w.id}`,
+        docDate: w.rdate || w.sdate || "",
+        partyName: userMap.get(w.userid)?.name || `Operator #${w.userid}`,
+        transporter: "",
+        invoiceNo: "",
+        vehicleNo: "",
+        deliveryType: "",
+        itemCount: 1,
+        workHours: w.work_hr || "00:00:00",
+        description: w.workdescription || "",
+        status: "1",
+        items: [
+          {
+            name: `${subplateNameMap.get(w.subplateid) || "Mould Plate"} — ${w.workdescription || "Machining"}`,
+            particulars: `Work: ${w.work_hr || "00:00:00"} | Machine: ${w.machine_hr || 0}hr | Design: ${w.design_hr || 0}hr`,
+            qty: 1,
+          },
+        ],
+        viewUrl: `/print/work/${createSecurePrintToken({ type: "work", id: w.id })}`,
+        downloadUrl: `/print/work/${w.id}`,
+      })),
+    ];
+
+    const documentsSummary: ProjectDocumentsSummary = {
+      total: documentRecords.length,
+      dispatchesCount: uniqueDispatches.length,
+      purchasesCount: uniquePurchases.length,
+      challansCount: uniqueChallans.length,
+      inwardsCount: uniqueInwards.length,
+      workOrdersCount: uniqueWorklogs.length,
+      quotationsCount: 0,
+    };
+
     const responsePayload = {
       project: {
         id: project.id,
@@ -657,6 +883,10 @@ export async function GET(
       })),
       milestones,
       events,
+      documents: {
+        summary: documentsSummary,
+        items: documentRecords,
+      },
     };
 
     return NextResponse.json(responsePayload);

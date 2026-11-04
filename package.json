@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "check:language": "node scripts/check-language.mjs",
-    "test": "npx tsx scripts/regression_suite.ts"
+    "test": "node scripts/run-regression.cjs",
+    "typecheck": "tsc --noEmit --incremental false"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
@@ -28,7 +29,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tailwind-merge": "^3.7.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "puppeteer-core": "^25.11.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -37,7 +39,6 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
-    "puppeteer-core": "^25.11.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -31,15 +31,15 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       persistOptions={{
         persister,
         maxAge: 24 * 60 * 60 * 1000,
-        buster: "v9.0.2_fresh_purchases_moulds_sync",
+        buster: "v9.0.3_purge_customer_vendor_cache",
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => {
             const key0 = String(query.queryKey[0] || "");
             const key1 = String(query.queryKey[1] || "");
-            // Do NOT persist live operational projects, purchases, or subplates list to TanStack persister!
+            // Do NOT persist live operational projects, purchases, subplates, or master dropdown lists!
             // Projects are progressively streamed & delta-synced by STARMOULD_PROJECTS_STORE_V4.
             // Persisting live operational records here creates a dual-cache conflict that revives deleted records.
-            if (key0 === "projects" || key0 === "purchases" || key0 === "subplates") {
+            if (key0 === "projects" || key0 === "purchases" || key0 === "subplates" || key0 === "customers" || key0 === "vendors" || key0 === "users") {
               return false;
             }
             // Only exclude transient modal preview IDs

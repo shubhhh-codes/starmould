@@ -4,6 +4,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
 import { getCached, getCachedUsers, invalidateCache } from "@/lib/cache";
 import { calculateSubplateWeight } from "@/lib/weight-calculator";
+import { createSecurePrintToken } from "@/lib/print-token";
 
 function inferPlateCategory(platename: string): string {
   const p = platename.toLowerCase();
@@ -83,6 +84,7 @@ export async function GET(req: NextRequest) {
         date?: string | null;
         created_by?: string | number | null;
         created_at?: string | null;
+        print_url?: string;
       }>>();
 
       const jwBalanceMap = new Map<number, any>();
@@ -161,6 +163,7 @@ export async function GET(req: NextRequest) {
                 date: dData.date || null,
                 created_by: dData.created_by || null,
                 created_at: dData.created_at || null,
+                print_url: `/print/dispatch/${createSecurePrintToken({ type: "dispatch", id: dData.id })}`,
               });
               plateDispatchesMap.set(pid, existingList);
             }
@@ -280,14 +283,20 @@ export async function GET(req: NextRequest) {
       subplateQuery = subplateQuery.limit(limit);
     }
 
-    const isDefaultQuery = !search && (!material || material === "ALL") && (!location || location === "ALL") && (!projectid || projectid === "ALL") && (!page || page === 1);
+    const isFresh = searchParams.get("fresh") === "true";
+    if (isFresh) {
+      invalidateCache("subplate_default_");
+      invalidateCache("shared_scans_lookup");
+    }
+
+    const isDefaultQuery = !isFresh && !search && (!material || material === "ALL") && (!location || location === "ALL") && (!projectid || projectid === "ALL") && (!page || page === 1);
     const cacheKey = isDefaultQuery ? `subplate_default_${limit}` : null;
 
     const executeFetch = async () => {
       // Batch subplates query with cached scans and users
       const [subplatesRes, scans, users] = await Promise.all([
         subplateQuery,
-        getCached("shared_scans_lookup", 30, async () => {
+        getCached("shared_scans_lookup", 3, async () => {
           const res = await supabaseAdmin
             .from("scan")
             .select("id, projectid, description, worktype, cname, customer_id, status")
@@ -331,6 +340,7 @@ export async function GET(req: NextRequest) {
         date?: string | null;
         created_by?: string | number | null;
         created_at?: string | null;
+        print_url?: string;
       }>>();
 
       const jwBalanceMap = new Map<number, any>();
@@ -409,6 +419,7 @@ export async function GET(req: NextRequest) {
                 date: dData.date || null,
                 created_by: dData.created_by || null,
                 created_at: dData.created_at || null,
+                print_url: `/print/dispatch/${createSecurePrintToken({ type: "dispatch", id: dData.id })}`,
               });
               plateDispatchesMap.set(pid, existingList);
             }
@@ -515,7 +526,7 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const result = cacheKey ? await getCached(cacheKey, 30, executeFetch) : await executeFetch();
+    const result = cacheKey ? await getCached(cacheKey, 3, executeFetch) : await executeFetch();
 
     const response = NextResponse.json({
       subplates: result.subplates,

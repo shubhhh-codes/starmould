@@ -15,6 +15,7 @@ import {
 	Clock,
 	Compass,
 	FileSpreadsheet,
+	RefreshCw,
 	X,
 	Filter,
 	Package,
@@ -1445,6 +1446,16 @@ function SubplatePageContent() {
 					</div>
 
 					<div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+						<button
+								type="button"
+								onClick={() => refetchSubplates()}
+								disabled={isFetching}
+								title="Refresh Subplates"
+								className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-xs text-xs sm:text-sm cursor-pointer disabled:opacity-50"
+							>
+								<RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 ${isFetching ? "animate-spin text-blue-600" : ""}`} />
+								<span className="hidden sm:inline">Refresh</span>
+							</button>
 						{canExportCSV && (
 							<button
 								onClick={handleExportCSV}
@@ -2720,7 +2731,7 @@ function SubplatePageContent() {
 																																{linkedDispatches.map((d: any, idx: number) => (
 																																	<a
 																																		key={d.dispatch_id || idx}
-																																		href={`/print/dispatch/${d.dispatch_id || ""}`}
+																																		href={d.print_url || `/print/dispatch/${d.dispatch_id || ""}`}
 																																		target="_blank"
 																																		rel="noopener noreferrer"
 																																		title={`View Delivery Challan #${d.challanno}`}
@@ -2749,7 +2760,7 @@ function SubplatePageContent() {
 																													const singleDispatch = linkedDispatches[0];
 																													return (
 																														<a
-																															href={`/print/dispatch/${singleDispatch.dispatch_id || ""}`}
+																															href={singleDispatch.print_url || `/print/dispatch/${singleDispatch.dispatch_id || ""}`}
 																															target="_blank"
 																															rel="noopener noreferrer"
 																															title={`View Delivery Challan #${singleDispatch.challanno}`}

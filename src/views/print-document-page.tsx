@@ -104,24 +104,6 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       });
   }, [type, id]);
 
-  // Self-healing URL: If visited with a raw numeric ID (e.g. /print/dispatch/1), mask it with an encrypted secure token
-  useEffect(() => {
-    if (doc && /^\d+$/.test(id)) {
-      fetch("/api/print-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, id }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.token) {
-            window.history.replaceState(null, "", `/print/${type}/${data.token}`);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [doc, type, id]);
-
   // Sheet Height Detection via ResizeObserver
   useEffect(() => {
     const el = sheetRef.current;

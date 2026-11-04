@@ -212,6 +212,7 @@ export interface LinkedDispatchInfo {
   date?: string | null;
   created_by?: string | number | null;
   created_at?: string | null;
+  print_url?: string;
 }
 
 export interface PipelineStats {
@@ -300,6 +301,8 @@ export interface PurchaseInwardReceipt {
 }
 
 export interface ViewPoPendingInwardQty {
+  source_line_id?: number;
+  source_allocation_requires_review?: boolean;
   id: number;
   srno: string;
   pno: string | null;
@@ -460,6 +463,8 @@ export interface Inward {
 }
 
 export interface ViewPendingInwardQty {
+  source_line_id?: number;
+  source_allocation_requires_review?: boolean;
   id: number;
   customername: string;
   vendorname: string;

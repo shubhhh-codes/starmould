@@ -115,7 +115,7 @@ export function NewMouldModal({
   // Fetch active customers matching exact legacy ERP (usertype = 'Customer')
   const dropdownQuery = useCustomerDropdownQuery("Customer");
   const customerList = useMemo(() => {
-    if (dropdownQuery.data && dropdownQuery.data.length > 0) {
+    if (dropdownQuery.data) {
       return dropdownQuery.data as Customer[];
     }
     return (propCustomers || []) as Customer[];
