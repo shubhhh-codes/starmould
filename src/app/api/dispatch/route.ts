@@ -312,28 +312,51 @@ export async function POST(req: NextRequest) {
           .update({
             location: "Customer",
             dispatch_status: "dispatched",
+            packing_workby: auth.user.id,
+            packing_at: nowIso,
             updated_at: nowIso,
           })
           .in("id", dispatchedPlateIds);
       }
 
-      // Check if all subplates of this mould project are now dispatched or closed
+      // Check if all subplates of this mould project have completed all 9 stages (from Purchase to Packing/Dispatch)
       const { data: allPlates } = await supabaseAdmin
         .from("subplate")
-        .select("id, location, dispatch_status")
-        .or(`projectid.eq.${trimmedProject},mold_code.eq.${trimmedProject}`);
+        .select("id, location, dispatch_status, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby")
+        .or(`projectid.eq.${trimmedProject},mold_code.eq.${trimmedProject}`)
+        .is("deleted_at", null);
 
       const totalPlatesCount = (allPlates || []).length;
-      const allDone =
+      const all9StagesCompleted =
         totalPlatesCount > 0 &&
-        (allPlates || []).every(
-          (sp) =>
+        (allPlates || []).every((sp: any) => {
+          const isDesignDone = Number(sp.design_by) > 0;
+          const isPurchaseDone = Number(sp.order_by) > 0;
+          const isInwardDone = Number(sp.received_workby) > 0;
+          const isProgDone = Number(sp.received_qcby) > 0;
+          const isVmcDone = Number(sp.vmc_workby) > 0;
+          const isVmcQcDone = Number(sp.vmc_qcby) > 0;
+          const isDrillDone = Number(sp.drilltap_workby) > 0;
+          const isFinalQcDone = Number(sp.final_qcby) > 0;
+          const isPackingDone =
+            Number(sp.packing_workby) > 0 ||
             sp.location === "Customer" ||
-            sp.dispatch_status === "dispatched" ||
-            sp.dispatch_status === "closed_without_challan"
-        );
+            sp.dispatch_status === "dispatched";
 
-      if (allDone) {
+          return (
+            isDesignDone &&
+            isPurchaseDone &&
+            isInwardDone &&
+            isProgDone &&
+            isVmcDone &&
+            isVmcQcDone &&
+            isDrillDone &&
+            isFinalQcDone &&
+            isPackingDone
+          );
+        });
+
+      if (all9StagesCompleted) {
         await supabaseAdmin
           .from("scan")
           .update({

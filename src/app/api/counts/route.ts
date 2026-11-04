@@ -118,27 +118,45 @@ export async function GET(req: NextRequest) {
     // Direct database fallback if RPC is ever unreachable
     if (!pipelineData) {
       try {
-        const { data: subplates } = await supabaseAdmin
-          .from("subplate")
-          .select("id, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
-          .is("deleted_at", null)
-          .limit(100000);
+        const [{ data: activeScans }, { data: subplates }] = await Promise.all([
+          supabaseAdmin
+            .from("scan")
+            .select("id, projectid")
+            .neq("status", "completed"),
+          supabaseAdmin
+            .from("subplate")
+            .select("id, projectid, mold_id, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
+            .is("deleted_at", null)
+            .limit(100000),
+        ]);
 
-        if (subplates) {
-          const dp = subplates.filter((sp) => !sp.design_by || Number(sp.design_by) === 0).length;
-          const dc = subplates.filter((sp) => sp.design_by && Number(sp.design_by) > 0).length;
-          const op = subplates.filter((sp) => !sp.order_by || Number(sp.order_by) === 0).length;
-          const oc = subplates.filter((sp) => sp.order_by && Number(sp.order_by) > 0).length;
-          const pp = subplates.filter((sp) => ((sp.order_by && Number(sp.order_by) > 0) || (sp.received_workby && Number(sp.received_workby) > 0)) && (!sp.received_qcby || Number(sp.received_qcby) === 0)).length;
-          const pc = subplates.filter((sp) => sp.received_qcby && Number(sp.received_qcby) > 0).length;
-          const vp = subplates.filter((sp) => sp.received_qcby && Number(sp.received_qcby) > 0 && (!sp.vmc_workby || Number(sp.vmc_workby) === 0)).length;
-          const vc = subplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0).length;
-          const dtp = subplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0 && (!sp.drilltap_workby || Number(sp.drilltap_workby) === 0)).length;
-          const dtc = subplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0).length;
-          const fqp = subplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0 && (!sp.final_qcby || Number(sp.final_qcby) === 0)).length;
-          const fqc = subplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0).length;
-          const pakp = subplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0 && (!sp.packing_workby || Number(sp.packing_workby) === 0)).length;
-          const pakc = subplates.filter((sp) => sp.packing_workby && Number(sp.packing_workby) > 0).length;
+        const activeScanSet = new Set<string>();
+        (activeScans || []).forEach((s) => {
+          if (s.id) activeScanSet.add(String(s.id));
+          if (s.projectid) activeScanSet.add(String(s.projectid));
+        });
+
+        const activeSubplates = (subplates || []).filter((sp) => {
+          if (sp.mold_id && activeScanSet.has(String(sp.mold_id))) return true;
+          if (sp.projectid && activeScanSet.has(String(sp.projectid))) return true;
+          return false;
+        });
+
+        if (activeSubplates) {
+          const dp = activeSubplates.filter((sp) => !sp.design_by || Number(sp.design_by) === 0).length;
+          const dc = activeSubplates.filter((sp) => sp.design_by && Number(sp.design_by) > 0).length;
+          const op = activeSubplates.filter((sp) => !sp.order_by || Number(sp.order_by) === 0).length;
+          const oc = activeSubplates.filter((sp) => sp.order_by && Number(sp.order_by) > 0).length;
+          const pp = activeSubplates.filter((sp) => ((sp.order_by && Number(sp.order_by) > 0) || (sp.received_workby && Number(sp.received_workby) > 0)) && (!sp.received_qcby || Number(sp.received_qcby) === 0)).length;
+          const pc = activeSubplates.filter((sp) => sp.received_qcby && Number(sp.received_qcby) > 0).length;
+          const vp = activeSubplates.filter((sp) => sp.received_qcby && Number(sp.received_qcby) > 0 && (!sp.vmc_workby || Number(sp.vmc_workby) === 0)).length;
+          const vc = activeSubplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0).length;
+          const dtp = activeSubplates.filter((sp) => sp.vmc_workby && Number(sp.vmc_workby) > 0 && (!sp.drilltap_workby || Number(sp.drilltap_workby) === 0)).length;
+          const dtc = activeSubplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0).length;
+          const fqp = activeSubplates.filter((sp) => sp.drilltap_workby && Number(sp.drilltap_workby) > 0 && (!sp.final_qcby || Number(sp.final_qcby) === 0)).length;
+          const fqc = activeSubplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0).length;
+          const pakp = activeSubplates.filter((sp) => sp.final_qcby && Number(sp.final_qcby) > 0 && (!sp.packing_workby || Number(sp.packing_workby) === 0)).length;
+          const pakc = activeSubplates.filter((sp) => sp.packing_workby && Number(sp.packing_workby) > 0).length;
 
           pipelineData = {
             scantotal: Number(counts?.scan ?? 0),
@@ -158,13 +176,17 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Accurately compute partial / full / pending PO counts
+    // Accurately compute partial / full / pending PO counts for ACTIVE moulds only
     if (pipelineData) {
       try {
-        const [subplatesRes, poItemsRes] = await Promise.all([
+        const [{ data: activeScans }, subplatesRes, poItemsRes] = await Promise.all([
+          supabaseAdmin
+            .from("scan")
+            .select("id, projectid")
+            .neq("status", "completed"),
           supabaseAdmin
             .from("subplate")
-            .select("id, sqty")
+            .select("id, projectid, mold_id, sqty")
             .is("deleted_at", null)
             .limit(100000),
           supabaseAdmin
@@ -173,7 +195,19 @@ export async function GET(req: NextRequest) {
             .neq("purchase.status", "0"),
         ]);
 
-        if (subplatesRes.data) {
+        const activeScanSet = new Set<string>();
+        (activeScans || []).forEach((s) => {
+          if (s.id) activeScanSet.add(String(s.id));
+          if (s.projectid) activeScanSet.add(String(s.projectid));
+        });
+
+        const activeSubplates = (subplatesRes.data || []).filter((sp) => {
+          if (sp.mold_id && activeScanSet.has(String(sp.mold_id))) return true;
+          if (sp.projectid && activeScanSet.has(String(sp.projectid))) return true;
+          return false;
+        });
+
+        if (activeSubplates.length > 0) {
           const orderedMap: Record<number, number> = {};
           if (poItemsRes.data) {
             for (const item of poItemsRes.data) {
@@ -186,7 +220,7 @@ export async function GET(req: NextRequest) {
           let partial = 0;
           let completed = 0;
 
-          for (const sp of subplatesRes.data) {
+          for (const sp of activeSubplates) {
             const ord = orderedMap[sp.id] || 0;
             const total = Number(sp.sqty) || 1;
             if (ord >= total) {
@@ -202,6 +236,11 @@ export async function GET(req: NextRequest) {
           pipelineData.orderPartial = partial;
           pipelineData.orderCompleted = completed;
           pipelineData.orderbytotal = pending;
+        } else {
+          pipelineData.orderPending = 0;
+          pipelineData.orderPartial = 0;
+          pipelineData.orderCompleted = 0;
+          pipelineData.orderbytotal = 0;
         }
       } catch (err) {
         console.warn("Error calculating accurate partial PO counts:", err);

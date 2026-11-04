@@ -169,6 +169,10 @@ export interface Subplate {
   remaining_inward_qty?: number;
   inward_status?: 'PENDING' | 'PARTIAL' | 'FULLY_INWARDED';
   linked_inwards?: LinkedInwardInfo[];
+  linked_dispatches?: LinkedDispatchInfo[];
+  dispatch_challanno?: string | null;
+  dispatch_id?: number | null;
+  is_dispatched?: boolean;
   jobwork_balance?: {
     outward_jobwork_qty: number;
     available_sm_qty: number;
@@ -197,6 +201,15 @@ export interface LinkedInwardInfo {
   inward_no: string;
   qty: number;
   odate?: string | null;
+  created_by?: string | number | null;
+  created_at?: string | null;
+}
+
+export interface LinkedDispatchInfo {
+  dispatch_id: number;
+  challanno: string;
+  qty: number;
+  date?: string | null;
   created_by?: string | number | null;
   created_at?: string | null;
 }

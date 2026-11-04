@@ -460,12 +460,25 @@ function PurchasePageContent() {
 
     // Pending Purchase List Logic
     // Subplates that still have positive remaining quantity to procure (remaining_qty > 0)
+    // AND belong to an active mould project (strictly excluding completed/project register moulds)
     const pendingPlates = useMemo(() => {
         return allSubplates.filter((sp) => {
+            const scanInfo = scans.find(
+                (s) =>
+                    (sp.mold_id && s.id === sp.mold_id) ||
+                    (sp.mold_code && s.projectid === sp.mold_code) ||
+                    String(s.id) === String(sp.projectid) ||
+                    s.projectid === sp.projectid,
+            );
+            const scanStatus = String(scanInfo?.status || "").toLowerCase();
+            if (scanStatus === "completed" || scanStatus === "registered") {
+                return false;
+            }
+
             const rem = getPlateRemainingQty(sp.id);
             return rem === null || rem > 0;
         });
-    }, [allSubplates, getPlateRemainingQty]);
+    }, [allSubplates, scans, getPlateRemainingQty]);
 
     // Subplate dropdown options for the currently selected mould
     const subplateOptions = useMemo(() => {

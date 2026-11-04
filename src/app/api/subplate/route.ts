@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
       const safeProjectId = projectid.replace(/[(),%]/g, "").trim();
       let leanQuery = supabaseAdmin
         .from("subplate")
-        .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
+        .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, dispatch_status, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
         .is("deleted_at", null)
         .order("id", { ascending: true });
 
@@ -76,10 +76,18 @@ export async function GET(req: NextRequest) {
         created_by?: string | number | null;
         created_at?: string | null;
       }>>();
+      const plateDispatchesMap = new Map<number, Array<{
+        dispatch_id: number;
+        challanno: string;
+        qty: number;
+        date?: string | null;
+        created_by?: string | number | null;
+        created_at?: string | null;
+      }>>();
 
       const jwBalanceMap = new Map<number, any>();
       if (plateIds.length > 0) {
-        const [{ data: orderedRows }, { data: jwBalances }, { data: inwardRows }] = await Promise.all([
+        const [{ data: orderedRows }, { data: jwBalances }, { data: inwardRows }, { data: dispatchRows }] = await Promise.all([
           supabaseAdmin
             .from("purchase_items")
             .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
@@ -92,6 +100,10 @@ export async function GET(req: NextRequest) {
           supabaseAdmin
             .from("purchase_inward_items")
             .select("plateid, qty, po_inward:inpid(id, insrno, odate, created_by, created_at)")
+            .in("plateid", plateIds),
+          supabaseAdmin
+            .from("dispatch_items")
+            .select("plateid, qty, dispatch:dispatchid(id, challanno, date, created_by, created_at, status)")
             .in("plateid", plateIds),
         ]);
 
@@ -135,6 +147,26 @@ export async function GET(req: NextRequest) {
           });
         }
 
+        if (dispatchRows) {
+          dispatchRows.forEach((row: any) => {
+            const pid = Number(row.plateid);
+            const q = Number(row.qty) || 0;
+            const dData = Array.isArray(row.dispatch) ? row.dispatch[0] : row.dispatch;
+            if (dData && String(dData.status) !== "0") {
+              const existingList = plateDispatchesMap.get(pid) || [];
+              existingList.push({
+                dispatch_id: dData.id,
+                challanno: dData.challanno || `SMDC#${dData.id}`,
+                qty: q,
+                date: dData.date || null,
+                created_by: dData.created_by || null,
+                created_at: dData.created_at || null,
+              });
+              plateDispatchesMap.set(pid, existingList);
+            }
+          });
+        }
+
         if (jwBalances) {
           jwBalances.forEach((b: any) => jwBalanceMap.set(Number(b.plateid), b));
         }
@@ -159,6 +191,14 @@ export async function GET(req: NextRequest) {
         const inwardStatus: 'PENDING' | 'PARTIAL' | 'FULLY_INWARDED' =
           inwardQty >= total ? 'FULLY_INWARDED' : inwardQty > 0 ? 'PARTIAL' : 'PENDING';
 
+        const linkedDispatches = plateDispatchesMap.get(p.id) || [];
+        const latestDispatch = linkedDispatches[linkedDispatches.length - 1] || null;
+        const isDispatched = Boolean(
+          p.location === "Customer" ||
+          (p as any).dispatch_status === "dispatched" ||
+          linkedDispatches.length > 0
+        );
+
         return {
           ...p,
           ordered_qty: ordered,
@@ -172,6 +212,10 @@ export async function GET(req: NextRequest) {
           remaining_inward_qty: remainingInward,
           inward_status: inwardStatus,
           linked_inwards: linkedInwards,
+          linked_dispatches: linkedDispatches,
+          dispatch_challanno: latestDispatch?.challanno || null,
+          dispatch_id: latestDispatch?.dispatch_id || null,
+          is_dispatched: isDispatched,
           jobwork_balance: {
             outward_jobwork_qty: jwBalanceMap.get(p.id)?.outward_jobwork_qty ?? 0,
             available_sm_qty: jwBalanceMap.get(p.id)?.available_sm_qty ?? (hasPO ? 0 : total),
@@ -280,10 +324,18 @@ export async function GET(req: NextRequest) {
         created_by?: string | number | null;
         created_at?: string | null;
       }>>();
+      const plateDispatchesMap = new Map<number, Array<{
+        dispatch_id: number;
+        challanno: string;
+        qty: number;
+        date?: string | null;
+        created_by?: string | number | null;
+        created_at?: string | null;
+      }>>();
 
       const jwBalanceMap = new Map<number, any>();
       if (plateIds.length > 0) {
-        const [{ data: orderedRows }, { data: jwBalances }, { data: inwardRows }] = await Promise.all([
+        const [{ data: orderedRows }, { data: jwBalances }, { data: inwardRows }, { data: dispatchRows }] = await Promise.all([
           supabaseAdmin
             .from("purchase_items")
             .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
@@ -296,6 +348,10 @@ export async function GET(req: NextRequest) {
           supabaseAdmin
             .from("purchase_inward_items")
             .select("plateid, qty, po_inward:inpid(id, insrno, odate, created_by, created_at)")
+            .in("plateid", plateIds),
+          supabaseAdmin
+            .from("dispatch_items")
+            .select("plateid, qty, dispatch:dispatchid(id, challanno, date, created_by, created_at, status)")
             .in("plateid", plateIds),
         ]);
 
@@ -339,6 +395,26 @@ export async function GET(req: NextRequest) {
           });
         }
 
+        if (dispatchRows) {
+          dispatchRows.forEach((row: any) => {
+            const pid = Number(row.plateid);
+            const q = Number(row.qty) || 0;
+            const dData = Array.isArray(row.dispatch) ? row.dispatch[0] : row.dispatch;
+            if (dData && String(dData.status) !== "0") {
+              const existingList = plateDispatchesMap.get(pid) || [];
+              existingList.push({
+                dispatch_id: dData.id,
+                challanno: dData.challanno || `SMDC#${dData.id}`,
+                qty: q,
+                date: dData.date || null,
+                created_by: dData.created_by || null,
+                created_at: dData.created_at || null,
+              });
+              plateDispatchesMap.set(pid, existingList);
+            }
+          });
+        }
+
         if (jwBalances) {
           jwBalances.forEach((b: any) => jwBalanceMap.set(Number(b.plateid), b));
         }
@@ -373,6 +449,14 @@ export async function GET(req: NextRequest) {
         const inwardStatus: 'PENDING' | 'PARTIAL' | 'FULLY_INWARDED' =
           inwardQty >= total ? 'FULLY_INWARDED' : inwardQty > 0 ? 'PARTIAL' : 'PENDING';
 
+        const linkedDispatches = plateDispatchesMap.get(sp.id) || [];
+        const latestDispatch = linkedDispatches[linkedDispatches.length - 1] || null;
+        const isDispatched = Boolean(
+          sp.location === "Customer" ||
+          sp.dispatch_status === "dispatched" ||
+          linkedDispatches.length > 0
+        );
+
         return {
           ...sp,
           ordered_qty: ordered,
@@ -386,6 +470,10 @@ export async function GET(req: NextRequest) {
           remaining_inward_qty: remainingInward,
           inward_status: inwardStatus,
           linked_inwards: linkedInwards,
+          linked_dispatches: linkedDispatches,
+          dispatch_challanno: latestDispatch?.challanno || null,
+          dispatch_id: latestDispatch?.dispatch_id || null,
+          is_dispatched: isDispatched,
           jobwork_balance: {
             outward_jobwork_qty: jwBalanceMap.get(sp.id)?.outward_jobwork_qty ?? 0,
             available_sm_qty: jwBalanceMap.get(sp.id)?.available_sm_qty ?? (hasPO ? 0 : total),
@@ -1002,19 +1090,34 @@ export async function PUT(req: NextRequest) {
       packing_workby_name: userMap.get(Number(data.packing_workby))?.name || userMap.get(Number(data.packing_workby))?.initials || null,
     };
 
-    // Automatic Completion: If packing is completed for all companion subplates, auto-update mould to completed
+    // Automatic Completion: If all 9 stages are completed for all companion subplates, auto-update mould to completed
     if (updatePayload.packing_workby && (data.projectid || data.mold_code)) {
       const targetProj = data.projectid || data.mold_code;
       const { data: companionPlates } = await supabaseAdmin
         .from("subplate")
-        .select("id, packing_workby")
-        .or(`projectid.eq.${targetProj},mold_code.eq.${targetProj}`);
+        .select("id, location, dispatch_status, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby")
+        .or(`projectid.eq.${targetProj},mold_code.eq.${targetProj}`)
+        .is("deleted_at", null);
 
-      const allPacked =
+      const all9StagesDone =
         (companionPlates || []).length > 0 &&
-        (companionPlates || []).every((sp) => sp.packing_workby !== null && sp.packing_workby !== 0);
+        (companionPlates || []).every((sp: any) => {
+          return (
+            Number(sp.design_by) > 0 &&
+            Number(sp.order_by) > 0 &&
+            Number(sp.received_workby) > 0 &&
+            Number(sp.received_qcby) > 0 &&
+            Number(sp.vmc_workby) > 0 &&
+            Number(sp.vmc_qcby) > 0 &&
+            Number(sp.drilltap_workby) > 0 &&
+            Number(sp.final_qcby) > 0 &&
+            (Number(sp.packing_workby) > 0 ||
+              sp.location === "Customer" ||
+              sp.dispatch_status === "dispatched")
+          );
+        });
 
-      if (allPacked) {
+      if (all9StagesDone) {
         const todayDate = new Date().toISOString().slice(0, 10);
         await supabaseAdmin
           .from("scan")

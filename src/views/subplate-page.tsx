@@ -38,6 +38,7 @@ import {
 	Pencil,
 	AlertCircle,
 	ShoppingCart,
+	Truck,
 } from "lucide-react";
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
@@ -814,7 +815,7 @@ function SubplatePageContent() {
 		if (sp.vmc_qcby) count++;
 		if (sp.drilltap_workby) count++;
 		if (sp.final_qcby) count++;
-		if (sp.packing_workby) count++;
+		if (sp.packing_workby || sp.location === "Customer" || sp.dispatch_status === "dispatched" || (sp as any).is_dispatched) count++;
 		return count;
 	};
 
@@ -2234,6 +2235,7 @@ function SubplatePageContent() {
 																							const isAssignedToOther = isAssigned && !isAssignedToMe;
 																							const isStage2 = stage.key === "order_by";
 																							const isStage3 = stage.key === "received_workby";
+																							const isStage9 = stage.key === "packing_workby";
 																							const totalQty = Number(row.sqty) || 1;
 																							const orderedQty = row.ordered_qty ?? 0;
 																							const remainingQty = row.remaining_qty !== undefined ? row.remaining_qty : Math.max(0, totalQty - orderedQty);
@@ -2245,8 +2247,11 @@ function SubplatePageContent() {
 																							const isPartialInward = isStage3 && ((row as any).inward_status === "PARTIAL" || (inwardQty > 0 && remainingInwardQty > 0));
 																							const isFullyInwarded = isStage3 && ((row as any).inward_status === "FULLY_INWARDED" || (inwardQty >= totalQty && inwardQty > 0));
 
+																							const linkedDispatches: any[] = (row as any).linked_dispatches || [];
+																							const isDispatched = isStage9 && Boolean((row as any).is_dispatched || row.location === "Customer" || row.dispatch_status === "dispatched" || linkedDispatches.length > 0);
+
 																							const isCardPartial = isPartial || isPartialInward;
-																							const isStageDone = isStage2 ? isFullyOrdered : isStage3 ? isFullyInwarded : isAssigned;
+																							const isStageDone = isStage2 ? isFullyOrdered : isStage3 ? isFullyInwarded : isStage9 ? (isDispatched || isAssigned) : isAssigned;
 
 																							return (
 																								<div
@@ -2299,6 +2304,20 @@ function SubplatePageContent() {
 																													<div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
 																														<CheckCircle2 className="w-4 h-4 shrink-0" />
 																														<span>Assigned</span>
+																													</div>
+																												) : (
+																													<span className="text-xs text-slate-400 font-medium">Pending</span>
+																												)
+																											) : isStage9 ? (
+																												isDispatched ? (
+																													<div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
+																														<Truck className="w-4 h-4 shrink-0" />
+																														<span>Dispatched</span>
+																													</div>
+																												) : isAssigned ? (
+																													<div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs">
+																														<CheckCircle2 className="w-4 h-4 shrink-0" />
+																														<span>Packed</span>
 																													</div>
 																												) : (
 																													<span className="text-xs text-slate-400 font-medium">Pending</span>
@@ -2686,6 +2705,132 @@ function SubplatePageContent() {
 																															Pending
 																														</span>
 																													</button>
+																												);
+																											})()
+																										) : isStage9 ? (
+																											(() => {
+																												const staffMember = activeStaff.find((u) => u.id === Number(val));
+																												const staffName = staffMember?.name || (row as any).packing_workby_name || (val ? `Staff #${val}` : "Packing Incharge");
+																												const staffInitials = staffMember?.initials || (row as any).packing_workby_name?.slice(0, 2).toUpperCase() || "PK";
+
+																												if (isDispatched && linkedDispatches.length > 0) {
+																													if (linkedDispatches.length > 1) {
+																														return (
+																															<div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
+																																{linkedDispatches.map((d: any, idx: number) => (
+																																	<a
+																																		key={d.dispatch_id || idx}
+																																		href={`/print/dispatch/${d.dispatch_id || ""}`}
+																																		target="_blank"
+																																		rel="noopener noreferrer"
+																																		title={`View Delivery Challan #${d.challanno}`}
+																																		className="h-9 px-2 rounded-lg bg-emerald-50/80 border border-emerald-200/90 hover:border-emerald-400 hover:bg-emerald-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																																	>
+																																		<div className="flex items-center gap-1.5 min-w-0">
+																																			<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																				<Truck className="w-3 h-3 text-white" />
+																																			</div>
+																																			<div className="min-w-0">
+																																				<div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-emerald-900">
+																																					Delivery Challan
+																																				</div>
+																																				<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
+																																					{d.challanno} • {d.qty} pcs
+																																				</div>
+																																			</div>
+																																		</div>
+																																		<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+																																	</a>
+																																))}
+																															</div>
+																														);
+																													}
+
+																													const singleDispatch = linkedDispatches[0];
+																													return (
+																														<a
+																															href={`/print/dispatch/${singleDispatch.dispatch_id || ""}`}
+																															target="_blank"
+																															rel="noopener noreferrer"
+																															title={`View Delivery Challan #${singleDispatch.challanno}`}
+																															className="h-9 px-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 hover:border-emerald-400 hover:bg-emerald-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																														>
+																															<div className="flex items-center gap-1.5 min-w-0">
+																																<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																	<Truck className="w-3 h-3 text-white" />
+																																</div>
+																																<div className="min-w-0">
+																																	<div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-emerald-900">
+																																		Delivery Challan
+																																	</div>
+																																	<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
+																																		{singleDispatch.challanno} • {singleDispatch.qty || totalQty} pcs
+																																	</div>
+																																</div>
+																															</div>
+																															<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+																														</a>
+																													);
+																												}
+
+																												if (isDispatched) {
+																													return (
+																														<a
+																															href="/dispatch"
+																															target="_blank"
+																															rel="noopener noreferrer"
+																															title="Dispatched to Customer (View in Goods Dispatch)"
+																															className="h-9 px-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 hover:border-emerald-400 hover:bg-emerald-100/70 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-pointer"
+																														>
+																															<div className="flex items-center gap-1.5 min-w-0">
+																																<div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+																																	<Truck className="w-3 h-3 text-white" />
+																																</div>
+																																<div className="min-w-0">
+																																	<div className="text-[11px] font-bold text-slate-800 truncate leading-tight group-hover:text-emerald-900">
+																																		Dispatched to Customer
+																																	</div>
+																																	<div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none">
+																																		Dispatch Complete
+																																	</div>
+																																</div>
+																															</div>
+																															<CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+																														</a>
+																													);
+																												}
+
+																												return (
+																													<StaffSelect
+																														value={val}
+																														onChange={(userId) =>
+																															handleStageStaffChange(
+																																row.id,
+																																stage.key,
+																																userId
+																															)
+																														}
+																														staff={
+																															isAdmin
+																																? activeStaff
+																																: currentUser
+																																? [
+																																		{
+																																			id: Number(currentUser.id),
+																																			name: currentUser.name || "Me",
+																																			initials:
+																																				currentUser.initials ||
+																																				currentUser.name?.slice(0, 2).toUpperCase() ||
+																																				"ME",
+																																		} as any,
+																																  ]
+																																: []
+																														}
+																														disabled={!isAdmin && isAssignedToOther}
+																														color="blue"
+																														className="w-full"
+																														placeholder="Unassigned"
+																													/>
 																												);
 																											})()
 																										) : (

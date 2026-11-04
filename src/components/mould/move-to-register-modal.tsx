@@ -11,6 +11,7 @@ import {
   Truck,
   Box,
   FileCheck2,
+  Lock,
 } from "lucide-react";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
 
@@ -42,31 +43,94 @@ export function MoveToRegisterModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Compute plates and dispatch status
-  const { subplates, dispatchedPlates, remainingPlates } = useMemo(() => {
-    if (!project) return { subplates: [], dispatchedPlates: [], remainingPlates: [] };
+  // Compute plates and dispatch status + strict in-progress work validation
+  const { subplates, dispatchedPlates, remainingPlates, neverPurchasedPlates, blockingPlates } = useMemo(() => {
+    if (!project) return { subplates: [], dispatchedPlates: [], remainingPlates: [], neverPurchasedPlates: [], blockingPlates: [] };
 
     const plates = project.subplates || [];
-    const dispatched = plates.filter(
-      (p: Subplate) =>
+    const dispatched: Subplate[] = [];
+    const remaining: Subplate[] = [];
+    const neverPurchased: Subplate[] = [];
+    const blocking: Array<{ plate: Subplate; reason: string }> = [];
+
+    plates.forEach((p: Subplate) => {
+      const isDispatched =
         p.location === "Customer" ||
         p.dispatch_status === "dispatched" ||
-        (p as any).isDispatched === true
-    );
-    const remaining = plates.filter(
-      (p: Subplate) =>
-        p.location !== "Customer" &&
-        p.dispatch_status !== "dispatched" &&
-        (p as any).isDispatched !== true
-    );
+        (p as any).isDispatched === true;
+
+      const isPacked = Number(p.packing_workby) > 0;
+
+      if (isDispatched || isPacked) {
+        dispatched.push(p);
+        return;
+      }
+
+      remaining.push(p);
+
+      const hasPO = Boolean(
+        (p.order_by && Number(p.order_by) > 0) ||
+        (p as any).has_active_po ||
+        (p as any).has_po ||
+        (p as any).po_srno ||
+        ((p as any).ordered_qty && Number((p as any).ordered_qty) > 0)
+      );
+
+      const hasInward = Boolean(
+        (p.received_workby && Number(p.received_workby) > 0) ||
+        ((p as any).inward_qty && Number((p as any).inward_qty) > 0) ||
+        (p as any).inward_status === "FULLY_INWARDED"
+      );
+
+      const hasStartedProduction = Boolean(
+        hasInward ||
+        (p.received_qcby && Number(p.received_qcby) > 0) ||
+        (p.vmc_workby && Number(p.vmc_workby) > 0) ||
+        (p.vmc_qcby && Number(p.vmc_qcby) > 0) ||
+        (p.drilltap_workby && Number(p.drilltap_workby) > 0) ||
+        (p.final_qcby && Number(p.final_qcby) > 0)
+      );
+
+      if (!hasPO && !hasStartedProduction) {
+        // Plate was never purchased and no work was started: can be closed/dropped cleanly
+        neverPurchased.push(p);
+        return;
+      }
+
+      if (hasPO && !hasInward) {
+        blocking.push({
+          plate: p,
+          reason: "Purchase PO bana hua hai lekin Inward nahi aaya hai. Pehle Inward receive karein.",
+        });
+        return;
+      }
+
+      if (hasStartedProduction && !isPacked && !isDispatched) {
+        let stageName = "Manufacturing";
+        if (p.final_qcby && Number(p.final_qcby) > 0) stageName = "Final QC Done (Packing Pending)";
+        else if (p.drilltap_workby && Number(p.drilltap_workby) > 0) stageName = "Drill & Tap Done";
+        else if (p.vmc_workby && Number(p.vmc_workby) > 0) stageName = "VMC Machining Done";
+        else if (p.received_qcby && Number(p.received_qcby) > 0) stageName = "Programming Done";
+        else if (hasInward) stageName = "Material Inwarded (Work Pending)";
+
+        blocking.push({
+          plate: p,
+          reason: `Kaam in-progress hai (${stageName}). Is plate ko Final Packing ya Delivery Challan tak complete karein.`,
+        });
+        return;
+      }
+    });
 
     return {
       subplates: plates,
       dispatchedPlates: dispatched,
       remainingPlates: remaining,
+      neverPurchasedPlates: neverPurchased,
+      blockingPlates: blocking,
     };
   }, [project]);
 
+  const hasBlockingPlates = blockingPlates.length > 0;
   const isPartialDispatch = dispatchedPlates.length > 0 && remainingPlates.length > 0;
   const isNoDispatch = dispatchedPlates.length === 0 && remainingPlates.length > 0;
   const isFullyDispatched = subplates.length > 0 && remainingPlates.length === 0;
@@ -148,21 +212,58 @@ export function MoveToRegisterModal({
             </div>
           )}
 
+          {/* HARD BLOCK: In-Progress Subplates Detected */}
+          {hasBlockingPlates && (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-2.5">
+              <div className="flex items-center gap-2 font-bold text-sm text-rose-800">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>Move to Project Register Blocked</span>
+              </div>
+              <p className="text-rose-700 leading-relaxed text-[11px]">
+                Kuch subplates par kaam in-progress hai (jaise PO inward pending ya machining/programming). Mould ko Project Register mein move karne se pehle inka kaam Final Packing / Dispatch tak complete karein:
+              </p>
+              <div className="border border-rose-200 rounded-lg overflow-hidden bg-white divide-y divide-rose-100 max-h-40 overflow-y-auto">
+                {blockingPlates.map(({ plate, reason }) => (
+                  <div key={plate.id} className="p-2.5 text-xs space-y-0.5">
+                    <div className="font-bold text-slate-800 flex items-center justify-between">
+                      <span>{plate.platename}</span>
+                      <span className="text-[10px] font-mono text-rose-600 font-semibold">{plate.subprojectid || `#${plate.id}`}</span>
+                    </div>
+                    <div className="text-[11px] text-rose-700 font-medium">{reason}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Info Notice: Unpurchased plates allowed to be closed */}
+          {!hasBlockingPlates && neverPurchasedPlates.length > 0 && (
+            <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs space-y-1">
+              <div className="flex items-center gap-2 font-bold text-xs text-blue-900">
+                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>{neverPurchasedPlates.length} Subplate(s) Without Purchase PO</span>
+              </div>
+              <p className="text-blue-800 leading-relaxed text-[11px]">
+                In subplates ka raw material purchase PO nahi bana tha. Register mein move karne par ye mould archive ho jayega aur pending purchase list se hat jayega.
+              </p>
+            </div>
+          )}
+
           {/* Fully Dispatched Scenario */}
           {isFullyDispatched && (
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs space-y-2">
               <div className="flex items-center gap-2 font-bold text-sm text-emerald-900">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>All {subplates.length} Subplates Dispatched</span>
+                <span>All {subplates.length} Subplates Completed / Dispatched</span>
               </div>
               <p className="text-emerald-700 leading-relaxed">
-                All subplates for this mould have been dispatched to the customer. Ready to move to the permanent Completed Project Register.
+                All subplates for this mould have been completed / dispatched. Ready to move to the permanent Completed Project Register.
               </p>
             </div>
           )}
 
           {/* Partial Dispatch Scenario */}
-          {isPartialDispatch && (
+          {isPartialDispatch && !hasBlockingPlates && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-1.5">
                 <div className="flex items-center gap-2 font-bold text-xs text-amber-900">
@@ -223,7 +324,7 @@ export function MoveToRegisterModal({
           )}
 
           {/* No Dispatch Scenario */}
-          {isNoDispatch && (
+          {isNoDispatch && !hasBlockingPlates && (
             <div className="space-y-3">
               <div className="p-3.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 text-xs space-y-1">
                 <div className="flex items-center gap-2 font-bold text-slate-900">
@@ -268,7 +369,7 @@ export function MoveToRegisterModal({
 
           <div className="flex items-center gap-2">
             {/* Action 1: Create Challan for Remaining */}
-            {(isPartialDispatch || isNoDispatch) && onOpenDispatchForRemaining && (
+            {(isPartialDispatch || isNoDispatch) && !hasBlockingPlates && onOpenDispatchForRemaining && (
               <button
                 type="button"
                 onClick={handleCreateRemainingChallan}
@@ -284,15 +385,23 @@ export function MoveToRegisterModal({
             <button
               type="button"
               onClick={handleDirectClose}
-              disabled={isSubmitting}
+              disabled={isSubmitting || hasBlockingPlates}
+              title={hasBlockingPlates ? "Cannot move: Subplates have in-progress work" : undefined}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 ${
-                isFullyDispatched
+                hasBlockingPlates
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                  : isFullyDispatched
                   ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                   : "bg-amber-600 hover:bg-amber-700 text-white"
               }`}
             >
               {isSubmitting ? (
                 <span>Moving...</span>
+              ) : hasBlockingPlates ? (
+                <>
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Blocked (In-Progress Work)</span>
+                </>
               ) : (
                 <>
                   <FileCheck2 className="w-3.5 h-3.5" />

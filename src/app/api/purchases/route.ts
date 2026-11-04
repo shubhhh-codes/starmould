@@ -49,7 +49,23 @@ export async function GET(req: NextRequest) {
     }
 
     const pos = posRes.data || [];
-    const plates = subplatesRes.data || [];
+    const rawPlates = (subplatesRes.data || []) as any[];
+
+    // Filter out plates belonging to completed / Project Register moulds
+    const completedScanIds = new Set<string>();
+    (scans || []).forEach((s: any) => {
+      const st = String(s.status || "").toLowerCase();
+      if (st === "completed" || st === "registered") {
+        if (s.id) completedScanIds.add(String(s.id));
+        if (s.projectid) completedScanIds.add(String(s.projectid));
+      }
+    });
+
+    const plates = rawPlates.filter((sp) => {
+      if (sp.mold_id && completedScanIds.has(String(sp.mold_id))) return false;
+      if (sp.projectid && completedScanIds.has(String(sp.projectid))) return false;
+      return true;
+    });
 
     const custMap = new Map(customers.map((c) => [c.id, c.customername]));
     const vendMap = new Map((vendors || []).map((v) => [v.id, v.vendor_name]));
