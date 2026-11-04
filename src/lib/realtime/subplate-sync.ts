@@ -40,7 +40,7 @@ export const USER_NAME_FIELDS = [
  */
 let idbCachedUsers: User[] = [];
 export function setIdbCachedUsers(users: User[]): void {
-  if (Array.isArray(users) && users.length > 0) {
+  if (Array.isArray(users)) {
     idbCachedUsers = users;
   }
 }

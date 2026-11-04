@@ -2,32 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
 import { signSession, SessionUser } from "@/lib/auth";
-import { checkRateLimit, resetRateLimit } from "@/lib/rate-limit";
+import { consumeLoginBudget } from "@/lib/login-rate-limit";
 import { serverLogger } from "@/lib/server-logger";
+import { rolePermissionVersion } from "@/lib/permissions/version";
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limiting: extract real client IP
-    const forwarded = req.headers.get("x-forwarded-for");
-    const realIp = req.headers.get("x-real-ip") || req.headers.get("cf-connecting-ip");
-    const forwardedList = forwarded ? forwarded.split(",").map((s) => s.trim()).filter(Boolean) : [];
-    const ip = (realIp || (forwardedList.length > 0 ? forwardedList[forwardedList.length - 1] : "unknown")).trim();
-
-    const rateCheck = checkRateLimit(ip);
-    if (!rateCheck.allowed) {
-      const mins = Math.ceil((rateCheck.retryAfterSeconds ?? 1800) / 60);
-      return NextResponse.json(
-        { error: `Too many login attempts. Please try again in ${mins} minute${mins !== 1 ? "s" : ""}.` },
-        {
-          status: 429,
-          headers: { "Retry-After": String(rateCheck.retryAfterSeconds ?? 1800) },
-        }
-      );
-    }
-
     const { username, password } = await req.json();
 
-    if (!username || !password) {
+    if (typeof username !== "string" || typeof password !== "string" || !username || !password || username.length > 254 || password.length > 1024) {
       return NextResponse.json({ error: "Username/email and password are required" }, { status: 400 });
     }
 
@@ -52,6 +35,10 @@ export async function POST(req: NextRequest) {
     }
 
     const user = users?.[0];
+    const budget = await consumeLoginBudget(req, user ? `user:${user.id}` : `login:${cleanUsername}`);
+    if (!budget.allowed) return NextResponse.json({ error: budget.status === 503 ? "Login verification temporarily unavailable" : "Too many login attempts" }, {
+      status: budget.status, headers: { "Retry-After": String(budget.retryAfter) },
+    });
     if (!user) {
       return NextResponse.json(
         { error: "No account found with this username or email" },
@@ -79,7 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Reset rate limiter on successful authentication
-    resetRateLimit(ip);
+    // Successful logins do not reset shared IP or account guessing budgets.
 
     // Role definitions:
     // 0: Admin, 1: Manager, 2: Supervisor, 3: Designer, 4: Worker, 5: Purchase Incharge, 6: VMC, 7: QC, 9: Dispatch, 10: Programmer
@@ -110,6 +97,9 @@ export async function POST(req: NextRequest) {
       must_change_password: user.must_change_password === true,
     };
 
+    try { sessionUser.permissions_version = await rolePermissionVersion(roleId); } catch {
+      return NextResponse.json({ error: "Permission verification temporarily unavailable" }, { status: 503 });
+    }
     const signedToken = signSession(sessionUser);
 
     const res = NextResponse.json({
@@ -123,7 +113,7 @@ export async function POST(req: NextRequest) {
     // Set signed, HttpOnly auth cookie
     res.cookies.set("sm_session", signedToken, {
       httpOnly: true,
-      secure: isHttps,
+      secure: process.env.NODE_ENV === "production" || isHttps,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 7 days

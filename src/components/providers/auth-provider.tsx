@@ -1,4 +1,9 @@
 "use client";
+import { browserPrincipal, setBrowserPrincipal } from "@/lib/cache/principal";
+import { clearLocalProjectsStore } from "@/lib/cache/projects-local-store";
+import { clearStreamState } from "@/lib/cache/projects-stream-store";
+import { setIdbCachedUsers } from "@/lib/realtime/subplate-sync";
+
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -15,6 +20,7 @@ export interface UserSession {
   role_id?: number;
   username?: string;
   must_change_password?: boolean;
+  permissions_version?: string;
 }
 
 interface AuthContextType {
@@ -52,7 +58,6 @@ export function getCachedSession(): UserSession | null {
 
 export function AuthProvider({
   children,
-  initialUser = null,
 }: {
   children: React.ReactNode;
   initialUser?: UserSession | null;
@@ -61,16 +66,26 @@ export function AuthProvider({
   const pathname = usePathname();
   const queryClient = useQueryClient();
 
-  // Synchronous initial state resolution: SSR initialUser -> LocalStorage cached session -> null
+  // Restore cached session synchronously on boot to prevent spurious generation shifts
   const [currentUser, setCurrentUserState] = useState<UserSession | null>(() => {
-    if (initialUser) return initialUser;
     return getCachedSession();
   });
   const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(() => {
-    return Boolean(initialUser || getCachedSession());
+    return Boolean(getCachedSession());
   });
 
   const setUser = useCallback((user: UserSession | null) => {
+    const nextKey = user?.id && user.permissions_version ? `${user.id}_${user.role_id ?? 0}_${user.permissions_version}` : null;
+    const previous = browserPrincipal();
+    if (previous.key !== nextKey) {
+      if (previous.key) void createIDBPersister(previous.key)?.removeClient();
+      void clearLocalProjectsStore();
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      clearStreamState();
+      setIdbCachedUsers([]);
+      setBrowserPrincipal(nextKey);
+    }
     setCurrentUserState(user);
     setIsSessionLoaded(true);
     if (typeof window !== "undefined") {
@@ -84,11 +99,13 @@ export function AuthProvider({
         // ignore
       }
     }
-  }, []);
+  }, [queryClient]);
 
   const fetchSession = useCallback(async () => {
+    const generation = browserPrincipal().generation;
     try {
       const res = await fetch("/api/auth/me");
+      if (generation !== browserPrincipal().generation) return;
       if (res.status === 401) {
         // Only wipe session if server explicitly returned 401 Unauthorized
         setUser(null);
@@ -100,6 +117,7 @@ export function AuthProvider({
         return;
       }
       const data = await res.json();
+      if (generation !== browserPrincipal().generation) return;
       if (data?.user) {
         const formattedUser: UserSession = {
           id: data.user.id,
@@ -113,26 +131,9 @@ export function AuthProvider({
             "SM",
           role_id: data.user.role_id,
           must_change_password: data.user.must_change_password === true,
+          permissions_version: data.user.permissions_version,
         };
-        // Update state and cache only if data has changed to prevent UI re-render flickers
-        setCurrentUserState((prev) => {
-          if (
-            prev &&
-            prev.id === formattedUser.id &&
-            prev.role_id === formattedUser.role_id &&
-            prev.name === formattedUser.name &&
-            prev.role === formattedUser.role &&
-            prev.must_change_password === formattedUser.must_change_password
-          ) {
-            return prev;
-          }
-          if (typeof window !== "undefined") {
-            try {
-              localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(formattedUser));
-            } catch {}
-          }
-          return formattedUser;
-        });
+        setUser(formattedUser);
       } else {
         setUser(null);
       }
@@ -147,15 +148,36 @@ export function AuthProvider({
     }
   }, [setUser]);
 
-  // Hydrate from localStorage immediately on mount if state wasn't populated yet, then verify in background
   useEffect(() => {
-    if (!currentUser) {
-      const cached = getCachedSession();
-      if (cached) {
-        setCurrentUserState(cached);
-        setIsSessionLoaded(true);
-      }
-    }
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== SESSION_STORAGE_KEY) return;
+      void clearLocalProjectsStore();
+      setBrowserPrincipal(null);
+      void queryClient.cancelQueries();
+      queryClient.clear();
+      clearStreamState();
+      setIdbCachedUsers([]);
+      setCurrentUserState(null);
+      if (event.newValue) void fetchSession();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [fetchSession, queryClient]);
+
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") void fetchSession(); };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("starmould:permissions-changed", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("starmould:permissions-changed", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [fetchSession]);
+
+  // A signed cookie or localStorage identity alone cannot authorize cache restoration.
+  useEffect(() => {
     fetchSession();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchSession]);
@@ -174,14 +196,15 @@ export function AuthProvider({
   }, [isSessionLoaded, currentUser?.must_change_password, pathname, router]);
 
   const logout = useCallback(async () => {
+    const previousPrincipal = browserPrincipal().key;
+    setUser(null);
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch (err) {
       console.error("Error logging out:", err);
     } finally {
       try {
-        const cached = getCachedSession();
-        const userSuffix = cached?.id ? `${cached.id}_${cached.role_id ?? 0}` : "anon";
+        const userSuffix = previousPrincipal || "anon";
         const persister = createIDBPersister(userSuffix);
         await persister?.removeClient();
       } catch (e) {
@@ -203,8 +226,10 @@ export function AuthProvider({
         logout,
       }}
     >
-      <RealtimeSyncListener isAuthenticated={Boolean(currentUser)} />
-      {children}
+      <React.Fragment key={`${currentUser?.id ?? "anon"}_${currentUser?.role_id ?? "none"}_${currentUser?.permissions_version ?? "unverified"}`}>
+        <RealtimeSyncListener isAuthenticated={Boolean(currentUser)} />
+        {children}
+      </React.Fragment>
     </AuthContext.Provider>
   );
 }

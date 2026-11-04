@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateDatabaseBackup } from "@/lib/backup/engine";
-import path from "path";
-import os from "os";
+import { retainBackup } from "@/lib/backup/retention";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -47,23 +46,20 @@ async function handleBackupCron(req: NextRequest) {
   }
 
   try {
-    const targetDir = process.env.VERCEL
-      ? path.join(os.tmpdir(), "backups")
-      : "C:\\SM_soft_backup";
-
     const backup = await generateDatabaseBackup({
-      targetDir,
-      saveToDisk: true,
+      saveToDisk: false,
       includeSql: true,
       includeJson: true,
       retentionDays: 30,
     });
+    const objects = await retainBackup(backup);
 
     return NextResponse.json({
       success: true,
       message: "Automated database backup executed successfully",
       environment: process.env.VERCEL ? "cloud-serverless (Vercel)" : "local-server",
       timestamp: backup.timestamp,
+      objects,
       files: {
         sql: backup.filenameSql,
         json: backup.filenameJson,

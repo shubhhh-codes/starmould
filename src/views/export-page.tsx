@@ -1,4 +1,5 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";

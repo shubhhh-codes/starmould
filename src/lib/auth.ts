@@ -15,6 +15,7 @@ export interface SessionUser {
   usersubtype?: string | null;
   initials?: string | null;
   must_change_password?: boolean;
+  permissions_version?: string;
 }
 
 export interface SessionPayload extends SessionUser {
@@ -135,15 +136,16 @@ export async function authenticateRequest(
           .select("id, name, email, username, role_id, usertype, usersubtype, initials, status, must_change_password, updated_at")
           .eq("id", session.id)
           .is("deleted_at", null)
-          .single();
-        if (error || !data) return null;
+          .maybeSingle();
+        if (error) throw new Error("Account verification unavailable");
+        if (!data) return null;
         return data;
       } catch {
-        return null;
+        throw new Error("Account verification unavailable");
       }
     });
   } catch {
-    dbUser = null;
+    return { error: "Account verification temporarily unavailable", status: 503 };
   }
 
   // 1. If user does not exist in database (deleted or truncated), strictly reject authentication
@@ -209,6 +211,12 @@ export async function authenticateRequest(
     must_change_password: effectiveUser.must_change_password === true,
   };
 
+  if (freshUser.must_change_password && ![
+    "/api/auth/me", "/api/auth/change-password", "/api/auth/logout",
+  ].includes(req.nextUrl.pathname)) {
+    return { error: "Password change required", status: 403 };
+  }
+
   // Admin (role 0) always has full access
   if (roleId === 0) {
     return { user: freshUser };
@@ -218,7 +226,12 @@ export async function authenticateRequest(
   // This allows the Admin to grant or revoke access for ANY role (Manager, Supervisor, Designer, Worker)
   // dynamically from the Role & Permissions Settings panel.
   if (permissionKey) {
-    const matrix = await loadEffectivePermissions();
+    let matrix;
+    try {
+      matrix = await loadEffectivePermissions();
+    } catch {
+      return { error: "Permission verification temporarily unavailable", status: 503 };
+    }
     if (!roleHasPermission(roleId, permissionKey, matrix)) {
       return { error: "Access denied: permission not granted by administrator", status: 403 };
     }

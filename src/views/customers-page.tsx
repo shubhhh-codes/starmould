@@ -1,4 +1,6 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
+import { readCustomerSpreadsheet } from "@/lib/import/spreadsheet";
 
 import React, { useState, useMemo, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -110,6 +112,7 @@ function CustomerPageContent() {
     // TanStack Query hooks: fetch all records so category counts are accurate across all tabs
     const customersQuery = useCustomersQuery({
         pageSize: 2000,
+        detail: true,
     });
 
     const createCustomerMutation = useCreateCustomerMutation();
@@ -588,12 +591,7 @@ function CustomerPageContent() {
         if (!file) return;
 
         try {
-            const XLSX = await import("xlsx");
-            const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: "array" });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const rawJson = XLSX.utils.sheet_to_json<any>(worksheet);
+            const rawJson = await readCustomerSpreadsheet(file);
 
             const parsed = rawJson
                 .map((row: any) => {
@@ -669,11 +667,16 @@ function CustomerPageContent() {
             }
 
             showNotification(
-                "success",
+                data.failedCount ? "error" : "success",
                 data.message || `Successfully imported ${importPreviewData.length} customers.`
             );
-            setIsImportModalOpen(false);
-            setImportPreviewData([]);
+            if (data.failedCount) {
+                const failedRows = new Set<number>(data.failures.map((failure: { rowIndex: number }) => failure.rowIndex));
+                setImportPreviewData((rows) => rows.filter((_, index) => failedRows.has(index)));
+            } else {
+                setIsImportModalOpen(false);
+                setImportPreviewData([]);
+            }
             fetchCustomers();
         } catch (err: any) {
             showNotification("error", err.message || "Failed to import customers");

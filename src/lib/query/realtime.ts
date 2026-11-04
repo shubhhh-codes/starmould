@@ -1,19 +1,16 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
-import { useEffect, useRef } from "react";
-import React from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
+import { browserPrincipal, onPrincipalChange, principalIsCurrent } from "@/lib/cache/principal";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { queryKeys } from "@/lib/query/keys";
 import {
   ingestSubplateChange,
   scheduleCountsInvalidate,
-  applyScanUpdateToScans,
 } from "@/lib/realtime/subplate-sync";
-import { emitScanUpdate } from "@/lib/cache/projects-stream-store";
-import { updateLocalProjectsStore } from "@/lib/cache/projects-local-store";
 import { getSharedBroadcastChannel, TAB_ID } from "@/lib/realtime/tab-channel";
-import type { Subplate, ScanProject } from "@/lib/supabase/types";
 
 /**
  * Broadcast an invalidation event across all open browser tabs/windows on the same device
@@ -86,6 +83,7 @@ async function fetchRealtimeToken(signal?: AbortSignal): Promise<string | null> 
  *    - app_config (Dynamic Role Permissions)
  */
 export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boolean }) {
+  const generation = useSyncExternalStore(onPrincipalChange, () => browserPrincipal().generation, () => 0);
   const queryClient = useQueryClient();
   const realtimeDisconnectedRef = useRef(false);
   const isAuthenticated = options?.isAuthenticated ?? true;
@@ -93,6 +91,8 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!isAuthenticated) return;
+    const principal = browserPrincipal();
+    if (!principal.key) return;
 
     let isMounted = true;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -102,6 +102,7 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
     // 1. Cross-tab synchronization via BroadcastChannel
     const bc = getSharedBroadcastChannel();
     const handleBroadcastMessage = (event: MessageEvent) => {
+      if (!principalIsCurrent(principal)) return;
       if (event.data?.tabId === TAB_ID) return;
 
       if (event.data?.type === "INVALIDATE" && event.data.queryKey) {
@@ -181,138 +182,18 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
         // Subscribe to Realtime channel ONLY after setAuth succeeds
         if (!channel) {
           channel = supabase
-            .channel("manufacturing-floor-sync")
-            // A. MOULD PROJECTS (SCAN TABLE)
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "scan",
-              },
-              (payload) => {
-                if (payload.eventType === "DELETE") {
-                  const deletedId = (payload.old as any)?.id;
-                  if (deletedId !== undefined && deletedId !== null) {
-                    window.dispatchEvent(
-                      new CustomEvent("starmould:project-deleted", { detail: { id: deletedId } })
-                    );
-                    broadcastProjectDeletion(deletedId);
-                  }
-                  scheduleCountsInvalidate(queryClient);
-                } else if (payload.eventType === "UPDATE") {
-                  const updatedScan = payload.new as Partial<ScanProject>;
-                  emitScanUpdate(updatedScan);
-                  updateLocalProjectsStore((scans) => applyScanUpdateToScans(scans, updatedScan));
-                  scheduleCountsInvalidate(queryClient);
-                } else {
-                  window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
-                  scheduleCountsInvalidate(queryClient);
-                }
-              }
-            )
-            // B. SUBPLATES (MANUFACTURING LIFE-CYCLE)
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "subplate",
-              },
-              (payload) => {
-                if (payload.eventType === "DELETE") {
-                  const oldPlate = payload.old as Partial<Subplate>;
-                  const deletedId = oldPlate?.id;
-                  if (deletedId) {
-                    ingestSubplateChange(queryClient, {
-                      kind: "remove",
-                      plate: oldPlate,
-                      id: Number(deletedId),
-                      origin: "ws",
-                    });
-                  }
-                } else {
-                  const plate = payload.new as Subplate;
-                  ingestSubplateChange(queryClient, {
-                    kind: "upsert",
-                    plate,
-                    origin: "ws",
-                  });
-                }
-              }
-            )
-            // C. PURCHASE ORDERS
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "purchase",
-              },
-              () => {
-                queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-                scheduleCountsInvalidate(queryClient);
-              }
-            )
-            // D. PURCHASE INWARD RECEIPTS
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "po_inward",
-              },
-              () => {
-                queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
-                queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-                queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-                scheduleCountsInvalidate(queryClient);
-              }
-            )
-            // E. JOB WORK CHALLANS
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "challan",
-              },
-              () => {
-                queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
-                queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-                scheduleCountsInvalidate(queryClient);
-              }
-            )
-            // F. CUSTOMER DISPATCH
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "dispatch",
-              },
-              () => {
-                queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
-                queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-                scheduleCountsInvalidate(queryClient);
-              }
-            )
-            // G. ROLE PERMISSIONS CONFIG
-            .on(
-              "postgres_changes",
-              {
-                event: "*",
-                schema: "public",
-                table: "app_config",
-              },
-              () => {
-                broadcastQueryInvalidation(["role_permissions"]);
-                getSharedBroadcastChannel()?.postMessage({ type: "PERMISSIONS_UPDATED", tabId: TAB_ID });
-              }
-            )
+            .channel("module-invalidation-sync")
+            .on("postgres_changes", { event: "*", schema: "public", table: "module_invalidations" }, (payload) => {
+              if (!principalIsCurrent(principal)) return;
+              if ((payload.new as { module?: string }).module === "app_config") window.dispatchEvent(new Event("starmould:permissions-changed"));
+              // Markers contain no records. Every refreshed response is authorized by its API.
+              queryClient.invalidateQueries();
+              window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
+              scheduleCountsInvalidate(queryClient);
+            })
             .subscribe((status, err) => {
               if (err) {
-                console.error("[RealtimeSync] Channel status error:", status, err);
+                console.warn("[RealtimeSync] Channel status notification:", status, err?.message || err);
               }
               if (status === "SUBSCRIBED") {
                 if (realtimeDisconnectedRef.current) {
@@ -327,6 +208,16 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
                 status === "CLOSED"
               ) {
                 realtimeDisconnectedRef.current = true;
+                if (channel) {
+                  supabase.removeChannel(channel).catch(() => {});
+                  channel = null;
+                }
+                if (isMounted && !retryTimer) {
+                  retryTimer = setTimeout(() => {
+                    retryTimer = null;
+                    setupRealtime(1);
+                  }, 3000);
+                }
               }
             });
         }
@@ -354,7 +245,7 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
         supabase.removeChannel(channel);
       }
     };
-  }, [queryClient, isAuthenticated]);
+  }, [queryClient, isAuthenticated, generation]);
 }
 
 /**

@@ -55,3 +55,7 @@ export function setCachedStreamUsers(users: User[]): void {
 export function getCachedStreamUsers(): User[] {
   return cachedUsers;
 }
+
+export function clearStreamState() {
+  cachedUsers = [];
+}

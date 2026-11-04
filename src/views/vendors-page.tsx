@@ -1,4 +1,5 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -129,6 +130,7 @@ function CustomerPageContent() {
     // TanStack Query hooks: fetch all vendor records from public.vendors
     const vendorsQuery = useVendorsQuery({
         pageSize: 2000,
+        detail: true,
     });
 
     const createVendorMutation = useCreateVendorMutation();

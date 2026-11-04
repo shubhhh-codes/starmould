@@ -1,10 +1,13 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { queryKeys } from "./keys";
 import { CACHE_TIERS } from "./client";
 import { broadcastQueryInvalidation } from "./realtime";
+import { browserPrincipal, principalIsCurrent } from "@/lib/cache/principal";
+import { prepareInventoryRetry } from "./inventory-retry";
 import type {
   ScanProject,
   Subplate,
@@ -56,8 +59,10 @@ export interface PaginatedResponse<T> {
 }
 
 // Fetch helper with error extraction
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+async function fetchJson<T>(url: string, init?: RequestInit, principal = browserPrincipal()): Promise<T> {
+  if (!principalIsCurrent(principal)) throw new DOMException("Session changed", "AbortError");
+  const retry = await prepareInventoryRetry(url, init);
+  const res = await fetch(url, retry ? { ...init, headers: retry.headers } : init);
   if (!res.ok) {
     let errorMsg = `Request failed (${res.status})`;
     try {
@@ -68,7 +73,10 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(errorMsg);
   }
-  return res.json();
+  const result = await res.json();
+  if (!principalIsCurrent(principal)) throw new DOMException("Session changed", "AbortError");
+  retry?.complete();
+  return result;
 }
 
 /* =========================================================================
@@ -199,6 +207,7 @@ export interface ProgressiveProjectsStreamParams {
  *    and streams remaining pages once in background into IndexedDB.
  */
 export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamParams = {}) {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   const initialChunkSize = params.initialChunkSize || 50;
   const status = params.status;
@@ -242,7 +251,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
   React.useEffect(() => {
     let active = true;
     loadLocalProjectsStore().then((cached) => {
-      if (!active) return;
+      if (!active || !principalIsCurrent(principalSnapshot)) return;
       if (cached && cached.scans && cached.scans.length > 0) {
         setStreamedScans(cached.scans);
         setLastSyncTime(cached.lastSyncTime || null);
@@ -273,7 +282,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
       try {
         setIsSyncingDelta(true);
         const url = `/api/scanning?since=${encodeURIComponent(effectiveSince)}`;
-        const res = await fetchJson<any>(url);
+        const res = await fetchJson<any>(url, undefined, principalSnapshot);
 
         if (res && res.isDelta) {
           const deltaScans: ScanProject[] = res.scans || [];
@@ -311,7 +320,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
               try {
                 for (let i = 0; i < missingIds.length; i += 200) {
                   const chunkIds = missingIds.slice(i, i + 200);
-                  const gapRes = await fetchJson<any>(`/api/scanning?ids=${chunkIds.join(",")}`);
+                  const gapRes = await fetchJson<any>(`/api/scanning?ids=${chunkIds.join(",")}`, undefined, principalSnapshot);
                   const gapScans: ScanProject[] = gapRes.scans || gapRes.data || [];
                   if (gapScans.length > 0) {
                     const gapResult = mergeDeltaScans(merged, gapScans);
@@ -338,7 +347,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
             kpis: extraMetadataRef.current.kpis,
             totalCount: newTotal,
             isInitialComplete: merged.length >= newTotal,
-          });
+          }, principalSnapshot);
 
           setLastSyncTime(newServerTime);
           return { deltaCount: deltaScans.length, deltaScans };
@@ -402,7 +411,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
         kpis: meta.kpis,
         totalCount: total,
         isInitialComplete: scans.length >= total,
-      });
+      }, principalSnapshot);
     }
   }, [shouldFetchChunk1, chunk1Query.data]);
 
@@ -444,7 +453,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
 
           const res = await fetchJson<any>(`/api/scanning?${searchParams.toString()}`, {
             signal: abortController.signal,
-          });
+          }, principalSnapshot);
 
           if (!isMounted || abortController.signal.aborted) break;
 
@@ -470,7 +479,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
             kpis: extraMetadataRef.current.kpis,
             totalCount,
             isInitialComplete: loaded >= totalCount,
-          });
+          }, principalSnapshot);
 
           // Strict break conditions to prevent infinite loops:
           if (
@@ -515,7 +524,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
 
     // 2. Direct clean fetch if delta sync produces no result or cache was empty
     try {
-      const res = await fetchJson<any>(`/api/scanning?limit=${initialChunkSize}&offset=0&fresh=true`);
+      const res = await fetchJson<any>(`/api/scanning?limit=${initialChunkSize}&offset=0&fresh=true`, undefined, principalSnapshot);
       if (res) {
         const scans = (res.scans || res.data || []) as ScanProject[];
         const total = res.pagination?.total ?? scans.length;
@@ -534,7 +543,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           kpis: res.kpis || extraMetadataRef.current.kpis,
           totalCount: total,
           isInitialComplete: scans.length >= total,
-        });
+        }, principalSnapshot);
 
         queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
         return res;
@@ -573,7 +582,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           kpis: extraMetadataRef.current.kpis,
           totalCount: newTotal,
           isInitialComplete: true,
-        });
+        }, principalSnapshot);
         return updated;
       });
 
@@ -617,7 +626,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           kpis: extraMetadataRef.current.kpis,
           totalCount: newTotal,
           isInitialComplete: true,
-        });
+        }, principalSnapshot);
         return updated;
       });
 
@@ -658,7 +667,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           kpis: extraMetadataRef.current.kpis,
           totalCount: newTotal,
           isInitialComplete: true,
-        });
+        }, principalSnapshot);
         return updated;
       });
     },
@@ -696,7 +705,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
       // Chunk 1: 50 items
       const res1 = await fetchJson<any>("/api/scanning?offset=0&limit=50", {
         signal: abortController.signal,
-      });
+      }, principalSnapshot);
       const scans1: ScanProject[] = res1.scans || res1.data || [];
       const total = res1.pagination?.total || scans1.length;
       let currentAllScans: ScanProject[] = [...scans1];
@@ -723,7 +732,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
 
         const res = await fetchJson<any>(`/api/scanning?offset=${dbOffset}&limit=${currentChunkLimit}`, {
           signal: abortController.signal,
-        });
+        }, principalSnapshot);
         if (abortController.signal.aborted) break;
 
         const newScans: ScanProject[] = res.scans || res.data || [];
@@ -747,7 +756,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           kpis: res1.kpis || {},
           totalCount: total,
           isInitialComplete: loaded >= total,
-        });
+        }, principalSnapshot);
 
         if (
           loaded >= total ||
@@ -787,7 +796,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           kpis: extraMetadataRef.current.kpis,
           totalCount: totalCountRef.current,
           isInitialComplete: next.length >= totalCountRef.current,
-        });
+        }, principalSnapshot);
       }
     });
   }, []);
@@ -810,7 +819,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
           kpis: extraMetadataRef.current.kpis,
           totalCount: totalCountRef.current,
           isInitialComplete: next.length >= totalCountRef.current,
-        });
+        }, principalSnapshot);
       }
     });
   }, []);
@@ -886,6 +895,7 @@ export function useProgressiveProjectsStream(params: ProgressiveProjectsStreamPa
 }
 
 export function useCreateProjectMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -893,8 +903,9 @@ export function useCreateProjectMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
@@ -940,6 +951,7 @@ export function useNextProjectIdQuery(
 }
 
 export function useUpdateProjectMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: { id: number; field: string; value: any }) =>
@@ -947,7 +959,7 @@ export function useUpdateProjectMutation() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onMutate: async (updated) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.projects.all() });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.projects.all() });
@@ -987,12 +999,13 @@ export function useUpdateProjectMutation() {
 }
 
 export function useDeleteProjectMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/scanning?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onMutate: async (deletedId) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.projects.all() });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.projects.all() });
@@ -1076,7 +1089,7 @@ export function useSubplatesQuery(params: SubplatesQueryParams = {}) {
         },
       };
     },
-    staleTime: CACHE_TIERS.OPERATIONAL.staleTime,
+    staleTime: 5 * 1000,
     gcTime: CACHE_TIERS.OPERATIONAL.gcTime,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
@@ -1102,6 +1115,7 @@ export function useSubplatesByProjectQuery(
 }
 
 export function useCreateSubplateMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1109,8 +1123,9 @@ export function useCreateSubplateMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: (resData, variables) => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       const serverPlate = resData?.subplate || resData?.data;
       if (serverPlate) {
         ingestSubplateChange(queryClient, {
@@ -1129,6 +1144,7 @@ export function useCreateSubplateMutation() {
 }
 
 export function useUpdateSubplateMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1136,7 +1152,7 @@ export function useUpdateSubplateMutation() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onMutate: async (updated) => {
       await queryClient.cancelQueries({ queryKey: queryKeys.subplates.all() });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.subplates.all() });
@@ -1162,6 +1178,7 @@ export function useUpdateSubplateMutation() {
       }
     },
     onSuccess: (resData, variables) => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       const serverPlate = resData?.subplate || resData?.data;
       if (serverPlate) {
         ingestSubplateChange(queryClient, {
@@ -1185,12 +1202,13 @@ export function useUpdateSubplateMutation() {
 }
 
 export function useDeleteSubplateMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/subplate?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onMutate: async (deletedId) => {
       // Look up plate from cache before removal (Requirement 5)
       let cachedPlate: Partial<Subplate> | undefined;
@@ -1235,6 +1253,7 @@ export function useDeleteSubplateMutation() {
       }
     },
     onSuccess: (_data, deletedId, context) => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       ingestSubplateChange(queryClient, {
         kind: "remove",
         plate: context?.cachedPlate,
@@ -1249,11 +1268,12 @@ export function useDeleteSubplateMutation() {
    3. CUSTOMER & VENDOR QUERIES & MUTATIONS
    ========================================================================= */
 
-export function useCustomersQuery(params: { usertype?: string; search?: string; page?: number; pageSize?: number } = {}) {
+export function useCustomersQuery(params: { usertype?: string; search?: string; page?: number; pageSize?: number; detail?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.customers.list(params),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
+      if (params.detail) searchParams.set("detail", "true");
       if (params.usertype && params.usertype !== "All") searchParams.set("usertype", params.usertype);
       if (params.search) searchParams.set("search", params.search);
       if (params.page) searchParams.set("page", String(params.page));
@@ -1282,12 +1302,14 @@ export function useCustomerDropdownQuery(usertype: string = "Customer") {
       const data = await fetchJson<any>(`/api/customers?${searchParams.toString()}`);
       return (data.customers || data.data || []) as Customer[];
     },
-    staleTime: CACHE_TIERS.STABLE.staleTime,
-    gcTime: CACHE_TIERS.STABLE.gcTime,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: true,
   });
 }
 
 export function useCreateCustomerMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1295,8 +1317,9 @@ export function useCreateCustomerMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1304,6 +1327,7 @@ export function useCreateCustomerMutation() {
 }
 
 export function useUpdateCustomerMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1311,21 +1335,24 @@ export function useUpdateCustomerMutation() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
     },
   });
 }
 
 export function useDeleteCustomerMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/customers?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1337,11 +1364,12 @@ export function useDeleteCustomerMutation() {
    3b. VENDOR & TRANSPORTER QUERIES & MUTATIONS
    ========================================================================= */
 
-export function useVendorsQuery(params: { vendor_type?: string; search?: string; page?: number; pageSize?: number } = {}) {
+export function useVendorsQuery(params: { vendor_type?: string; search?: string; page?: number; pageSize?: number; detail?: boolean } = {}) {
   return useQuery({
     queryKey: queryKeys.vendors.list(params),
     queryFn: async () => {
       const searchParams = new URLSearchParams();
+      if (params.detail) searchParams.set("detail", "true");
       if (params.vendor_type && params.vendor_type !== "All" && params.vendor_type !== "ALL") {
         searchParams.set("vendor_type", params.vendor_type);
       }
@@ -1373,12 +1401,14 @@ export function useVendorDropdownQuery(vendor_type?: string) {
       const data = await fetchJson<any>(`/api/vendors?${searchParams.toString()}`);
       return (data.vendors || data.data || []) as Vendor[];
     },
-    staleTime: CACHE_TIERS.STABLE.staleTime,
-    gcTime: CACHE_TIERS.STABLE.gcTime,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: true,
   });
 }
 
 export function useCreateVendorMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1386,8 +1416,9 @@ export function useCreateVendorMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1395,6 +1426,7 @@ export function useCreateVendorMutation() {
 }
 
 export function useUpdateVendorMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1402,21 +1434,24 @@ export function useUpdateVendorMutation() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.all() });
     },
   });
 }
 
 export function useDeleteVendorMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/vendors?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.vendors.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1453,12 +1488,14 @@ export function useUserDropdownQuery() {
       );
       return activeUsers as User[];
     },
-    staleTime: CACHE_TIERS.STABLE.staleTime,
-    gcTime: CACHE_TIERS.STABLE.gcTime,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    refetchOnMount: true,
   });
 }
 
 export function useCreateUserMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1466,8 +1503,9 @@ export function useCreateUserMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1475,6 +1513,7 @@ export function useCreateUserMutation() {
 }
 
 export function useUpdateUserMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1482,21 +1521,24 @@ export function useUpdateUserMutation() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
     },
   });
 }
 
 export function useDeleteUserMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/users?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1560,6 +1602,7 @@ export function useWorklogsQuery(params: { userid?: string; date?: string; custo
 }
 
 export function useCreateWorklogMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1567,8 +1610,9 @@ export function useCreateWorklogMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.worklogs.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1576,13 +1620,15 @@ export function useCreateWorklogMutation() {
 }
 
 export function useDeleteWorklogMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/worklog?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.worklogs.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1620,6 +1666,7 @@ export function usePurchasesQuery(params: { page?: number; limit?: number; inclu
 }
 
 export function useCreatePurchaseMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1627,8 +1674,9 @@ export function useCreatePurchaseMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
@@ -1642,6 +1690,7 @@ export function useCreatePurchaseMutation() {
 }
 
 export function useUpdatePurchaseMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1649,8 +1698,9 @@ export function useUpdatePurchaseMutation() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
@@ -1664,13 +1714,15 @@ export function useUpdatePurchaseMutation() {
 }
 
 export function useDeletePurchaseMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/purchases?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
@@ -1713,6 +1765,7 @@ export function useChallansQuery(params: { status?: string; limit?: number } = {
 }
 
 export function useCreateChallanMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1720,8 +1773,9 @@ export function useCreateChallanMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
@@ -1730,13 +1784,15 @@ export function useCreateChallanMutation() {
 }
 
 export function useDeleteChallanMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/challan?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
@@ -1745,6 +1801,7 @@ export function useDeleteChallanMutation() {
 }
 
 export function useUpdateChallanStatusMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: { id: number; status: string }) =>
@@ -1752,8 +1809,9 @@ export function useUpdateChallanStatusMutation() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
     },
   });
@@ -1787,6 +1845,7 @@ export function useDispatchQuery(params: { limit?: number } = {}) {
 }
 
 export function useCreateDispatchMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1794,8 +1853,9 @@ export function useCreateDispatchMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1803,13 +1863,15 @@ export function useCreateDispatchMutation() {
 }
 
 export function useDeleteDispatchMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/dispatch?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1845,6 +1907,7 @@ export function useInwardQuery(params: { limit?: number } = {}) {
 }
 
 export function useCreateInwardMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1852,8 +1915,9 @@ export function useCreateInwardMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.inward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -1863,13 +1927,15 @@ export function useCreateInwardMutation() {
 }
 
 export function useDeleteInwardMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/inward?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.inward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -1914,6 +1980,7 @@ export function useExpensesQuery(params: { customerid?: string; payment_type?: s
 }
 
 export function useCreateExpenseMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1921,8 +1988,9 @@ export function useCreateExpenseMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1930,6 +1998,7 @@ export function useCreateExpenseMutation() {
 }
 
 export function useUpdateExpenseMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1937,21 +2006,24 @@ export function useUpdateExpenseMutation() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all() });
     },
   });
 }
 
 export function useDeleteExpenseMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/expense?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.expenses.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
     },
@@ -1982,6 +2054,7 @@ export function usePurchaseInwardQuery() {
 }
 
 export function useCreatePurchaseInwardMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: any) =>
@@ -1989,8 +2062,9 @@ export function useCreatePurchaseInwardMutation() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -2004,13 +2078,15 @@ export function useCreatePurchaseInwardMutation() {
 }
 
 export function useDeletePurchaseInwardMutation() {
+  const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) =>
       fetchJson<any>(`/api/purchase-inward?id=${id}`, {
         method: "DELETE",
-      }),
+      }, principalSnapshot),
     onSuccess: () => {
+      if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });

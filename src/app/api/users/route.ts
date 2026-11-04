@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
+import { isValidPassword, PASSWORD_POLICY_MESSAGE } from "@/lib/password-policy";
 import { authenticateRequest } from "@/lib/auth";
 import { invalidateCache } from "@/lib/cache";
 
@@ -167,7 +168,8 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const rawPassword = body.password || "password";
+    const rawPassword = body.password;
+    if (!isValidPassword(rawPassword)) return NextResponse.json({ error: PASSWORD_POLICY_MESSAGE }, { status: 400 });
     const passwordHash = await bcrypt.hash(rawPassword, 10);
 
     const { data, error } = await supabaseAdmin
@@ -183,6 +185,7 @@ export async function POST(req: NextRequest) {
           role_id: finalRoleId,
           status: status !== undefined ? Number(status) : 1,
           password_hash: passwordHash,
+          must_change_password: true,
           created_at: now,
           updated_at: now,
         },
@@ -354,12 +357,13 @@ export async function PUT(req: NextRequest) {
     if (finalSubtype) updatePayload.usersubtype = finalSubtype;
     if (newStatus !== undefined) updatePayload.status = newStatus;
     if (body.password && typeof body.password === "string" && body.password.trim().length > 0) {
-      const passwordHash = await bcrypt.hash(body.password.trim(), 10);
+      if (!isValidPassword(body.password)) return NextResponse.json({ error: PASSWORD_POLICY_MESSAGE }, { status: 400 });
+      const passwordHash = await bcrypt.hash(body.password, 10);
       updatePayload.password_hash = passwordHash;
-      updatePayload.must_change_password = false;
+      updatePayload.must_change_password = true;
       if (targetUser.auth_id) {
         await supabaseAdmin.auth.admin.updateUserById(targetUser.auth_id, {
-          password: body.password.trim(),
+          password: body.password,
         }).catch(() => {});
       }
     }

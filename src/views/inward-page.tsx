@@ -1,4 +1,5 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
@@ -90,6 +91,7 @@ export function InwardPage() {
         vendortid: string;
         challanid: string; // Outward Challan ID
         items: Array<{
+            source_line_id?: number;
             plateid: number;
             platename: string;
             customer: number;
@@ -223,11 +225,16 @@ export function InwardPage() {
         );
 
         if (matchingChallanRows.length > 0) {
+            if (matchingChallanRows.some((row: any) => row.source_allocation_requires_review)) {
+                setFormError("Historical receipts for this challan need source-line allocation review before another receipt can be recorded.");
+                return;
+            }
             const firstRow = matchingChallanRows[0];
             const cust = customers.find(
                 (c: Customer) => c.id === firstRow.customer,
             );
             const itemsToLoad = matchingChallanRows.map((row: any) => ({
+                source_line_id: row.source_line_id,
                 plateid: row.plateid,
                 platename: row.platename || `Plate #${row.plateid}`,
                 customer: row.customer,

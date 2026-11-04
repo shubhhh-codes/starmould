@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
   try {
     const backup = await generateDatabaseBackup({
       targetDir: "C:\\SM_soft_backup",
-      saveToDisk: true,
+      saveToDisk: false,
       includeSql: true,
       includeJson: true,
       retentionDays: 30,

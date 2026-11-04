@@ -1,4 +1,5 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import { SubplateJobworkLocationBadge } from "@/components/subplate/subplate-jobwork-location-badge";
 

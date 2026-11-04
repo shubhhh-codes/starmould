@@ -1,3 +1,4 @@
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import type {
   Customer,
   User,

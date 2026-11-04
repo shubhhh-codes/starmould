@@ -81,14 +81,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ exists: (count ?? 0) > 0 });
     }
 
+    const detailed = searchParams.get("detail") === "true";
+    let canViewBanking = false;
+    if (detailed) {
+      const detailAuth = await authenticateRequest(req, undefined, "nav_vendor_transport");
+      if ("error" in detailAuth) return NextResponse.json({ error: detailAuth.error }, { status: detailAuth.status });
+      const bankAuth = await authenticateRequest(req, undefined, "financial_view_banking");
+      if ("error" in bankAuth && bankAuth.status !== 403) return NextResponse.json({ error: bankAuth.error }, { status: bankAuth.status });
+      canViewBanking = !("error" in bankAuth);
+    }
     // 4. Main listing query with pagination and server-side filtering
     const isDefaultQuery = !search && (!vendor_type || vendor_type === "All" || vendor_type === "ALL") && (!page || page === 1);
-    const cacheKey = isDefaultQuery ? `vendors_default_${limit}` : null;
+    const cacheKey = isDefaultQuery ? `vendors_default_${limit}_${detailed}_${canViewBanking}` : null;
 
     const executeFetch = async () => {
       let query = supabaseAdmin
         .from("vendors")
-        .select("*", { count: "exact" })
+        .select(detailed ? "*" : "id, vendor_name, initials, vendor_code, vendor_type", { count: "exact" })
         .is("deleted_at", null)
         .order("id", { ascending: false });
 
@@ -114,7 +123,11 @@ export async function GET(req: NextRequest) {
         throw new Error(error.message);
       }
 
-      const vendors = data || [];
+      const vendors = (data || []).map((vendor: any) => {
+        if (canViewBanking) return vendor;
+        const { bank_name, account_no, account_number, bank_account_no, ifsc_code, bank_ifsc, bank_branch, ...publicFields } = vendor;
+        return publicFields;
+      });
       const totalCount = count ?? vendors.length;
       const totalPages = Math.ceil(totalCount / limit) || 1;
       const currentPage = page || 1;

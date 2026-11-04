@@ -129,6 +129,20 @@ export const serverLogger = {
    * Log an error reported from the browser client (console.error, unhandled rejection, failed fetch, react crash)
    */
   logClientError(report: ClientErrorReport): void {
+    // Browser telemetry is untrusted. Retain only operational metadata for API failures;
+    // bodies and free-form strings can contain credentials even when the client is stale.
+    if (report.type === "api_failure" || report.apiUrl) {
+      let pathname = "unknown";
+      try { pathname = new URL(report.apiUrl || "", "http://localhost").pathname; } catch {}
+      if (pathname.startsWith("/api/auth/")) return;
+      report = {
+        type: "api_failure",
+        message: "API request failed",
+        apiUrl: pathname,
+        method: /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(report.method || "") ? report.method : "HTTP",
+        status: typeof report.status === "number" ? report.status : undefined,
+      };
+    }
     const timestamp = formatTimestamp();
     const divider = "-".repeat(80);
 

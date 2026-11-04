@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/quotations/presets - create new preset
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_quotation");
+  const auth = await authenticateRequest(req, undefined, "action_manage_quotation_presets");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/quotations/presets - update existing preset
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_quotation");
+  const auth = await authenticateRequest(req, undefined, "action_manage_quotation_presets");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -139,7 +139,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/quotations/presets - delete a preset
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_quotation");
+  const auth = await authenticateRequest(req, undefined, "action_manage_quotation_presets");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

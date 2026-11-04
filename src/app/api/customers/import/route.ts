@@ -51,11 +51,15 @@ export async function POST(req: NextRequest) {
 
     let insertedCount = 0;
     let updatedCount = 0;
+    const failures: { rowIndex: number; code: string; message: string }[] = [];
     const now = new Date().toISOString();
 
-    for (const item of items) {
+    for (const [rowIndex, item] of items.entries()) {
       const name = (item.companyName || "").trim();
-      if (!name) continue;
+      if (!name) {
+        failures.push({ rowIndex, code: "INVALID_NAME", message: "Company name is required" });
+        continue;
+      }
 
       const normName = normalize(name);
       let cusCode = (item.cusCode || "").trim().toUpperCase();
@@ -92,7 +96,11 @@ export async function POST(req: NextRequest) {
         if (mobile) updatePayload.mobile = mobile;
         if (email) updatePayload.email = email;
 
-        await supabaseAdmin.from("customers").update(updatePayload).eq("id", match.id);
+        const { data: updated, error: updateError } = await supabaseAdmin.from("customers").update(updatePayload).eq("id", match.id).select("id").maybeSingle();
+        if (updateError || !updated) {
+          failures.push({ rowIndex, code: updateError?.code || "NOT_UPDATED", message: "Customer update failed" });
+          continue;
+        }
         updatedCount++;
       } else {
         // Insert new record
@@ -142,9 +150,12 @@ export async function POST(req: NextRequest) {
           created_by: auth.user.id,
         };
 
-        const { error: insErr } = await supabaseAdmin.from("customers").insert([insertPayload]);
+        const { data: inserted, error: insErr } = await supabaseAdmin.from("customers").insert([insertPayload]).select("id").single();
         if (!insErr) {
           insertedCount++;
+          existingCustomers?.push({ ...insertPayload, id: inserted.id });
+        } else {
+          failures.push({ rowIndex, code: insErr.code || "INSERT_FAILED", message: "Customer insert failed" });
         }
       }
     }
@@ -154,11 +165,14 @@ export async function POST(req: NextRequest) {
     invalidateCache("api_counts_all");
 
     return NextResponse.json({
-      success: true,
+      success: failures.length === 0,
+      partial: failures.length > 0 && insertedCount + updatedCount > 0,
+      failures,
+      failedCount: failures.length,
       insertedCount,
       updatedCount,
       totalProcessed: items.length,
-      message: `Successfully processed ${items.length} records (${insertedCount} added, ${updatedCount} updated).`,
+      message: `${insertedCount} added, ${updatedCount} updated, ${failures.length} failed.`,
     });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

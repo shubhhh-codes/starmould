@@ -751,3 +751,25 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
     "nav_work",
   ],
 };
+
+// New action permissions start from the previous explicit role intent, never from navigation grants.
+for (const permissions of Object.values(DEFAULT_ROLE_PERMISSIONS)) {
+  permissions.action_delete_challan = permissions.action_create_challan === true;
+  permissions.action_delete_dispatch = permissions.action_create_dispatch === true;
+  permissions.action_delete_inward = permissions.action_create_inward === true;
+  permissions.action_delete_purchase_inward = permissions.action_create_purchase_inward === true;
+  permissions.action_manage_quotation_presets = permissions.action_edit_quotation === true;
+  permissions.action_edit_worklog = permissions.action_create_worklog === true;
+  permissions.action_delete_worklog = permissions.action_create_worklog === true;
+}
+for (const [role, permissions] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+  permissions.action_assign_subplate_stage = [0, 1, 2, 3, 4, 5, 6, 7, 9, 10].includes(Number(role));
+}
+
+for (const permissions of Object.values(DEFAULT_ROLE_PERMISSIONS)) {
+  permissions.financial_view_banking = permissions.financial_view_amounts === true;
+}
+
+for (const permissions of Object.values(DEFAULT_ROLE_PERMISSIONS)) {
+  permissions.action_delete_all_worklog = permissions.action_edit_all_worklog === true;
+}

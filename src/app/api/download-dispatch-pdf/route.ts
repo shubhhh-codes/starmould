@@ -1,59 +1,22 @@
+import { resolveChromeExecutable as findChromePath } from "@/lib/pdf/chrome";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { authenticateRequest } from "@/lib/auth";
-import { verifySecurePrintToken } from "@/lib/print-token";
+import { resolveDocumentRequest } from "@/lib/document-access";
 import { escapeHtml, formatDate } from "@/lib/utils";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
 
-function findChromePath(): string {
-  const candidates = [
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(/*turbopackIgnore: true*/ c)) return c;
-  }
-  return "chrome";
-}
+
 
 
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const token = searchParams.get("token");
-    let id = searchParams.get("id");
-    let isTokenValid = false;
-
-    if (token) {
-      const decoded = verifySecurePrintToken(token);
-      if (decoded) {
-        id = decoded.id;
-        isTokenValid = true;
-      }
-    } else if (id && id.includes(".")) {
-      const decoded = verifySecurePrintToken(id);
-      if (decoded) {
-        id = decoded.id;
-        isTokenValid = true;
-      }
-    }
-
-    if (!isTokenValid) {
-      const auth = await authenticateRequest(req);
-      if ("error" in auth) {
-        return NextResponse.json({ error: auth.error }, { status: auth.status });
-      }
-    }
-
-    if (!id) {
-      return NextResponse.json({ error: "Missing dispatch id" }, { status: 400 });
-    }
-
+    const access = await resolveDocumentRequest(req, "dispatch");
+    if ("error" in access) return NextResponse.json({ error: access.error }, { status: access.status });
+    const { id } = access;
     // Fetch dispatch record
     const { data: dispatch, error: dErr } = await supabaseAdmin
       .from("dispatch")

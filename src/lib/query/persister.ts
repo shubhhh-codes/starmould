@@ -1,6 +1,7 @@
 "use client";
 
 import { get, set, del } from "idb-keyval";
+import { browserPrincipal } from "@/lib/cache/principal";
 import type { PersistedClient, Persister } from "@tanstack/react-query-persist-client";
 
 export const CACHE_STORAGE_KEY_PREFIX = "STARMOULD_CACHE_V6";
@@ -35,15 +36,21 @@ export function createIDBPersister(userKeySuffix: string = "default"): Persister
 
   return {
     persistClient: async (client: PersistedClient) => {
+      if (browserPrincipal().key !== userKeySuffix) return;
+      const generation = browserPrincipal().generation;
       try {
         await set(idbKey, client);
+        if (browserPrincipal().key !== userKeySuffix || browserPrincipal().generation !== generation) await del(idbKey);
       } catch (err) {
         console.warn("[IDBPersister] Failed to persist cache:", err);
       }
     },
     restoreClient: async () => {
+      if (browserPrincipal().key !== userKeySuffix) return undefined;
+      const generation = browserPrincipal().generation;
       try {
         const client = await get<PersistedClient>(idbKey);
+        if (browserPrincipal().key !== userKeySuffix || browserPrincipal().generation !== generation) return undefined;
         if (!client || !client.clientState?.queries) return client;
 
         // Exclude only transient query keys from restoration (e.g. preview-id, transient search)

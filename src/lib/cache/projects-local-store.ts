@@ -1,6 +1,7 @@
 "use client";
 
 import { get, set, del } from "idb-keyval";
+import { browserPrincipal, principalIsCurrent } from "./principal";
 import type { ScanProject, Customer, User } from "@/lib/supabase/types";
 
 export const LOCAL_PROJECTS_KEY = "STARMOULD_PROJECTS_STORE_V6";
@@ -13,6 +14,7 @@ if (typeof window !== "undefined") {
     del("STARMOULD_PROJECTS_STORE_V3").catch(() => {});
     del("STARMOULD_PROJECTS_STORE_V4").catch(() => {});
     del("STARMOULD_PROJECTS_STORE_V5").catch(() => {});
+    del(LOCAL_PROJECTS_KEY).catch(() => {});
     del("STARMOULD_CACHE_V6_default").catch(() => {});
     del("STARMOULD_CACHE_V6_anon").catch(() => {});
   } catch {
@@ -36,6 +38,8 @@ export interface StoredProjectsState {
 export async function clearLocalProjectsStore(): Promise<void> {
   if (typeof window === "undefined") return;
   try {
+    const principal = browserPrincipal();
+    if (principal.key) await del(`${LOCAL_PROJECTS_KEY}:${principal.key}`);
     await del(LOCAL_PROJECTS_KEY);
     await del("STARMOULD_PROJECTS_STORE_V5");
     await del("STARMOULD_PROJECTS_STORE_V4");
@@ -58,7 +62,10 @@ if (typeof window !== "undefined") {
 export async function loadLocalProjectsStore(): Promise<StoredProjectsState | null> {
   if (typeof window === "undefined") return null;
   try {
-    const data = await get<StoredProjectsState>(LOCAL_PROJECTS_KEY);
+    const principal = browserPrincipal();
+    if (!principal.key) return null;
+    const data = await get<StoredProjectsState>(`${LOCAL_PROJECTS_KEY}:${principal.key}`);
+    if (!principalIsCurrent(principal)) return null;
     if (data && Array.isArray(data.scans)) {
       return data;
     }
@@ -78,9 +85,10 @@ let pendingStateToSave: StoredProjectsState | null = null;
 let writeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingResolvers: (() => void)[] = [];
 
-export function saveLocalProjectsStore(state: StoredProjectsState): Promise<void> {
+export function saveLocalProjectsStore(state: StoredProjectsState, principal: ReturnType<typeof browserPrincipal>): Promise<void> {
   if (typeof window === "undefined") return Promise.resolve();
 
+  if (!principalIsCurrent(principal)) return Promise.resolve();
   pendingStateToSave = state;
 
   return new Promise<void>((resolve) => {
@@ -97,10 +105,12 @@ export function saveLocalProjectsStore(state: StoredProjectsState): Promise<void
 
       writeQueuePromise = writeQueuePromise
         .then(async () => {
-          if (!pendingStateToSave) return;
+          if (!pendingStateToSave || !principalIsCurrent(principal)) return;
           const snapshot = pendingStateToSave;
           pendingStateToSave = null;
-          await set(LOCAL_PROJECTS_KEY, snapshot);
+          const key = `${LOCAL_PROJECTS_KEY}:${principal.key}`;
+          await set(key, snapshot);
+          if (!principalIsCurrent(principal)) await del(key);
         })
         .then(() => {
           for (const res of resolvers) {
@@ -129,14 +139,20 @@ export function updateLocalProjectsStore(
   mutator: (scans: ScanProject[]) => ScanProject[]
 ): void {
   if (typeof window === "undefined") return;
+  const principal = browserPrincipal();
+  if (!principal.key) return;
   // Chain onto the existing write queue so reads and writes never race
   writeQueuePromise = writeQueuePromise.then(async () => {
     try {
-      const stored = await get<StoredProjectsState>(LOCAL_PROJECTS_KEY);
+      if (!principalIsCurrent(principal)) return;
+      const key = `${LOCAL_PROJECTS_KEY}:${principal.key}`;
+      const stored = await get<StoredProjectsState>(key);
+      if (!principalIsCurrent(principal)) return;
       if (!stored || !Array.isArray(stored.scans)) return;
       const next = mutator(stored.scans);
       if (next === stored.scans) return; // nothing changed, skip write
-      await set(LOCAL_PROJECTS_KEY, { ...stored, scans: next });
+      await set(key, { ...stored, scans: next });
+      if (!principalIsCurrent(principal)) await del(key);
     } catch (err) {
       console.warn("[LocalStore] updateLocalProjectsStore failed:", err);
     }

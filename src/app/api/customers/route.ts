@@ -21,11 +21,23 @@ export async function GET(req: NextRequest) {
     const excludeId = searchParams.get("excludeId");
     const id = searchParams.get("id");
 
+    const detailed = searchParams.get("detail") === "true" || Boolean(id);
+    let canViewBanking = false;
+    if (detailed) {
+      const detailAuth = await authenticateRequest(req, undefined, "nav_customer_creator");
+      if ("error" in detailAuth) return NextResponse.json({ error: detailAuth.error }, { status: detailAuth.status });
+      const bankAuth = await authenticateRequest(req, undefined, "financial_view_banking");
+      if ("error" in bankAuth && bankAuth.status !== 403) return NextResponse.json({ error: bankAuth.error }, { status: bankAuth.status });
+      canViewBanking = !("error" in bankAuth);
+    }
+    const columns = detailed
+      ? "id, customername, initials, customer_code, pan_code, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, contact_person, status_of_beneficiary, created_at, updated_at" + (canViewBanking ? ", bank_name, account_no, ifsc_code" : "")
+      : "id, customername, initials, customer_code, pan_code, usertype";
     // Single customer fetch by ID
     if (id) {
       const { data: customer, error: cErr } = await supabaseAdmin
         .from("customers")
-        .select("*")
+        .select(columns)
         .eq("id", Number(id))
         .is("deleted_at", null)
         .single();
@@ -98,12 +110,12 @@ export async function GET(req: NextRequest) {
 
     // 3. Main listing query with explicit columns and server-side filtering
     const isDefaultQuery = !search && (!usertype || usertype === "All" || usertype === "ALL") && (!page || page === 1);
-    const cacheKey = isDefaultQuery ? `customers_default_${limit}` : null;
+    const cacheKey = isDefaultQuery ? `customers_default_${limit}_${detailed}_${canViewBanking}` : null;
 
     const executeFetch = async () => {
       let query = supabaseAdmin
         .from("customers")
-        .select("id, customername, initials, customer_code, pan_code, mobile, mobile1, email, address, usertype, vendor_code, city, gstin, pan, bank_name, account_no, ifsc_code, contact_person, status_of_beneficiary, created_at, updated_at", { count: "exact" })
+        .select(columns, { count: "exact" })
         .is("deleted_at", null)
         .order("id", { ascending: false });
 

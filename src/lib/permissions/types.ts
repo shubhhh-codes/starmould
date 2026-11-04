@@ -205,6 +205,18 @@ const dynamicNavDefinitions: PermissionDefinition[] = navigationItems.map((item)
 });
 
 export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
+  { key: "financial_view_banking", label: "View Banking Details", description: "Read customer and vendor bank accounts", category: "financials", module: "financials" },
+  ...[
+    ["action_assign_subplate_stage", "Assign Production Stage", "subplate"],
+    ["action_delete_challan", "Delete Challan", "logistics"],
+    ["action_delete_dispatch", "Delete Dispatch", "logistics"],
+    ["action_delete_inward", "Delete Jobwork Receipt", "logistics"],
+    ["action_delete_purchase_inward", "Delete Purchase Receipt", "purchase"],
+    ["action_manage_quotation_presets", "Manage Quotation Presets", "quotation"],
+    ["action_edit_worklog", "Edit Own Worklog", "worklog"],
+    ["action_delete_all_worklog", "Delete Other Staff Worklogs", "worklog"],
+    ["action_delete_worklog", "Delete Own Worklog", "worklog"],
+  ].map(([key, label, module]) => ({ key, label, description: label, category: "actions" as const, module })),
   // 1. Navigation & Module Access (Dynamic from sidebar.tsx)
   ...dynamicNavDefinitions,
 

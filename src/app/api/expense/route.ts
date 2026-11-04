@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
 // POST /api/expense - create new expense entry (Admin, Manager only)
 // Balance calculated by applying amount to previous latest entry balance (matches legacy ExpenseController:503-512)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "nav_expense");
+  const auth = await authenticateRequest(req, undefined, "action_manage_expenses");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
 // PUT /api/expense - update expense entry (Admin, Manager only)
 // Server-enforced ledger rule: amount/payment_type can ONLY be altered on the latest ledger row (matches legacy index.blade.php:201 / store:467-481)
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "nav_expense");
+  const auth = await authenticateRequest(req, undefined, "action_manage_expenses");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -233,7 +233,7 @@ export async function PUT(req: NextRequest) {
 // DELETE /api/expense - delete expense entry (Admin, Manager only)
 // Server-enforced ledger rule: ONLY the latest ledger entry can be deleted (matches legacy index.blade.php:201-210)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1], "nav_expense");
+  const auth = await authenticateRequest(req, undefined, "action_manage_expenses");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

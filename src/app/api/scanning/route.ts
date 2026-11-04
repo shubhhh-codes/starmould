@@ -9,6 +9,9 @@ import { computeSubplateDerivedMetrics } from "@/lib/realtime/derived-metrics";
 
 // GET /api/scanning - Fetch scan projects, linked subplates, worklog hours, and KPIs
 export async function GET(req: NextRequest) {
+  if (req.nextUrl.searchParams.get("checkOnly") === "true") {
+    return inspectProjectDependencies(req);
+  }
   const auth = await authenticateRequest(req);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -16,12 +19,15 @@ export async function GET(req: NextRequest) {
 
   // Allow access if user is Admin (0) or has permission for nav_scanning OR nav_dashboard
   if (auth.user.role_id !== 0) {
-    const matrix = await loadEffectivePermissions();
+    let matrix;
+    try { matrix = await loadEffectivePermissions(); } catch {
+      return NextResponse.json({ error: "Permission verification temporarily unavailable" }, { status: 503 });
+    }
     const canView =
       roleHasPermission(auth.user.role_id, "nav_scanning", matrix) ||
       roleHasPermission(auth.user.role_id, "nav_dashboard", matrix);
     if (!canView) {
-      return NextResponse.json({ error: "Access denied: permission not granted by administrator", status: 403 });
+      return NextResponse.json({ error: "Access denied: permission not granted by administrator" }, { status: 403 });
     }
   }
 
@@ -733,10 +739,14 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid project id(s)" }, { status: 400 });
     }
 
+    if (isCheckOnly) {
+      return inspectProjectDependencies(req, numericIds);
+    }
+
     // Call PostgreSQL atomic cascade deletion & dependency inspection RPC
     const { data, error: rpcErr } = await supabaseAdmin.rpc("delete_mould_projects_cascade", {
       p_ids: numericIds,
-      p_force: isCheckOnly ? false : isForce,
+      p_force: isForce,
     });
 
     if (rpcErr) {
@@ -744,16 +754,6 @@ export async function DELETE(req: NextRequest) {
     }
 
     const result = data as any;
-
-    // 1. If checkOnly requested, return dependencies report immediately
-    if (isCheckOnly) {
-      return NextResponse.json({
-        success: true,
-        hasDependencies: (result?.dependency_count || 0) > 0,
-        dependencyCount: result?.dependency_count || 0,
-        dependencies: result?.dependencies || [],
-      });
-    }
 
     // 2. If blocked due to active dependencies and not forced, return structured dependency warning
     if (result?.blocked) {
@@ -805,3 +805,17 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
+
+// This helper deliberately calls a STABLE, read-only RPC, never the delete procedure.
+async function inspectProjectDependencies(req: NextRequest, suppliedIds?: number[]) {
+  const auth = await authenticateRequest(req, undefined, "action_delete_mould");
+  if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const rawIds = req.nextUrl.searchParams.get("ids") || req.nextUrl.searchParams.get("id") || "";
+  const ids = suppliedIds || rawIds.split(",").map(Number);
+  if (!ids.length || ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+    return NextResponse.json({ error: "Invalid project IDs" }, { status: 400 });
+  }
+  const { data, error } = await supabaseAdmin.rpc("inspect_mould_project_dependencies", { p_ids: [...new Set(ids)] });
+  if (error) return NextResponse.json({ error: "Dependency inspection temporarily unavailable" }, { status: 503 });
+  return NextResponse.json(data);
+}

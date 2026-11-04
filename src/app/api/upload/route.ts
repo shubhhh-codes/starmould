@@ -3,8 +3,9 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { checkRateLimit } from "@/lib/rate-limit";
 import crypto from "crypto";
+import { ATTACHMENT_BUCKETS, authorizeAttachment } from "@/lib/attachments";
+import { readBoundedBody, RequestBodyTooLarge } from "@/lib/bounded-body";
 
-const ALLOWED_BUCKETS = new Set(["subplate-photos", "mould-attachments", "general-attachments"]);
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -45,12 +46,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const formData = await req.formData();
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.toLowerCase().startsWith("multipart/form-data;")) return NextResponse.json({ error: "Multipart form required" }, { status: 415 });
+    const body = await readBoundedBody(req, MAX_FILE_SIZE + 64 * 1024);
+    const formData = await new Response(body as BodyInit, { headers: { "Content-Type": contentType } }).formData();
     const file = formData.get("file") as File | null;
     const requestedBucket = (formData.get("bucket") as string) || "subplate-photos";
-    const bucket = ALLOWED_BUCKETS.has(requestedBucket) ? requestedBucket : "subplate-photos";
+    if (!ATTACHMENT_BUCKETS.has(requestedBucket)) return NextResponse.json({ error: "Invalid attachment bucket" }, { status: 400 });
+    const bucket = requestedBucket;
+    const type = String(formData.get("documentType") || (bucket === "subplate-photos" ? "subplate" : bucket === "mould-attachments" ? "sample" : ""));
+    const documentId = String(formData.get("documentId") || "");
+    if ((bucket === "subplate-photos" && type !== "subplate") || (bucket === "mould-attachments" && type !== "sample")) {
+      return NextResponse.json({ error: "Attachment bucket does not match document type" }, { status: 400 });
+    }
+    const access = await authorizeAttachment(req, type, documentId, true);
+    if ("error" in access) return NextResponse.json({ error: access.error }, { status: access.status });
 
-    if (!file) {
+    if (!(file instanceof File)) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
@@ -90,7 +102,10 @@ export async function POST(req: NextRequest) {
     const randomHex = crypto.randomBytes(16).toString("hex");
     const sanitizedFilename = `sm_${Date.now()}_${randomHex}.${sanitizedExt}`;
 
-    // 5. Upload to Supabase Storage
+    const { data: info, error: infoError } = await supabaseAdmin.storage.getBucket(bucket);
+    if (infoError || !info || info.public) return NextResponse.json({ error: "Private attachment storage unavailable" }, { status: 503 });
+
+    // 5. Upload to private storage, then register the authorized resource reference.
     const { data: uploadData, error: uploadErr } = await supabaseAdmin.storage
       .from(bucket)
       .upload(sanitizedFilename, buffer, {
@@ -106,18 +121,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: publicUrlData } = supabaseAdmin.storage
-      .from(bucket)
-      .getPublicUrl(sanitizedFilename);
+    const { error: referenceError } = await supabaseAdmin.from("document_attachments").insert({
+      bucket, path: sanitizedFilename, document_type: type, document_id: Number(documentId), uploaded_by: access.user.id,
+    });
+    if (referenceError) {
+      await supabaseAdmin.storage.from(bucket).remove([sanitizedFilename]);
+      return NextResponse.json({ error: "Attachment registration failed" }, { status: 503 });
+    }
 
     return NextResponse.json({
       filename: sanitizedFilename,
       path: uploadData?.path || sanitizedFilename,
-      url: publicUrlData.publicUrl,
+      url: `/api/attachments?bucket=${encodeURIComponent(bucket)}&path=${encodeURIComponent(sanitizedFilename)}`,
       size: file.size,
       mimeType: file.type,
     }, { status: 201 });
   } catch (err: unknown) {
+    if (err instanceof RequestBodyTooLarge) return NextResponse.json({ error: "Upload request exceeds size limit" }, { status: 413 });
     const message = err instanceof Error ? err.message : "Upload processing failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }

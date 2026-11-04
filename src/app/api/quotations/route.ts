@@ -1,3 +1,4 @@
+import { normalizeQuotationItems } from "@/lib/quotation-validation";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
@@ -173,13 +174,21 @@ export async function GET(req: NextRequest) {
 
 // POST /api/quotations - create new quotation with line items
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_quotation");
+  const auth = await authenticateRequest(req, undefined, "action_create_quotation");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
     const body = await req.json();
+    if (body.items !== undefined) {
+      try { body.items = normalizeQuotationItems(body.items); } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid quotation" }, { status: 400 });
+      }
+    }
+    if (body.discount_amount !== undefined && (!Number.isFinite(Number(body.discount_amount)) || Number(body.discount_amount) < 0)) {
+      return NextResponse.json({ error: "Invalid discount" }, { status: 400 });
+    }
     const {
       quotation_no: customNo,
       quotation_date,
@@ -237,6 +246,11 @@ export async function POST(req: NextRequest) {
       }
     }
     const gst = calculateGST(items, effectiveTaxType, 18, discountVal);
+    for (const [field, expected] of Object.entries({ taxable_amount: gst.taxableAmount, cgst_amount: gst.cgstAmount, sgst_amount: gst.sgstAmount, igst_amount: gst.igstAmount, grand_total: gst.grandTotal })) {
+      if (body[field] !== undefined && (!Number.isFinite(Number(body[field])) || Math.round(Number(body[field]) * 100) !== Math.round(expected * 100))) {
+        return NextResponse.json({ error: `Inconsistent quotation ${field}` }, { status: 400 });
+      }
+    }
     const calculatedWords = amountInWords(gst.grandTotal);
 
     const { data: newQuote, error: qErr } = await supabaseAdmin
@@ -328,13 +342,21 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/quotations - update quotation and its items
 export async function PATCH(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_quotation");
+  const auth = await authenticateRequest(req, undefined, "action_edit_quotation");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   try {
     const body = await req.json();
+    if (body.items !== undefined) {
+      try { body.items = normalizeQuotationItems(body.items); } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid quotation" }, { status: 400 });
+      }
+    }
+    if (body.discount_amount !== undefined && (!Number.isFinite(Number(body.discount_amount)) || Number(body.discount_amount) < 0)) {
+      return NextResponse.json({ error: "Invalid discount" }, { status: 400 });
+    }
     const {
       id,
       quotation_no,
@@ -409,11 +431,14 @@ export async function PATCH(req: NextRequest) {
       }
     }
     const gst = calculateGST(items || [], effectiveTaxType, 18, discountVal);
+    for (const [field, expected] of Object.entries({ taxable_amount: gst.taxableAmount, cgst_amount: gst.cgstAmount, sgst_amount: gst.sgstAmount, igst_amount: gst.igstAmount, grand_total: gst.grandTotal })) {
+      if (body[field] !== undefined && (!Number.isFinite(Number(body[field])) || Math.round(Number(body[field]) * 100) !== Math.round(expected * 100))) {
+        return NextResponse.json({ error: `Inconsistent quotation ${field}` }, { status: 400 });
+      }
+    }
     const calculatedWords = amountInWords(gst.grandTotal);
 
-    const { data: updatedQuote, error: qErr } = await supabaseAdmin
-      .from("quotations")
-      .update({
+    const header = {
         quotation_no: quotation_no?.trim(),
         quotation_date,
         customer_id: customer_id ? Number(customer_id) : null,
@@ -449,52 +474,17 @@ export async function PATCH(req: NextRequest) {
         include_digital_stamp: Boolean(include_digital_stamp),
         status,
         updated_at: new Date().toISOString(),
-      })
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (qErr) {
-      return NextResponse.json({ error: qErr.message }, { status: 500 });
-    }
-
-    // If items are provided, replace them
-    if (items && Array.isArray(items)) {
-      await supabaseAdmin.from("quotation_items").delete().eq("quotation_id", id);
-
-      const itemsToInsert = items.map((it: any, index: number) => {
-        const productName = (it.product_name || it.product_description || "").trim();
-        const description = (it.description || "").trim();
-        const productDescription = description ? `${productName}\n${description}` : productName;
-
-        return {
-          quotation_id: id,
-          sr_no: index + 1,
-          product_name: productName,
-          description: description || null,
-          product_description: productDescription,
-          qty: Number(it.qty) || 1,
-          unit: it.unit || "Nos",
-          unit_price: Number(it.unit_price) || 0,
-          total_amount: Number(it.total_amount) || (Number(it.qty) || 1) * (Number(it.unit_price) || 0),
-        };
-      });
-
-      await supabaseAdmin.from("quotation_items").insert(itemsToInsert);
-    }
-
-    const { data: updatedItems } = await supabaseAdmin
-      .from("quotation_items")
-      .select("*")
-      .eq("quotation_id", id)
-      .order("sr_no", { ascending: true });
-
-    return NextResponse.json({
-      quotation: {
-        ...updatedQuote,
-        items: updatedItems || [],
-      },
+      };
+    const normalizedItems = items.map((item: Record<string, any>) => ({
+      ...item,
+      description: String(item.description || "").trim() || null,
+      product_description: [item.product_name, item.description].filter(Boolean).join("\n"),
+    }));
+    const { data: saved, error: saveError } = await supabaseAdmin.rpc("replace_quotation_document", {
+      p_id: Number(id), p_header: header, p_items: normalizedItems,
     });
+    if (saveError) return NextResponse.json({ error: "Quotation update failed; original document preserved" }, { status: 503 });
+    return NextResponse.json({ quotation: saved });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";
     return NextResponse.json({ error: message }, { status: 500 });
@@ -503,7 +493,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/quotations - soft delete quotation
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, [0, 1, 5], "nav_quotation");
+  const auth = await authenticateRequest(req, undefined, "action_delete_quotation");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

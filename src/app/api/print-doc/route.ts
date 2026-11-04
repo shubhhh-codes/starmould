@@ -1,68 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { authenticateRequest } from "@/lib/auth";
-import { verifySecurePrintToken } from "@/lib/print-token";
+import { resolveDocumentRequest } from "@/lib/document-access";
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    let type = searchParams.get("type"); // "challan" | "inward" | "purchase" | "dispatch" | "work"
-    let id = searchParams.get("id");
-    const token = searchParams.get("token");
-    let isTokenValid = false;
-
-    // If a secure token is passed, decode and verify it
-    if (token) {
-      const decoded = verifySecurePrintToken(token);
-      if (!decoded) {
-        return NextResponse.json({ error: "Invalid or tampered print token" }, { status: 400 });
-      }
-      type = decoded.type;
-      id = decoded.id;
-      isTokenValid = true;
-    } else if (id && id.includes(".")) {
-      // If the token was passed as the id parameter
-      const decoded = verifySecurePrintToken(id);
-      if (decoded) {
-        type = decoded.type;
-        id = decoded.id;
-        isTokenValid = true;
-      }
-    }
-
-    let authUser: any = null;
-    if (!isTokenValid) {
-      const auth = await authenticateRequest(req);
-      if ("error" in auth) {
-        return NextResponse.json({ error: auth.error }, { status: auth.status });
-      }
-      authUser = auth.user;
-    }
-
-    if (!type || !id) {
-      return NextResponse.json({ error: "Document type and ID are required" }, { status: 400 });
-    }
-
-    // Role checks only apply to session-authenticated users (valid print token holders bypass session role gates)
-    if (authUser) {
-      const userRoleId = authUser.role_id;
-      if (type === "purchase" && ![0, 1, 5].includes(userRoleId)) {
-        return NextResponse.json({ error: "Access denied: Purchase document is restricted to Admin, Manager, and Purchase Incharge" }, { status: 403 });
-      }
-      if (type === "quotation" && ![0, 1, 5].includes(userRoleId)) {
-        return NextResponse.json({ error: "Access denied: Quotation document is restricted to Admin, Manager, and Sales" }, { status: 403 });
-      }
-      if (type === "dispatch" && ![0, 1, 2, 9].includes(userRoleId)) {
-        return NextResponse.json({ error: "Access denied: Dispatch document is restricted to Admin, Manager, Supervisor, and Dispatch" }, { status: 403 });
-      }
-      if (type === "inward" && ![0, 1, 2, 5, 7, 9].includes(userRoleId)) {
-        return NextResponse.json({ error: "Access denied: Inward document is restricted to Admin, Manager, Supervisor, Purchase, and QC" }, { status: 403 });
-      }
-      if (type === "challan" && ![0, 1, 2].includes(userRoleId)) {
-        return NextResponse.json({ error: "Access denied: Challan document is restricted to Admin, Manager, and Supervisor" }, { status: 403 });
-      }
-    }
-
+    const access = await resolveDocumentRequest(req);
+    if ("error" in access) return NextResponse.json({ error: access.error }, { status: access.status });
+    const { type, id } = access;
     // 1. Challan Document
     if (type === "challan") {
       const { data: challan, error: cErr } = await supabaseAdmin

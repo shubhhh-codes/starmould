@@ -1,4 +1,5 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
@@ -396,7 +397,7 @@ export function PurchaseInwardPage() {
     // Open Receive Modal for a single plate
     const handleOpenReceiveModal = (item: ViewPoPendingInwardQty) => {
         setSelectedReceiveItems([item]);
-        const itemKey = `${item.id}_${item.plateid}`;
+        const itemKey = `${item.id}_${item.plateid}_${item.source_line_id ?? "legacy"}`;
         setReceiveForm({
             odate: new Date().toISOString().slice(0, 10),
             inpono: "",
@@ -412,7 +413,7 @@ export function PurchaseInwardPage() {
         setSelectedReceiveItems(items);
         const qtys: Record<string, number> = {};
         items.forEach((it) => {
-            const itemKey = `${it.id}_${it.plateid}`;
+            const itemKey = `${it.id}_${it.plateid}_${it.source_line_id ?? "legacy"}`;
             qtys[itemKey] = it.pending_qty;
             qtys[it.plateid] = it.pending_qty;
         });
@@ -463,7 +464,7 @@ export function PurchaseInwardPage() {
 
         // Validate quantities
         for (const item of selectedReceiveItems) {
-            const itemKey = `${item.id}_${item.plateid}`;
+            const itemKey = `${item.id}_${item.plateid}_${item.source_line_id ?? "legacy"}`;
             const qty = Number(receiveForm.receiveQtys[itemKey] ?? receiveForm.receiveQtys[item.plateid] ?? 0);
             if (qty <= 0) {
                 setReceiveError(`Receiving quantity for "${item.platename}" (${item.srno || `PO #${item.id}`}) must be at least 1.`);
@@ -478,6 +479,10 @@ export function PurchaseInwardPage() {
         }
 
         try {
+            if (selectedReceiveItems.some((item) => item.source_allocation_requires_review)) {
+                setReceiveError("Historical receipts need source-line allocation review before another receipt can be recorded.");
+                return;
+            }
             // Group by purchase order id (pid) so each PO gets an inward receipt
             const poGroups: Record<number, ViewPoPendingInwardQty[]> = {};
             selectedReceiveItems.forEach((it) => {
@@ -495,13 +500,14 @@ export function PurchaseInwardPage() {
                     projectid: first.projectid,
                     odate: receiveForm.odate,
                     items: groupItems.map((it) => {
-                        const itemKey = `${it.id}_${it.plateid}`;
+                        const itemKey = `${it.id}_${it.plateid}_${it.source_line_id ?? "legacy"}`;
                         const inwardQty = Number(
                             receiveForm.receiveQtys[itemKey] ??
                             receiveForm.receiveQtys[it.plateid] ??
                             it.pending_qty
                         );
                         return {
+                            source_line_id: it.source_line_id,
                             plateid: it.plateid,
                             material: it.material,
                             imaterial: it.material,
@@ -1014,7 +1020,7 @@ export function PurchaseInwardPage() {
 
                                                                     return (
                                                                         <tr
-                                                                            key={`${item.id}_${item.plateid}_${idx}`}
+                                                                            key={`${item.id}_${item.plateid}_${item.source_line_id ?? "legacy"}_${idx}`}
                                                                             className="hover:bg-slate-50/80 transition-colors"
                                                                         >
                                                                             {/* PO Reference */}
@@ -1144,7 +1150,7 @@ export function PurchaseInwardPage() {
                                             ) : (
                                                 paginatedPendingItems.map((item, idx) => (
                                                     <tr
-                                                        key={`${item.id}_${item.plateid}_${idx}`}
+                                                        key={`${item.id}_${item.plateid}_${item.source_line_id ?? "legacy"}_${idx}`}
                                                         className="hover:bg-slate-50/70 transition-colors"
                                                     >
                                                         <td className="py-3 px-4 font-mono font-bold text-blue-700">
@@ -1483,7 +1489,7 @@ export function PurchaseInwardPage() {
                         let totalWeightKg = 0;
 
                         selectedReceiveItems.forEach((it) => {
-                            const itemKey = `${it.id}_${it.plateid}`;
+                            const itemKey = `${it.id}_${it.plateid}_${it.source_line_id ?? "legacy"}`;
                             const q = Number(receiveForm.receiveQtys[itemKey] ?? receiveForm.receiveQtys[it.plateid] ?? it.pending_qty);
                             totalReceivingUnits += q;
                             totalPendingUnits += it.pending_qty;
@@ -1610,7 +1616,7 @@ export function PurchaseInwardPage() {
                                             onClick={() => {
                                                 const allMax: Record<string, number> = {};
                                                 selectedReceiveItems.forEach((it) => {
-                                                    const itemKey = `${it.id}_${it.plateid}`;
+                                                    const itemKey = `${it.id}_${it.plateid}_${it.source_line_id ?? "legacy"}`;
                                                     allMax[itemKey] = it.pending_qty;
                                                     allMax[it.plateid] = it.pending_qty;
                                                 });
@@ -1628,7 +1634,7 @@ export function PurchaseInwardPage() {
                                     {/* Plates List */}
                                     <div className="divide-y divide-slate-100 max-h-[320px] overflow-y-auto custom-scrollbar">
                                         {selectedReceiveItems.map((item, idx) => {
-                                            const itemKey = `${item.id}_${item.plateid}`;
+                                            const itemKey = `${item.id}_${item.plateid}_${item.source_line_id ?? "legacy"}`;
                                             const currentVal =
                                                 receiveForm.receiveQtys[itemKey] ??
                                                 receiveForm.receiveQtys[item.plateid] ??
@@ -1638,7 +1644,7 @@ export function PurchaseInwardPage() {
 
                                             return (
                                                 <div
-                                                    key={`${item.id}_${item.plateid}_${idx}`}
+                                                    key={`${item.id}_${item.plateid}_${item.source_line_id ?? "legacy"}_${idx}`}
                                                     className="p-3 sm:p-3.5 hover:bg-slate-50/60 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                                                 >
                                                     {/* Left: Plate Name & Specs */}

@@ -1,4 +1,5 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./keys";

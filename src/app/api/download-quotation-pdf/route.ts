@@ -1,7 +1,7 @@
+import { resolveChromeExecutable as findChromePath } from "@/lib/pdf/chrome";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { authenticateRequest } from "@/lib/auth";
-import { verifySecurePrintToken } from "@/lib/print-token";
+import { resolveDocumentRequest } from "@/lib/document-access";
 import { escapeHtml, formatDate } from "@/lib/utils";
 import { COMPANY_PROFILE as COMPANY } from "@/lib/constants/company";
 import puppeteer from "puppeteer-core";
@@ -11,53 +11,16 @@ import { calculateGST, formatINRTwoDecimals } from "@/lib/gst-calculation";
 import { amountInWords } from "@/lib/number-to-words";
 import type { QuotationItem } from "@/types/quotation";
 
-function findChromePath(): string {
-  const candidates = [
-    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(/*turbopackIgnore: true*/ c)) return c;
-  }
-  return "chrome";
-}
+
 
 
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const token = searchParams.get("token");
-    let id = searchParams.get("id");
-    let isTokenValid = false;
-
-    if (token) {
-      const decoded = verifySecurePrintToken(token);
-      if (decoded) {
-        id = decoded.id;
-        isTokenValid = true;
-      }
-    } else if (id && id.includes(".")) {
-      const decoded = verifySecurePrintToken(id);
-      if (decoded) {
-        id = decoded.id;
-        isTokenValid = true;
-      }
-    }
-
-    if (!isTokenValid) {
-      const auth = await authenticateRequest(req);
-      if ("error" in auth) {
-        return NextResponse.json({ error: auth.error }, { status: auth.status });
-      }
-    }
-
-    if (!id) {
-      return NextResponse.json({ error: "Quotation ID is required" }, { status: 400 });
-    }
-
+    const access = await resolveDocumentRequest(req, "quotation");
+    if ("error" in access) return NextResponse.json({ error: access.error }, { status: access.status });
+    const { id } = access;
     // Fetch quotation record
     const { data: quote, error: qErr } = await supabaseAdmin
       .from("quotations")

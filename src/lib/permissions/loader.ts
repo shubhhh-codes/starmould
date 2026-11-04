@@ -33,6 +33,12 @@ export async function loadEffectiveConfig(): Promise<{ permissions: RolePermissi
 
     if (!error && Array.isArray(data)) {
       const configMap = new Map(data.map((row: any) => [row.key, row.value]));
+      const permissionsValue = configMap.get(CONFIG_KEY_PERMISSIONS);
+      if (!permissionsValue || typeof permissionsValue !== "object" || Array.isArray(permissionsValue) ||
+          Object.values(permissionsValue).some((role) => !role || typeof role !== "object" || Array.isArray(role) ||
+            Object.values(role).some((value) => typeof value !== "boolean"))) {
+        throw new Error("Permission configuration is missing or invalid");
+      }
       const storedPerms = (configMap.get(CONFIG_KEY_PERMISSIONS) || {}) as RolePermissionsMatrix;
       const storedOrders = (configMap.get(CONFIG_KEY_MENU_ORDERS) || {}) as RoleMenuOrders;
 
@@ -41,6 +47,17 @@ export async function loadEffectiveConfig(): Promise<{ permissions: RolePermissi
       for (const [roleIdStr, defaults] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
         const roleId = Number(roleIdStr);
         mergedPerms[roleId] = { ...defaults, ...(storedPerms[roleId] || {}) };
+        if (storedPerms[roleId]?.financial_view_banking === undefined) {
+          mergedPerms[roleId].financial_view_banking = mergedPerms[roleId].financial_view_amounts === true;
+        }
+        for (const [added, existing] of Object.entries({
+          action_delete_challan: "action_create_challan", action_delete_dispatch: "action_create_dispatch",
+          action_delete_inward: "action_create_inward", action_delete_purchase_inward: "action_create_purchase_inward",
+          action_manage_quotation_presets: "action_edit_quotation", action_edit_worklog: "action_create_worklog",
+          action_delete_worklog: "action_create_worklog", action_delete_all_worklog: "action_edit_all_worklog",
+        })) {
+          if (storedPerms[roleId]?.[added] === undefined) mergedPerms[roleId][added] = mergedPerms[roleId][existing] === true;
+        }
       }
       mergedPerms[0] = { ...DEFAULT_ROLE_PERMISSIONS[0] };
       for (const rId of Object.keys(mergedPerms).map(Number).filter((id) => id !== 0)) {
@@ -79,13 +96,10 @@ export async function loadEffectiveConfig(): Promise<{ permissions: RolePermissi
       return { permissions: mergedPerms, menu_orders: mergedOrders };
     }
   } catch (err) {
-    serverLogger.warn("Supabase config load error, falling back to defaults", err);
+    serverLogger.warn("Permission configuration unavailable");
   }
 
-  cachedPermissions = { ...DEFAULT_ROLE_PERMISSIONS };
-  cachedMenuOrders = { ...DEFAULT_ROLE_MENU_ORDERS };
-  cacheExpiresAt = Date.now() + CACHE_TTL_MS;
-  return { permissions: cachedPermissions, menu_orders: cachedMenuOrders };
+  throw new Error("Permission configuration temporarily unavailable");
 }
 
 /**

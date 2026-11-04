@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import bcrypt from "bcryptjs";
-import { authenticateRequest } from "@/lib/auth";
+import { authenticateRequest, signSession } from "@/lib/auth";
+import { isValidPassword, PASSWORD_POLICY_MESSAGE } from "@/lib/password-policy";
 import { invalidateCache } from "@/lib/cache";
 import { serverLogger } from "@/lib/server-logger";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -30,16 +31,16 @@ export async function POST(req: NextRequest) {
   try {
     const { currentPassword, newPassword } = await req.json();
 
-    if (!currentPassword || !newPassword) {
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string" || !currentPassword || !newPassword) {
       return NextResponse.json(
         { error: "Current password and new password are required" },
         { status: 400 }
       );
     }
 
-    if (newPassword.length < 8) {
+    if (!isValidPassword(newPassword)) {
       return NextResponse.json(
-        { error: "New password must be at least 8 characters long" },
+        { error: PASSWORD_POLICY_MESSAGE },
         { status: 400 }
       );
     }
@@ -110,10 +111,14 @@ export async function POST(req: NextRequest) {
 
     serverLogger.info(`Password successfully changed for user ${auth.user.username} (ID: ${auth.user.id})`);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Password changed successfully",
     });
+    response.cookies.set("sm_session", signSession({ ...auth.user, must_change_password: false }), {
+      httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 7 * 24 * 60 * 60,
+    });
+    return response;
   } catch (err: unknown) {
     serverLogger.error("Uncaught exception in change-password handler", err, {
       route: "/api/auth/change-password",

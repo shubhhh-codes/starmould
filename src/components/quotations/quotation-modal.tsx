@@ -1,4 +1,5 @@
 "use client";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useEffect } from "react";
 import { X, Plus, Trash2, Settings, Sparkles, Building2, ChevronDown, ChevronUp, Lock } from "lucide-react";

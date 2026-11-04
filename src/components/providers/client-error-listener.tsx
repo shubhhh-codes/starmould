@@ -167,9 +167,12 @@ export function ClientErrorListener() {
       if (!event.message && !event.error) return;
       if (isPageUnloading) return;
 
-      // Ignore benign hydration warnings triggered by browser extensions injecting DOM attributes
+      // Ignore abort errors and benign hydration warnings
       const lowerMsg = (event.message || "").toLowerCase();
       if (
+        event.error?.name === "AbortError" ||
+        lowerMsg.includes("abort") ||
+        lowerMsg.includes("session changed") ||
         lowerMsg.includes("hydration") ||
         lowerMsg.includes("server rendered html") ||
         lowerMsg.includes("didn't match") ||
@@ -261,7 +264,7 @@ export function ClientErrorListener() {
       const method = config?.method || (resource as Request)?.method || "GET";
 
       // Do not intercept the reporting endpoint itself to prevent infinite loop
-      if (url.includes(REPORT_ENDPOINT)) {
+      if (url.includes(REPORT_ENDPOINT) || url.includes("/api/auth/")) {
         return originalFetch.apply(this, args);
       }
 
@@ -363,10 +366,20 @@ export function ClientErrorListener() {
           return String(a);
         });
 
+        const hasAbort = args.some((a) =>
+          (a instanceof DOMException && a.name === "AbortError") ||
+          (a instanceof Error && (a.name === "AbortError" || a.message?.toLowerCase().includes("abort") || a.message?.includes("Session changed"))) ||
+          (typeof a === "string" && (a.includes("AbortError") || a.includes("Session changed") || a.toLowerCase().includes("aborted")))
+        );
+        if (hasAbort) return;
+
         const fullMessage = messageParts.join(" ");
 
         // Ignore benign React warnings (e.g. hydration suppressions, browser extensions injecting attributes, realtime reconnects)
         const isBenign =
+          fullMessage.includes("AbortError") ||
+          fullMessage.includes("Session changed") ||
+          fullMessage.includes("The operation was aborted") ||
           fullMessage.includes("Extra attributes from the server") ||
           fullMessage.includes("A tree hydrated") ||
           fullMessage.includes("didn't match the client properties") ||
@@ -378,6 +391,8 @@ export function ClientErrorListener() {
           fullMessage.includes("Warning: An error occurred during hydration") ||
           fullMessage.includes("transport failure") ||
           fullMessage.includes("CHANNEL_ERROR") ||
+          fullMessage.includes("socket closed") ||
+          fullMessage.includes("[RealtimeSync]") ||
           fullMessage.includes("Failed to load chunk") ||
           fullMessage.includes("ChunkLoadError");
 

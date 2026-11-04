@@ -1,3 +1,4 @@
+import { authorizeWorklogMutation, authorizeWorklogOwner } from "@/lib/worklog-access";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
@@ -177,7 +178,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/worklog - Create new worklog entry (matches WorkController.php store)
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req, undefined, "nav_work");
+  const auth = await authenticateRequest(req, undefined, "action_create_worklog");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -203,6 +204,10 @@ export async function POST(req: NextRequest) {
       userid,
     } = body;
 
+    if (auth.user.role_id <= 1 && userid && Number(userid) !== auth.user.id) {
+      const denial = await authorizeWorklogOwner(req, auth.user, Number(userid), "edit");
+      if (denial) return NextResponse.json({ error: denial.error }, { status: denial.status });
+    }
     if (!customerid || !projectid) {
       return NextResponse.json(
         { error: "Customer and Project ID are required" },
@@ -269,7 +274,7 @@ export async function POST(req: NextRequest) {
 
 // PUT /api/worklog - Update worklog entry
 export async function PUT(req: NextRequest) {
-  const auth = await authenticateRequest(req, undefined, "nav_work");
+  const auth = await authenticateRequest(req, undefined, "action_edit_worklog");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -300,20 +305,8 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Worklog ID is required" }, { status: 400 });
     }
 
-    // Role check / Ownership verification
-    if (auth.user.role_id > 1) {
-      const { data: existingLog } = await supabaseAdmin
-        .from("worklog")
-        .select("userid")
-        .eq("id", id)
-        .single();
-      if (!existingLog || Number(existingLog.userid) !== auth.user.id) {
-        return NextResponse.json(
-          { error: "Forbidden: You can only edit your own worklogs" },
-          { status: 403 }
-        );
-      }
-    }
+    const ownership = await authorizeWorklogMutation(req, auth.user, id, "edit");
+    if ("error" in ownership) return NextResponse.json({ error: ownership.error }, { status: ownership.status });
 
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {
@@ -336,6 +329,8 @@ export async function PUT(req: NextRequest) {
     if (driltap_hr !== undefined) updatePayload.driltap_hr = Number(driltap_hr) || 0;
     if (qc_hr !== undefined) updatePayload.qc_hr = Number(qc_hr) || 0;
     if (auth.user.role_id <= 1 && userid !== undefined) {
+      const denial = await authorizeWorklogOwner(req, auth.user, Number(userid), "edit");
+      if (denial) return NextResponse.json({ error: denial.error }, { status: denial.status });
       updatePayload.userid = Number(userid);
     }
 
@@ -343,6 +338,7 @@ export async function PUT(req: NextRequest) {
       .from("worklog")
       .update(updatePayload)
       .eq("id", id)
+      .eq("userid", ownership.ownerId)
       .select()
       .single();
 
@@ -365,7 +361,7 @@ export async function PUT(req: NextRequest) {
 
 // DELETE /api/worklog - Remove worklog entry (Admin, Manager, or owner)
 export async function DELETE(req: NextRequest) {
-  const auth = await authenticateRequest(req, undefined, "nav_work");
+  const auth = await authenticateRequest(req, undefined, "action_delete_worklog");
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -382,22 +378,10 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing worklog id" }, { status: 400 });
     }
 
-    // Role check / Ownership verification for workers (Role > 1)
-    if (auth.user.role_id > 1) {
-      const { data: existingLog } = await supabaseAdmin
-        .from("worklog")
-        .select("userid")
-        .eq("id", id)
-        .single();
-      if (!existingLog || Number(existingLog.userid) !== auth.user.id) {
-        return NextResponse.json(
-          { error: "Forbidden: You can only delete your own worklogs" },
-          { status: 403 }
-        );
-      }
-    }
+    const ownership = await authorizeWorklogMutation(req, auth.user, id, "delete");
+    if ("error" in ownership) return NextResponse.json({ error: ownership.error }, { status: ownership.status });
 
-    const { error } = await supabaseAdmin.from("worklog").delete().eq("id", id);
+    const { error } = await supabaseAdmin.from("worklog").delete().eq("id", id).eq("userid", ownership.ownerId);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }

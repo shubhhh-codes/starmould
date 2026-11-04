@@ -762,6 +762,19 @@ export async function PUT(req: NextRequest) {
     delete updatePayload.id;
     delete updatePayload.updates;
 
+    // Validate caller input before adding any server-derived fields.
+    const writableFields = new Set([
+      "platename", "plate_category", "category", "subprojectid", "length", "width", "height",
+      "shape", "material", "sqty", "unit", "weight", "remarks", "process_remarks", "location", "projectid",
+      "design_by", "order_by", "received_workby", "received_qcby", "vmc_workby", "vmc_qcby",
+      "drilltap_workby", "final_qcby", "packing_workby", "field", "value",
+    ]);
+    const callerUpdates = updates || body;
+    if (Object.keys(callerUpdates).some((key) => !["id", "updates"].includes(key) && !writableFields.has(key)) ||
+        (body.field !== undefined && !writableFields.has(body.field))) {
+      return NextResponse.json({ error: "Unsupported or server-controlled subplate field" }, { status: 400 });
+    }
+
     if (updatePayload.projectid !== undefined && updatePayload.projectid !== null) {
       updatePayload.projectid = String(updatePayload.projectid);
       if (/^\d+$/.test(updatePayload.projectid)) {
@@ -788,6 +801,7 @@ export async function PUT(req: NextRequest) {
     const isUserAdmin = auth.user.role_id === 0 || auth.user.role?.toLowerCase() === "admin";
     const specFields = [
       "platename",
+      "subprojectid",
       "plate_category",
       "category",
       "length",
@@ -808,7 +822,10 @@ export async function PUT(req: NextRequest) {
 
     const hasSpecUpdates = specFields.some((field) => field in updatePayload);
     if (hasSpecUpdates && !isUserAdmin) {
-      const matrix = await loadEffectivePermissions();
+      let matrix;
+      try { matrix = await loadEffectivePermissions(); } catch {
+        return NextResponse.json({ error: "Permission verification temporarily unavailable" }, { status: 503 });
+      }
       if (!roleHasPermission(auth.user.role_id, "action_edit_subplate", matrix)) {
         return NextResponse.json(
           { error: "Access denied: permission to edit subplate specifications not granted by administrator" },
@@ -905,6 +922,11 @@ export async function PUT(req: NextRequest) {
       final_qcby: "final_qc_at",
       packing_workby: "packing_at",
     };
+
+    if (Object.keys(stageTimestampMap).some((field) => field in updatePayload)) {
+      const stageAuth = await authenticateRequest(req, undefined, "action_assign_subplate_stage");
+      if ("error" in stageAuth) return NextResponse.json({ error: stageAuth.error }, { status: stageAuth.status });
+    }
 
     // Strict business rule: Stage 2 (order_by) cannot be manually assigned or modified from Subplate/Dashboard.
     // It is strictly governed by the Purchase Order (PO) lifecycle:

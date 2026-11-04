@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authenticateRequest } from "@/lib/auth";
+import { authorizeDocumentRead } from "@/lib/document-access";
 import { createSecurePrintToken } from "@/lib/print-token";
 
 export async function POST(req: NextRequest) {
-  const auth = await authenticateRequest(req);
-  if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
-  }
-
   try {
     const { type, id, code } = await req.json();
-    if (!type || !id) {
-      return NextResponse.json({ error: "Missing type or id" }, { status: 400 });
-    }
+    const access = await authorizeDocumentRead(req, type, id);
+    if ("error" in access) return NextResponse.json({ error: access.error }, { status: access.status });
 
     const token = createSecurePrintToken({ type, id, code });
     return NextResponse.json({ token, url: `/print/${type}/${token}` });

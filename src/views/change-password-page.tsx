@@ -32,8 +32,8 @@ export function ChangePasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (newPassword.length < 8) {
-      setError("New password must be at least 8 characters long.");
+    if (Array.from(newPassword).length < 12 || new TextEncoder().encode(newPassword).length > 72) {
+      setError("New password must be at least 12 characters and at most 72 UTF-8 bytes long.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -81,7 +81,7 @@ export function ChangePasswordPage() {
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">Security Action Required</h1>
           <p className="text-xs text-slate-400">
-            For security reasons, you must set a new personal password (minimum 8 characters) before accessing the ERP.
+            For security reasons, you must set a new personal password (minimum 12 characters) before accessing the ERP.
           </p>
         </div>
 
@@ -139,7 +139,7 @@ export function ChangePasswordPage() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Enter new strong password"
-                    minLength={8}
+                    minLength={12}
                     className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                     required
                     suppressHydrationWarning
@@ -164,7 +164,7 @@ export function ChangePasswordPage() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm new password"
-                    minLength={8}
+                    minLength={12}
                     className="w-full bg-slate-950/60 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-hidden focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition"
                     required
                     suppressHydrationWarning
