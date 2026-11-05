@@ -2,9 +2,8 @@
 
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "motion/react";
+import { Drawer } from "@/components/ui/dialog";
 import {
-  X,
   Clock,
   CheckCircle2,
   AlertCircle,
@@ -129,30 +128,12 @@ export function MouldTimelineDrawer({
     window.print();
   };
 
-  if (!isOpen) return null;
-
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
-        />
-
-        {/* Slide-over Content Drawer */}
-        <motion.div
-          initial={{ x: "100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "100%" }}
-          transition={{ type: "spring", damping: 28, stiffness: 300 }}
-          className="relative w-full max-w-2xl bg-white shadow-2xl flex flex-col h-full border-l border-slate-200 z-10"
-        >
-          {/* Top Sticky Header */}
-          <div className="p-4 sm:p-5 border-b border-slate-200 bg-slate-50/90 backdrop-blur-md flex items-center justify-between gap-3 shrink-0">
+    <Drawer
+      isOpen={isOpen}
+      onClose={onClose}
+      width="2xl"
+      title={(
             <div className="flex items-center gap-3 min-w-0">
               <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-md shadow-blue-500/20 shrink-0">
                 <Box className="w-5 h-5" />
@@ -185,26 +166,14 @@ export function MouldTimelineDrawer({
                 </p>
               </div>
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handlePrintDossier}
-                title="Print Mould Audit Dossier"
-                className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/70 transition-colors cursor-pointer"
-              >
-                <Printer className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-2 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-200/70 transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
+      )}
+      headerActions={(
+        <button type="button" onClick={handlePrintDossier} aria-label="Print mould history" title="Print mould history" className="grid size-7 place-items-center rounded-[7px] text-stone-400 hover:bg-stone-100 hover:text-stone-700 focus-visible:ring-1 focus-visible:ring-blue-600">
+          <Printer className="w-4 h-4" />
+        </button>
+      )}
+      beforeBody={(
+        <>
           {/* Quick Metrics Bar (Compact, high-density) */}
           {data && (
             <div className="px-5 py-2.5 bg-slate-100/70 border-b border-slate-200 flex items-center justify-between gap-3 text-xs shrink-0 overflow-x-auto">
@@ -237,8 +206,8 @@ export function MouldTimelineDrawer({
           )}
 
           {/* View Mode Switcher Pills */}
-          <div className="px-5 py-2.5 bg-white border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-            <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs">
+          <div className="px-4 py-2.5 bg-white border-b border-slate-200 flex items-center gap-2 shrink-0 overflow-x-auto">
+            <div className="inline-flex shrink-0 items-center whitespace-nowrap p-1 rounded-xl bg-slate-100 border border-slate-200 text-xs">
               <button
                 type="button"
                 onClick={() => setActiveTab("story")}
@@ -248,7 +217,7 @@ export function MouldTimelineDrawer({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                ⚡ Clean Lifecycle Story ({data?.milestones?.length || 0} Steps)
+                History ({data?.milestones?.length || 0})
               </button>
               <button
                 type="button"
@@ -270,13 +239,22 @@ export function MouldTimelineDrawer({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                📜 Raw Audit Events ({data?.events?.length || 0})
+                All activity ({data?.events?.length || 0})
               </button>
             </div>
           </div>
 
-          {/* Drawer Body (Scrollable) */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+
+        </>
+      )}
+      bodyClassName="space-y-4"
+      footer={(
+        <div className="flex items-center justify-between gap-3 text-xs text-stone-500">
+          <span className="font-mono text-[11px]">Mould: {data?.project?.projectid || projectId}</span>
+          <button type="button" onClick={onClose} className="rounded-[7px] border border-stone-200 px-3.5 py-1.5 text-xs font-medium text-stone-700 hover:bg-stone-100 focus-visible:ring-1 focus-visible:ring-blue-600">Close</button>
+        </div>
+      )}
+    >
             {isLoading && (
               <div className="py-24 flex flex-col items-center justify-center text-slate-400 space-y-3">
                 <Clock className="w-8 h-8 animate-spin text-blue-600" />
@@ -589,21 +567,7 @@ export function MouldTimelineDrawer({
                 )}
               </>
             )}
-          </div>
 
-          {/* Drawer Footer */}
-          <div className="p-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs text-slate-500 shrink-0">
-            <span className="font-mono text-[11px]">Audit Record: {data?.project?.projectid || projectId}</span>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors shadow-2xs cursor-pointer"
-            >
-              Close Drawer
-            </button>
-          </div>
-        </motion.div>
-      </div>
-    </AnimatePresence>
+    </Drawer>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import { readCustomerSpreadsheet } from "@/lib/import/spreadsheet";
+import { normalizeCustomerInitials, isValidCustomerInitials } from "@/lib/customer-identity";
 
 import React, { useState, useMemo, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -239,6 +240,55 @@ function CustomerPageContent() {
     const [nameError, setNameError] = useState<string | null>(null);
     const [customerCodeError, setCustomerCodeError] = useState<string | null>(null);
     const [modalFormError, setModalFormError] = useState<string | null>(null);
+    const [checkedInitials, setCheckedInitials] = useState("");
+    const [checkingInitials, setCheckingInitials] = useState(false);
+    const [initialCheckAttempt, setInitialCheckAttempt] = useState(0);
+    const initialCheckKey = `${modalMode}:${selectedCustomer?.id || "new"}:${formData.initials}`;
+
+    useEffect(() => {
+        if (!isModalOpen) return;
+        const clean = normalizeCustomerInitials(formData.initials);
+        setCheckedInitials("");
+        setCheckingInitials(false);
+        if (!isValidCustomerInitials(clean)) {
+            setInitialError(clean ? "Use 1 to 5 letters only." : null);
+            return;
+        }
+        if (modalMode === "edit" && clean === selectedCustomer?.initials) {
+            setInitialError(null);
+            setCheckedInitials(initialCheckKey);
+            return;
+        }
+        const controller = new AbortController();
+        setInitialError(null);
+        setCheckingInitials(true);
+        const timer = setTimeout(async () => {
+            try {
+                const params = new URLSearchParams({ checkInitial: clean });
+                if (modalMode === "edit" && selectedCustomer) params.set("excludeId", String(selectedCustomer.id));
+                const res = await fetch(`/api/customers?${params}`, { signal: controller.signal });
+                if (!res.ok) throw new Error("Initials check failed");
+                const data = await res.json();
+                if (controller.signal.aborted) return;
+                setInitialError(data.exists ? "Another customer already uses these initials. Please choose different letters." : null);
+                setCheckedInitials(initialCheckKey);
+            } catch {
+                if (!controller.signal.aborted) setInitialError("Could not check initials. Please try again.");
+            } finally {
+                if (!controller.signal.aborted) setCheckingInitials(false);
+            }
+        }, 300);
+        return () => { clearTimeout(timer); controller.abort(); };
+    }, [isModalOpen, modalMode, selectedCustomer, formData.initials, initialCheckKey, initialCheckAttempt]);
+
+    const primaryMobileError = formData.mobile !== "" && !/^\d{10}$/.test(formData.mobile);
+    const alternateMobileError = formData.mobile1 !== "" && !/^\d{10}$/.test(formData.mobile1);
+    const emailError = formData.email !== "" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email);
+    const cannotSaveCustomer = !formData.customername.trim() ||
+        !isValidCustomerInitials(normalizeCustomerInitials(formData.initials)) ||
+        checkingInitials || checkedInitials !== initialCheckKey || !!initialError || !!nameError ||
+        (modalMode === "add" && (!formData.customer_code.trim() || !!customerCodeError)) ||
+        primaryMobileError || alternateMobileError || emailError;
 
     // Delete modal state
     const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
@@ -364,7 +414,7 @@ function CustomerPageContent() {
             email: customer.email || "",
             address: customer.address || "",
             usertype: (customer.usertype as UsertypeOption) || "Customer",
-            customer_code: customer.customer_code || customer.pan_code || customer.initials || "",
+            customer_code: customer.customer_code || customer.pan_code || "",
             gstin: customer.gstin || "",
             pan: customer.pan || "",
             contact_person: customer.contact_person || "",
@@ -378,20 +428,18 @@ function CustomerPageContent() {
 
     // Legacy validation: checkinitials
     const validateInitials = (val: string) => {
-        const clean = val.replace(/\s+/g, "").toUpperCase().slice(0, 5);
-        setFormData((prev) => ({ ...prev, initials: clean }));
-        if (!clean) {
-            setInitialError("Initials are required (max 5 characters).");
+        const clean = normalizeCustomerInitials(val);
+        if (!isValidCustomerInitials(clean)) {
+            setInitialError("Use 1 to 5 letters only.");
             return false;
         }
-        if (modalMode === "add") {
-            const exists = customers.some(
-                (c) => c.initials && c.initials.toUpperCase() === clean,
-            );
-            if (exists) {
-                setInitialError("Initial already exists!");
-                return false;
-            }
+        const exists = customers.some(
+            (c) => normalizeCustomerInitials(c.initials) === clean &&
+                c.id !== (modalMode === "edit" ? selectedCustomer?.id : undefined),
+        );
+        if (exists) {
+            setInitialError("Another customer already uses these initials. Please choose different letters.");
+            return false;
         }
         setInitialError(null);
         return true;
@@ -462,22 +510,16 @@ function CustomerPageContent() {
     // Handle form submission (Add / Update via live Supabase API)
     const handleSubmitForm = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (isSubmitting) return;
+        if (isSubmitting || cannotSaveCustomer) return;
 
         setModalFormError(null);
         const isNameValid = validateCustomerName(formData.customername);
-        const isInitialValid =
-            modalMode === "edit" ? true : validateInitials(formData.initials);
-        const isCodeValidLocal = validateCustomerCode(formData.customer_code);
-        let isCodeValidRemote = true;
-        if (isCodeValidLocal && formData.customer_code?.trim()) {
-            isCodeValidRemote = await checkCustomerCodeRemote(formData.customer_code);
-        }
-
-        if (!isNameValid || !isInitialValid || !isCodeValidLocal || !isCodeValidRemote) {
+        const isInitialValid = validateInitials(formData.initials);
+        const isCodeValidLocal = modalMode === "edit" || validateCustomerCode(formData.customer_code);
+        if (!isNameValid || !isInitialValid || !isCodeValidLocal) {
             if (!formData.customer_code?.trim()) {
                 setModalFormError("Customer code is required.");
-            } else if (!isCodeValidLocal || !isCodeValidRemote) {
+            } else if (!isCodeValidLocal) {
                 setModalFormError("Customer code already exists.");
             }
             return;
@@ -525,6 +567,8 @@ function CustomerPageContent() {
         } catch (err: unknown) {
             const msg =
                 err instanceof Error ? err.message : "Error saving record";
+            if (/initial/i.test(msg)) setInitialError(msg);
+            if (/name already exists/i.test(msg)) setNameError(msg);
             setModalFormError(msg);
             showNotification("error", msg);
         } finally {
@@ -1246,10 +1290,10 @@ function CustomerPageContent() {
                     onClose={() => setIsModalOpen(false)}
                     title={
                         modalMode === "add"
-                            ? "Add New Customer (Admin Only)"
-                            : "Edit Customer Profile (Admin Only)"
+                            ? "Add Customer"
+                            : "Edit Customer"
                     }
-                    description="Configure customer organization profile, billing contact, and master initials"
+                    description="Update company details and contact information."
                     size="lg"
                 >
                     <form
@@ -1276,7 +1320,7 @@ function CustomerPageContent() {
                                         ...p,
                                         customername: e.target.value,
                                     }));
-                                    if (nameError) validateCustomerName(e.target.value);
+                                    validateCustomerName(e.target.value);
                                 }}
                                 onBlur={(e) => validateCustomerName(e.target.value)}
                                 placeholder="Enter organization or provider name"
@@ -1301,20 +1345,17 @@ function CustomerPageContent() {
                                     <label className="font-medium text-slate-700">
                                         Initials <span className="text-rose-500">*</span>{" "}
                                         <span className="text-[11px] text-slate-400 font-normal">
-                                            (Max 5)
+                                            (1 to 5 letters)
                                         </span>
                                     </label>
-                                    {modalMode === "edit" && (
-                                        <span className="text-[10px] text-amber-600 font-medium">
-                                            Readonly
-                                        </span>
-                                    )}
                                 </div>
                                 <input
                                     type="text"
                                     required
                                     maxLength={5}
-                                    readOnly={modalMode === "edit"}
+                                    pattern="[A-Z]{1,5}"
+                                    aria-invalid={!!initialError}
+                                    aria-describedby="customer-initials-help"
                                     value={formData.initials}
                                     onChange={(e) => {
                                         const clean = e.target.value
@@ -1322,38 +1363,41 @@ function CustomerPageContent() {
                                             .toUpperCase()
                                             .slice(0, 5);
                                         setFormData((p) => ({ ...p, initials: clean }));
-                                        if (initialError) validateInitials(clean);
                                     }}
-                                    onBlur={(e) => validateInitials(e.target.value)}
                                     placeholder="e.g. BSK"
                                     className={`w-full px-3 py-2 font-mono uppercase bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 ${
-                                        modalMode === "edit"
-                                            ? "bg-slate-100 cursor-not-allowed text-slate-500"
-                                            : ""
-                                    } ${
                                         initialError
                                             ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500"
                                             : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
                                     }`}
                                 />
+                                <div id="customer-initials-help" aria-live="polite">
+                                {checkingInitials && <p className="mt-1 text-[11px] text-slate-500">Checking initials…</p>}
                                 {initialError && (
                                     <p className="flex items-center gap-1 text-[11px] text-rose-500 mt-1 font-medium">
                                         <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                                         <span>{initialError}</span>
+                                        {!checkingInitials && checkedInitials !== initialCheckKey && isValidCustomerInitials(formData.initials) && (
+                                            <button type="button" className="underline" onClick={() => setInitialCheckAttempt((n) => n + 1)}>Try again</button>
+                                        )}
                                     </p>
                                 )}
+                                </div>
                             </div>
 
                             <div>
                                 <label className="block font-medium text-slate-700 mb-1">
                                     Customer Code <span className="text-rose-500">*</span>
+                                    {modalMode === "edit" && <span className="ml-2 text-[10px] text-slate-500 font-normal">Cannot be changed</span>}
                                     <span className="text-[11px] text-slate-400 font-normal ml-1">
                                         (e.g. STC52WQ7)
                                     </span>
                                 </label>
                                 <input
                                     type="text"
-                                    required
+                                    required={modalMode === "add"}
+                                    readOnly={modalMode === "edit"}
+                                    disabled={modalMode === "edit"}
                                     value={formData.customer_code}
                                     onChange={(e) => {
                                         const val = e.target.value.toUpperCase();
@@ -1374,7 +1418,7 @@ function CustomerPageContent() {
                                         }
                                     }}
                                     placeholder="STC_____"
-                                    className={`w-full px-3 py-2 uppercase font-mono bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 ${
+                                    className={`w-full px-3 py-2 uppercase font-mono bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed ${
                                         customerCodeError
                                             ? "border-rose-300 focus:ring-rose-500/20 focus:border-rose-500 text-rose-700 bg-rose-50/50"
                                             : "border-slate-200 focus:ring-blue-500/20 focus:border-blue-500"
@@ -1433,7 +1477,7 @@ function CustomerPageContent() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label className="block font-medium text-slate-700 mb-1">
-                                    Authorise Person
+                                    Contact Person
                                 </label>
                                 <input
                                     type="text"
@@ -1457,6 +1501,7 @@ function CustomerPageContent() {
                                     inputMode="numeric"
                                     maxLength={10}
                                     value={formData.mobile}
+                                    aria-invalid={primaryMobileError}
                                     onChange={(e) =>
                                         setFormData((p) => ({
                                             ...p,
@@ -1466,6 +1511,7 @@ function CustomerPageContent() {
                                     placeholder="10-digit primary mobile"
                                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 />
+                                {primaryMobileError && <p className="mt-1 text-[11px] text-rose-500">Enter a 10-digit mobile number.</p>}
                             </div>
                         </div>
 
@@ -1473,11 +1519,12 @@ function CustomerPageContent() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
                                 <label className="block font-medium text-slate-700 mb-1">
-                                    Mail ID
+                                    Email
                                 </label>
                                 <input
                                     type="email"
                                     value={formData.email}
+                                    aria-invalid={emailError}
                                     onChange={(e) =>
                                         setFormData((p) => ({
                                             ...p,
@@ -1487,16 +1534,18 @@ function CustomerPageContent() {
                                     placeholder="official.email@company.com"
                                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 />
+                                {emailError && <p className="mt-1 text-[11px] text-rose-500">Enter a valid email address.</p>}
                             </div>
                             <div>
                                 <label className="block font-medium text-slate-700 mb-1">
-                                    Alt Mobile / Mobile 2
+                                    Alternate Mobile
                                 </label>
                                 <input
                                     type="tel"
                                     inputMode="numeric"
                                     maxLength={10}
                                     value={formData.mobile1}
+                                    aria-invalid={alternateMobileError}
                                     onChange={(e) =>
                                         setFormData((p) => ({
                                             ...p,
@@ -1506,6 +1555,7 @@ function CustomerPageContent() {
                                     placeholder="10-digit alternate mobile"
                                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                                 />
+                                {alternateMobileError && <p className="mt-1 text-[11px] text-rose-500">Enter a 10-digit mobile number.</p>}
                             </div>
                         </div>
 
@@ -1536,13 +1586,13 @@ function CustomerPageContent() {
                                 </label>
                                 {modalMode === "edit" ? (
                                     <span className="text-[10px] text-amber-600 font-medium">
-                                        Type cannot be modified once created
+                                        Cannot be changed
                                     </span>
                                 ) : null}
                             </div>
                             <div className="flex items-center gap-2.5 p-3 rounded-lg border bg-blue-50/70 border-blue-200 text-blue-900 text-xs font-semibold">
                                 <Building2 className="w-4 h-4 text-blue-600" />
-                                <span>Client Customer (Mould Owner / Billing Entity)</span>
+                                <span>Customer</span>
                             </div>
                         </div>
 
@@ -1558,6 +1608,7 @@ function CustomerPageContent() {
                             <MotionButton
                                 type="submit"
                                 loading={isSubmitting}
+                                disabled={cannotSaveCustomer}
                                 variant="primary"
                                 size="sm"
                             >
@@ -1565,7 +1616,7 @@ function CustomerPageContent() {
                                     ? formData.usertype === "Customer"
                                         ? "Save Customer"
                                         : "Save Partner"
-                                    : "Update Record"}
+                                    : "Save Changes"}
                             </MotionButton>
                         </div>
                     </form>

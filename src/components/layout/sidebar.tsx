@@ -6,7 +6,7 @@ import Image from "next/image";
 import React from "react";
 import Link from "next/link";
 import { motion } from "motion/react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Layers,
@@ -25,7 +25,6 @@ import {
   Factory,
   LogOut,
   User as UserIcon,
-  X,
   Building2,
   Settings,
   FileText,
@@ -175,7 +174,7 @@ export const navigationItems: NavItem[] = [
 import { useAuth, getCachedSession } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useSmartPrefetch, useBackgroundPrefetchWarmup } from "@/lib/query/prefetch";
-import { overlayStack } from "@/lib/overlay-stack";
+import { Drawer as NavigationDrawer } from "@/components/interior/drawer";
 import { DEFAULT_ROLE_MENU_ORDERS } from "@/lib/permissions/defaults";
 
 export interface SidebarProps {
@@ -198,6 +197,8 @@ export function Sidebar({
   currentUser: propUser,
 }: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const pendingNavigation = React.useRef<string | null>(null);
   const searchParams = useSearchParams();
   const { currentUser: authUser, logout } = useAuth();
   const { hasPermission, getRoleMenuOrder } = useRolePermissions();
@@ -225,18 +226,12 @@ export function Sidebar({
     [pathname]
   );
 
-  // ESC stack integration for mobile drawer
   React.useEffect(() => {
-    if (mobileOpen && onMobileClose) {
-      overlayStack.push("mobile-sidebar-drawer", () => {
-        onMobileClose();
-      });
-    } else {
-      overlayStack.pop("mobile-sidebar-drawer");
-    }
-    return () => {
-      overlayStack.pop("mobile-sidebar-drawer");
-    };
+    const desktop = window.matchMedia("(min-width: 768px)");
+    const closeOnDesktop = () => { if (desktop.matches && mobileOpen) onMobileClose?.(); };
+    closeOnDesktop();
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
   }, [mobileOpen, onMobileClose]);
 
   // Filter and sort menu items strictly by user role and active permission matrix & menu order
@@ -311,28 +306,59 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile Backdrop Overlay with physics fade */}
-      {mobileOpen && (
-        <div
-          onClick={onMobileClose}
-          className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs md:hidden animate-backdrop-fade"
-          aria-hidden="true"
-        />
-      )}
+      <NavigationDrawer
+        open={mobileOpen}
+        onOpenChange={(open) => { if (!open) onMobileClose?.(); }}
+        side="left"
+        width={280}
+        title="Menu"
+        closeLabel="Close menu"
+        onCloseComplete={() => {
+          const href = pendingNavigation.current;
+          pendingNavigation.current = null;
+          if (href) router.push(href);
+        }}
+        description={activeUser?.name || "Star Mould"}
+        bodyClassName="space-y-1"
+        footer={(
+          <button type="button" onClick={handleLogout} className="flex w-full items-center gap-3 rounded-[7px] px-3 py-2 text-xs text-stone-600 hover:bg-stone-100 hover:text-rose-600">
+            <LogOut className="size-4" /> Sign out
+          </button>
+        )}
+      >
+        {visibleItems.map((item) => {
+          const Icon = item.icon;
+          const active = isItemActive(item.href);
+          return <Link
+            key={item.href}
+            href={item.href}
+            onClick={(event) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+              event.preventDefault();
+              pendingNavigation.current = item.href;
+              onMobileClose?.();
+            }}
+            onMouseEnter={() => handlePrefetch(item.href)}
+            onFocus={() => handlePrefetch(item.href)}
+            aria-current={active ? "page" : undefined}
+            className={`flex items-center gap-3 rounded-[7px] px-3 py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600 ${active ? "bg-blue-50 text-blue-700" : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"}`}
+          >
+            <Icon className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{item.title}</span>
+            {active && <ChevronRight className="size-3.5" />}
+          </Link>;
+        })}
+      </NavigationDrawer>
 
       <aside
-        className={`fixed top-0 left-0 z-50 h-screen transition-all duration-300 bg-slate-900 border-r border-slate-800 text-slate-300 flex flex-col ${
+        className={`fixed top-0 left-0 z-50 hidden h-dvh transition-[width] duration-300 bg-slate-900 border-r border-slate-800 text-slate-300 flex-col md:flex ${
           collapsed ? "md:w-16" : "md:w-64"
-        } ${
-          mobileOpen
-            ? "w-64 translate-x-0 shadow-2xl animate-drawer-left"
-            : "w-64 -translate-x-full md:translate-x-0"
         }`}
       >
         {/* Brand Logo Header */}
         <div className="relative h-16 flex items-center justify-center px-3 border-b border-slate-800/80 bg-slate-950/50 select-none">
           <div className="flex items-center justify-center overflow-hidden py-1 pointer-events-none w-full">
-            {collapsed && !mobileOpen ? (
+            {collapsed ? (
               <div className="h-10 w-10 flex items-center justify-center flex-shrink-0">
                 <Image
                   src="/images/star-mould-logo.webp?v=1"
@@ -359,20 +385,12 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Close button for mobile drawer */}
-          <button
-            onClick={onMobileClose}
-            className="btn-interactive absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 md:hidden transition cursor-pointer"
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         {/* Navigation Links Scrollable Area */}
         <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1 sidebar-nav-scroll">
           <div className="px-2 pb-2 flex items-center justify-between">
-            {(!collapsed || mobileOpen) && (
+            {!collapsed && (
               <>
                 <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                   Core Modules
@@ -397,7 +415,7 @@ export function Sidebar({
                 onClick={() => onMobileClose?.()}
                 onMouseEnter={() => handlePrefetch(item.href)}
                 onFocus={() => handlePrefetch(item.href)}
-                title={collapsed && !mobileOpen ? item.title : undefined}
+                title={collapsed ? item.title : undefined}
                 className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium relative select-none ${
                   isActive
                     ? "text-white"
@@ -419,10 +437,10 @@ export function Sidebar({
                     isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
                   }`}
                 />
-                {(!collapsed || mobileOpen) && (
+                {!collapsed && (
                   <span className="truncate flex-1 relative z-10">{item.title}</span>
                 )}
-                {(!collapsed || mobileOpen) && isActive && (
+                {!collapsed && isActive && (
                   <ChevronRight className="h-3 w-3 text-white/80 relative z-10 shrink-0" />
                 )}
               </Link>

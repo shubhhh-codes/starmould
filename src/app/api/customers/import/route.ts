@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { invalidateCache } from "@/lib/cache";
+import { customerCodeChanged, generateCustomerInitials } from "@/lib/customer-identity";
 
 interface ImportCustomerItem {
   cusCode?: string;
@@ -70,13 +71,18 @@ export async function POST(req: NextRequest) {
       const email = (item.email || "").trim() || null;
 
       // Find match by exact name or code
-      const match = (existingCustomers || []).find(
+      const matches = (existingCustomers || []).filter(
         (c) =>
           normalize(c.customername) === normName ||
           (cusCode &&
             ((c.customer_code && c.customer_code.trim().toUpperCase() === cusCode) ||
               (c.pan_code && c.pan_code.trim().toUpperCase() === cusCode)))
       );
+      if (matches.length > 1) {
+        failures.push({ rowIndex, code: "AMBIGUOUS_CUSTOMER", message: "The name and code match different customers. Please check this row." });
+        continue;
+      }
+      const match = matches[0];
 
       if (match) {
         // Update existing record
@@ -86,9 +92,9 @@ export async function POST(req: NextRequest) {
           updated_by: auth.user.id,
         };
 
-        if (cusCode) {
-          updatePayload.customer_code = cusCode;
-          updatePayload.pan_code = cusCode;
+        if (cusCode && customerCodeChanged({ customer_code: cusCode }, match)) {
+          failures.push({ rowIndex, code: "IMMUTABLE_CUSTOMER_CODE", message: "Customer Code cannot be changed after creation." });
+          continue;
         }
         if (gstin) updatePayload.gstin = gstin;
         if (pan) updatePayload.pan = pan;
@@ -115,23 +121,7 @@ export async function POST(req: NextRequest) {
         }
         usedCodes.add(cusCode);
 
-        // Generate initials
-        let initials = name
-          .split(/\s+/)
-          .map((w) => w[0])
-          .join("")
-          .toUpperCase()
-          .slice(0, 5);
-
-        if (!initials || initials.length < 2) {
-          initials = name.slice(0, 5).toUpperCase();
-        }
-
-        let initCandidate = initials;
-        let suffix = 1;
-        while (usedInitials.has(initCandidate)) {
-          initCandidate = `${initials.slice(0, 4)}${suffix++}`.slice(0, 5);
-        }
+        const initCandidate = generateCustomerInitials(name, usedInitials);
         usedInitials.add(initCandidate);
 
         const insertPayload = {

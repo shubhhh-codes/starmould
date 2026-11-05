@@ -6,6 +6,7 @@ import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import { useCreateCustomerMutation } from "@/lib/query/hooks";
 import type { Customer } from "@/lib/supabase/types";
+import { generateCustomerInitials, isValidCustomerInitials } from "@/lib/customer-identity";
 
 interface QuickCustomerModalProps {
   isOpen: boolean;
@@ -42,11 +43,7 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
   const generateInitials = (name: string): string => {
     const clean = name.trim();
     if (!clean) return "";
-    const words = clean.split(/\s+/).filter(Boolean);
-    if (words.length === 1) {
-      return words[0].slice(0, 4).toUpperCase();
-    }
-    return words.map((w) => w[0]).join("").toUpperCase().slice(0, 5);
+    return generateCustomerInitials(clean, new Set());
   };
 
   useEffect(() => {
@@ -114,8 +111,8 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
       return;
     }
 
-    if (!cleanInitials) {
-      setErrorMsg("Customer initials / code are required (max 5 letters).");
+    if (!isValidCustomerInitials(cleanInitials)) {
+      setErrorMsg("Initials must contain 1–5 letters (A–Z).");
       return;
     }
 
@@ -228,6 +225,7 @@ export const QuickCustomerModal: React.FC<QuickCustomerModalProps> = ({
               type="text"
               required
               maxLength={5}
+              pattern="[A-Z]{1,5}"
               value={initials}
               onChange={(e) => handleInitialsChange(e.target.value)}
               placeholder="e.g. APPL"

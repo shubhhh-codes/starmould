@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { overlayStack } from "@/lib/overlay-stack";
 import { X, AlertTriangle, Trash2 } from "lucide-react";
 import { MotionButton } from "@/components/ui/motion-button";
+import { Drawer as InteriorDrawer } from "@/components/interior/drawer";
 
 /* =========================================================================
    1. MODAL DIALOG
@@ -47,7 +48,7 @@ export function Modal({
       triggerRef.current = document.activeElement as HTMLElement;
       overlayStack.push(modalId, () => {
         onCloseRef.current();
-      }, triggerRef.current);
+      }, triggerRef.current, containerRef.current?.closest<HTMLElement>("[data-overlay-root]"));
 
       // Focus first interactive input or container on initial open only
       const timer = setTimeout(() => {
@@ -105,7 +106,7 @@ export function Modal({
   };
 
   const modalContent = (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden min-h-full w-full max-w-[100vw]">
+    <div data-overlay-root className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden min-h-full w-full max-w-[100vw]">
       {/* Backdrop with fade blur */}
       <div
         className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-backdrop-fade"
@@ -170,131 +171,27 @@ export interface DrawerProps {
   title?: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
-  width?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
+  width?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl" | number;
   side?: "right" | "left";
   showCloseButton?: boolean;
+  footer?: React.ReactNode;
+  headerActions?: React.ReactNode;
+  beforeBody?: React.ReactNode;
+  bodyClassName?: string;
+  className?: string;
 }
 
-export function Drawer({
-  isOpen,
-  onClose,
-  title,
-  description,
-  children,
-  width = "lg",
-  side = "right",
-  showCloseButton = true,
-}: DrawerProps) {
-  const drawerId = useId();
-  const triggerRef = useRef<HTMLElement | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
+const DRAWER_WIDTHS = { sm: 384, md: 448, lg: 512, xl: 576, "2xl": 672, "3xl": 768, "4xl": 896 };
 
-  useEffect(() => {
-    if (isOpen) {
-      triggerRef.current = document.activeElement as HTMLElement;
-      overlayStack.push(drawerId, () => {
-        onCloseRef.current();
-      }, triggerRef.current);
-
-      // Focus first interactive input or container on initial open only
-      const timer = setTimeout(() => {
-        const firstInput = containerRef.current?.querySelector<HTMLElement>(
-          'input:not([disabled]):not([readonly]):not([tabindex="-1"]), select:not([disabled]):not([tabindex="-1"]), textarea:not([disabled]):not([tabindex="-1"]), button:not([disabled]):not([tabindex="-1"])'
-        );
-        if (firstInput) {
-          firstInput.focus();
-        } else {
-          containerRef.current?.focus();
-        }
-      }, 50);
-
-      return () => {
-        clearTimeout(timer);
-        overlayStack.pop(drawerId);
-      };
-    } else {
-      overlayStack.pop(drawerId);
-    }
-  }, [isOpen, drawerId]);
-
-  if (!isOpen) return null;
-
-  const widthClasses = {
-    sm: "sm:max-w-sm",
-    md: "sm:max-w-md",
-    lg: "sm:max-w-lg",
-    xl: "sm:max-w-xl",
-    "2xl": "sm:max-w-2xl",
-    "3xl": "sm:max-w-3xl",
-    "4xl": "sm:max-w-4xl",
-  };
-
-  const drawerContent = (
-    <div className="fixed inset-0 z-[9999] flex overflow-hidden">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-backdrop-fade"
-        onClick={() => {
-          if (overlayStack.isTopmost(drawerId)) {
-            onClose();
-          }
-        }}
-        aria-hidden="true"
-      />
-
-      {/* Drawer Panel */}
-      <div
-        className={`fixed inset-y-0 ${side === "right" ? "right-0" : "left-0"} flex max-w-full ${
-          side === "right" ? "pl-6 sm:pl-10" : "pr-6 sm:pr-10"
-        }`}
-      >
-        <div
-          ref={containerRef}
-          tabIndex={-1}
-          role="dialog"
-          aria-modal="true"
-          className={`w-screen max-w-[calc(100vw-1.5rem)] ${widthClasses[width]} bg-white shadow-2xl border-l border-slate-200 flex flex-col focus:outline-none min-w-0 ${
-            side === "right" ? "animate-drawer-right" : "animate-drawer-left"
-          }`}
-        >
-          {/* Header */}
-          {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-              <div>
-                {typeof title === "string" ? (
-                  <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-                ) : (
-                  title
-                )}
-                {description && (
-                  <p className="text-xs text-slate-500 mt-0.5">{description}</p>
-                )}
-              </div>
-              {showCloseButton && (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn-interactive p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 outline-none"
-                  aria-label="Close panel"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Drawer Body */}
-          <div className="flex-1 overflow-y-auto p-6">{children}</div>
-        </div>
-      </div>
-    </div>
-  );
-
-  return typeof document !== "undefined" ? createPortal(drawerContent, document.body) : drawerContent;
+// Existing detail panels share the supplied interior drawer.
+export function Drawer({ isOpen, onClose, title = "Details", width = "lg", ...props }: DrawerProps) {
+  return <InteriorDrawer
+    {...props}
+    open={isOpen}
+    onOpenChange={(open) => { if (!open) onClose(); }}
+    title={title}
+    width={typeof width === "number" ? width : DRAWER_WIDTHS[width]}
+  />;
 }
 
 /* =========================================================================

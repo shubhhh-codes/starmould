@@ -1347,6 +1347,11 @@ export function useUpdateCustomerMutation() {
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.customers.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      broadcastQueryInvalidation(queryKeys.customers.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
     },
   });
 }
