@@ -1429,14 +1429,18 @@ export function MouldProjectsTable({
           const jwPlates = subplates.filter((sp) => {
             const outQty = Number(sp.jobwork_balance?.outward_jobwork_qty) || 0;
             if (outQty > 0) return true;
-            const loc = (sp.location || "").trim();
-            return loc !== "" && loc !== "SM" && loc !== "Customer";
+            const loc = (sp.location || "").trim().toLowerCase();
+            if (!loc || loc === "sm" || loc === "in-house" || loc === "in house" || loc === "customer") {
+              return false;
+            }
+            return true;
           });
 
           const dispatchedPlates = subplates.filter((sp) => {
             const dispQty = Number((sp.jobwork_balance as any)?.customer_dispatched_qty) || 0;
             if (dispQty > 0) return true;
-            return (sp.location || "").trim() === "Customer";
+            const loc = (sp.location || "").trim().toLowerCase();
+            return loc === "customer" || sp.dispatch_status === "dispatched";
           });
 
           return (

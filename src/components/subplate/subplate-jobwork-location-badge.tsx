@@ -48,16 +48,17 @@ export function SubplateJobworkLocationBadge({
   } else {
     // Fallback from legacy comma-separated string
     const rawLoc = (subplate.location || "SM").trim();
+    const isRawInHouse = rawLoc === "SM" || rawLoc.toLowerCase() === "in-house" || rawLoc.toLowerCase() === "in house" || !rawLoc;
     if (rawLoc === "Customer") {
       dispatchedQty = totalQty;
       smQty = 0;
       outwardQty = 0;
-    } else if (rawLoc === "SM" || !rawLoc) {
+    } else if (isRawInHouse) {
       outwardQty = 0;
       smQty = totalQty;
-    } else if (rawLoc.includes("SM")) {
+    } else if (rawLoc.includes("SM") || rawLoc.toLowerCase().includes("in-house")) {
       // Split location legacy
-      const parts = rawLoc.split(",").map((p) => p.trim()).filter((p) => p && p !== "SM");
+      const parts = rawLoc.split(",").map((p) => p.trim()).filter((p) => p && p !== "SM" && p.toLowerCase() !== "in-house");
       vendorTag = parts.join(", ");
       outwardQty = Math.floor(totalQty / 2) || 1;
       smQty = Math.max(0, totalQty - outwardQty);
@@ -133,7 +134,60 @@ export function SubplateJobworkLocationBadge({
     );
   }
 
-  // Case 1: Split location (Some in SM, some out for Job Work)
+  // Case 1: Split location (Some in SM, some dispatched to Customer, no Job Work)
+  if (smQty > 0 && dispatchedQty > 0 && outwardQty === 0) {
+    return (
+      <div className={`inline-flex items-center gap-1.5 flex-wrap justify-center ${className}`}>
+        <span
+          className={`inline-flex items-center gap-1 rounded-md font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs ${padClass}`}
+          title={`${smQty} pcs currently inside Star Mould workshop premises`}
+        >
+          <Building2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+          <span>{smQty} in SM</span>
+        </span>
+        <span
+          className={`inline-flex items-center gap-1 rounded-md font-bold bg-blue-50 text-blue-800 border border-blue-200/80 shadow-2xs ${padClass}`}
+          title={`${dispatchedQty} pcs dispatched to Customer`}
+        >
+          <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+          <span>{dispatchedQty} Dispatched (Customer)</span>
+        </span>
+      </div>
+    );
+  }
+
+  // Case 2: Multi-split (Some on Job Work, some dispatched, with or without in-house stock)
+  if (dispatchedQty > 0 && outwardQty > 0) {
+    return (
+      <div className={`inline-flex items-center gap-1.5 flex-wrap justify-center ${className}`}>
+        {smQty > 0 && (
+          <span
+            className={`inline-flex items-center gap-1 rounded-md font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs ${padClass}`}
+            title={`${smQty} pcs currently inside Star Mould workshop premises`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            <span>{smQty} in SM</span>
+          </span>
+        )}
+        <span
+          className={`inline-flex items-center gap-1 rounded-md font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs cursor-help ${padClass}`}
+          title={`${outwardQty} pcs on Job Work with ${vendorFullName}${vendorTag && vendorTag !== vendorFullName ? ` (${vendorTag})` : ""}`}
+        >
+          <MapPin className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+          <span>{outwardQty} in Job Work{vendorTag ? ` (${vendorTag})` : ""}</span>
+        </span>
+        <span
+          className={`inline-flex items-center gap-1 rounded-md font-bold bg-blue-50 text-blue-800 border border-blue-200/80 shadow-2xs ${padClass}`}
+          title={`${dispatchedQty} pcs dispatched to Customer`}
+        >
+          <MapPin className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+          <span>{dispatchedQty} Dispatched</span>
+        </span>
+      </div>
+    );
+  }
+
+  // Case 3: Split location (Some in SM, some out for Job Work, 0 dispatched)
   if (smQty > 0 && outwardQty > 0) {
     return (
       <div className={`inline-flex items-center gap-1.5 flex-wrap justify-center ${className}`}>
@@ -157,7 +211,7 @@ export function SubplateJobworkLocationBadge({
     );
   }
 
-  // Case 2: 100% Outward on Job Work
+  // Case 4: 100% Outward on Job Work (0 in SM, 0 dispatched)
   if (outwardQty > 0 && smQty === 0) {
     return (
       <span
@@ -171,15 +225,15 @@ export function SubplateJobworkLocationBadge({
     );
   }
 
-  // Case 3: 100% In-House Star Mould (SM)
+  // Case 5: 100% In-House Star Mould (SM)
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-md font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs ${padClass} ${className}`}
-      title={`All ${totalQty} pcs in-house at Star Mould`}
+      title={`All ${smQty || totalQty} pcs in-house at Star Mould`}
     >
       <Building2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
       <span>In-House (SM)</span>
-      {totalQty > 1 && <span className="opacity-75 font-mono text-[9px]">({totalQty})</span>}
+      {totalQty > 1 && <span className="opacity-75 font-mono text-[9px]">({smQty || totalQty})</span>}
     </span>
   );
 }
