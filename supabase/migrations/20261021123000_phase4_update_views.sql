@@ -62,6 +62,7 @@ CREATE OR REPLACE VIEW public.view_po_pending_inward_qty AS
 ========================================================================= */
 
 -- 1. Update view_pending_inward_qty to join public.vendors
+DROP VIEW IF EXISTS public.view_pending_inward_qty CASCADE;
 CREATE OR REPLACE VIEW public.view_pending_inward_qty 
 WITH (security_invoker = true) AS
  SELECT c.id,
@@ -91,6 +92,7 @@ WITH (security_invoker = true) AS
   WHERE ((c.status)::text = '1'::text);
 
 -- 2. Update view_po_pending_inward_qty to join public.vendors
+DROP VIEW IF EXISTS public.view_po_pending_inward_qty CASCADE;
 CREATE OR REPLACE VIEW public.view_po_pending_inward_qty 
 WITH (security_invoker = true) AS
  SELECT p.id,

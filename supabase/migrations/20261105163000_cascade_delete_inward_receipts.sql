@@ -251,3 +251,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 REVOKE ALL ON FUNCTION public.delete_mould_projects_cascade(BIGINT[], BOOLEAN) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_mould_projects_cascade(BIGINT[], BOOLEAN) TO service_role;
+
