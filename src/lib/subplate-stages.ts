@@ -79,7 +79,9 @@ export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
   let completed = 0;
   let lastAssignedIndex = -1;
   const totalQty = Number(sp.sqty) || 1;
-  const isPartialPO = sp.po_status === "PARTIAL" || ((sp.ordered_qty ?? 0) > 0 && (sp.remaining_qty ?? 0) > 0);
+  const orderedQty = Number(sp.ordered_qty ?? sp.jobwork_balance?.po_ordered_qty ?? (sp as any).po_ordered_qty ?? 0);
+  const remainingQty = Number(sp.remaining_qty ?? Math.max(0, totalQty - orderedQty));
+  const isPartialPO = sp.po_status === "PARTIAL" || (orderedQty > 0 && orderedQty < totalQty);
   const inwardQty = Number((sp as any).inward_qty ?? sp.jobwork_balance?.po_inward_qty ?? 0);
   const isPartialInward = sp.inward_status === "PARTIAL" || (inwardQty > 0 && inwardQty < totalQty);
   const remainingInward = Math.max(0, totalQty - inwardQty);
@@ -140,19 +142,19 @@ export function getSubplateProgressInfo(sp: Subplate, staff: User[] = []) {
     if (isPartialPO) {
       return {
         badgeLabel: isMultiPO
-          ? `Stage 2: Purchase (${linkedPOs.length} POs • ${sp.ordered_qty}/${sp.sqty || 1} pcs)`
-          : `Stage 2: Purchase (Partial)`,
+          ? `Stage 2: Purchase (${linkedPOs.length} POs • ${orderedQty}/${totalQty} pcs)`
+          : `Stage 2: Purchase (${orderedQty}/${totalQty} pcs)`,
         subtext: isMultiPO
-          ? `${linkedPOs.length} POs: ${poListStr} (${sp.remaining_qty} pending)`
-          : `${sp.ordered_qty}/${sp.sqty || 1} ordered (${sp.remaining_qty} pending)`,
+          ? `${linkedPOs.length} POs: ${poListStr} (${remainingQty} pending)`
+          : `${orderedQty}/${totalQty} ordered (${remainingQty} pending)`,
         badgeStyle: "bg-amber-50 text-amber-900 border-amber-300 font-bold shadow-2xs",
         dotColor: "bg-amber-500",
         completed,
         isCompleted: false,
         activeStage: stage,
         assignee: isMultiPO
-          ? `${linkedPOs.length} POs (${sp.ordered_qty}/${sp.sqty} pcs)`
-          : (staffName ? `${staffName} (${sp.ordered_qty}/${sp.sqty} pcs)` : null),
+          ? `${linkedPOs.length} POs (${orderedQty}/${totalQty} pcs)`
+          : (staffName ? `${staffName} (${orderedQty}/${totalQty} pcs)` : null),
       };
     }
 

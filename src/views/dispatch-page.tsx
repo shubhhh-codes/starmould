@@ -250,13 +250,13 @@ export function DispatchPage() {
       return;
     }
 
-    if (lastLoadedMouldRef.current !== modalForm.projectid) {
+    if (lastLoadedMouldRef.current !== modalForm.projectid && eligiblePlates.length > 0) {
       lastLoadedMouldRef.current = modalForm.projectid;
       const cust = customers.find((c) => c.id === Number(modalForm.customerid));
       const customerVal = cust?.id ? String(cust.id) : (modalForm.customerid || "");
 
       const autoPopulatedItems = eligiblePlates.map((plate) => {
-        const avail = Number(plate.jobwork_balance?.available_sm_qty ?? (plate.sqty || 1));
+        const avail = Number(plate.jobwork_balance?.available_sm_qty ?? (plate.jobwork_balance?.has_po ? 0 : (plate.sqty || 1)));
         return {
           itemType: "regular" as const,
           plateid: String(plate.id),
@@ -266,7 +266,7 @@ export function DispatchPage() {
           particulars: "",
           condition: "",
           work: "",
-          qty: Math.min(avail, plate.sqty || 1),
+          qty: Math.max(1, Math.min(avail, plate.sqty || 1)),
           sqty: plate.sqty || 1,
         };
       });
@@ -436,20 +436,33 @@ export function DispatchPage() {
 
     setFormError(null);
     const cust = customers.find((c) => c.id === Number(modalForm.customerid));
+
+    let defaultPlateId = "";
+    let defaultQty = 1;
+    if (type === "regular" && eligiblePlates.length > 0) {
+      const unused = eligiblePlates.find((ep) => !modalForm.items.some((it) => it.plateid === String(ep.id)));
+      const chosen = unused || eligiblePlates[0];
+      if (chosen) {
+        defaultPlateId = String(chosen.id);
+        const avail = Number(chosen.jobwork_balance?.available_sm_qty ?? (chosen.jobwork_balance?.has_po ? 0 : (chosen.sqty || 1)));
+        defaultQty = Math.max(1, Math.min(avail, chosen.sqty || 1));
+      }
+    }
+
     setModalForm((prev) => ({
       ...prev,
       items: [
         ...prev.items,
         {
           itemType: type,
-          plateid: "",
+          plateid: defaultPlateId,
           custom_plate_name: "",
           customer: cust?.id ? String(cust.id) : (prev.customerid || ""),
           project: prev.projectid,
           particulars: "",
           condition: "",
           work: "",
-          qty: 1,
+          qty: defaultQty,
         },
       ],
     }));
@@ -469,6 +482,13 @@ export function DispatchPage() {
         ...updated[index],
         [field]: value,
       };
+      if (field === "plateid") {
+        const sp = subplates.find((p) => String(p.id) === String(value));
+        const avail = Number(sp?.jobwork_balance?.available_sm_qty ?? (sp?.jobwork_balance?.has_po ? 0 : (sp?.sqty || 1)));
+        if (avail > 0) {
+          updated[index].qty = Math.max(1, Math.min(updated[index].qty || 1, avail));
+        }
+      }
       return { ...prev, items: updated };
     });
   };
@@ -535,6 +555,19 @@ export function DispatchPage() {
       if (!item.qty || item.qty <= 0) {
         setFormError(`Row ${i + 1}: Quantity must be greater than zero.`);
         return;
+      }
+
+      if (item.itemType === "regular" && item.plateid) {
+        const sp = subplates.find((s) => String(s.id) === String(item.plateid));
+        const avail = Number(sp?.jobwork_balance?.available_sm_qty ?? (sp?.jobwork_balance?.has_po ? 0 : (sp?.sqty || 1)));
+        if (avail <= 0) {
+          setFormError(`Row ${i + 1} (${sp?.platename || "Subplate"}): 0 pcs physically available in Star Mould workshop. Material must be received via Purchase Inward first.`);
+          return;
+        }
+        if (item.qty > avail) {
+          setFormError(`Row ${i + 1} (${sp?.platename || "Subplate"}): Cannot dispatch ${item.qty} pcs. Only ${avail} pcs physically available in Star Mould workshop.`);
+          return;
+        }
       }
     }
 
@@ -1246,43 +1279,12 @@ export function DispatchPage() {
                     projects={availableProjects}
                     value={modalForm.projectid}
                     onChange={(val, project) => {
-                      lastLoadedMouldRef.current = null;
                       const newProjectId = project?.projectid || val;
-                      const targetId = project ? String(project.id) : null;
-
-                      const matchingPlates = subplates.filter(
-                        (sp) =>
-                          (targetId && String(sp.projectid) === targetId) ||
-                          (targetId && String((sp as any).mold_id) === targetId) ||
-                          String(sp.projectid) === newProjectId ||
-                          (sp as any).mold_code === newProjectId ||
-                          (sp.subprojectid && newProjectId && sp.subprojectid.includes(newProjectId))
-                      );
-
-                      const cust = customers.find((c) => c.id === Number(modalForm.customerid));
-                      const customerVal = cust?.id ? String(cust.id) : (modalForm.customerid || "");
-
-                      const autoItems = matchingPlates.map((plate) => ({
-                        itemType: "regular" as const,
-                        plateid: String(plate.id),
-                        custom_plate_name: "",
-                        customer: customerVal,
-                        project: newProjectId,
-                        particulars: "",
-                        condition: "",
-                        work: "",
-                        qty: plate.sqty || 1,
-                        sqty: plate.sqty || 1,
-                      }));
-
-                      if (matchingPlates.length > 0) {
-                        lastLoadedMouldRef.current = newProjectId;
-                      }
-
+                      lastLoadedMouldRef.current = null;
                       setModalForm((prev) => ({
                         ...prev,
                         projectid: newProjectId,
-                        items: autoItems,
+                        items: [],
                       }));
                     }}
                     disabled={!modalForm.customerid}
@@ -1355,141 +1357,204 @@ export function DispatchPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {modalForm.items.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3.5 sm:p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3 relative group hover:border-slate-300 transition"
-                    >
-                      {/* Item Top bar with index, type badge, and delete button */}
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/60">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center">
-                            {idx + 1}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                              item.itemType === "regular"
-                                ? "bg-indigo-50 text-indigo-700 border border-indigo-200/60"
-                                : "bg-violet-50 text-violet-700 border border-violet-200/60"
-                            }`}
-                          >
-                            {item.itemType === "regular" ? "Finished Subplate" : "Custom Mould Set"}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveItemRow(idx)}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                          title="Remove item"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline text-[11px] font-medium">Remove</span>
-                        </button>
-                      </div>
+                  {modalForm.items.map((item, idx) => {
+                    const linkedPlate = item.itemType === "regular" && item.plateid
+                      ? subplates.find((sp) => String(sp.id) === String(item.plateid))
+                      : null;
+                    const totalPlateQty = Number(linkedPlate?.sqty) || 1;
+                    const availInHouseQty = Number(
+                      linkedPlate?.jobwork_balance?.available_sm_qty ??
+                      (linkedPlate?.jobwork_balance?.has_po ? 0 : totalPlateQty)
+                    );
+                    const inwardQty = Number(linkedPlate?.jobwork_balance?.po_inward_qty ?? 0);
+                    const alreadyDispatchedQty = Number(linkedPlate?.jobwork_balance?.customer_dispatched_qty ?? 0);
 
-                      {/* Responsive Grid Layout for Item Fields */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-start">
-                        {/* Plate Selection or Custom Plate Name */}
-                        <div className="sm:col-span-2 lg:col-span-4">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            {item.itemType === "regular"
-                              ? "Subplate (Completed) *"
-                              : "Custom Mould Set Name *"}
-                          </label>
-                          {item.itemType === "regular" ? (
-                            <ERPSelect
-                              value={item.plateid}
-                              onChange={(val) =>
-                                handleItemChange(idx, "plateid", String(val))
-                              }
-                              options={subplateOptions}
-                              placeholder="Search or select subplate..."
-                              searchPlaceholder="Filter subplate..."
-                              showSearch={subplateOptions.length > 5}
-                              required
-                            />
-                          ) : (
+                    return (
+                      <div
+                        key={idx}
+                        className="p-3.5 sm:p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3 relative group hover:border-slate-300 transition"
+                      >
+                        {/* Item Top bar with index, type badge, live physical stock tag, and delete button */}
+                        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200/60">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold flex items-center justify-center">
+                              {idx + 1}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                item.itemType === "regular"
+                                  ? "bg-indigo-50 text-indigo-700 border border-indigo-200/60"
+                                  : "bg-violet-50 text-violet-700 border border-violet-200/60"
+                              }`}
+                            >
+                              {item.itemType === "regular" ? "Finished Subplate" : "Custom Mould Set"}
+                            </span>
+                          </div>
+
+                          {/* Live Physical Stock Breakdown Badge */}
+                          {item.itemType === "regular" && linkedPlate && (
+                            <div className="flex items-center gap-1.5 text-[11px] bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                              <span className="text-slate-500 font-medium">Order: <strong className="text-slate-800">{totalPlateQty}</strong></span>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-slate-500 font-medium">Inwarded: <strong className="text-slate-800">{inwardQty}</strong></span>
+                              {alreadyDispatchedQty > 0 && (
+                                <>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="text-slate-500 font-medium">Dispatched: <strong className="text-slate-800">{alreadyDispatchedQty}</strong></span>
+                                </>
+                              )}
+                              <span className="text-slate-300">•</span>
+                              <span
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                  availInHouseQty > 0
+                                    ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                                    : "bg-rose-50 text-rose-800 border-rose-200"
+                                }`}
+                              >
+                                {availInHouseQty > 0
+                                  ? `In-House Available: ${availInHouseQty} pcs max`
+                                  : "0 Available In-House"}
+                              </span>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveItemRow(idx)}
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Remove item"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline text-[11px] font-medium">Remove</span>
+                          </button>
+                        </div>
+
+                        {/* Responsive Grid Layout for Item Fields */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-start">
+                          {/* Plate Selection or Custom Plate Name */}
+                          <div className="sm:col-span-2 lg:col-span-4">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              {item.itemType === "regular"
+                                ? "Subplate (Completed) *"
+                                : "Custom Mould Set Name *"}
+                            </label>
+                            {item.itemType === "regular" ? (
+                              <ERPSelect
+                                value={item.plateid}
+                                onChange={(val) =>
+                                  handleItemChange(idx, "plateid", String(val))
+                                }
+                                options={subplateOptions}
+                                placeholder="Search or select subplate..."
+                                searchPlaceholder="Filter subplate..."
+                                showSearch={subplateOptions.length > 5}
+                                required
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                placeholder="e.g. 104x104 Square Hotpress Set"
+                                value={item.custom_plate_name}
+                                onChange={(e) =>
+                                  handleItemChange(idx, "custom_plate_name", e.target.value)
+                                }
+                                required
+                                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+                              />
+                            )}
+                          </div>
+
+                          {/* Condition */}
+                          <div className="lg:col-span-2">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Condition *
+                            </label>
                             <input
                               type="text"
-                              placeholder="e.g. 104x104 Square Hotpress Set"
-                              value={item.custom_plate_name}
+                              value={item.condition}
                               onChange={(e) =>
-                                handleItemChange(idx, "custom_plate_name", e.target.value)
+                                handleItemChange(idx, "condition", e.target.value)
                               }
-                              required
+                              placeholder="e.g. New"
                               className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
                             />
-                          )}
-                        </div>
+                          </div>
 
-                        {/* Condition */}
-                        <div className="lg:col-span-2">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Condition *
-                          </label>
-                          <input
-                            type="text"
-                            value={item.condition}
-                            onChange={(e) =>
-                              handleItemChange(idx, "condition", e.target.value)
-                            }
-                            placeholder="e.g. New"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
-                          />
-                        </div>
+                          {/* Nature of Work */}
+                          <div className="lg:col-span-2">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Nature of Work *
+                            </label>
+                            <input
+                              type="text"
+                              value={item.work}
+                              onChange={(e) =>
+                                handleItemChange(idx, "work", e.target.value)
+                              }
+                              placeholder="e.g. New made"
+                              className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
+                            />
+                          </div>
 
-                        {/* Nature of Work */}
-                        <div className="lg:col-span-2">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Nature of Work *
-                          </label>
-                          <input
-                            type="text"
-                            value={item.work}
-                            onChange={(e) =>
-                              handleItemChange(idx, "work", e.target.value)
-                            }
-                            placeholder="e.g. New made"
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition"
-                          />
-                        </div>
+                          {/* Specifications / Particulars */}
+                          <div className="lg:col-span-3">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                              Specifications / Particulars *
+                            </label>
+                            <textarea
+                              rows={2}
+                              placeholder="Enter tooling specs (Press Enter for new line)..."
+                              value={item.particulars}
+                              onChange={(e) =>
+                                handleItemChange(idx, "particulars", e.target.value)
+                              }
+                              required
+                              className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition resize-y min-h-[42px]"
+                            />
+                          </div>
 
-                        {/* Specifications / Particulars */}
-                        <div className="lg:col-span-3">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Specifications / Particulars *
-                          </label>
-                          <textarea
-                            rows={2}
-                            placeholder="Enter tooling specs (Press Enter for new line)..."
-                            value={item.particulars}
-                            onChange={(e) =>
-                              handleItemChange(idx, "particulars", e.target.value)
-                            }
-                            required
-                            className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition resize-y min-h-[42px]"
-                          />
-                        </div>
-
-                        {/* Quantity */}
-                        <div className="lg:col-span-1">
-                          <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                            Qty *
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.qty}
-                            onChange={(e) =>
-                              handleItemChange(idx, "qty", Math.max(1, Number(e.target.value) || 1))
-                            }
-                            required
-                            className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition text-center"
-                          />
+                          {/* Quantity (Bounded to Physical In-House Stock) */}
+                          <div className="lg:col-span-1">
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                              <span>Qty *</span>
+                              {item.itemType === "regular" && linkedPlate && (
+                                <span className="text-[10px] text-indigo-600 font-bold" title="Maximum In-House Stock">
+                                  /{availInHouseQty}
+                                </span>
+                              )}
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max={item.itemType === "regular" && linkedPlate && availInHouseQty > 0 ? availInHouseQty : undefined}
+                              value={item.qty}
+                              onChange={(e) => {
+                                const rawVal = Number(e.target.value) || 1;
+                                const maxLimit = item.itemType === "regular" && linkedPlate ? availInHouseQty : Infinity;
+                                const finalVal = maxLimit > 0
+                                  ? Math.min(Math.max(1, rawVal), maxLimit)
+                                  : Math.max(1, rawVal);
+                                handleItemChange(idx, "qty", finalVal);
+                              }}
+                              required
+                              className={`w-full px-2 py-2 bg-white border rounded-lg text-xs font-bold focus:outline-none focus:ring-2 transition text-center ${
+                                item.itemType === "regular" && linkedPlate && item.qty > availInHouseQty
+                                  ? "border-rose-300 text-rose-700 focus:ring-rose-500/20 focus:border-rose-500 bg-rose-50/40"
+                                  : "border-slate-200 text-slate-900 focus:ring-indigo-500/20 focus:border-indigo-500"
+                              }`}
+                            />
+                            {item.itemType === "regular" && linkedPlate && (
+                              <span className={`block text-[10px] text-center mt-0.5 truncate font-medium ${
+                                availInHouseQty <= 0 ? "text-rose-600 font-bold" : "text-slate-500"
+                              }`}>
+                                {availInHouseQty <= 0 ? "0 in-house" : `max ${availInHouseQty}`}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

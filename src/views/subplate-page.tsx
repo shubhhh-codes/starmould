@@ -44,6 +44,7 @@ import {
 import type { Subplate, ScanProject, User } from "@/lib/supabase/types";
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
+import { RollingCounter } from "@/components/ui/rolling-counter";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { Modal, Drawer } from "@/components/ui/dialog";
 import { MotionButton } from "@/components/ui/motion-button";
@@ -506,6 +507,10 @@ function SubplatePageContent() {
 	const isRestoring = useIsRestoring();
 	const queryClient = useQueryClient();
 	const { data, isLoading: queryLoading, error: fetchQueryError, refetch: refetchSubplates, isFetching } = useSubplatesQuery();
+	const [isMounted, setIsMounted] = useState(false);
+	useEffect(() => {
+		setIsMounted(true);
+	}, []);
 	// Modal State for Add / Edit Subplate (declared early for on-demand query gating)
 	const [isModalOpen, setIsModalOpen] = useState(false);
 	const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
@@ -830,7 +835,9 @@ function SubplatePageContent() {
 	const countCompletedStages = (sp: Subplate) => {
 		let count = 0;
 		if (sp.design_by) count++;
-		const isPartialPO = sp.po_status === "PARTIAL" || ((sp.ordered_qty ?? 0) > 0 && (sp.remaining_qty ?? 0) > 0);
+		const totalQty = Number(sp.sqty) || 1;
+		const ordQty = Number(sp.ordered_qty ?? sp.jobwork_balance?.po_ordered_qty ?? (sp as any).po_ordered_qty ?? 0);
+		const isPartialPO = sp.po_status === "PARTIAL" || (ordQty > 0 && ordQty < totalQty);
 		if (sp.order_by && !isPartialPO) count++;
 		if (sp.received_workby) count++;
 		if (sp.received_qcby) count++;
@@ -1470,12 +1477,13 @@ function SubplatePageContent() {
 					<div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
 						<button
 								type="button"
+								suppressHydrationWarning
 								onClick={() => refetchSubplates()}
-								disabled={isFetching}
+								disabled={isMounted && isFetching}
 								title="Refresh Subplates"
 								className="flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-xs text-xs sm:text-sm cursor-pointer disabled:opacity-50"
 							>
-								<RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 ${isFetching ? "animate-spin text-blue-600" : ""}`} />
+								<RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 ${isMounted && isFetching ? "animate-spin text-blue-600" : ""}`} />
 								<span className="hidden sm:inline">Refresh</span>
 							</button>
 						{canExportCSV && (
@@ -3761,43 +3769,26 @@ function SubplatePageContent() {
 									/>
 								</div>
 
-								{/* Quantity with Aligned Stepper (3 cols) */}
+								{/* Quantity with Bencho Rolling Counter (3 cols) */}
 								<div className="sm:col-span-3">
 									<label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
 										<Package className="w-3.5 h-3.5 text-indigo-600" />
 										<span>Quantity</span>
 									</label>
-									<div className="h-10 flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-600">
-										<button
-											type="button"
-											tabIndex={-1}
-											onClick={() => handleStepQty(-1)}
-											disabled={Number(modalForm.sqty || 1) <= 1}
-											className="h-full px-2.5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition cursor-pointer"
-											title="Decrease Quantity"
-										>
-											<Minus className="w-3.5 h-3.5" />
-										</button>
-										<input
-											type="text"
-											inputMode="numeric"
-											required
-											placeholder="1"
-											value={modalForm.sqty}
-											onKeyDown={blockInvalidIntegerKeys}
-											onChange={handleQtyChange}
-											className="h-full w-full text-center font-bold text-xs text-slate-900 focus:outline-none bg-transparent"
-										/>
-										<button
-											type="button"
-											tabIndex={-1}
-											onClick={() => handleStepQty(1)}
-											className="h-full px-2.5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
-											title="Increase Quantity"
-										>
-											<Plus className="w-3.5 h-3.5" />
-										</button>
-									</div>
+									<RollingCounter
+										size="sm"
+										variant="input"
+										min={1}
+										max={9999}
+										value={Math.max(1, parseInt(modalForm.sqty || "1", 10) || 1)}
+										onChange={(val) => {
+											const next = Math.max(1, val);
+											const updated = { ...modalForm, sqty: String(next) };
+											updated.weight = recalculateWeight(updated);
+											setModalForm(updated);
+										}}
+										fullWidth
+									/>
 								</div>
 							</div>
 

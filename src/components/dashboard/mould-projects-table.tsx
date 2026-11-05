@@ -64,6 +64,7 @@ import type { ScanProject, Subplate, User } from "@/lib/supabase/types";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal, Drawer, ConfirmDialog } from "@/components/ui/dialog";
 import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
+import { RollingCounter } from "@/components/ui/rolling-counter";
 import { MotionButton } from "@/components/ui/motion-button";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
 import { CreatePurchaseOrderModal } from "@/components/purchase/create-purchase-order-modal";
@@ -790,7 +791,7 @@ export function MouldProjectsTable({
                 <span>Pending Challans & Linked Records Detected</span>
               </div>
               <p className="text-[11.5px] text-amber-800 mb-2">
-                In selected moulds ke sath active GST challans ya delivery dispatches linked hain. Agar aap delete karenge to ye saare pending records bhi <strong>poore cancel / delete ho jayenge</strong>:
+                Active Job Work Challans, Purchase Orders, or Delivery Dispatches are linked to these moulds. Deleting will permanently remove all linked records:
               </p>
               <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                 {dependencies
@@ -826,7 +827,7 @@ export function MouldProjectsTable({
               </div>
             </div>
             <p className="text-slate-600 text-[11px] leading-relaxed">
-              ⚠️ <strong>Atomic All-or-Nothing Deletion:</strong> Saare selected moulds aur unke linked records ek saath atomic database transaction mein delete honge. Koi bhi adha-adhura record database mein nahi bachega.
+              ⚠️ <strong>Atomic Deletion:</strong> All selected moulds and their linked records will be deleted together in a single atomic transaction. No orphaned records will remain in the database.
             </p>
           </div>
         ) : (
@@ -2430,43 +2431,26 @@ export function MouldProjectsTable({
                 />
               </div>
 
-              {/* Quantity with Aligned Stepper (3 cols) */}
+              {/* Quantity with Bencho Rolling Counter (3 cols) */}
               <div className="sm:col-span-3">
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                   <Package className="w-3.5 h-3.5 text-indigo-600" />
                   <span>Quantity</span>
                 </label>
-                <div className="h-10 flex items-center rounded-xl border border-slate-200 bg-white overflow-hidden shadow-xs focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-600">
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() => handleStepPlateQty(-1)}
-                    disabled={Number(plateForm.sqty || 1) <= 1}
-                    className="h-full px-2.5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition cursor-pointer"
-                    title="Decrease Quantity"
-                  >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    required
-                    placeholder="1"
-                    value={plateForm.sqty}
-                    onKeyDown={blockInvalidIntegerKeys}
-                    onChange={handlePlateQtyChange}
-                    className="h-full w-full text-center font-bold text-xs text-slate-900 focus:outline-none bg-transparent"
-                  />
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() => handleStepPlateQty(1)}
-                    className="h-full px-2.5 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
-                    title="Increase Quantity"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                <RollingCounter
+                  size="sm"
+                  variant="input"
+                  min={1}
+                  max={9999}
+                  value={Math.max(1, parseInt(plateForm.sqty || "1", 10) || 1)}
+                  onChange={(val) => {
+                    const next = Math.max(1, val);
+                    const updated = { ...plateForm, sqty: String(next) };
+                    updated.weight = recalculatePlateWeight(updated);
+                    setPlateForm(updated);
+                  }}
+                  fullWidth
+                />
               </div>
             </div>
 

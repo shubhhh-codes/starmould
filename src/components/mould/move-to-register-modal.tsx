@@ -15,6 +15,7 @@ import {
   Lock,
 } from "lucide-react";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
+import { useSubplatesByProjectQuery } from "@/lib/query/hooks";
 
 interface MoveToRegisterModalProps {
   project: ScanProject | null;
@@ -44,79 +45,108 @@ export function MoveToRegisterModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+    const lookupId = project ? (project.projectid || String(project.id)) : undefined;
+  const { data: liveSubplates } = useSubplatesByProjectQuery(isOpen ? lookupId : undefined, {
+    enabled: isOpen && !!lookupId,
+  });
+
   // Compute plates and dispatch status + strict in-progress work validation
   const { subplates, dispatchedPlates, remainingPlates, neverPurchasedPlates, blockingPlates } = useMemo(() => {
     if (!project) return { subplates: [], dispatchedPlates: [], remainingPlates: [], neverPurchasedPlates: [], blockingPlates: [] };
 
-    const plates = project.subplates || [];
+    const plates = (liveSubplates && liveSubplates.length > 0) ? liveSubplates : (project.subplates || []);
     const dispatched: Subplate[] = [];
     const remaining: Subplate[] = [];
     const neverPurchased: Subplate[] = [];
     const blocking: Array<{ plate: Subplate; reason: string }> = [];
 
     plates.forEach((p: Subplate) => {
-      const isDispatched =
-        p.location === "Customer" ||
-        p.dispatch_status === "dispatched" ||
-        (p as any).isDispatched === true;
+      const totalQty = Number(p.sqty) || 1;
+      const poOrderedQty = Number(p.jobwork_balance?.po_ordered_qty ?? (p as any).po_ordered_qty ?? 0);
+      const poInwardQty = Number(p.jobwork_balance?.po_inward_qty ?? (p as any).po_inward_qty ?? 0);
+      const pendingInwardQty = Number(
+        p.jobwork_balance?.pending_po_inward_qty ??
+        (poOrderedQty > 0 ? Math.max(0, poOrderedQty - poInwardQty) : 0)
+      );
+      const dispatchedQty = Number(p.jobwork_balance?.customer_dispatched_qty ?? (p as any).customer_dispatched_qty ?? 0);
 
-      const isPacked = Number(p.packing_workby) > 0;
+      const hasPO = Boolean(
+        poOrderedQty > 0 ||
+        (p.order_by && Number(p.order_by) > 0) ||
+        (p as any).has_active_po ||
+        (p as any).has_po ||
+        (p as any).po_srno
+      );
 
-      if (isDispatched || isPacked) {
+      // 1. HARD BLOCK: Purchase Order is active and material is pending inward from supplier
+      if (hasPO && pendingInwardQty > 0) {
+        blocking.push({
+          plate: p,
+          reason: `Purchase Order is active, but material is pending inward (${pendingInwardQty} of ${poOrderedQty} pcs pending). Please record Material Inward first.`,
+        });
+        return;
+      }
+
+      // 2. HARD BLOCK: Partial Dispatch (Some pieces dispatched, but remaining pieces still incomplete)
+      if (dispatchedQty > 0 && dispatchedQty < totalQty) {
+        blocking.push({
+          plate: p,
+          reason: `Partial dispatch only (${dispatchedQty} of ${totalQty} pcs dispatched). Remaining ${totalQty - dispatchedQty} pcs must be inwarded, completed, and dispatched before moving to Project Register.`,
+        });
+        return;
+      }
+
+      // 3. Fully completed & dispatched plate
+      const isFullyDispatched =
+        (dispatchedQty >= totalQty && totalQty > 0) ||
+        ((p.location === "Customer" || p.dispatch_status === "dispatched") && pendingInwardQty === 0 && (dispatchedQty === 0 || dispatchedQty >= totalQty));
+
+      const isFullyPacked = Number(p.packing_workby) > 0 && isFullyDispatched;
+
+      if (isFullyDispatched || isFullyPacked) {
         dispatched.push(p);
         return;
       }
 
       remaining.push(p);
 
-      const hasPO = Boolean(
-        (p.order_by && Number(p.order_by) > 0) ||
-        (p as any).has_active_po ||
-        (p as any).has_po ||
-        (p as any).po_srno ||
-        ((p as any).ordered_qty && Number((p as any).ordered_qty) > 0)
-      );
-
-      const hasInward = Boolean(
-        (p.received_workby && Number(p.received_workby) > 0) ||
-        ((p as any).inward_qty && Number((p as any).inward_qty) > 0) ||
-        (p as any).inward_status === "FULLY_INWARDED"
-      );
-
-      const hasStartedProduction = Boolean(
-        hasInward ||
+      // Shop floor work check: Stage 4 (Programming Work) to Stage 9 (Packing)
+      const hasShopFloorStarted = Boolean(
         (p.received_qcby && Number(p.received_qcby) > 0) ||
         (p.vmc_workby && Number(p.vmc_workby) > 0) ||
         (p.vmc_qcby && Number(p.vmc_qcby) > 0) ||
         (p.drilltap_workby && Number(p.drilltap_workby) > 0) ||
-        (p.final_qcby && Number(p.final_qcby) > 0)
+        (p.final_qcby && Number(p.final_qcby) > 0) ||
+        (p.packing_workby && Number(p.packing_workby) > 0)
       );
 
-      if (!hasPO && !hasStartedProduction) {
-        // Plate was never purchased and no work was started: can be closed/dropped cleanly
+      if (!hasPO && !hasShopFloorStarted) {
+        // Plate was never purchased and no shop-floor work was started: can be closed cleanly
         neverPurchased.push(p);
         return;
       }
 
-      if (hasPO && !hasInward) {
+      if (hasPO && poInwardQty === 0) {
         blocking.push({
           plate: p,
-          reason: "Purchase PO bana hua hai lekin Inward nahi aaya hai. Pehle Inward receive karein.",
+          reason: "Purchase Order has been issued, but material has not been inwarded yet. Please record Material Inward first.",
         });
         return;
       }
 
-      if (hasStartedProduction && !isPacked && !isDispatched) {
+      // If shop floor work (Stage 4 to Stage 9) has started, HARD BLOCK until full packing and dispatch
+      if (hasShopFloorStarted && !isFullyDispatched) {
         let stageName = "Manufacturing";
-        if (p.final_qcby && Number(p.final_qcby) > 0) stageName = "Final QC Done (Packing Pending)";
+        if (p.packing_workby && Number(p.packing_workby) > 0) stageName = "Packing Done (Dispatch Pending)";
+        else if (p.final_qcby && Number(p.final_qcby) > 0) stageName = "Final QC Done (Packing Pending)";
         else if (p.drilltap_workby && Number(p.drilltap_workby) > 0) stageName = "Drill & Tap Done";
+        else if (p.vmc_qcby && Number(p.vmc_qcby) > 0) stageName = "VMC QC Done";
         else if (p.vmc_workby && Number(p.vmc_workby) > 0) stageName = "VMC Machining Done";
-        else if (p.received_qcby && Number(p.received_qcby) > 0) stageName = "Programming Done";
-        else if (hasInward) stageName = "Material Inwarded (Work Pending)";
+        else if (p.received_qcby && Number(p.received_qcby) > 0) stageName = "Programming Work Started";
 
         blocking.push({
           plate: p,
-          reason: `Kaam in-progress hai (${stageName}). Is plate ko Final Packing ya Delivery Challan tak complete karein.`,
+          reason: `Shop floor work has already started (${stageName}). This mould cannot be moved to Project Register until all stages through Final Packing and Customer Delivery Challan are 100% completed.`,
         });
         return;
       }
@@ -129,12 +159,16 @@ export function MoveToRegisterModal({
       neverPurchasedPlates: neverPurchased,
       blockingPlates: blocking,
     };
-  }, [project]);
+  }, [project, liveSubplates]);
 
   const hasBlockingPlates = blockingPlates.length > 0;
   const isPartialDispatch = dispatchedPlates.length > 0 && remainingPlates.length > 0;
   const isNoDispatch = dispatchedPlates.length === 0 && remainingPlates.length > 0;
-  const isFullyDispatched = subplates.length > 0 && remainingPlates.length === 0;
+  const isFullyDispatched =
+    !hasBlockingPlates &&
+    subplates.length > 0 &&
+    remainingPlates.length === 0 &&
+    blockingPlates.length === 0;
 
   const handleDirectClose = async () => {
     if (!project) return;
@@ -221,7 +255,7 @@ export function MoveToRegisterModal({
                 <span>Move to Project Register Blocked</span>
               </div>
               <p className="text-rose-700 leading-relaxed text-[11px]">
-                Kuch subplates par kaam in-progress hai (jaise PO inward pending ya machining/programming). Mould ko Project Register mein move karne se pehle inka kaam Final Packing / Dispatch tak complete karein:
+                Some subplates have work in progress (such as pending PO inward, programming, or machining). Please complete all remaining stages through Final Packing or Delivery Challan before moving this mould to the Project Register:
               </p>
               <div className="border border-rose-200 rounded-lg overflow-hidden bg-white divide-y divide-rose-100 max-h-40 overflow-y-auto">
                 {blockingPlates.map(({ plate, reason }) => (
@@ -245,13 +279,13 @@ export function MoveToRegisterModal({
                 <span>{neverPurchasedPlates.length} Subplate(s) Without Purchase PO</span>
               </div>
               <p className="text-blue-800 leading-relaxed text-[11px]">
-                In subplates ka raw material purchase PO nahi bana tha. Register mein move karne par ye mould archive ho jayega aur pending purchase list se hat jayega.
+                No raw material Purchase Order was created for these subplates. Moving this mould to the register will archive it and remove it from active backlog lists.
               </p>
             </div>
           )}
 
           {/* Fully Dispatched Scenario */}
-          {isFullyDispatched && (
+          {!hasBlockingPlates && isFullyDispatched && (
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs space-y-2">
               <div className="flex items-center gap-2 font-bold text-sm text-emerald-900">
                 <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />

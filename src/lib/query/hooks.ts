@@ -1002,11 +1002,15 @@ export function useDeleteProjectMutation() {
   const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) =>
-      fetchJson<any>(`/api/scanning?id=${id}`, {
+    mutationFn: (arg: number | { id: number; force?: boolean }) => {
+      const id = typeof arg === "number" ? arg : arg.id;
+      const force = typeof arg === "number" ? false : Boolean(arg.force);
+      return fetchJson<any>(`/api/scanning?id=${id}${force ? "&force=true" : ""}`, {
         method: "DELETE",
-      }, principalSnapshot),
-    onMutate: async (deletedId) => {
+      }, principalSnapshot);
+    },
+    onMutate: async (arg) => {
+      const deletedId = typeof arg === "number" ? arg : arg.id;
       await queryClient.cancelQueries({ queryKey: queryKeys.projects.all() });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.projects.all() });
 
@@ -1032,10 +1036,14 @@ export function useDeleteProjectMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       broadcastQueryInvalidation(queryKeys.projects.all());
       broadcastQueryInvalidation(queryKeys.subplates.all());
       broadcastQueryInvalidation(queryKeys.purchases.all());
+      broadcastQueryInvalidation(queryKeys.challans.all());
+      broadcastQueryInvalidation(queryKeys.dispatch.all());
       broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });

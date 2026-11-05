@@ -776,7 +776,12 @@ export async function PUT(req: NextRequest) {
       "platename", "plate_category", "category", "subprojectid", "length", "width", "height",
       "shape", "material", "sqty", "unit", "weight", "remarks", "process_remarks", "location", "projectid",
       "design_by", "order_by", "received_workby", "received_qcby", "vmc_workby", "vmc_qcby",
-      "drilltap_workby", "final_qcby", "packing_workby", "field", "value",
+      "drilltap_workby", "final_qcby", "packing_workby",
+      "design_at", "order_at", "received_work_at", "received_qc_at", "vmc_work_at", "vmc_qc_at",
+      "drilltap_at", "final_qc_at", "packing_at",
+      "design_by_name", "order_by_name", "received_workby_name", "received_qcby_name",
+      "vmc_workby_name", "vmc_qcby_name", "drilltap_workby_name", "final_qcby_name", "packing_workby_name",
+      "field", "value",
     ]);
     const callerUpdates = updates || body;
     if (Object.keys(callerUpdates).some((key) => !["id", "updates"].includes(key) && !writableFields.has(key)) ||

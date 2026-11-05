@@ -315,6 +315,7 @@ export function DashboardPage() {
         designCompleted: Number(pipeline.designCompleted ?? 0),
         orderPending: Number(pipeline.orderPending ?? pipeline.orderbytotal ?? 0),
         orderCompleted: Number(pipeline.orderCompleted ?? 0),
+        orderPartial: Number(pipeline.orderPartial ?? 0),
         programmingPending: Number(pipeline.programmingPending ?? pipeline.receivedqcby ?? 0),
         programmingCompleted: Number(pipeline.programmingCompleted ?? 0),
         vmcPending: Number(pipeline.vmcPending ?? pipeline.vmcworkby ?? 0),
@@ -347,6 +348,7 @@ export function DashboardPage() {
       designCompleted: 0,
       orderPending: 0,
       orderCompleted: 0,
+      orderPartial: 0,
       programmingPending: 0,
       programmingCompleted: 0,
       vmcPending: 0,
@@ -387,17 +389,27 @@ export function DashboardPage() {
     if (!activeStage) return activeProjects;
 
     return activeProjects.filter((p) => {
-      const plates = (p.subplates || []).filter(
-        (sp) =>
+      const plates = (p.subplates || []).filter((sp) => {
+        const total = Number(sp.sqty) || 1;
+        const dispatched = Number(sp.jobwork_balance?.customer_dispatched_qty ?? 0);
+        const pendingInw = Number(sp.jobwork_balance?.pending_po_inward_qty ?? 0);
+        // If material is still pending inward from supplier or only partially dispatched, keep in active pipeline
+        if (pendingInw > 0 || (dispatched > 0 && dispatched < total)) return true;
+        return (
           sp.location !== "Customer" &&
           sp.dispatch_status !== "dispatched" &&
           sp.dispatch_status !== "closed_without_challan" &&
           (sp as any).isDispatched !== true
-      );
+        );
+      });
       if (activeStage === "design") {
         return plates.some((sp) => !sp.design_by || Number(sp.design_by) === 0);
       } else if (activeStage === "order") {
-        return plates.some((sp) => !sp.order_by || Number(sp.order_by) === 0);
+        return plates.some((sp) => {
+          const ord = Number(sp.ordered_qty ?? sp.jobwork_balance?.po_ordered_qty ?? (sp as any).po_ordered_qty ?? 0);
+          const total = Number(sp.sqty) || 1;
+          return !sp.order_by || Number(sp.order_by) === 0 || ord < total;
+        });
       } else if (activeStage === "programming") {
         return plates.some(
           (sp) =>

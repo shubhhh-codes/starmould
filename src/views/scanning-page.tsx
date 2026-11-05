@@ -29,7 +29,8 @@ import type { ScanProject, Customer, User, Subplate } from "@/lib/supabase/types
 import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
-import { Modal, Drawer } from "@/components/ui/dialog";
+import { Modal, Drawer, ConfirmDialog } from "@/components/ui/dialog";
+import { appStore } from "@/lib/state/store";
 import { MotionButton } from "@/components/ui/motion-button";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
@@ -235,13 +236,99 @@ function ScanningPageContent() {
     userId: number
   ) => {
     if (!isAdmin && userId !== 0 && currentUser?.id && Number(userId) !== Number(currentUser.id)) {
-      alert("Permission denied: You can only assign tasks to yourself.");
+      appStore.addToast({
+        type: "error",
+        message: "Permission denied: You can only assign tasks to yourself.",
+      });
       return;
     }
     try {
       await updateProjectMutation.mutateAsync({ id, field, value: userId });
+      appStore.addToast({
+        type: "success",
+        message: "Staff assigned successfully.",
+      });
     } catch (err: any) {
-      alert("Error: " + err.message);
+      appStore.addToast({
+        type: "error",
+        message: err?.message || "Failed to assign staff",
+      });
+    }
+  };
+
+  // Enterprise Custom Delete Modal State & Handlers
+  const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{
+    isOpen: boolean;
+    project: ScanProject | null;
+    isLoading: boolean;
+    hasDeps: boolean;
+    dependencies: any[];
+  }>({
+    isOpen: false,
+    project: null,
+    isLoading: false,
+    hasDeps: false,
+    dependencies: [],
+  });
+
+  const handleRequestDeleteProject = async (project: ScanProject) => {
+    setDeleteConfirmDialog({
+      isOpen: true,
+      project,
+      isLoading: true,
+      hasDeps: false,
+      dependencies: [],
+    });
+
+    try {
+      const res = await fetch(`/api/scanning?ids=${project.id}&checkOnly=true`);
+      const checkData = await res.json().catch(() => ({}));
+      const hasDeps = Boolean(checkData?.hasDependencies);
+      const dependencies = checkData?.dependencies || [];
+
+      setDeleteConfirmDialog({
+        isOpen: true,
+        project,
+        isLoading: false,
+        hasDeps,
+        dependencies,
+      });
+    } catch {
+      setDeleteConfirmDialog({
+        isOpen: true,
+        project,
+        isLoading: false,
+        hasDeps: false,
+        dependencies: [],
+      });
+    }
+  };
+
+  const handleConfirmDeleteProject = async () => {
+    if (!deleteConfirmDialog.project) return;
+    const project = deleteConfirmDialog.project;
+    setDeleteConfirmDialog((prev) => ({ ...prev, isLoading: true }));
+
+    try {
+      const isForce = deleteConfirmDialog.hasDeps;
+      await deleteProjectMutation.mutateAsync({ id: Number(project.id), force: isForce });
+      appStore.addToast({
+        type: "success",
+        message: `Mould project "${project.projectid || `#${project.id}`}" deleted successfully.`,
+      });
+      setDeleteConfirmDialog({
+        isOpen: false,
+        project: null,
+        isLoading: false,
+        hasDeps: false,
+        dependencies: [],
+      });
+    } catch (err: any) {
+      setDeleteConfirmDialog((prev) => ({ ...prev, isLoading: false }));
+      appStore.addToast({
+        type: "error",
+        message: err?.message || "Failed to delete mould project",
+      });
     }
   };
 
@@ -563,14 +650,7 @@ function ScanningPageContent() {
                                 {canDeleteMould && (
                                   <button
                                     type="button"
-                                    onClick={async () => {
-                                      if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                                      try {
-                                        await deleteProjectMutation.mutateAsync(row.id);
-                                      } catch (e: any) {
-                                        alert(e?.message || "Error deleting mould");
-                                      }
-                                    }}
+                                    onClick={() => handleRequestDeleteProject(row)}
                                     className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                                     title="Delete mould"
                                   >
@@ -690,14 +770,7 @@ function ScanningPageContent() {
                       {canDeleteMould && (
                         <button
                           type="button"
-                          onClick={async () => {
-                            if (!confirm(`Delete mould project "${row.projectid || `#${row.id}`}"? This will soft-delete the project.`)) return;
-                            try {
-                              await deleteProjectMutation.mutateAsync(row.id);
-                            } catch (e: any) {
-                              alert(e?.message || "Error deleting mould");
-                            }
-                          }}
+                          onClick={() => handleRequestDeleteProject(row)}
                           className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
                           title="Delete mould"
                         >
@@ -899,6 +972,103 @@ function ScanningPageContent() {
           onSuccess={() => {
             projectsQuery.refetch();
           }}
+        />
+
+        {/* Custom ERP Mould Deletion & Cascade Confirmation Modal */}
+        <ConfirmDialog
+          isOpen={deleteConfirmDialog.isOpen}
+          onClose={() =>
+            setDeleteConfirmDialog({
+              isOpen: false,
+              project: null,
+              isLoading: false,
+              hasDeps: false,
+              dependencies: [],
+            })
+          }
+          onConfirm={handleConfirmDeleteProject}
+          title={
+            deleteConfirmDialog.hasDeps
+              ? "Pending Linked Records Detected"
+              : "Delete Mould Project?"
+          }
+          description={
+            deleteConfirmDialog.isLoading ? (
+              <div className="flex items-center gap-2 py-4 text-xs text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                <span>Checking active challans, dispatches, and purchase orders...</span>
+              </div>
+            ) : deleteConfirmDialog.hasDeps ? (
+              <div className="space-y-2.5 text-xs">
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 leading-relaxed shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800 text-[13px] mb-1">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <span>Active Linked Records Detected</span>
+                  </div>
+                  <p className="text-[11.5px] text-amber-800 mb-2">
+                    Cannot delete without force because active GST challans, delivery dispatches, or purchase orders are linked to this mould:
+                  </p>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                    {deleteConfirmDialog.dependencies
+                      .filter((d: any) => d.has_dependencies)
+                      .map((d: any) => (
+                        <div key={d.id} className="p-2 rounded-lg bg-white/90 border border-amber-200/90 text-[11px] shadow-2xs">
+                          <div className="font-semibold text-slate-900 flex items-center justify-between">
+                            <span className="font-mono">{d.projectid || `#${d.id}`}</span>
+                            <span className="text-slate-500 font-normal">{d.subplate_count || 0} subplates</span>
+                          </div>
+                          <div className="mt-1 space-y-0.5 text-slate-700">
+                            {d.active_challans?.map((c: any) => (
+                              <div key={c.id} className="flex items-center gap-1 text-[11px] text-amber-900 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                <span>Job Work Challan: <strong>#{c.challanno}</strong></span>
+                              </div>
+                            ))}
+                            {d.active_dispatches?.map((dp: any) => (
+                              <div key={dp.id} className="flex items-center gap-1 text-[11px] text-blue-900 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                                <span>Delivery Dispatch: <strong>#{dp.challanno}</strong></span>
+                              </div>
+                            ))}
+                            {d.active_pos?.map((po: any) => (
+                              <div key={po.id} className="flex items-center gap-1 text-[11px] text-emerald-900 font-medium">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                <span>Purchase Order: <strong>#{po.srno}</strong></span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+                <p className="text-slate-600 text-[11px] leading-relaxed">
+                  ⚠️ <strong>Cascade Deletion:</strong> Clicking Force Delete will permanently delete this mould project and cancel/delete all linked records. This action cannot be undone.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 text-xs">
+                <p className="text-slate-700">
+                  Are you sure you want to permanently delete mould project{" "}
+                  <strong className="text-slate-900 font-mono">
+                    {deleteConfirmDialog.project?.projectid || `#${deleteConfirmDialog.project?.id}`}
+                  </strong>?
+                </p>
+                <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] leading-relaxed">
+                  <span className="font-semibold">⚠️ Cascade Deletion:</span> All associated child subplates and operator worklogs will be permanently deleted from the database. This action cannot be undone.
+                </div>
+              </div>
+            )
+          }
+          confirmLabel={
+            deleteConfirmDialog.isLoading
+              ? "Checking..."
+              : deleteConfirmDialog.hasDeps
+                ? "Force Delete & Cancel Linked Records"
+                : "Delete Mould"
+          }
+          cancelLabel="Cancel"
+          variant="danger"
+          isLoading={deleteConfirmDialog.isLoading}
         />
       </div>
     </AppLayout>

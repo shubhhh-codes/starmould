@@ -225,10 +225,11 @@ export async function GET(req: NextRequest) {
             const total = Number(sp.sqty) || 1;
             if (ord >= total) {
               completed++;
-            } else if (ord > 0) {
-              partial++;
             } else {
               pending++;
+              if (ord > 0) {
+                partial++;
+              }
             }
           }
 
