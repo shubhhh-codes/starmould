@@ -141,7 +141,7 @@ export function DispatchPage() {
   const lastLoadedMouldRef = useRef<string | null>(null);
 
   const searchParams = useSearchParams();
-  const urlProjectId = searchParams.get("projectid");
+  const urlProjectId = searchParams.get("projectid") || searchParams.get("mould");
 
   useEffect(() => {
     if (urlProjectId && scans.length > 0 && !isModalOpen) {

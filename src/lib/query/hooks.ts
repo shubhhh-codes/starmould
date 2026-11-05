@@ -1865,7 +1865,13 @@ export function useCreateDispatchMutation() {
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.dispatch.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }
@@ -1881,7 +1887,13 @@ export function useDeleteDispatchMutation() {
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
       queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+      broadcastQueryInvalidation(queryKeys.dispatch.all());
+      broadcastQueryInvalidation(queryKeys.subplates.all());
+      broadcastQueryInvalidation(queryKeys.projects.all());
+      broadcastQueryInvalidation(queryKeys.dashboard.counts());
     },
   });
 }

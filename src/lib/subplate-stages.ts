@@ -17,7 +17,7 @@ export const STAGE_DEFINITIONS = [
   { key: "vmc_qcby", atKey: "vmc_qc_at", nameKey: "vmc_qcby_name", short: "VQC", label: "6. VMC QC", assignTitle: "Assign to VMC QC", step: 6, color: "purple", roleId: 7, roleName: "Quality Checking (QC)" },
   { key: "drilltap_workby", atKey: "drilltap_at", nameKey: "drilltap_workby_name", short: "D&T", label: "7. Drill & Tap", assignTitle: "Assign to Drill & Tap", step: 7, color: "violet", roleId: 4, roleName: "Worker" },
   { key: "final_qcby", atKey: "final_qc_at", nameKey: "final_qcby_name", short: "FQC", label: "8. Final QC", assignTitle: "Assign to Final QC", step: 8, color: "cyan", roleId: 7, roleName: "Quality Checking (QC)" },
-  { key: "packing_workby", atKey: "packing_at", nameKey: "packing_workby_name", short: "PAK", label: "9. Packing", assignTitle: "Assign to Packing", step: 9, color: "rose", roleId: 9, roleName: "Dispatch" },
+  { key: "packing_workby", atKey: "packing_at", nameKey: "packing_workby_name", short: "PAK", label: "9. Packing & Dispatch", assignTitle: "Packing & Dispatch", step: 9, color: "rose", roleId: 9, roleName: "Dispatch" },
 ] as const;
 
 export type StageDefinition = (typeof STAGE_DEFINITIONS)[number];

@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
             .in("plateid", plateIds),
           supabaseAdmin
             .from("dispatch_items")
-            .select("plateid, qty, dispatch:dispatchid(id, challanno, date, created_by, created_at, status)")
+            .select("plateid, qty, dispatch:dispatchid(id, challanno, chdate, created_by, created_at, status)")
             .in("plateid", plateIds),
         ]);
 
@@ -160,7 +160,7 @@ export async function GET(req: NextRequest) {
                 dispatch_id: dData.id,
                 challanno: dData.challanno || `SMDC#${dData.id}`,
                 qty: q,
-                date: dData.date || null,
+                date: dData.chdate || null,
                 created_by: dData.created_by || null,
                 created_at: dData.created_at || null,
                 print_url: `/print/dispatch/${createSecurePrintToken({ type: "dispatch", id: dData.id })}`,
@@ -196,9 +196,16 @@ export async function GET(req: NextRequest) {
 
         const linkedDispatches = plateDispatchesMap.get(p.id) || [];
         const latestDispatch = linkedDispatches[linkedDispatches.length - 1] || null;
+        const dispatchedQty = linkedDispatches.reduce((acc: number, d: any) => acc + (Number(d.qty) || 0), 0);
+        const remainingDispatchQty = Math.max(0, total - dispatchedQty);
+        const isFullyDispatched = dispatchedQty >= total && total > 0;
+        const isPartialDispatch = dispatchedQty > 0 && dispatchedQty < total;
+        const computedDispatchStatus: 'none' | 'partial' | 'dispatched' =
+          isFullyDispatched ? 'dispatched' : isPartialDispatch ? 'partial' : 'none';
         const isDispatched = Boolean(
           p.location === "Customer" ||
           (p as any).dispatch_status === "dispatched" ||
+          isFullyDispatched ||
           linkedDispatches.length > 0
         );
 
@@ -216,6 +223,11 @@ export async function GET(req: NextRequest) {
           inward_status: inwardStatus,
           linked_inwards: linkedInwards,
           linked_dispatches: linkedDispatches,
+          dispatched_qty: dispatchedQty,
+          remaining_dispatch_qty: remainingDispatchQty,
+          dispatch_status: (p as any).dispatch_status || computedDispatchStatus,
+          is_partial_dispatch: isPartialDispatch,
+          is_fully_dispatched: isFullyDispatched,
           dispatch_challanno: latestDispatch?.challanno || null,
           dispatch_id: latestDispatch?.dispatch_id || null,
           is_dispatched: isDispatched,
@@ -370,7 +382,7 @@ export async function GET(req: NextRequest) {
             .in("plateid", plateIds),
           supabaseAdmin
             .from("dispatch_items")
-            .select("plateid, qty, dispatch:dispatchid(id, challanno, date, created_by, created_at, status)")
+            .select("plateid, qty, dispatch:dispatchid(id, challanno, chdate, created_by, created_at, status)")
             .in("plateid", plateIds),
         ]);
 
@@ -425,7 +437,7 @@ export async function GET(req: NextRequest) {
                 dispatch_id: dData.id,
                 challanno: dData.challanno || `SMDC#${dData.id}`,
                 qty: q,
-                date: dData.date || null,
+                date: dData.chdate || null,
                 created_by: dData.created_by || null,
                 created_at: dData.created_at || null,
                 print_url: `/print/dispatch/${createSecurePrintToken({ type: "dispatch", id: dData.id })}`,
@@ -471,9 +483,16 @@ export async function GET(req: NextRequest) {
 
         const linkedDispatches = plateDispatchesMap.get(sp.id) || [];
         const latestDispatch = linkedDispatches[linkedDispatches.length - 1] || null;
+        const dispatchedQty = linkedDispatches.reduce((acc: number, d: any) => acc + (Number(d.qty) || 0), 0);
+        const remainingDispatchQty = Math.max(0, total - dispatchedQty);
+        const isFullyDispatched = dispatchedQty >= total && total > 0;
+        const isPartialDispatch = dispatchedQty > 0 && dispatchedQty < total;
+        const computedDispatchStatus: 'none' | 'partial' | 'dispatched' =
+          isFullyDispatched ? 'dispatched' : isPartialDispatch ? 'partial' : 'none';
         const isDispatched = Boolean(
           sp.location === "Customer" ||
           sp.dispatch_status === "dispatched" ||
+          isFullyDispatched ||
           linkedDispatches.length > 0
         );
 
@@ -491,6 +510,11 @@ export async function GET(req: NextRequest) {
           inward_status: inwardStatus,
           linked_inwards: linkedInwards,
           linked_dispatches: linkedDispatches,
+          dispatched_qty: dispatchedQty,
+          remaining_dispatch_qty: remainingDispatchQty,
+          dispatch_status: (sp as any).dispatch_status || computedDispatchStatus,
+          is_partial_dispatch: isPartialDispatch,
+          is_fully_dispatched: isFullyDispatched,
           dispatch_challanno: latestDispatch?.challanno || null,
           dispatch_id: latestDispatch?.dispatch_id || null,
           is_dispatched: isDispatched,

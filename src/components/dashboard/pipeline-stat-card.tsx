@@ -196,8 +196,8 @@ export function PipelineStatGrid({
     },
     {
       id: "packing",
-      label: "Packing",
-      fullLabel: "Packing",
+      label: "Packing & Dispatch",
+      fullLabel: "Packing & Dispatch",
       pendingCount: stats.packingPending ?? stats.packingworkby ?? 0,
       completedCount: stats.packingCompleted ?? 0,
       icon: PackageCheck,
