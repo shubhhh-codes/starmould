@@ -389,19 +389,10 @@ export function DashboardPage() {
     if (!activeStage) return activeProjects;
 
     return activeProjects.filter((p) => {
-      const plates = (p.subplates || []).filter((sp) => {
-        const total = Number(sp.sqty) || 1;
-        const dispatched = Number(sp.jobwork_balance?.customer_dispatched_qty ?? 0);
-        const pendingInw = Number(sp.jobwork_balance?.pending_po_inward_qty ?? 0);
-        // If material is still pending inward from supplier or only partially dispatched, keep in active pipeline
-        if (pendingInw > 0 || (dispatched > 0 && dispatched < total)) return true;
-        return (
-          sp.location !== "Customer" &&
-          sp.dispatch_status !== "dispatched" &&
-          sp.dispatch_status !== "closed_without_challan" &&
-          (sp as any).isDispatched !== true
-        );
-      });
+      // Evaluate all active subplates belonging to the project (excluding only archived/closed without challan plates)
+      const plates = (p.subplates || []).filter(
+        (sp) => sp.dispatch_status !== "closed_without_challan"
+      );
       if (activeStage === "design") {
         return plates.some((sp) => !sp.design_by || Number(sp.design_by) === 0);
       } else if (activeStage === "order") {
