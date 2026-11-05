@@ -1436,11 +1436,21 @@ export function MouldProjectsTable({
             return true;
           });
 
-          const dispatchedPlates = subplates.filter((sp) => {
+          const totalPieces = subplates.reduce((sum, sp) => sum + (Number(sp.sqty) || 1), 0);
+          const dispatchedPieces = subplates.reduce((sum, sp) => sum + (Number((sp.jobwork_balance as any)?.customer_dispatched_qty) || 0), 0);
+
+          const fullyDispatchedPlates = subplates.filter((sp) => {
+            const total = Number(sp.sqty) || 1;
             const dispQty = Number((sp.jobwork_balance as any)?.customer_dispatched_qty) || 0;
-            if (dispQty > 0) return true;
+            if (dispQty >= total && total > 0) return true;
             const loc = (sp.location || "").trim().toLowerCase();
-            return loc === "customer" || sp.dispatch_status === "dispatched";
+            return (loc === "customer" || sp.dispatch_status === "dispatched") && (dispQty === 0 || dispQty >= total);
+          });
+
+          const partialDispatchedPlates = subplates.filter((sp) => {
+            const total = Number(sp.sqty) || 1;
+            const dispQty = Number((sp.jobwork_balance as any)?.customer_dispatched_qty) || 0;
+            return (dispQty > 0 && dispQty < total) || sp.dispatch_status === "partial";
           });
 
           return (
@@ -1464,10 +1474,16 @@ export function MouldProjectsTable({
                   <span>{jwPlates.length} {jwPlates.length === 1 ? "plate" : "plates"} on Job Work</span>
                 </div>
               )}
-              {dispatchedPlates.length > 0 && jwPlates.length === 0 && (
-                <div className="flex items-center gap-1 text-[10px] text-blue-700 font-semibold" title={`${dispatchedPlates.length} subplate(s) dispatched to Customer`}>
+              {fullyDispatchedPlates.length > 0 && jwPlates.length === 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-blue-700 font-semibold" title={`${fullyDispatchedPlates.length} subplate(s) fully dispatched to Customer`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
-                  <span>{dispatchedPlates.length} {dispatchedPlates.length === 1 ? "plate" : "plates"} Dispatched</span>
+                  <span>{fullyDispatchedPlates.length} {fullyDispatchedPlates.length === 1 ? "plate" : "plates"} Dispatched</span>
+                </div>
+              )}
+              {partialDispatchedPlates.length > 0 && fullyDispatchedPlates.length === 0 && jwPlates.length === 0 && (
+                <div className="flex items-center gap-1 text-[10px] text-amber-800 font-semibold" title={`Partial delivery: ${dispatchedPieces} of ${totalPieces} pieces dispatched to Customer`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                  <span>Partial Dispatch ({dispatchedPieces}/{totalPieces} pcs)</span>
                 </div>
               )}
             </div>
