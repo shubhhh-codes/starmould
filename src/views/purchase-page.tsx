@@ -1507,9 +1507,6 @@ function PurchasePageContent() {
                                 </span>
                             )}
                         </div>
-                        <div className="text-[10px] text-slate-400">
-                            {itemCount} {itemCount === 1 ? "plate" : "plates"}
-                        </div>
                     </td>
 
                     {/* Order Date */}

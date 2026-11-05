@@ -166,75 +166,82 @@ export async function DELETE(req: NextRequest) {
 
     const plateIds = Array.from(new Set((inwardItems || []).map((it: any) => it.plateid).filter(Boolean)));
 
-    // 4. Downstream Dependency Checks
+    // 4. Downstream Dependency & Inventory Balance Checks
     if (plateIds.length > 0) {
-      // A. Check Subplate Machining Status (Downstream Stages 4-9)
-      const { data: plates, error: platesErr } = await supabaseAdmin
-        .from("subplate")
-        .select("id, platename, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
-        .in("id", plateIds);
-
-      if (platesErr) {
-        return NextResponse.json({ error: platesErr.message }, { status: 500 });
+      // Calculate total revert quantity per plate in this receipt
+      const plateRevertQtyMap = new Map<number, number>();
+      for (const it of inwardItems || []) {
+        if (it.plateid) {
+          const current = plateRevertQtyMap.get(it.plateid) || 0;
+          const qty = Number(it.inward_qty ?? it.qty ?? 0);
+          plateRevertQtyMap.set(it.plateid, current + qty);
+        }
       }
 
-      const plateMap = new Map((plates || []).map((p: any) => [p.id, p.platename]));
+      // Fetch subplates and physical balances concurrently
+      const [platesRes, balRes] = await Promise.all([
+        supabaseAdmin
+          .from("subplate")
+          .select("id, platename, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
+          .in("id", plateIds),
+        supabaseAdmin
+          .from("view_subplate_jobwork_balance")
+          .select("plateid, platename, available_sm_qty, outward_jobwork_qty, customer_dispatched_qty, po_inward_qty")
+          .in("plateid", plateIds),
+      ]);
 
-      for (const p of plates || []) {
-        if (p.received_qcby || p.vmc_workby || p.drilltap_workby || p.final_qcby || p.packing_workby) {
+      if (platesRes.error) {
+        return NextResponse.json({ error: platesRes.error.message }, { status: 500 });
+      }
+      if (balRes.error) {
+        return NextResponse.json({ error: balRes.error.message }, { status: 500 });
+      }
+
+      const plates = platesRes.data || [];
+      const plateMap = new Map(plates.map((p: any) => [p.id, p.platename]));
+      const balMap = new Map((balRes.data || []).map((b: any) => [b.plateid, b]));
+
+      for (const pid of plateIds) {
+        const revertQty = plateRevertQtyMap.get(pid) || 0;
+        const bal = balMap.get(pid);
+        const availableSmQty = Number(bal?.available_sm_qty ?? 0);
+        const dispatchedQty = Number(bal?.customer_dispatched_qty ?? 0);
+        const jobworkQty = Number(bal?.outward_jobwork_qty ?? 0);
+        const totalInwardQty = Number(bal?.po_inward_qty ?? 0);
+        const plateName = bal?.platename || plateMap.get(pid) || `Plate #${pid}`;
+
+        // A. Stock availability guard:
+        // You cannot revert more pieces than are physically available in the workshop.
+        // If pieces were already dispatched or sent to external job work, reverting would cause negative inventory.
+        if (availableSmQty < revertQty) {
+          const reasons: string[] = [];
+          if (dispatchedQty > 0) reasons.push(`${dispatchedQty} pcs already dispatched to customer`);
+          if (jobworkQty > 0) reasons.push(`${jobworkQty} pcs on job work`);
+          const reasonStr = reasons.length > 0 ? ` (${reasons.join(", ")})` : "";
           return NextResponse.json(
             {
-              error: `Cannot revert inward receipt: Downstream production (Machining / Programming / QC) has already commenced on subplate "${p.platename}". Reverting raw material would corrupt production tracking.`,
+              error: `Cannot revert inward receipt: Subplate "${plateName}" requires reverting ${revertQty} pcs, but only ${availableSmQty} pcs are currently available in the Star Mould workshop${reasonStr}.`,
             },
             { status: 409 }
           );
         }
-      }
 
-      // B. Check Active Job Work Challans (Stage 6 outward movement)
-      const { data: activeChallanItems, error: chErr } = await supabaseAdmin
-        .from("challan_items")
-        .select("id, plateid, qty, challan!inner(id, challanno, status)")
-        .in("plateid", plateIds)
-        .neq("challan.status", "0");
-
-      if (chErr) {
-        return NextResponse.json({ error: chErr.message }, { status: 500 });
-      }
-
-      if (activeChallanItems && activeChallanItems.length > 0) {
-        const blocking = activeChallanItems[0];
-        const plateName = plateMap.get(blocking.plateid) || `Plate #${blocking.plateid}`;
-        const challanNo = (blocking.challan as any)?.challanno || "Job Work Challan";
-        return NextResponse.json(
-          {
-            error: `Cannot revert inward receipt: Subplate "${plateName}" is already dispatched on Job Work Challan "${challanNo}". Please cancel or delete the Job Work Challan before reverting this inward.`,
-          },
-          { status: 409 }
-        );
-      }
-
-      // C. Check Customer Dispatches (Final Stage 8 dispatch)
-      const { data: activeDispatches, error: dispErr } = await supabaseAdmin
-        .from("dispatch_items")
-        .select("id, plateid, qty, dispatch!inner(id, challanno, status)")
-        .in("plateid", plateIds)
-        .neq("dispatch.status", "0");
-
-      if (dispErr) {
-        return NextResponse.json({ error: dispErr.message }, { status: 500 });
-      }
-
-      if (activeDispatches && activeDispatches.length > 0) {
-        const blockingDisp = activeDispatches[0];
-        const plateName = plateMap.get(blockingDisp.plateid) || `Plate #${blockingDisp.plateid}`;
-        const dispatchNo = (blockingDisp.dispatch as any)?.challanno || "Dispatch Note";
-        return NextResponse.json(
-          {
-            error: `Cannot revert inward receipt: Subplate "${plateName}" has already been dispatched to customer on "${dispatchNo}".`,
-          },
-          { status: 409 }
-        );
+        // B. Downstream production guard:
+        // If downstream production (VMC, Drill/Tap, QC, Packing) has commenced and reverting this receipt leaves 0 raw material:
+        const p = plates.find((pl: any) => pl.id === pid);
+        const remainingAfterRevert = Math.max(0, totalInwardQty - revertQty);
+        if (
+          remainingAfterRevert === 0 &&
+          p &&
+          (p.received_qcby || p.vmc_workby || p.drilltap_workby || p.final_qcby || p.packing_workby)
+        ) {
+          return NextResponse.json(
+            {
+              error: `Cannot revert inward receipt: Downstream production (Machining / QC) has already commenced on subplate "${plateName}". Inwarded raw material cannot be completely removed while downstream stages are active.`,
+            },
+            { status: 409 }
+          );
+        }
       }
     }
 
@@ -257,7 +264,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: delErr.message }, { status: 500 });
     }
 
-    // 6. Reset Stage 3 (Material Inward) on affected subplates if no other inward receipt exists
+    // 6. Reset or update Stage 3 (Material Inward) and location on affected subplates
     if (plateIds.length > 0) {
       const { data: remainingInwardRows } = await supabaseAdmin
         .from("purchase_inward_items")
@@ -266,6 +273,7 @@ export async function DELETE(req: NextRequest) {
 
       const remainingPlateSet = new Set((remainingInwardRows || []).map((r: any) => r.plateid));
       const platesToReset = plateIds.filter((pid) => !remainingPlateSet.has(pid));
+      const platesRemaining = plateIds.filter((pid) => remainingPlateSet.has(pid));
 
       if (platesToReset.length > 0) {
         await supabaseAdmin
@@ -279,6 +287,28 @@ export async function DELETE(req: NextRequest) {
             updated_at: new Date().toISOString(),
           })
           .in("id", platesToReset);
+      }
+
+      if (platesRemaining.length > 0) {
+        const { data: updatedBalances } = await supabaseAdmin
+          .from("view_subplate_jobwork_balance")
+          .select("plateid, available_sm_qty, outward_jobwork_qty, customer_dispatched_qty, active_vendor_initials")
+          .in("plateid", platesRemaining);
+
+        for (const ub of updatedBalances || []) {
+          let newLoc = "In-House";
+          if (ub.active_vendor_initials && ub.available_sm_qty > 0) {
+            newLoc = `SM, ${ub.active_vendor_initials}`;
+          } else if (ub.active_vendor_initials) {
+            newLoc = ub.active_vendor_initials;
+          } else if (ub.customer_dispatched_qty > 0 && ub.available_sm_qty === 0) {
+            newLoc = "Customer";
+          }
+          await supabaseAdmin
+            .from("subplate")
+            .update({ location: newLoc, updated_at: new Date().toISOString() })
+            .eq("id", ub.plateid);
+        }
       }
     }
 

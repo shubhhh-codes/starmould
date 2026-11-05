@@ -1889,10 +1889,10 @@ export function PurchaseInwardPage() {
                                     The Purchase Order will reopen for inwarding (pending balance restored).
                                 </li>
                                 <li>
-                                    Stage 3 (<em>Material Inward</em>) for affected subplates will reset to <strong className="text-amber-700">Pending</strong>.
+                                    Stage 3 (<em>Material Inward</em>) for affected subplates will reset to <strong className="text-amber-700">Pending</strong> if no other inward receipts remain.
                                 </li>
                                 <li>
-                                    Star Mould workshop available balance will decrease back to <span className="font-mono font-semibold">0</span>.
+                                    Star Mould workshop available balance will decrease by the receipt quantity.
                                 </li>
                             </ul>
                         </div>
