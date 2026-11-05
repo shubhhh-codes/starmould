@@ -1,7 +1,7 @@
 "use client";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/components/providers/auth-provider";
@@ -80,6 +80,11 @@ const formatMinutesToHHMM = (totalMinutes: number): string => {
 };
 
 export function WorkPage() {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
   const { hasPermission } = useRolePermissions();
@@ -94,13 +99,34 @@ export function WorkPage() {
 
   const { data: customers = [] } = useCustomerDropdownQuery();
   const { data: users = [] } = useUserDropdownQuery();
-  const { data: projectsData } = useProjectsQuery({ pageSize: 500 });
+  const { data: projectsData } = useProjectsQuery({ pageSize: 500, status: "pending" });
   const scans = (projectsData?.scans || []) as ScanProject[];
 
-  const worklogs = (worklogsQuery.data?.worklogs || []) as Worklog[];
+  const rawWorklogs = (worklogsQuery.data?.worklogs || []) as Worklog[];
+  const worklogs = useMemo(() => {
+    const completedSet = new Set<string>();
+    (scans || []).forEach((s: any) => {
+      const st = String(s.status || "").toLowerCase();
+      if (st === "completed" || st === "registered") {
+        if (s.id) completedSet.add(String(s.id));
+        if (s.projectid) {
+          const pid = String(s.projectid).trim();
+          completedSet.add(pid);
+          completedSet.add(pid.toLowerCase());
+        }
+      }
+    });
+    return rawWorklogs.filter((w: any) => {
+      if (w.projectid) {
+        const pid = String(w.projectid).trim();
+        if (completedSet.has(pid) || completedSet.has(pid.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [rawWorklogs, scans]);
   const kpis = worklogsQuery.data?.kpis || {};
 
-  const isLoading = worklogsQuery.isLoading && worklogs.length === 0;
+  const isLoading = !isMounted || (worklogsQuery.isLoading && worklogs.length === 0);
   const isFetching = worklogsQuery.isFetching;
   const fetchError = worklogsQuery.error ? (worklogsQuery.error as Error).message : null;
 
@@ -601,7 +627,7 @@ export function WorkPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100" suppressHydrationWarning>
-                    {isLoading ? (
+                    {!isMounted || isLoading ? (
                       <TableSkeletonRows rows={8} columns={10} />
                     ) : dailyWorklogs.length === 0 ? (
                       <tr>
@@ -680,7 +706,13 @@ export function WorkPage() {
 
               {/* Mobile Card-List Fallback (< md) */}
               <div className="block md:hidden p-3 space-y-3">
-                {dailyWorklogs.length === 0 ? (
+                {!isMounted || isLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="p-4 bg-slate-50 rounded-xl animate-pulse h-20" />
+                    ))}
+                  </div>
+                ) : dailyWorklogs.length === 0 ? (
                   <div className="py-8 text-center text-slate-400 text-xs">
                     No daily work records found for this selection.
                   </div>
@@ -815,8 +847,8 @@ export function WorkPage() {
                       <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {isLoading ? (
+                  <tbody className="divide-y divide-slate-100" suppressHydrationWarning>
+                    {!isMounted || isLoading ? (
                       <TableSkeletonRows rows={8} columns={8} />
                     ) : historyWorklogs.length === 0 ? (
                       <tr>

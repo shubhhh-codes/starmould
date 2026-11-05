@@ -2,7 +2,7 @@ import { authorizeWorklogMutation, authorizeWorklogOwner } from "@/lib/worklog-a
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedScansLookup, getCachedUsers, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedScansLookup, getCompletedProjectIds, getCachedUsers, invalidateCache } from "@/lib/cache";
 
 // GET /api/worklog - Fetch worklogs with customer, user, scan, and subplate lookups + department statistics
 export async function GET(req: NextRequest) {
@@ -60,7 +60,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: wRes.error.message }, { status: 500 });
     }
 
-    const worklogs = wRes.data || [];
+    const completedScanIds = getCompletedProjectIds(scans);
+    const worklogs = (wRes.data || []).filter((w: any) => {
+      if (w.projectid) {
+        const pid = String(w.projectid).trim();
+        if (completedScanIds.has(pid) || completedScanIds.has(pid.toLowerCase())) return false;
+      }
+      return true;
+    });
 
     // Query referenced subplate IDs (matching either primary id or subprojectid)
     const subplateIds = Array.from(

@@ -100,10 +100,32 @@ function PurchasePageContent() {
     const updatePurchaseMutation = useUpdatePurchaseMutation();
     const deletePurchaseMutation = useDeletePurchaseMutation();
 
-    const purchases = (data?.purchases || []) as PurchaseOrder[];
     const subplates = (data?.subplates || []) as Subplate[];
     const customers = (data?.customers || []) as Customer[];
     const scans = (data?.scans || []) as ScanProject[];
+
+    const rawPurchases = (data?.purchases || []) as PurchaseOrder[];
+    const purchases = useMemo(() => {
+      const completedSet = new Set<string>();
+      (scans || []).forEach((s: any) => {
+        const st = String(s.status || "").toLowerCase();
+        if (st === "completed" || st === "registered") {
+          if (s.id) completedSet.add(String(s.id));
+          if (s.projectid) {
+            const pid = String(s.projectid).trim();
+            completedSet.add(pid);
+            completedSet.add(pid.toLowerCase());
+          }
+        }
+      });
+      return rawPurchases.filter((p: any) => {
+        if (p.projectid) {
+          const pid = String(p.projectid).trim();
+          if (completedSet.has(pid) || completedSet.has(pid.toLowerCase())) return false;
+        }
+        return true;
+      });
+    }, [rawPurchases, scans]);
     const hasLoadedData = purchases.length > 0 || (!!data && !queryLoading);
     const isLoading = isRestoring || (!hasLoadedData && queryLoading);
 
@@ -319,7 +341,8 @@ function PurchasePageContent() {
         const selectedCustName = selectedCustomer?.customername?.toLowerCase().trim();
 
         return scans.filter((s) => {
-            if (s.status === "completed") return false;
+            const sStatus = String(s.status || "").toLowerCase();
+            if (sStatus === "completed" || sStatus === "registered") return false;
             const scanCustId = s.customer_id ? Number(s.customer_id) : (s.cname && !isNaN(Number(s.cname)) ? Number(s.cname) : null);
             // Match by numeric customer ID
             if (scanCustId !== null && scanCustId === Number(formData.cname)) return true;

@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
           supabaseAdmin
             .from("scan")
             .select("id, projectid")
-            .neq("status", "completed"),
+            .not("status", "in", '("completed","registered")'),
           supabaseAdmin
             .from("subplate")
             .select("id, projectid, mold_id, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, drilltap_workby, final_qcby, packing_workby")
@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
           supabaseAdmin
             .from("scan")
             .select("id, projectid")
-            .neq("status", "completed"),
+            .not("status", "in", '("completed","registered")'),
           supabaseAdmin
             .from("subplate")
             .select("id, projectid, mold_id, sqty")

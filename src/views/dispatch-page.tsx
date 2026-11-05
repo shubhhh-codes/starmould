@@ -61,7 +61,7 @@ export function DispatchPage() {
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
   const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
   const { data: transporterLookup = [] } = useVendorDropdownQuery("Transporter");
-  const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
+  const { data: projectsLookup } = useProjectsQuery({ pageSize: 500, status: "pending" });
   const [modalForm, setModalForm] = useState<{
     chdate: string;
     customerid: string;
@@ -101,10 +101,32 @@ export function DispatchPage() {
   const createDispatchMutation = useCreateDispatchMutation();
   const deleteDispatchMutation = useDeleteDispatchMutation();
 
-  const dispatches = data?.dispatches || [];
   const customers = customerLookup.length > 0 ? customerLookup : (data?.customers || []);
   const scans = projectsLookup?.scans?.length ? projectsLookup.scans : (data?.scans || []);
   const subplates = dynamicSubplates.length > 0 ? dynamicSubplates : (data?.subplates || []);
+
+  const rawDispatches = (data?.dispatches || []) as any[];
+  const dispatches = useMemo(() => {
+    const completedSet = new Set<string>();
+    (scans || []).forEach((s: any) => {
+      const st = String(s.status || "").toLowerCase();
+      if (st === "completed" || st === "registered") {
+        if (s.id) completedSet.add(String(s.id));
+        if (s.projectid) {
+          const pid = String(s.projectid).trim();
+          completedSet.add(pid);
+          completedSet.add(pid.toLowerCase());
+        }
+      }
+    });
+    return rawDispatches.filter((d: any) => {
+      if (d.projectid) {
+        const pid = String(d.projectid).trim();
+        if (completedSet.has(pid) || completedSet.has(pid.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [rawDispatches, scans]);
   const hasLoadedData = dispatches.length > 0 || (!!data && !queryLoading);
   const isLoading = isRestoring || (!hasLoadedData && queryLoading);
   const fetchError = fetchQueryError ? (fetchQueryError as Error).message : null;
@@ -153,6 +175,8 @@ export function DispatchPage() {
   // Rule: Moulds are eligible if they have undispatched subplates remaining
   const availableProjects = useMemo(() => {
     const eligibleScans = scans.filter((s: ScanProject) => {
+      const st = String(s.status || "").toLowerCase();
+      if (st === "completed" || st === "registered") return false;
       const plates = s.subplates || [];
       if (plates.length === 0) return true;
       return plates.some(
@@ -371,7 +395,7 @@ export function DispatchPage() {
   const totalDispatches = dispatches.length;
   const activeDispatches = dispatches.filter((d) => String(d.status) === "1" || (d as any).status === 1).length;
   const totalItemsDispatched = dispatches.reduce(
-    (acc, d) => acc + (d.items?.reduce((sum, it) => sum + (it.qty || 0), 0) || 0),
+    (acc, d) => acc + (d.items?.reduce((sum: number, it: any) => sum + (it.qty || 0), 0) || 0),
     0
   );
   const uniqueCustomersCount = new Set(dispatches.map((d) => d.customerid)).size;
@@ -388,7 +412,7 @@ export function DispatchPage() {
         (d.vehicleno || "").toLowerCase().includes(q) ||
         (d.projectid || "").toLowerCase().includes(q) ||
         (d.items || []).some(
-          (it) =>
+          (it: any) =>
             (it.particulars || "").toLowerCase().includes(q) ||
             (it.platename || "").toLowerCase().includes(q) ||
             (it.custom_plate_name || "").toLowerCase().includes(q)
@@ -881,7 +905,7 @@ export function DispatchPage() {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                      {(d.items || []).map((it, idx) => (
+                                      {(d.items || []).map((it: any, idx: number) => (
                                         <tr key={idx} className="hover:bg-slate-50">
                                           <td className="px-3 py-2 font-semibold text-slate-900">
                                             {it.custom_plate_name || it.platename || `Plate #${it.plateid}`}
@@ -991,7 +1015,7 @@ export function DispatchPage() {
 
                     {isExpanded && (d.items || []).length > 0 && (
                       <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
-                        {d.items?.map((it, idx) => (
+                        {d.items?.map((it: any, idx: number) => (
                           <div
                             key={idx}
                             className="p-2 rounded bg-white border border-slate-200 text-[11px] flex items-center justify-between"

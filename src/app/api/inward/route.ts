@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createInventoryDocument } from "@/lib/inventory-documents";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, getCachedScansLookup, getCompletedProjectIds, invalidateCache } from "@/lib/cache";
 
 // GET /api/inward - Fetch Job Work Inwards, items, pending return lists, and customer lookups (Roles 0, 1, 2)
 export async function GET(req: NextRequest) {

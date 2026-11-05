@@ -74,7 +74,7 @@ function ChallanPageContent() {
   const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
   const { data: supplierLookup = [] } = useVendorDropdownQuery("Supplier");
   const { data: transporterLookup = [] } = useVendorDropdownQuery("Transporter");
-  const { data: projectsLookup } = useProjectsQuery({ pageSize: 500 });
+  const { data: projectsLookup } = useProjectsQuery({ pageSize: 500, status: "pending" });
   const createChallanMutation = useCreateChallanMutation();
   const deleteChallanMutation = useDeleteChallanMutation();
   const createInwardMutation = useCreateInwardMutation();
@@ -176,10 +176,32 @@ function ChallanPageContent() {
     }
   };
 
-  const challans = (data?.challans || []) as Challan[];
   const customers = (customerLookup.length > 0 ? customerLookup : (data?.customers || [])) as Customer[];
   const subplates = (data?.subplates || []) as Subplate[];
   const scans = (projectsLookup?.scans?.length ? projectsLookup.scans : (data?.scans || [])) as ScanProject[];
+
+  const rawChallans = (data?.challans || []) as Challan[];
+  const challans = useMemo(() => {
+    const completedSet = new Set<string>();
+    (scans || []).forEach((s: any) => {
+      const st = String(s.status || "").toLowerCase();
+      if (st === "completed" || st === "registered") {
+        if (s.id) completedSet.add(String(s.id));
+        if (s.projectid) {
+          const pid = String(s.projectid).trim();
+          completedSet.add(pid);
+          completedSet.add(pid.toLowerCase());
+        }
+      }
+    });
+    return rawChallans.filter((c: any) => {
+      if (c.projectid) {
+        const pid = String(c.projectid).trim();
+        if (completedSet.has(pid) || completedSet.has(pid.toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [rawChallans, scans]);
   const hasLoadedData = challans.length > 0 || (!!data && !queryLoading);
   const isLoading = isRestoring || (!hasLoadedData && queryLoading);
 

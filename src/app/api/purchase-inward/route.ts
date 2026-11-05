@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createInventoryDocument } from "@/lib/inventory-documents";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, getCachedScansLookup, getCompletedProjectIds, invalidateCache } from "@/lib/cache";
 
 // GET /api/purchase-inward - fetch open pending items directly from view_po_pending_inward_qty (Admin, Manager only)
 export async function GET(req: NextRequest) {

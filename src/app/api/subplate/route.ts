@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
-import { getCached, getCachedUsers, invalidateCache } from "@/lib/cache";
+import { getCached, getCachedUsers, getCompletedProjectIds, invalidateCache } from "@/lib/cache";
 import { calculateSubplateWeight } from "@/lib/weight-calculator";
 import { createSecurePrintToken } from "@/lib/print-token";
 
@@ -311,7 +311,16 @@ export async function GET(req: NextRequest) {
         throw new Error(subplatesRes.error.message);
       }
 
-      const subplates = subplatesRes.data || [];
+      const rawSubplates = subplatesRes.data || [];
+      const completedScanIds = getCompletedProjectIds(scans);
+      const subplates = rawSubplates.filter((sp: any) => {
+        if (sp.mold_id && completedScanIds.has(String(sp.mold_id))) return false;
+        if (sp.projectid) {
+          const pid = String(sp.projectid).trim();
+          if (completedScanIds.has(pid) || completedScanIds.has(pid.toLowerCase())) return false;
+        }
+        return true;
+      });
       const scanMap = new Map((scans || []).map((s: any) => [s.id, s]));
       const userMap = new Map((users || []).map((u: any) => [u.id, u]));
 

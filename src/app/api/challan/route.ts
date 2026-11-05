@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createInventoryDocument } from "@/lib/inventory-documents";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, getCompletedProjectIds, invalidateCache } from "@/lib/cache";
 
 async function generateNextChallanNo(offset = 0): Promise<string> {
   const nowIST = new Date(
@@ -86,6 +86,19 @@ export async function GET(req: NextRequest) {
         .limit(5000),
     ]);
 
+    const completedScanIds = getCompletedProjectIds(scansRes?.data || []);
+    const activeChallans = (challans || []).filter((c: any) => {
+      if (c.projectid) {
+        const pid = String(c.projectid).trim();
+        if (completedScanIds.has(pid) || completedScanIds.has(pid.toLowerCase())) return false;
+      }
+      return true;
+    });
+    const activeScans = (scansRes?.data || []).filter((s: any) => {
+      const st = String(s.status || "").toLowerCase();
+      return st !== "completed" && st !== "registered";
+    });
+
     const custMap = new Map((customers || []).map((c: any) => [c.id, c]));
     const vendMap = new Map((vendors || []).map((v: any) => [v.id, v]));
     const rawItems = itemsRes.data || [];
@@ -147,7 +160,7 @@ export async function GET(req: NextRequest) {
 
     const response = NextResponse.json({
       challans: enriched,
-      scans: scansRes.data || [],
+      scans: activeScans,
       kpis: {
         totalChallans: kpiRes.count || 0,
         activeCount: enriched.length,

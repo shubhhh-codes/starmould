@@ -115,3 +115,25 @@ export async function getCachedScansLookup(): Promise<any[]> {
     .limit(10000);
   return data || [];
 }
+
+/**
+ * Returns a Set of project IDs/codes that belong to Completed / Project Register moulds.
+ */
+export function getCompletedProjectIds(scans: any[]): Set<string> {
+  const completed = new Set<string>();
+  for (const s of scans || []) {
+    const st = String(s.status || "").toLowerCase();
+    if (st === "completed" || st === "registered") {
+      if (s.id !== undefined && s.id !== null) {
+        completed.add(String(s.id));
+      }
+      if (s.projectid) {
+        const pid = String(s.projectid).trim();
+        completed.add(pid);
+        completed.add(pid.toLowerCase());
+      }
+    }
+  }
+  return completed;
+}
+

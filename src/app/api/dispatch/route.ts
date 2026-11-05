@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createInventoryDocument } from "@/lib/inventory-documents";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
-import { getCachedCustomers, getCachedVendors, invalidateCache } from "@/lib/cache";
+import { getCachedCustomers, getCachedVendors, getCachedScansLookup, getCompletedProjectIds, invalidateCache } from "@/lib/cache";
 
 async function generateNextDispatchNo(offset = 0): Promise<string> {
   const nowIST = new Date(
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     const limit = Number(searchParams.get("limit") || "100");
 
     // 1. Fetch dispatch headers and cached customers concurrently
-    const [dRes, customers, vendors] = await Promise.all([
+    const [dRes, customers, vendors, scans] = await Promise.all([
       supabaseAdmin
         .from("dispatch")
         .select("*")
@@ -48,13 +48,21 @@ export async function GET(req: NextRequest) {
         .limit(limit),
       getCachedCustomers(),
       getCachedVendors(),
+      getCachedScansLookup(),
     ]);
 
     if (dRes.error) {
       return NextResponse.json({ error: dRes.error.message }, { status: 500 });
     }
 
-    const dispatches = dRes.data || [];
+    const completedScanIds = getCompletedProjectIds(scans);
+    const dispatches = (dRes.data || []).filter((d) => {
+      if (d.projectid) {
+        const pid = String(d.projectid).trim();
+        if (completedScanIds.has(pid) || completedScanIds.has(pid.toLowerCase())) return false;
+      }
+      return true;
+    });
     const dIds = dispatches.map((d) => d.id);
 
     // 2. Fetch dispatch items

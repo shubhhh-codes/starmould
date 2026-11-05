@@ -467,7 +467,7 @@ export async function GET(req: NextRequest) {
       };
     };
 
-    const result = cacheKey ? await getCached(cacheKey, 30, executeFetch) : await executeFetch();
+    const result = cacheKey ? await getCached(cacheKey, 3, executeFetch) : await executeFetch();
 
     const response = NextResponse.json({
       scans: result.scans,

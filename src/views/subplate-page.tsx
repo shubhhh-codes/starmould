@@ -511,15 +511,37 @@ function SubplatePageContent() {
 	const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
 
 	// On-Demand Projects Query: Only fetched when opening Add/Edit modal, not on initial page load
-	const projectsQuery = useProjectsQuery({ pageSize: 500, enabled: isModalOpen });
+	const projectsQuery = useProjectsQuery({ pageSize: 500, status: "pending", enabled: isModalOpen });
 	const createSubplateMutation = useCreateSubplateMutation();
 	const updateSubplateMutation = useUpdateSubplateMutation();
 	const deleteSubplateMutation = useDeleteSubplateMutation();
 
-	const subplates = data?.subplates || [];
 	const scans = (data?.scans && data.scans.length > 0)
 		? data.scans
 		: (projectsQuery.data?.scans || []);
+	const rawSubplates = data?.subplates || [];
+	const subplates = useMemo(() => {
+		const completedSet = new Set<string>();
+		(scans || []).forEach((s: any) => {
+			const st = String(s.status || "").toLowerCase();
+			if (st === "completed" || st === "registered") {
+				if (s.id) completedSet.add(String(s.id));
+				if (s.projectid) {
+					const pid = String(s.projectid).trim();
+					completedSet.add(pid);
+					completedSet.add(pid.toLowerCase());
+				}
+			}
+		});
+		return rawSubplates.filter((sp: any) => {
+			if (sp.mold_id && completedSet.has(String(sp.mold_id))) return false;
+			if (sp.projectid) {
+				const pid = String(sp.projectid).trim();
+				if (completedSet.has(pid) || completedSet.has(pid.toLowerCase())) return false;
+			}
+			return true;
+		});
+	}, [rawSubplates, scans]);
 	const isProjectsLoading = isModalOpen && projectsQuery.isLoading && scans.length === 0;
 	const users = data?.users || [];
 	const kpis = data?.kpis || { totalCount: 0, inHouseCount: 0, vendorCount: 0 };
