@@ -1006,6 +1006,46 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Strict business rule: Stages 4-9 (Programming to Packing) cannot commence until raw material is inwarded.
+    // Raw steel must be physically received at factory gate before shop floor manufacturing can start.
+    const shopFloorStageKeys = [
+      "received_qcby",
+      "vmc_workby",
+      "vmc_qcby",
+      "drilltap_workby",
+      "final_qcby",
+      "packing_workby",
+    ];
+
+    const isAssigningShopFloor = shopFloorStageKeys.some((k) => {
+      if (!(k in updatePayload)) return false;
+      const v = updatePayload[k];
+      return v !== null && v !== 0 && v !== "" && v !== undefined;
+    });
+
+    if (isAssigningShopFloor) {
+      const { data: inwardRows } = await supabaseAdmin
+        .from("purchase_inward_items")
+        .select("id, inward_qty")
+        .eq("plateid", subplateId);
+
+      const totalInward = (inwardRows || []).reduce(
+        (sum, it) => sum + (Number(it.inward_qty) || 0),
+        0
+      );
+
+      if (!inwardRows || inwardRows.length === 0 || totalInward <= 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Shop floor production cannot be assigned because raw steel has not been received at factory gate. Record receipt in Purchase Inward first.",
+            code: "RAW_MATERIAL_INWARD_REQUIRED",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Enforce that non-managerial users (e.g. Designers, Workers) can only assign tasks to themselves, and strictly for their department's stages
     const isManagerial =
       isUserAdmin ||

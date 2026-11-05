@@ -143,12 +143,22 @@ export async function DELETE(req: NextRequest) {
 
     const dispatchId = Number(id);
 
-    // Fetch dispatch details before marking status = 0
-    const { data: dispatchRecord } = await supabaseAdmin
-      .from("dispatch")
-      .select("id, projectid")
-      .eq("id", dispatchId)
-      .maybeSingle();
+    // Fetch dispatch details and affected plate IDs before cancelling
+    const [{ data: dispatchRecord }, { data: dispItems }] = await Promise.all([
+      supabaseAdmin
+        .from("dispatch")
+        .select("id, projectid")
+        .eq("id", dispatchId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("dispatch_items")
+        .select("plateid")
+        .eq("dispatchid", dispatchId),
+    ]);
+
+    const affectedPlateIds = Array.from(
+      new Set((dispItems || []).map((it: any) => Number(it.plateid)).filter(Boolean))
+    );
 
     const now = new Date().toISOString();
     const { error } = await supabaseAdmin
@@ -160,17 +170,79 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Recompute location and dispatch_status dynamically for all affected subplates
+    if (affectedPlateIds.length > 0) {
+      const [{ data: remainingDispItems }, { data: plates }, { data: balances }] = await Promise.all([
+        supabaseAdmin
+          .from("dispatch_items")
+          .select("plateid, qty, dispatch:dispatchid!inner(status)")
+          .in("plateid", affectedPlateIds)
+          .eq("dispatch.status", "1"),
+        supabaseAdmin
+          .from("subplate")
+          .select("id, sqty")
+          .in("id", affectedPlateIds),
+        supabaseAdmin
+          .from("view_subplate_jobwork_balance")
+          .select("plateid, available_sm_qty, active_vendor_initials")
+          .in("plateid", affectedPlateIds),
+      ]);
+
+      const plateDispatchedMap = new Map<number, number>();
+      for (const it of remainingDispItems || []) {
+        if (it.plateid) {
+          const cur = plateDispatchedMap.get(Number(it.plateid)) || 0;
+          plateDispatchedMap.set(Number(it.plateid), cur + Number(it.qty || 0));
+        }
+      }
+
+      const sqtyMap = new Map((plates || []).map((p: any) => [Number(p.id), Number(p.sqty || 1)]));
+      const balMap = new Map((balances || []).map((b: any) => [Number(b.plateid), b]));
+
+      for (const pid of affectedPlateIds) {
+        const dispatched = plateDispatchedMap.get(pid) || 0;
+        const sqty = sqtyMap.get(pid) || 1;
+        const bal = balMap.get(pid);
+        const availableSm = Number(bal?.available_sm_qty ?? 0);
+        const vendors = bal?.active_vendor_initials;
+
+        const dispatchStatus = dispatched >= sqty ? "dispatched" : dispatched > 0 ? "partial" : "none";
+        let newLoc = "In-House";
+        if (dispatchStatus === "dispatched") {
+          newLoc = "Customer";
+        } else if (availableSm > 0 && vendors) {
+          newLoc = `SM, ${vendors}`;
+        } else if (vendors) {
+          newLoc = vendors;
+        } else if (availableSm > 0) {
+          newLoc = "In-House";
+        }
+
+        await supabaseAdmin
+          .from("subplate")
+          .update({ location: newLoc, dispatch_status: dispatchStatus, updated_at: now })
+          .eq("id", pid);
+      }
+    }
+
     if (dispatchRecord?.projectid) {
       const trimmedProject = String(dispatchRecord.projectid).trim();
-      await supabaseAdmin
-        .from("scan")
-        .update({ status: "registered", updated_at: now })
-        .eq("projectid", trimmedProject);
-
-      await supabaseAdmin
+      const { data: allMouldPlates } = await supabaseAdmin
         .from("subplate")
-        .update({ location: "SM", updated_at: now })
-        .eq("projectid", trimmedProject);
+        .select("id, dispatch_status")
+        .eq("projectid", trimmedProject)
+        .is("deleted_at", null);
+
+      const allDispatched =
+        (allMouldPlates || []).length > 0 &&
+        (allMouldPlates || []).every((p: any) => p.dispatch_status === "dispatched");
+
+      if (!allDispatched) {
+        await supabaseAdmin
+          .from("scan")
+          .update({ status: "registered", dispatchdate: null, updated_at: now })
+          .eq("projectid", trimmedProject);
+      }
     }
 
     invalidateCache("api_counts_all");

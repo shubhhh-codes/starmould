@@ -2914,6 +2914,22 @@ export function MouldProjectsTable({
                   }
                 }
 
+                if (st.step >= 4 && st.step <= 9) {
+                  const inwardQty = Number((sp as any).po_inward_qty) || 0;
+                  if (!isDone && inwardQty <= 0) {
+                    items.push({
+                      label: `${st.assignTitle} (Material Inward Required)`,
+                      subtext: `Stage ${st.step} • Receive steel at factory gate to unlock`,
+                      icon: Lock,
+                      variant: "primary",
+                      onClick: () => {
+                        router.push(`/purchase-inward?mould=${encodeURIComponent(subplateContextMenu.project?.projectid || "")}`);
+                      },
+                    });
+                    return;
+                  }
+                }
+
                 if (isDone) {
                   items.push({
                     label: `Unassign ${staffName} (${st.label.replace(/^\d+\.\s*/, "")})`,

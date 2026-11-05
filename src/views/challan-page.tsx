@@ -423,7 +423,7 @@ function ChallanPageContent() {
         const customerName = cust?.customername || selectedCustomer?.customername || "";
 
         const autoPopulatedItems = readyPlates.map((plate) => {
-          const avail = Number(plate.jobwork_balance?.available_sm_qty || 1);
+          const avail = Math.max(0, Number(plate.jobwork_balance?.available_sm_qty ?? 0));
           const total = plate.sqty || 1;
           return {
             plateid: String(plate.id),
@@ -767,7 +767,7 @@ function ChallanPageContent() {
       const updated = [...prev.items];
       if (field === "plateid") {
         const foundPlate = allSubplates.find((p) => String(p.id) === String(value));
-        const avail = Number(foundPlate?.jobwork_balance?.available_sm_qty || foundPlate?.sqty || 1);
+        const avail = Math.max(0, Number(foundPlate?.jobwork_balance?.available_sm_qty ?? 0));
         updated[index] = {
           ...updated[index],
           plateid: value,
@@ -2028,7 +2028,7 @@ function ChallanPageContent() {
                               Qty *
                             </label>
                             {(() => {
-                              const avail = (selectedPlate?.jobwork_balance?.available_sm_qty ?? item.sqty) || 1;
+                              const avail = Math.max(0, Number(selectedPlate?.jobwork_balance?.available_sm_qty ?? 0));
                               return (
                                 <div>
                                   <input

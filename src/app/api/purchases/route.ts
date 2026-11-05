@@ -468,8 +468,9 @@ export async function DELETE(req: NextRequest) {
       for (const pid of plateIds) {
         const { data: otherActivePOs } = await supabaseAdmin
           .from("purchase_items")
-          .select("id, pid, purchase:pid!inner(id)")
+          .select("id, pid, purchase:pid!inner(id, status)")
           .eq("plateid", pid)
+          .neq("purchase.status", "0")
           .limit(1);
 
         if (!otherActivePOs || otherActivePOs.length === 0) {

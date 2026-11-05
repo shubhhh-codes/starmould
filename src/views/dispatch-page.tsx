@@ -238,7 +238,7 @@ export function DispatchPage() {
         Number((sp as any).isDispatched) === 1 ||
         (sp as any).isDispatched === true ||
         Number(sp.jobwork_balance?.customer_dispatched_qty || 0) >= (sp.sqty || 1);
-      const avail = Number(sp.jobwork_balance?.available_sm_qty ?? (sp.jobwork_balance?.has_po ? 0 : (sp.sqty || 1)));
+      const avail = Math.max(0, Number(sp.jobwork_balance?.available_sm_qty ?? 0));
       return !isDispatched && avail > 0;
     });
   }, [mouldPlates]);
@@ -256,7 +256,7 @@ export function DispatchPage() {
       const customerVal = cust?.id ? String(cust.id) : (modalForm.customerid || "");
 
       const autoPopulatedItems = eligiblePlates.map((plate) => {
-        const avail = Number(plate.jobwork_balance?.available_sm_qty ?? (plate.jobwork_balance?.has_po ? 0 : (plate.sqty || 1)));
+        const avail = Math.max(0, Number(plate.jobwork_balance?.available_sm_qty ?? 0));
         return {
           itemType: "regular" as const,
           plateid: String(plate.id),
@@ -308,7 +308,7 @@ export function DispatchPage() {
   const subplateOptions: ERPSelectOption[] = useMemo(() => {
     return mouldPlates.map((p) => {
       const seq = p.subprojectid ? p.subprojectid.split("_").pop() : "";
-      const avail = Number(p.jobwork_balance?.available_sm_qty ?? (p.jobwork_balance?.has_po ? 0 : (p.sqty || 1)));
+      const avail = Math.max(0, Number(p.jobwork_balance?.available_sm_qty ?? 0));
       const isDispatched =
         p.location === "Customer" ||
         p.dispatch_status === "dispatched" ||
@@ -444,7 +444,7 @@ export function DispatchPage() {
       const chosen = unused || eligiblePlates[0];
       if (chosen) {
         defaultPlateId = String(chosen.id);
-        const avail = Number(chosen.jobwork_balance?.available_sm_qty ?? (chosen.jobwork_balance?.has_po ? 0 : (chosen.sqty || 1)));
+        const avail = Math.max(0, Number(chosen.jobwork_balance?.available_sm_qty ?? 0));
         defaultQty = Math.max(1, Math.min(avail, chosen.sqty || 1));
       }
     }
@@ -484,7 +484,7 @@ export function DispatchPage() {
       };
       if (field === "plateid") {
         const sp = subplates.find((p) => String(p.id) === String(value));
-        const avail = Number(sp?.jobwork_balance?.available_sm_qty ?? (sp?.jobwork_balance?.has_po ? 0 : (sp?.sqty || 1)));
+        const avail = Math.max(0, Number(sp?.jobwork_balance?.available_sm_qty ?? 0));
         if (avail > 0) {
           updated[index].qty = Math.max(1, Math.min(updated[index].qty || 1, avail));
         }
@@ -559,7 +559,7 @@ export function DispatchPage() {
 
       if (item.itemType === "regular" && item.plateid) {
         const sp = subplates.find((s) => String(s.id) === String(item.plateid));
-        const avail = Number(sp?.jobwork_balance?.available_sm_qty ?? (sp?.jobwork_balance?.has_po ? 0 : (sp?.sqty || 1)));
+        const avail = Math.max(0, Number(sp?.jobwork_balance?.available_sm_qty ?? 0));
         if (avail <= 0) {
           setFormError(`Row ${i + 1} (${sp?.platename || "Subplate"}): 0 pcs physically available in Star Mould workshop. Material must be received via Purchase Inward first.`);
           return;

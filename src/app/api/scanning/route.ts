@@ -770,6 +770,12 @@ export async function DELETE(req: NextRequest) {
         if (d.active_pos?.length) {
           sub.push(`${d.active_pos.length} Purchase Order(s) [${d.active_pos.map((c: any) => c.srno).join(", ")}]`);
         }
+        if (d.active_po_inwards?.length) {
+          sub.push(`${d.active_po_inwards.length} Material Inward Receipt(s) [${d.active_po_inwards.map((i: any) => i.insrno).join(", ")}]`);
+        }
+        if (d.active_inwards?.length) {
+          sub.push(`${d.active_inwards.length} Job Work Inward Receipt(s) [${d.active_inwards.map((i: any) => i.inchallanno).join(", ")}]`);
+        }
         depList.push(`${d.projectid || `#${d.id}`}: ${sub.join("; ")}`);
       }
 
