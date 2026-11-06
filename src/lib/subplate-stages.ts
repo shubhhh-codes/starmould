@@ -65,7 +65,7 @@ export function getAllowedStagesForUser(currentUser: UserSessionMinimal | null, 
   if (roleId === 4 || match("worker") || match("operator")) {
     return STAGE_DEFINITIONS.filter((s) => s.key === "drilltap_workby" || s.key === "received_workby");
   }
-  if (roleId === 1 || match("manager")) {
+  if (roleId === 1 || roleId === 2 || match("manager") || match("supervisor")) {
     return [...STAGE_DEFINITIONS];
   }
 

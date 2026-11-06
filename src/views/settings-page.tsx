@@ -49,10 +49,17 @@ import {
   Cpu,
   BadgeCheck,
   Terminal,
+  FileText,
+  Wallet,
   ChevronsUpDown,
 } from "lucide-react";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
+import {
+  getPermissionLockStatus,
+  cascadePermissionToggle,
+  getRequiredParents,
+} from "@/lib/permissions/dependencies";
 import {
   ERP_ROLES,
   PERMISSION_DEFINITIONS,
@@ -82,6 +89,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
   BarChart3,
   FileDown,
   Settings,
+  FileText,
+  Wallet,
 };
 
 const ROLE_ICONS: Record<number, React.ElementType> = {
@@ -483,7 +492,7 @@ export function SettingsPage() {
 
   const handleMoveToInactive = (itemKey: string) => {
     if (isRoleAdmin) return;
-    setLocalPermissions((prev) => ({ ...prev, [itemKey]: false }));
+    setLocalPermissions((prev) => cascadePermissionToggle(itemKey, false, prev));
     setLocalMenuOrder((prev) => prev.filter((k) => k !== itemKey));
   };
 
@@ -578,10 +587,23 @@ export function SettingsPage() {
     if (isRoleAdmin) return;
     const modulePerms = allActionDefs.filter((p) => (p.module || "general") === moduleKey);
     setLocalPermissions((prev) => {
-      const updated = { ...prev };
-      modulePerms.forEach((p) => {
-        updated[p.key] = grant;
-      });
+      let updated = { ...prev };
+      for (const p of modulePerms) {
+        updated = cascadePermissionToggle(p.key, grant, updated);
+      }
+      if (grant) {
+        const navParentsToSync: string[] = [];
+        for (const p of modulePerms) {
+          const parents = getRequiredParents(p.key).filter((k) => k.startsWith("nav_"));
+          navParentsToSync.push(...parents);
+        }
+        if (navParentsToSync.length > 0) {
+          setLocalMenuOrder((currOrder) => {
+            const missing = Array.from(new Set(navParentsToSync)).filter((np) => !currOrder.includes(np));
+            return missing.length > 0 ? [...currOrder, ...missing] : currOrder;
+          });
+        }
+      }
       return updated;
     });
   };
@@ -597,13 +619,27 @@ export function SettingsPage() {
     });
   };
 
-  // Toggle for Action and Financial permissions
+  // Toggle for Action and Financial permissions with Smart Dependency Cascading
   const handleTogglePermission = (key: string) => {
     if (isRoleAdmin) return;
-    setLocalPermissions((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+    setLocalPermissions((prev) => {
+      const targetVal = !prev[key];
+      const updated = cascadePermissionToggle(key, targetVal, prev);
+
+      // If turning ON auto-enabled any required navigation parent, ensure it appears in active menu
+      if (targetVal) {
+        const parents = getRequiredParents(key);
+        const navParents = parents.filter((p) => p.startsWith("nav_"));
+        if (navParents.length > 0) {
+          setLocalMenuOrder((currOrder) => {
+            const missing = navParents.filter((np) => !currOrder.includes(np));
+            return missing.length > 0 ? [...currOrder, ...missing] : currOrder;
+          });
+        }
+      }
+
+      return updated;
+    });
   };
 
   const handleGrantAll = () => {
@@ -1392,7 +1428,10 @@ export function SettingsPage() {
                         <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100">
                           <div className="flex items-center gap-2.5 min-w-0">
                             <div className="p-1.5 rounded-lg bg-blue-50/70 border border-blue-200/60 text-blue-600 shrink-0">
-                              <Sliders className="w-3.5 h-3.5" />
+                              {(() => {
+                                const ModIcon = group.icon && ICON_MAP[group.icon] ? ICON_MAP[group.icon] : Sliders;
+                                return <ModIcon className="w-3.5 h-3.5" />;
+                              })()}
                             </div>
                             <div className="min-w-0">
                               <h4 className="text-xs font-bold text-slate-900 truncate uppercase tracking-wider">
@@ -1445,14 +1484,18 @@ export function SettingsPage() {
                         <div className="divide-y divide-slate-100 mt-1">
                           {group.permissions.map((p) => {
                             const isGranted = isRoleAdmin ? true : localPermissions[p.key] ?? false;
+                            const lockStatus = !isRoleAdmin ? getPermissionLockStatus(p.key, localPermissions) : { isLocked: false };
 
                             return (
                               <div
                                 key={p.key}
                                 onClick={() => handleTogglePermission(p.key)}
+                                title={lockStatus.isLocked ? `Requires "${lockStatus.reason}". Click to auto-enable required permissions.` : undefined}
                                 className={`py-2.5 px-2 flex items-center justify-between gap-3 transition-colors rounded-xl ${
                                   isRoleAdmin
                                     ? "cursor-default"
+                                    : lockStatus.isLocked
+                                    ? "hover:bg-amber-50/30 cursor-pointer opacity-75"
                                     : isGranted
                                     ? "hover:bg-blue-50/40 cursor-pointer"
                                     : "hover:bg-slate-50 cursor-pointer opacity-80"
@@ -1463,17 +1506,27 @@ export function SettingsPage() {
                                     className={`w-2 h-2 rounded-full mt-1.5 shrink-0 transition-colors ${
                                       isGranted
                                         ? "bg-blue-600 ring-2 ring-blue-100"
+                                        : lockStatus.isLocked
+                                        ? "bg-amber-400"
                                         : "bg-slate-300"
                                     }`}
                                   />
                                   <div className="min-w-0">
-                                    <h5
-                                      className={`text-xs font-semibold truncate ${
-                                        isGranted ? "text-slate-900" : "text-slate-600"
-                                      }`}
-                                    >
-                                      {p.label}
-                                    </h5>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <h5
+                                        className={`text-xs font-semibold truncate ${
+                                          isGranted ? "text-slate-900" : "text-slate-600"
+                                        }`}
+                                      >
+                                        {p.label}
+                                      </h5>
+                                      {lockStatus.isLocked && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-200/90 px-1.5 py-0.5 rounded-md shrink-0">
+                                          <Lock className="w-2.5 h-2.5 text-amber-600" />
+                                          Requires &ldquo;{lockStatus.reason}&rdquo;
+                                        </span>
+                                      )}
+                                    </div>
                                     <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
                                       {p.description}
                                     </p>
@@ -1489,12 +1542,17 @@ export function SettingsPage() {
                                   ) : (
                                     <button
                                       type="button"
+                                      title={lockStatus.isLocked ? `Requires "${lockStatus.reason}". Click to auto-enable.` : undefined}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         handleTogglePermission(p.key);
                                       }}
                                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                        isGranted ? "bg-blue-600" : "bg-slate-300"
+                                        lockStatus.isLocked
+                                          ? "bg-slate-200 opacity-60"
+                                          : isGranted
+                                          ? "bg-blue-600"
+                                          : "bg-slate-300"
                                       }`}
                                     >
                                       <span
@@ -1535,14 +1593,18 @@ export function SettingsPage() {
             <div className="divide-y divide-slate-100">
               {PERMISSION_DEFINITIONS.filter((p) => p.category === "financials").map((p) => {
                 const isGranted = isRoleAdmin ? true : localPermissions[p.key] ?? false;
+                const lockStatus = !isRoleAdmin ? getPermissionLockStatus(p.key, localPermissions) : { isLocked: false };
 
                 return (
                   <div
                     key={p.key}
                     onClick={() => handleTogglePermission(p.key)}
+                    title={lockStatus.isLocked ? `Requires "${lockStatus.reason}". Click to auto-enable.` : undefined}
                     className={`py-3 px-2 flex items-center justify-between gap-3 transition-colors rounded-xl ${
                       isRoleAdmin
                         ? "cursor-default"
+                        : lockStatus.isLocked
+                        ? "hover:bg-amber-50/30 cursor-pointer opacity-75"
                         : isGranted
                         ? "hover:bg-blue-50/40 cursor-pointer"
                         : "hover:bg-slate-50 cursor-pointer opacity-75"
@@ -1559,13 +1621,21 @@ export function SettingsPage() {
                         <Receipt className="w-3.5 h-3.5" />
                       </div>
                       <div>
-                        <h4
-                          className={`text-xs font-semibold ${
-                            isGranted ? "text-slate-900" : "text-slate-600"
-                          }`}
-                        >
-                          {p.label}
-                        </h4>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4
+                            className={`text-xs font-semibold ${
+                              isGranted ? "text-slate-900" : "text-slate-600"
+                            }`}
+                          >
+                            {p.label}
+                          </h4>
+                          {lockStatus.isLocked && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-200/90 px-1.5 py-0.5 rounded-md shrink-0">
+                              <Lock className="w-2.5 h-2.5 text-amber-600" />
+                              Requires &ldquo;{lockStatus.reason}&rdquo;
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
                           {p.description}
                         </p>
@@ -1575,12 +1645,17 @@ export function SettingsPage() {
                     <button
                       type="button"
                       disabled={isRoleAdmin}
+                      title={lockStatus.isLocked ? `Requires "${lockStatus.reason}". Click to auto-enable.` : undefined}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleTogglePermission(p.key);
                       }}
                       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-80 disabled:cursor-not-allowed ${
-                        isGranted ? "bg-blue-600" : "bg-slate-300"
+                        lockStatus.isLocked
+                          ? "bg-slate-200 opacity-60"
+                          : isGranted
+                          ? "bg-blue-600"
+                          : "bg-slate-300"
                       }`}
                     >
                       <span

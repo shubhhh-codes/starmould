@@ -961,11 +961,6 @@ export async function PUT(req: NextRequest) {
       packing_workby: "packing_at",
     };
 
-    if (Object.keys(stageTimestampMap).some((field) => field in updatePayload)) {
-      const stageAuth = await authenticateRequest(req, undefined, "action_assign_subplate_stage");
-      if ("error" in stageAuth) return NextResponse.json({ error: stageAuth.error }, { status: stageAuth.status });
-    }
-
     // Strict business rule: Stage 2 (order_by) cannot be manually assigned or modified from Subplate/Dashboard.
     // It is strictly governed by the Purchase Order (PO) lifecycle:
     // 1) Must generate a PO to auto-assign it to the creator.

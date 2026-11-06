@@ -74,7 +74,6 @@ function ScanningPageContent() {
   const canCreateSubplate = hasPermission("action_create_subplate");
   const canEditMould = hasPermission("action_edit_mould");
   const canDeleteMould = hasPermission("action_delete_mould");
-  const canAdvanceStage = hasPermission("action_advance_pipeline");
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 

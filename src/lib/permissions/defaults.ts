@@ -1,19 +1,21 @@
-import { RolePermissionsMatrix } from "./types";
+import { RolePermissionsMatrix, RoleMenuOrders } from "./types";
+import { normalizeRolePermissions } from "./dependencies";
 
 /**
  * Default Factory Permissions Matrix for Star Mould ERP:
- * 0: Admin (100% full access, immutable safety lock)
- * 1: Manager (commercial, procurement, movements, vendors, expenses, reports)
- * 2: Supervisor (floor operations, scanning, challan, dispatch, inward, QC, worklogs)
- * 3: Designer (scanning, subplates, worklogs)
- * 4: Worker (worklogs, personal tasks, mould view)
- * 5: Purchase Incharge (purchase orders, inward materials, vendors)
- * 6: VMC Department (machining, subplates, worklogs)
+ * 0: Admin (100% full access across all modules)
+ * 1: Manager (commercials, quotations, customers, procurement, movements, vendors, expenses, reports)
+ * 2: Supervisor (floor operations, scanning, moulds, subplates, challan, dispatch, inward, QC, worklogs)
+ * 3: Designer (scanning, subplates CAD, personal worklog)
+ * 4: Worker (machine operation, subplates viewing, personal worklog)
+ * 5: Purchase Incharge (purchase orders, inward materials, vendors, commercial amounts)
+ * 6: VMC Department (machining floor, subplates, worklogs)
  * 7: Quality Checking (QC) (QC sign-offs, inward verification, worklogs)
- * 9: Dispatch (challans, shipments, gate passes)
- * 10: Programmer (CAD/CAM NC programming, subplates, worklogs)
+ * 9: Dispatch (challans, dispatches, transport dockets, shipments)
+ * 10: Programmer (CAD/CAM NC programming, toolpaths, subplates, worklogs)
  */
-export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
+
+const RAW_ROLE_PERMISSIONS: RolePermissionsMatrix = {
   // 0: ADMIN (ALL PERMISSIONS ENABLED)
   0: {
     nav_dashboard: true,
@@ -38,12 +40,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: true,
     action_edit_subplate: true,
     action_delete_subplate: true,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: true,
     action_edit_mould: true,
     action_delete_mould: true,
-    action_advance_pipeline: true,
     // Customers
     action_create_customer: true,
     action_edit_customer: true,
@@ -57,24 +57,33 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: true,
     action_delete_purchase: true,
     action_create_purchase_inward: true,
+    action_delete_purchase_inward: true,
     // Logistics
     action_create_challan: true,
-    action_create_dispatch: true,
-    action_create_inward: true,
-    action_approve_qc: true,
     action_create_challan_dispatch: true,
+    action_delete_challan: true,
+    action_create_dispatch: true,
+    action_delete_dispatch: true,
+    action_create_inward: true,
+    action_delete_inward: true,
+    action_approve_qc: true,
     // Quotations
     action_create_quotation: true,
     action_edit_quotation: true,
     action_delete_quotation: true,
+    action_manage_quotation_presets: true,
     // Worklog
     action_create_worklog: true,
+    action_edit_worklog: true,
+    action_delete_worklog: true,
     action_edit_all_worklog: true,
+    action_delete_all_worklog: true,
     // Admin
     action_manage_expenses: true,
     action_manage_users: true,
     // Financials
     financial_view_amounts: true,
+    financial_view_banking: true,
     financial_export_csv: true,
     financial_soft_delete: true,
   },
@@ -82,7 +91,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
   // 1: MANAGER
   1: {
     nav_dashboard: true,
-    nav_customer_creator: false,
+    nav_customer_creator: true,
     nav_vendor_transport: true,
     nav_subplate: true,
     nav_scanning: false,
@@ -92,6 +101,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_challan: true,
     nav_dispatch: true,
     nav_inward: true,
+    nav_quotation: true,
     nav_work: false,
     nav_expense: true,
     nav_user_mgmt: false,
@@ -101,43 +111,50 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: false,
-    // Customers
-    action_create_customer: false,
+    // Customers (Full commercial client management)
+    action_create_customer: true,
     action_edit_customer: true,
     action_delete_customer: false,
-    // Vendors
+    // Vendors (Full supplier management)
     action_create_vendor: true,
     action_edit_vendor: true,
     action_delete_vendor: false,
-    // Purchase
+    // Purchase (Full PO and inward authority)
     action_create_purchase: true,
     action_edit_purchase: true,
     action_delete_purchase: true,
     action_create_purchase_inward: true,
+    action_delete_purchase_inward: true,
     // Logistics
     action_create_challan: true,
-    action_create_dispatch: true,
-    action_create_inward: true,
-    action_approve_qc: false,
     action_create_challan_dispatch: true,
-    // Quotations
+    action_delete_challan: false,
+    action_create_dispatch: true,
+    action_delete_dispatch: false,
+    action_create_inward: true,
+    action_delete_inward: false,
+    action_approve_qc: false,
+    // Quotations (Commercial estimates)
     action_create_quotation: true,
     action_edit_quotation: true,
     action_delete_quotation: false,
+    action_manage_quotation_presets: true,
     // Worklog
     action_create_worklog: false,
+    action_edit_worklog: false,
+    action_delete_worklog: false,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: true,
     action_manage_users: false,
     // Financials
     financial_view_amounts: true,
+    financial_view_banking: true,
     financial_export_csv: true,
     financial_soft_delete: false,
   },
@@ -164,12 +181,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: true,
     action_edit_subplate: true,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: true,
     action_edit_mould: true,
     action_delete_mould: false,
-    action_advance_pipeline: true,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -183,24 +198,33 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: false,
     action_delete_purchase: false,
     action_create_purchase_inward: false,
+    action_delete_purchase_inward: false,
     // Logistics
     action_create_challan: true,
-    action_create_dispatch: true,
-    action_create_inward: true,
-    action_approve_qc: true,
     action_create_challan_dispatch: true,
+    action_delete_challan: true,
+    action_create_dispatch: true,
+    action_delete_dispatch: true,
+    action_create_inward: true,
+    action_delete_inward: true,
+    action_approve_qc: true,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
-    // Worklog
+    action_manage_quotation_presets: false,
+    // Worklog (Full shopfloor management)
     action_create_worklog: true,
+    action_edit_worklog: true,
+    action_delete_worklog: true,
     action_edit_all_worklog: true,
+    action_delete_all_worklog: true,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: false,
+    financial_view_banking: false,
     financial_export_csv: false,
     financial_soft_delete: false,
   },
@@ -224,16 +248,14 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_settings: false,
     nav_reports: false,
     nav_export: false,
-    // Subplate
+    // Subplate (Add & Edit CAD specifications)
     action_create_subplate: true,
     action_edit_subplate: true,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: true,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -247,24 +269,33 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: false,
     action_delete_purchase: false,
     action_create_purchase_inward: false,
+    action_delete_purchase_inward: false,
     // Logistics
     action_create_challan: false,
-    action_create_dispatch: false,
-    action_create_inward: false,
-    action_approve_qc: false,
     action_create_challan_dispatch: false,
+    action_delete_challan: false,
+    action_create_dispatch: false,
+    action_delete_dispatch: false,
+    action_create_inward: false,
+    action_delete_inward: false,
+    action_approve_qc: false,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
+    action_manage_quotation_presets: false,
     // Worklog
     action_create_worklog: true,
+    action_edit_worklog: true,
+    action_delete_worklog: true,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: false,
+    financial_view_banking: false,
     financial_export_csv: false,
     financial_soft_delete: false,
   },
@@ -275,7 +306,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_customer_creator: false,
     nav_vendor_transport: false,
     nav_subplate: true,
-    nav_scanning: true,
+    nav_scanning: false,
     nav_project_register: false,
     nav_purchase: false,
     nav_purchase_inward: false,
@@ -288,16 +319,14 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_settings: false,
     nav_reports: false,
     nav_export: false,
-    // Subplate
+    // Subplate (View only)
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: false,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -311,24 +340,33 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: false,
     action_delete_purchase: false,
     action_create_purchase_inward: false,
+    action_delete_purchase_inward: false,
     // Logistics
     action_create_challan: false,
-    action_create_dispatch: false,
-    action_create_inward: false,
-    action_approve_qc: false,
     action_create_challan_dispatch: false,
+    action_delete_challan: false,
+    action_create_dispatch: false,
+    action_delete_dispatch: false,
+    action_create_inward: false,
+    action_delete_inward: false,
+    action_approve_qc: false,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
-    // Worklog
+    action_manage_quotation_presets: false,
+    // Worklog (Personal log entry)
     action_create_worklog: true,
+    action_edit_worklog: true,
+    action_delete_worklog: true,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: false,
+    financial_view_banking: false,
     financial_export_csv: false,
     financial_soft_delete: false,
   },
@@ -345,7 +383,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_purchase_inward: true,
     nav_challan: false,
     nav_dispatch: false,
-    nav_inward: true,
+    nav_inward: false,
     nav_work: false,
     nav_expense: false,
     nav_user_mgmt: false,
@@ -356,12 +394,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: false,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -370,29 +406,38 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_vendor: true,
     action_edit_vendor: true,
     action_delete_vendor: false,
-    // Purchase
+    // Purchase (Full procurement cycle)
     action_create_purchase: true,
     action_edit_purchase: true,
     action_delete_purchase: true,
     action_create_purchase_inward: true,
+    action_delete_purchase_inward: true,
     // Logistics
     action_create_challan: false,
-    action_create_dispatch: false,
-    action_create_inward: false,
-    action_approve_qc: false,
     action_create_challan_dispatch: false,
+    action_delete_challan: false,
+    action_create_dispatch: false,
+    action_delete_dispatch: false,
+    action_create_inward: false,
+    action_delete_inward: false,
+    action_approve_qc: false,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
+    action_manage_quotation_presets: false,
     // Worklog
-    action_create_worklog: true,
+    action_create_worklog: false,
+    action_edit_worklog: false,
+    action_delete_worklog: false,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: true,
+    financial_view_banking: true,
     financial_export_csv: true,
     financial_soft_delete: false,
   },
@@ -417,15 +462,13 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_reports: false,
     nav_export: false,
     // Subplate
-    action_create_subplate: false,
+    action_create_subplate: true,
     action_edit_subplate: true,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: true,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -439,24 +482,33 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: false,
     action_delete_purchase: false,
     action_create_purchase_inward: false,
+    action_delete_purchase_inward: false,
     // Logistics
     action_create_challan: false,
-    action_create_dispatch: false,
-    action_create_inward: false,
-    action_approve_qc: false,
     action_create_challan_dispatch: false,
+    action_delete_challan: false,
+    action_create_dispatch: false,
+    action_delete_dispatch: false,
+    action_create_inward: false,
+    action_delete_inward: false,
+    action_approve_qc: false,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
+    action_manage_quotation_presets: false,
     // Worklog
     action_create_worklog: true,
+    action_edit_worklog: true,
+    action_delete_worklog: true,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: false,
+    financial_view_banking: false,
     financial_export_csv: false,
     financial_soft_delete: false,
   },
@@ -471,7 +523,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_project_register: false,
     nav_purchase: false,
     nav_purchase_inward: false,
-    nav_challan: false,
+    nav_challan: true,
     nav_dispatch: false,
     nav_inward: true,
     nav_work: true,
@@ -484,12 +536,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: true,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -503,24 +553,33 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: false,
     action_delete_purchase: false,
     action_create_purchase_inward: false,
-    // Logistics
+    action_delete_purchase_inward: false,
+    // Logistics (QC sign-offs)
     action_create_challan: false,
-    action_create_dispatch: false,
-    action_create_inward: false,
-    action_approve_qc: true,
     action_create_challan_dispatch: false,
+    action_delete_challan: false,
+    action_create_dispatch: false,
+    action_delete_dispatch: false,
+    action_create_inward: false,
+    action_delete_inward: false,
+    action_approve_qc: true,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
+    action_manage_quotation_presets: false,
     // Worklog
     action_create_worklog: true,
+    action_edit_worklog: true,
+    action_delete_worklog: true,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: false,
+    financial_view_banking: false,
     financial_export_csv: false,
     financial_soft_delete: false,
   },
@@ -531,7 +590,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_customer_creator: false,
     nav_vendor_transport: false,
     nav_subplate: true,
-    nav_scanning: true,
+    nav_scanning: false,
     nav_project_register: false,
     nav_purchase: false,
     nav_purchase_inward: false,
@@ -548,12 +607,10 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_create_subplate: false,
     action_edit_subplate: false,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: false,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -567,24 +624,33 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: false,
     action_delete_purchase: false,
     action_create_purchase_inward: false,
-    // Logistics
+    action_delete_purchase_inward: false,
+    // Logistics (Shipments, Delivery Challans, Inwards)
     action_create_challan: true,
-    action_create_dispatch: true,
-    action_create_inward: false,
-    action_approve_qc: false,
     action_create_challan_dispatch: true,
+    action_delete_challan: true,
+    action_create_dispatch: true,
+    action_delete_dispatch: true,
+    action_create_inward: true,
+    action_delete_inward: true,
+    action_approve_qc: false,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
+    action_manage_quotation_presets: false,
     // Worklog
-    action_create_worklog: true,
+    action_create_worklog: false,
+    action_edit_worklog: false,
+    action_delete_worklog: false,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: false,
+    financial_view_banking: false,
     financial_export_csv: true,
     financial_soft_delete: false,
   },
@@ -608,16 +674,14 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     nav_settings: false,
     nav_reports: false,
     nav_export: false,
-    // Subplate
+    // Subplate (Add & Edit NC programming specifications)
     action_create_subplate: true,
     action_edit_subplate: true,
     action_delete_subplate: false,
-    action_assign_subplate_designer: true,
     // Scanning / Mould
     action_create_scanning_project: false,
     action_edit_mould: false,
     action_delete_mould: false,
-    action_advance_pipeline: true,
     // Customers
     action_create_customer: false,
     action_edit_customer: false,
@@ -631,28 +695,47 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     action_edit_purchase: false,
     action_delete_purchase: false,
     action_create_purchase_inward: false,
+    action_delete_purchase_inward: false,
     // Logistics
     action_create_challan: false,
-    action_create_dispatch: false,
-    action_create_inward: false,
-    action_approve_qc: false,
     action_create_challan_dispatch: false,
+    action_delete_challan: false,
+    action_create_dispatch: false,
+    action_delete_dispatch: false,
+    action_create_inward: false,
+    action_delete_inward: false,
+    action_approve_qc: false,
     // Quotations
     action_create_quotation: false,
     action_edit_quotation: false,
     action_delete_quotation: false,
+    action_manage_quotation_presets: false,
     // Worklog
     action_create_worklog: true,
+    action_edit_worklog: true,
+    action_delete_worklog: true,
     action_edit_all_worklog: false,
+    action_delete_all_worklog: false,
     // Admin
     action_manage_expenses: false,
     action_manage_users: false,
     // Financials
     financial_view_amounts: false,
+    financial_view_banking: false,
     financial_export_csv: false,
     financial_soft_delete: false,
   },
 };
+
+// Normalize every role's permissions matrix strictly through the dependency hierarchy
+export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = (() => {
+  const result: RolePermissionsMatrix = {};
+  for (const [roleIdStr, perms] of Object.entries(RAW_ROLE_PERMISSIONS)) {
+    const roleId = Number(roleIdStr);
+    result[roleId] = roleId === 0 ? perms : normalizeRolePermissions(perms);
+  }
+  return result;
+})();
 
 export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
   0: [
@@ -677,13 +760,15 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
   ],
   1: [
     "nav_dashboard",
-    "nav_subplate",
+    "nav_quotation",
+    "nav_customer_creator",
     "nav_vendor_transport",
     "nav_purchase",
     "nav_purchase_inward",
     "nav_challan",
     "nav_dispatch",
     "nav_inward",
+    "nav_subplate",
     "nav_expense",
     "nav_reports",
     "nav_export",
@@ -707,16 +792,14 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
   4: [
     "nav_dashboard",
     "nav_subplate",
-    "nav_scanning",
     "nav_work",
   ],
   5: [
     "nav_dashboard",
-    "nav_subplate",
     "nav_purchase",
     "nav_purchase_inward",
     "nav_vendor_transport",
-    "nav_inward",
+    "nav_subplate",
     "nav_reports",
     "nav_export",
   ],
@@ -730,6 +813,7 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
     "nav_dashboard",
     "nav_subplate",
     "nav_scanning",
+    "nav_challan",
     "nav_inward",
     "nav_work",
     "nav_reports",
@@ -740,7 +824,6 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
     "nav_challan",
     "nav_inward",
     "nav_subplate",
-    "nav_scanning",
     "nav_reports",
     "nav_export",
   ],
@@ -751,25 +834,3 @@ export const DEFAULT_ROLE_MENU_ORDERS: Record<number, string[]> = {
     "nav_work",
   ],
 };
-
-// New action permissions start from the previous explicit role intent, never from navigation grants.
-for (const permissions of Object.values(DEFAULT_ROLE_PERMISSIONS)) {
-  permissions.action_delete_challan = permissions.action_create_challan === true;
-  permissions.action_delete_dispatch = permissions.action_create_dispatch === true;
-  permissions.action_delete_inward = permissions.action_create_inward === true;
-  permissions.action_delete_purchase_inward = permissions.action_create_purchase_inward === true;
-  permissions.action_manage_quotation_presets = permissions.action_edit_quotation === true;
-  permissions.action_edit_worklog = permissions.action_create_worklog === true;
-  permissions.action_delete_worklog = permissions.action_create_worklog === true;
-}
-for (const [role, permissions] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
-  permissions.action_assign_subplate_stage = [0, 1, 2, 3, 4, 5, 6, 7, 9, 10].includes(Number(role));
-}
-
-for (const permissions of Object.values(DEFAULT_ROLE_PERMISSIONS)) {
-  permissions.financial_view_banking = permissions.financial_view_amounts === true;
-}
-
-for (const permissions of Object.values(DEFAULT_ROLE_PERMISSIONS)) {
-  permissions.action_delete_all_worklog = permissions.action_edit_all_worklog === true;
-}

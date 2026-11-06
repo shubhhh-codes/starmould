@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { DEFAULT_ROLE_PERMISSIONS, DEFAULT_ROLE_MENU_ORDERS } from "./defaults";
 import { RolePermissionsMatrix, RoleMenuOrders } from "./types";
+import { normalizeRolePermissions } from "./dependencies";
 import { serverLogger } from "@/lib/server-logger";
 
 const CONFIG_KEY_PERMISSIONS = "role_permissions";
@@ -61,7 +62,10 @@ export async function loadEffectiveConfig(): Promise<{ permissions: RolePermissi
       }
       mergedPerms[0] = { ...DEFAULT_ROLE_PERMISSIONS[0] };
       for (const rId of Object.keys(mergedPerms).map(Number).filter((id) => id !== 0)) {
-        if (mergedPerms[rId]) mergedPerms[rId].nav_settings = false;
+        if (mergedPerms[rId]) {
+          mergedPerms[rId].nav_settings = false;
+          mergedPerms[rId] = normalizeRolePermissions(mergedPerms[rId]);
+        }
       }
 
       // 2. Merge menu orders
