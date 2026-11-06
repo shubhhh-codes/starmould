@@ -214,47 +214,11 @@ function ScanningPageContent() {
   // KPI Calculations (Live DB KPIs & Filter-aware)
   const totalScans = kpis.totalScans || scans.length;
   const pendingScans = kpis.pendingScans || scans.filter((s) => s.status === "pending").length;
-  const missingScanner = kpis.missingScanner || scans.filter(
-    (s) => (s.scan_by === 0 || !s.scan_by) && s.status === "pending"
-  ).length;
-  const missingQC = kpis.missingQC || scans.filter(
-    (s) => (s.qc_by === 0 || !s.qc_by) && s.status === "pending"
-  ).length;
-  const missingDesigner = kpis.missingDesigner || scans.filter(
-    (s) => (s.modeldesign_by === 0 || !s.modeldesign_by) && s.status === "pending"
-  ).length;
 
   // Active staff
   const activeStaff = useMemo(() => {
     return users.filter((u) => String(u.status) === "1" || u.status === 1);
   }, [users]);
-
-  // Handle Staff Assignment Change (Live API PATCH - changestatusscan)
-  const handleStaffChange = async (
-    id: number,
-    field: "scan_by" | "qc_by" | "modeldesign_by",
-    userId: number
-  ) => {
-    if (!isAdmin && userId !== 0 && currentUser?.id && Number(userId) !== Number(currentUser.id)) {
-      appStore.addToast({
-        type: "error",
-        message: "Permission denied: You can only assign tasks to yourself.",
-      });
-      return;
-    }
-    try {
-      await updateProjectMutation.mutateAsync({ id, field, value: userId });
-      appStore.addToast({
-        type: "success",
-        message: "Staff assigned successfully.",
-      });
-    } catch (err: any) {
-      appStore.addToast({
-        type: "error",
-        message: err?.message || "Failed to assign staff",
-      });
-    }
-  };
 
   // Enterprise Custom Delete Modal State & Handlers
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{
@@ -369,28 +333,6 @@ function ScanningPageContent() {
             </div>
           )}
         </div>
-
-        {/* Unassigned Work Alerts Banner */}
-        {(missingScanner > 0 || missingQC > 0 || missingDesigner > 0) && (
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 text-amber-800 rounded-xl">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-amber-900">
-                  Pending Resource Allocations Detected
-                </h4>
-                <p className="text-xs text-amber-700">
-                  {missingScanner} projects missing Scanner • {missingDesigner} missing Designer • {missingQC} missing QC Officer
-                </p>
-              </div>
-            </div>
-            <span className="text-xs font-semibold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">
-              Attention Needed
-            </span>
-          </div>
-        )}
 
         {/* KPI Cards */}
         {isLoading ? (

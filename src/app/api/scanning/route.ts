@@ -334,22 +334,16 @@ export async function GET(req: NextRequest) {
           const [
             totalScansRes,
             pendingScansRes,
-            missingScannerRes,
-            missingQCRes,
-            missingDesignerRes,
           ] = await Promise.all([
             supabaseAdmin.from("scan").select("id", { count: "exact", head: true }),
             supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending"),
-            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("scan_by.eq.0,scan_by.is.null"),
-            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("qc_by.eq.0,qc_by.is.null"),
-            supabaseAdmin.from("scan").select("id", { count: "exact", head: true }).eq("status", "pending").or("modeldesign_by.eq.0,modeldesign_by.is.null"),
           ]);
           return {
             totalScans: totalScansRes.count || 0,
             pendingScans: pendingScansRes.count || 0,
-            missingScanner: missingScannerRes.count || 0,
-            missingQC: missingQCRes.count || 0,
-            missingDesigner: missingDesignerRes.count || 0,
+            missingScanner: 0,
+            missingQC: 0,
+            missingDesigner: 0,
             totalRevenue: 0,
           };
         }),
