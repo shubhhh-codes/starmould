@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { Minus, Plus } from "lucide-react";
 
 export interface RollingCounterProps {
@@ -17,7 +17,7 @@ export interface RollingCounterProps {
    */
   onChange?: (val: number) => void;
   /**
-   * Minimum allowed value. Default is 0.
+   * Minimum allowed value. Default is 1.
    */
   min?: number;
   /**
@@ -406,7 +406,9 @@ export function RollingCounter({
 
   const animFrameRef = useRef<number>(0);
   const paramsRef = useRef({ bounce, stagger, blur, cellHeight });
-  paramsRef.current = { bounce, stagger, blur, cellHeight };
+  useLayoutEffect(() => {
+    paramsRef.current = { bounce, stagger, blur, cellHeight };
+  }, [bounce, stagger, blur, cellHeight]);
 
   // Update visual DOM positions and blur smear
   const updateDOM = useCallback(() => {
@@ -421,6 +423,11 @@ export function RollingCounter({
       strip.style.filter = smear > 0.15 ? `blur(${smear.toFixed(2)}px)` : "";
     });
   }, []);
+
+  // Position the digits before the first paint, even when the value never changes.
+  useLayoutEffect(() => {
+    updateDOM();
+  }, [updateDOM, cellHeight]);
 
   // Physics Spring Animation Loop with ripple carry
   const startAnimation = useCallback(() => {
@@ -476,13 +483,6 @@ export function RollingCounter({
     };
   }, []);
 
-  // Sync when controlled value updates externally
-  useEffect(() => {
-    if (isControlled && controlledValue !== currentValRef.current) {
-      stepTo(controlledValue);
-    }
-  }, [isControlled, controlledValue]);
-
   // Internal step logic
   const stepTo = useCallback(
     (targetVal: number) => {
@@ -517,6 +517,13 @@ export function RollingCounter({
     },
     [min, max, onChange, prefersReducedMotion, sound, updateDOM, startAnimation, displayValue]
   );
+
+  // Sync when controlled value updates externally.
+  useEffect(() => {
+    if (isControlled && controlledValue !== currentValRef.current) {
+      stepTo(controlledValue);
+    }
+  }, [isControlled, controlledValue, stepTo]);
 
   const stepDelta = useCallback(
     (delta: number) => {

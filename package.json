@@ -10,7 +10,8 @@
     "lint": "eslint",
     "check:language": "node scripts/check-language.mjs",
     "test": "node scripts/run-regression.cjs",
-    "typecheck": "tsc --noEmit --incremental false"
+    "typecheck": "tsc --noEmit --incremental false",
+    "test:ui": "node scripts/test-dashboard-ui.cjs && node scripts/test-subplate-ui.cjs && node scripts/test-drawers.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

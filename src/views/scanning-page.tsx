@@ -334,55 +334,6 @@ function ScanningPageContent() {
           )}
         </div>
 
-        {/* KPI Cards */}
-        {isLoading ? (
-          <KpiCardSkeleton count={3} />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                <Scan className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Total Scan Projects
-                </p>
-                <p className="text-2xl font-black text-slate-900">
-                  {totalScans.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
-                <Clock className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Pending Execution
-                </p>
-                <p className="text-2xl font-black text-amber-600">
-                  {pendingScans.toLocaleString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-                <CheckCircle2 className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Completed Moulds
-                </p>
-                <p className="text-2xl font-black text-emerald-600">
-                  {(totalScans - pendingScans).toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Filter Controls */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-2.5 w-full flex-1 sm:w-auto sm:min-w-[300px]">
