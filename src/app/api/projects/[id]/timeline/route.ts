@@ -679,7 +679,8 @@ export async function GET(
     // Step 6: Delivery Dispatch Challan (if any customer shipment)
     if (dispatches.length > 0) {
       const firstDisp = dispatches[0];
-      const transporter = vendMap.get(firstDisp.vendortid) || "Logistics";
+      const transporter = vendMap.get(String(firstDisp.vendortid)) || "Logistics";
+      const firstDispToken = createSecurePrintToken({ type: "dispatch", id: firstDisp.id });
       milestones.push({
         step: stepNumber++,
         id: `ms_dispatch_${project.id}`,
@@ -692,7 +693,19 @@ export async function GET(
           type: "dispatch",
           id: firstDisp.id,
           label: firstDisp.challanno || `Dispatch #${firstDisp.id}`,
+          viewUrl: `/print/dispatch/${firstDispToken}`,
         },
+        subItems: dispatches.map((d) => {
+          const token = createSecurePrintToken({ type: "dispatch", id: d.id });
+          return {
+            name: d.challanno || `Dispatch #${d.id}`,
+            status: customerName,
+            note: d.chdate || undefined,
+            docType: "dispatch" as const,
+            docId: d.id,
+            viewUrl: `/print/dispatch/${token}`,
+          };
+        }),
         details: [
           { label: "Challan No", value: firstDisp.challanno },
           { label: "Invoice No", value: firstDisp.invoiceno || "N/A" },
@@ -740,117 +753,186 @@ export async function GET(
     const uniqueInwards = Array.from(new Map(inwards.map((i: any) => [i.id, i])).values());
     const uniqueWorklogs = Array.from(new Map(worklogs.map((w: any) => [w.id, w])).values());
 
+    // Query quotations linked to this project or customer
+    let quoteRecords: any[] = [];
+    try {
+      let qQuery = supabaseAdmin
+        .from("quotations")
+        .select("id, quotation_no, quotation_date, consignee_name, grand_total, status, quotation_items(*)")
+        .is("deleted_at", null);
+
+      if (project.customer_id) {
+        qQuery = qQuery.eq("customer_id", project.customer_id);
+      } else {
+        qQuery = qQuery.ilike("consignee_name", `%${customerName}%`);
+      }
+      const { data: qData } = await qQuery.order("id", { ascending: false }).limit(20);
+      if (qData && qData.length > 0) {
+        const pCodeLower = projectCode.toLowerCase();
+        quoteRecords = qData.filter((q: any) => {
+          const raw = JSON.stringify(q).toLowerCase();
+          return raw.includes(pCodeLower);
+        });
+        if (quoteRecords.length === 0 && qData.length === 1) {
+          quoteRecords = qData;
+        }
+      }
+    } catch {
+      // quotations optional
+    }
+
     const documentRecords: ProjectDocumentItem[] = [
-      ...uniqueDispatches.map((d: any) => ({
-        id: d.id,
-        docType: "dispatch" as const,
-        docCategory: "Delivery Challan" as const,
-        docNumber: d.challanno || `DC-${d.id}`,
-        docDate: d.chdate || "",
-        partyName: customerName,
-        transporter: vendMap.get(d.vendortid) || "",
-        invoiceNo: d.invoiceno || "",
-        vehicleNo: d.vehicleno || "",
-        deliveryType: d.deliverytype || "",
-        itemCount: d.dispatch_items?.length || 0,
-        status: d.status,
-        items: (d.dispatch_items || []).map((it: any) => ({
-          name: it.custom_plate_name || subplateNameMap.get(it.plateid) || it.particulars || "Mould Plate",
-          particulars: it.particulars || it.condition || "",
-          qty: it.qty || 1,
-        })),
-        viewUrl: `/print/dispatch/${createSecurePrintToken({ type: "dispatch", id: d.id })}`,
-        downloadUrl: `/api/download-dispatch-pdf?id=${d.id}`,
-      })),
-      ...uniquePurchases.map((p: any) => ({
-        id: p.id,
-        docType: "purchase" as const,
-        docCategory: "Purchase Order" as const,
-        docNumber: p.srno || `PO-${p.id}`,
-        docDate: p.odate || p.idate || "",
-        partyName: vendMap.get(p.vname) || custMap.get(p.vname)?.customername || "Vendor",
-        transporter: "",
-        invoiceNo: "",
-        vehicleNo: "",
-        deliveryType: "",
-        itemCount: p.purchase_items?.length || 0,
-        status: p.status,
-        items: (p.purchase_items || []).map((it: any) => ({
-          name: subplateNameMap.get(it.plateid) || it.material || "Plate Material",
-          particulars: it.material || it.materialtype || "",
-          qty: it.qty || 1,
-          rate: it.rate,
-        })),
-        viewUrl: `/print/purchase/${createSecurePrintToken({ type: "purchase", id: p.id })}`,
-        downloadUrl: `/api/download-po-pdf?type=purchase&id=${p.id}`,
-      })),
-      ...uniqueChallans.map((c: any) => ({
-        id: c.id,
-        docType: "challan" as const,
-        docCategory: "Job Work Challan" as const,
-        docNumber: c.challanno || `JC-${c.id}`,
-        docDate: c.chdate || "",
-        partyName: vendMap.get(c.vendorid || c.vendortid) || "Vendor",
-        transporter: vendMap.get(c.vendortid) || "",
-        invoiceNo: "",
-        vehicleNo: "",
-        deliveryType: "",
-        itemCount: c.challan_items?.length || 0,
-        status: c.status,
-        items: (c.challan_items || []).map((it: any) => ({
-          name: subplateNameMap.get(it.plateid) || it.particulars || "Jobwork Plate",
-          particulars: it.particulars || "",
-          qty: it.qty || 1,
-        })),
-        viewUrl: `/print/challan/${createSecurePrintToken({ type: "challan", id: c.id })}`,
-        downloadUrl: `/api/download-challan-pdf?id=${c.id}`,
-      })),
-      ...uniqueInwards.map((inw: any) => ({
-        id: inw.id,
-        docType: "inward" as const,
-        docCategory: "Job Work Inward" as const,
-        docNumber: inw.inchallanno || inw.challanno || `INW-${inw.id}`,
-        docDate: inw.in_date || inw.chdate || "",
-        partyName: vendMap.get(inw.vendorid || inw.vendortid) || "Vendor",
-        transporter: "",
-        invoiceNo: "",
-        vehicleNo: "",
-        deliveryType: "",
-        itemCount: inw.inward_items?.length || 0,
-        status: inw.status,
-        items: (inw.inward_items || []).map((it: any) => ({
-          name: subplateNameMap.get(it.plateid) || it.particulars || "Inward Component",
-          particulars: it.particulars || "",
-          qty: it.inward_qty || it.qty || 1,
-        })),
-        viewUrl: `/print/inward/${createSecurePrintToken({ type: "inward", id: inw.id })}`,
-        downloadUrl: `/print/inward/${inw.id}`,
-      })),
-      ...uniqueWorklogs.map((w: any) => ({
-        id: w.id,
-        docType: "work" as const,
-        docCategory: "Work Order" as const,
-        docNumber: `WO-${w.id}`,
-        docDate: w.rdate || w.sdate || "",
-        partyName: userMap.get(w.userid)?.name || `Operator #${w.userid}`,
-        transporter: "",
-        invoiceNo: "",
-        vehicleNo: "",
-        deliveryType: "",
-        itemCount: 1,
-        workHours: w.work_hr || "00:00:00",
-        description: w.workdescription || "",
-        status: "1",
-        items: [
-          {
-            name: `${subplateNameMap.get(w.subplateid) || "Mould Plate"} — ${w.workdescription || "Machining"}`,
-            particulars: `Work: ${w.work_hr || "00:00:00"} | Machine: ${w.machine_hr || 0}hr | Design: ${w.design_hr || 0}hr`,
-            qty: 1,
-          },
-        ],
-        viewUrl: `/print/work/${createSecurePrintToken({ type: "work", id: w.id })}`,
-        downloadUrl: `/print/work/${w.id}`,
-      })),
+      ...uniqueDispatches.map((d: any) => {
+        const token = createSecurePrintToken({ type: "dispatch", id: d.id });
+        return {
+          id: d.id,
+          docType: "dispatch" as const,
+          docCategory: "Delivery Challan" as const,
+          docNumber: d.challanno || `DC-${d.id}`,
+          docDate: d.chdate || "",
+          partyName: customerName,
+          transporter: vendMap.get(String(d.vendortid)) || "",
+          invoiceNo: d.invoiceno || "",
+          vehicleNo: d.vehicleno || "",
+          deliveryType: d.deliverytype || "",
+          itemCount: d.dispatch_items?.length || 0,
+          status: d.status,
+          items: (d.dispatch_items || []).map((it: any) => ({
+            name: it.custom_plate_name || subplateNameMap.get(it.plateid) || it.particulars || "Mould Plate",
+            particulars: it.particulars || it.condition || "",
+            qty: it.qty || 1,
+          })),
+          viewUrl: `/print/dispatch/${token}`,
+          downloadUrl: `/api/download-dispatch-pdf?token=${token}`,
+        };
+      }),
+      ...uniquePurchases.map((p: any) => {
+        const token = createSecurePrintToken({ type: "purchase", id: p.id });
+        return {
+          id: p.id,
+          docType: "purchase" as const,
+          docCategory: "Purchase Order" as const,
+          docNumber: p.srno || `PO-${p.id}`,
+          docDate: p.odate || p.idate || "",
+          partyName: vendMap.get(String(p.vname)) || custMap.get(String(p.vname))?.customername || (typeof p.vname === "string" ? p.vname : "Vendor"),
+          transporter: "",
+          invoiceNo: "",
+          vehicleNo: "",
+          deliveryType: "",
+          itemCount: p.purchase_items?.length || 0,
+          status: p.status,
+          items: (p.purchase_items || []).map((it: any) => ({
+            name: subplateNameMap.get(it.plateid) || it.material || "Plate Material",
+            particulars: it.material || it.materialtype || "",
+            qty: it.qty || 1,
+            rate: it.rate,
+          })),
+          viewUrl: `/print/purchase/${token}`,
+          downloadUrl: `/api/download-po-pdf?token=${token}`,
+        };
+      }),
+      ...uniqueChallans.map((c: any) => {
+        const token = createSecurePrintToken({ type: "challan", id: c.id });
+        return {
+          id: c.id,
+          docType: "challan" as const,
+          docCategory: "Job Work Challan" as const,
+          docNumber: c.challanno || `JC-${c.id}`,
+          docDate: c.chdate || "",
+          partyName: vendMap.get(String(c.vendorid)) || vendMap.get(String(c.vendortid)) || "Job Work Vendor",
+          transporter: vendMap.get(String(c.vendortid)) || "",
+          invoiceNo: "",
+          vehicleNo: "",
+          deliveryType: "",
+          itemCount: c.challan_items?.length || 0,
+          status: c.status,
+          items: (c.challan_items || []).map((it: any) => ({
+            name: subplateNameMap.get(it.plateid) || it.particulars || "Jobwork Plate",
+            particulars: it.particulars || "",
+            qty: it.qty || 1,
+          })),
+          viewUrl: `/print/challan/${token}`,
+          downloadUrl: `/api/download-challan-pdf?token=${token}`,
+        };
+      }),
+      ...uniqueInwards.map((inw: any) => {
+        const token = createSecurePrintToken({ type: "inward", id: inw.id });
+        return {
+          id: inw.id,
+          docType: "inward" as const,
+          docCategory: "Job Work Inward" as const,
+          docNumber: inw.inchallanno || inw.challanno || `INW-${inw.id}`,
+          docDate: inw.in_date || inw.chdate || "",
+          partyName: vendMap.get(String(inw.vendorid)) || vendMap.get(String(inw.vendortid)) || "Job Work Vendor",
+          transporter: "",
+          invoiceNo: "",
+          vehicleNo: "",
+          deliveryType: "",
+          itemCount: inw.inward_items?.length || 0,
+          status: inw.status,
+          items: (inw.inward_items || []).map((it: any) => ({
+            name: subplateNameMap.get(it.plateid) || it.particulars || "Inward Component",
+            particulars: it.particulars || "",
+            qty: it.inward_qty || it.qty || 1,
+          })),
+          viewUrl: `/print/inward/${token}`,
+          downloadUrl: "",
+        };
+      }),
+      ...uniqueWorklogs.map((w: any) => {
+        const token = createSecurePrintToken({ type: "work", id: w.id });
+        return {
+          id: w.id,
+          docType: "work" as const,
+          docCategory: "Work Order" as const,
+          docNumber: `WO-${w.id}`,
+          docDate: w.rdate || w.sdate || "",
+          partyName: userMap.get(String(w.userid))?.name || `Operator #${w.userid}`,
+          transporter: "",
+          invoiceNo: "",
+          vehicleNo: "",
+          deliveryType: "",
+          itemCount: 1,
+          workHours: w.work_hr || "00:00:00",
+          description: w.workdescription || "",
+          status: "1",
+          items: [
+            {
+              name: `${subplateNameMap.get(w.subplateid) || "Mould Plate"} — ${w.workdescription || "Machining"}`,
+              particulars: `Work: ${w.work_hr || "00:00:00"} | Machine: ${w.machine_hr || 0}hr | Design: ${w.design_hr || 0}hr`,
+              qty: 1,
+            },
+          ],
+          viewUrl: `/print/work/${token}`,
+          downloadUrl: "",
+        };
+      }),
+      ...quoteRecords.map((q: any) => {
+        const token = createSecurePrintToken({ type: "quotation", id: q.id });
+        return {
+          id: q.id,
+          docType: "quotation" as const,
+          docCategory: "Quotation" as const,
+          docNumber: q.quotation_no || `QT-${q.id}`,
+          docDate: q.quotation_date || "",
+          partyName: q.consignee_name || customerName,
+          transporter: "",
+          invoiceNo: "",
+          vehicleNo: "",
+          deliveryType: "",
+          itemCount: q.quotation_items?.length || 0,
+          totalAmount: q.grand_total,
+          status: q.status,
+          items: (q.quotation_items || []).map((it: any) => ({
+            name: it.product_name || it.product_description || "Quoted Mould Item",
+            particulars: it.description || "",
+            qty: it.qty || 1,
+            rate: it.unit_price,
+          })),
+          viewUrl: `/print/quotation/${token}`,
+          downloadUrl: `/api/download-quotation-pdf?token=${token}`,
+        };
+      }),
     ];
 
     const documentsSummary: ProjectDocumentsSummary = {
@@ -860,7 +942,7 @@ export async function GET(
       challansCount: uniqueChallans.length,
       inwardsCount: uniqueInwards.length,
       workOrdersCount: uniqueWorklogs.length,
-      quotationsCount: 0,
+      quotationsCount: quoteRecords.length,
     };
 
     const responsePayload = {
