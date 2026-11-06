@@ -37,11 +37,6 @@ html {
   overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
 }
 
 body {
@@ -55,44 +50,92 @@ body {
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
 }
 
 /* =========================================================================
-   STRICT TEXT SELECTION & TOUCH CONTROLS (iOS / iPad / Tablet / Mobile)
-   - Disables accidental text highlighting, long-press magnifiers, and native
-     iOS popup menus across UI chrome, buttons, labels, tabs, and modals.
-   - Strictly permits selection in user text inputs and designated copyable areas.
+   DESKTOP (Mouse & Cursor): FULL NATURAL TEXT SELECTION
+   All tables, project codes, customer details, cards, and text are 100%
+   selectable and copyable with mouse cursor on desktop screens.
    ========================================================================= */
+@media (hover: hover) and (pointer: fine) {
+  html,
+  body {
+    -webkit-user-select: auto;
+    -moz-user-select: auto;
+    -ms-user-select: auto;
+    user-select: auto;
+  }
 
-/* Prevent selection and callouts across UI controls, labels, headers, and modal surfaces */
-button,
-label,
-summary,
-[role="button"],
-[role="tab"],
-nav,
-aside,
-header,
-footer,
-table th,
-dialog,
-[role="dialog"],
-[role="menu"],
-[role="menubar"],
-[role="listbox"],
-[role="option"] {
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  user-select: none !important;
-  -webkit-touch-callout: none !important;
+  /* Action buttons, pills & interactive navigation stay non-selectable to prevent click drag-flashing */
+  button,
+  [role="button"],
+  [role="tab"],
+  summary {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+  }
+
+  /* All data tables, headings, paragraphs, labels, codes, badges are completely selectable */
+  table,
+  table td,
+  table th,
+  p,
+  span,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  div,
+  label {
+    -webkit-user-select: auto;
+    -moz-user-select: auto;
+    user-select: auto;
+  }
 }
 
-/* Strictly permit text selection and normal editing in inputs, textareas, and explicit copyable zones */
+/* =========================================================================
+   TOUCH DEVICES (iOS / iPad / iPhone / Tablets): CLEAN NATIVE APP TOUCH
+   Prevents accidental text highlighting, long-press magnifiers, and native
+   iOS context callouts ("Copy | Search | Look Up") when tapping modal/form chrome.
+   ========================================================================= */
+@media (pointer: coarse), (hover: none) {
+  html,
+  body {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  /* Prevent accidental selection on touch across buttons, labels, and modal chrome */
+  button,
+  label,
+  summary,
+  [role="button"],
+  [role="tab"],
+  nav,
+  aside,
+  header,
+  footer,
+  table th,
+  dialog,
+  [role="dialog"],
+  [role="menu"],
+  [role="menubar"],
+  [role="listbox"],
+  [role="option"] {
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    user-select: none !important;
+    -webkit-touch-callout: none !important;
+  }
+}
+
+/* Inputs, textareas, and explicit copyable zones are ALWAYS selectable everywhere */
 input,
 textarea,
 [contenteditable="true"],

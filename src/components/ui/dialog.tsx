@@ -124,7 +124,7 @@ export function Modal({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        className={`relative z-10 w-full max-w-[calc(100vw-1rem)] ${maxWidthClasses[effectiveMaxWidth]} bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] my-auto animate-modal-spring focus:outline-none min-w-0 select-none ${className}`}
+        className={`relative z-10 w-full max-w-[calc(100vw-1rem)] ${maxWidthClasses[effectiveMaxWidth]} bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] my-auto animate-modal-spring focus:outline-none min-w-0 ${className}`}
       >
         {/* Header (Sticky, shrink-0, never clipped) */}
         {(title || showCloseButton) && (
