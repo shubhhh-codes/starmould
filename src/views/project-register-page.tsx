@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
 import { exportToCsv } from "@/lib/utils";
+import { triggerFileExport } from "@/lib/exports/download";
 import {
   Archive,
   Search,
@@ -173,6 +174,19 @@ export function ProjectRegisterPage() {
     }
   };
 
+  const handleExport = (format: "xlsx" | "pdf") => {
+    triggerFileExport({
+      dataset: "project_register",
+      format,
+      scope: "filtered",
+      filters: {
+        customer: selectedCustomer,
+        worktype: selectedWorkType,
+      },
+      search: searchQuery || undefined,
+    });
+  };
+
   const handleExportCSV = () => {
     if (filteredProjects.length === 0) return;
     const headers = [
@@ -266,11 +280,19 @@ export function ProjectRegisterPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={handleExportCSV}
+              onClick={() => handleExport("xlsx")}
               className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              <span>Export CSV</span>
+              <span>Export Excel</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExport("pdf")}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs transition-colors cursor-pointer"
+            >
+              <FileText className="w-4 h-4 text-rose-600" />
+              <span>Export PDF</span>
             </button>
             <button
               type="button"

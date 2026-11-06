@@ -125,6 +125,7 @@ export function MouldProjectsTable(props: MouldProjectsTableProps) {
         handleBatchDelete={handleBatchDelete}
         setRowSelection={setRowSelection}
         data={data}
+        table={table}
       />
 
       {/* Main Table Grid (Desktop: hidden below md) */}

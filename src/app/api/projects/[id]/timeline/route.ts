@@ -16,6 +16,7 @@ export interface LifecycleMilestone {
     type: "challan" | "dispatch" | "purchase" | "inward" | "work" | "quotation";
     id: number | string;
     label: string;
+    viewUrl?: string;
   };
   details?: {
     label: string;
@@ -25,6 +26,9 @@ export interface LifecycleMilestone {
     name: string;
     status: string;
     note?: string;
+    docType?: "challan" | "dispatch" | "purchase" | "inward" | "work" | "quotation";
+    docId?: number | string;
+    viewUrl?: string;
   }[];
 }
 
@@ -87,9 +91,10 @@ export interface TimelineEvent {
   badgeColor: "purple" | "blue" | "emerald" | "amber" | "slate" | "rose" | "teal";
   meta?: Record<string, any>;
   documentLink?: {
-    type: "challan" | "dispatch" | "purchase" | "inward";
+    type: "challan" | "dispatch" | "purchase" | "inward" | "work" | "quotation";
     id: number | string;
     label: string;
+    viewUrl?: string;
   };
 }
 
@@ -173,9 +178,9 @@ export async function GET(
         .neq("status", "0"),
     ]);
 
-    const custMap = new Map((customersRes.data || []).map((c) => [c.id, c]));
-    const userMap = new Map((usersRes.data || []).map((u) => [u.id, u]));
-    const vendMap = new Map((vendorsRes.data || []).map((v) => [v.id, v.vendor_name]));
+    const custMap = new Map((customersRes.data || []).map((c) => [String(c.id), c]));
+    const userMap = new Map((usersRes.data || []).map((u) => [String(u.id), u]));
+    const vendMap = new Map((vendorsRes.data || []).map((v) => [String(v.id), v.vendor_name]));
 
     const subplates = subplatesRes.data || [];
     const worklogs = worklogsRes.data || [];
@@ -243,7 +248,7 @@ export async function GET(
       if (extraInwardsRes.data) inwards.push(...extraInwardsRes.data);
     }
 
-    const customer = custMap.get(project.customer_id) || custMap.get(Number(project.cname));
+    const customer = custMap.get(String(project.customer_id)) || custMap.get(String(project.cname));
     const customerName = customer?.customername || project.cname || "Unknown Customer";
     const customerInitials = customer?.initials || "";
 
@@ -252,7 +257,7 @@ export async function GET(
 
     // --- A. Project Creation Milestone ---
     const createdAt = project.created_at || (project.rdate ? `${project.rdate}T00:00:00.000Z` : new Date().toISOString());
-    const creatorUser = userMap.get(project.scan_by);
+    const creatorUser = userMap.get(String(project.scan_by));
     events.push({
       id: `mould_create_${project.id}`,
       timestamp: createdAt,
@@ -297,9 +302,10 @@ export async function GET(
 
     // --- C. Raw Material Purchase Orders ---
     for (const po of purchases) {
-      const vendorName = vendMap.get(po.vname) || `Vendor #${po.vname}`;
+      const vendorName = vendMap.get(String(po.vname)) || (typeof po.vname === "string" ? po.vname : `Vendor #${po.vname}`);
       const poDate = po.odate || po.idate ? `${po.odate || po.idate}T00:00:00.000Z` : createdAt;
       const itemCount = po.purchase_items?.length || 0;
+      const poToken = createSecurePrintToken({ type: "purchase", id: po.id });
       events.push({
         id: `po_${po.id}`,
         timestamp: poDate,
@@ -313,6 +319,7 @@ export async function GET(
           type: "purchase",
           id: po.id,
           label: po.srno || `PO #${po.id}`,
+          viewUrl: `/print/purchase/${poToken}`,
         },
         meta: {
           vendorName,
@@ -339,7 +346,7 @@ export async function GET(
         const staffId = sp[st.byField as keyof typeof sp];
         const timestamp = sp[st.atField as keyof typeof sp] as string | null;
         if (staffId && timestamp) {
-          const user = userMap.get(Number(staffId));
+          const user = userMap.get(String(staffId));
           events.push({
             id: `stage_${sp.id}_${st.key}`,
             timestamp,
@@ -385,9 +392,10 @@ export async function GET(
 
     // --- E. Outward Jobwork Challans ---
     for (const ch of challans) {
-      const vendorName = vendMap.get(ch.vendortid) || `Vendor #${ch.vendortid}`;
+      const vendorName = vendMap.get(String(ch.vendorid)) || vendMap.get(String(ch.vendortid)) || `Vendor #${ch.vendortid}`;
       const chDate = ch.chdate ? `${ch.chdate}T00:00:00.000Z` : createdAt;
       const chItems = ch.challan_items || [];
+      const chToken = createSecurePrintToken({ type: "challan", id: ch.id });
       events.push({
         id: `challan_${ch.id}`,
         timestamp: chDate,
@@ -401,6 +409,7 @@ export async function GET(
           type: "challan",
           id: ch.id,
           label: ch.challanno || `Challan #${ch.id}`,
+          viewUrl: `/print/challan/${chToken}`,
         },
         meta: {
           vendorName,
@@ -411,9 +420,10 @@ export async function GET(
 
     // --- F. Inward Jobwork Receipts ---
     for (const iw of inwards) {
-      const vendorName = vendMap.get(iw.vendortid) || `Vendor #${iw.vendortid}`;
+      const vendorName = vendMap.get(String(iw.vendorid)) || vendMap.get(String(iw.vendortid)) || `Vendor #${iw.vendortid}`;
       const inDate = iw.in_date ? `${iw.in_date}T00:00:00.000Z` : createdAt;
       const iwItems = iw.inward_items || [];
+      const iwToken = createSecurePrintToken({ type: "inward", id: iw.id });
       events.push({
         id: `inward_${iw.id}`,
         timestamp: inDate,
@@ -427,6 +437,7 @@ export async function GET(
           type: "inward",
           id: iw.id,
           label: iw.challanno || `Inward #${iw.id}`,
+          viewUrl: `/print/inward/${iwToken}`,
         },
         meta: {
           vendorName,
@@ -474,7 +485,8 @@ export async function GET(
     for (const d of dispatches) {
       const dDate = d.chdate ? `${d.chdate}T00:00:00.000Z` : createdAt;
       const dItems = d.dispatch_items || [];
-      const transporterName = vendMap.get(d.vendortid) || `Transporter #${d.vendortid}`;
+      const transporterName = vendMap.get(String(d.vendortid)) || `Transporter #${d.vendortid}`;
+      const dToken = createSecurePrintToken({ type: "dispatch", id: d.id });
 
       for (const it of dItems) {
         if (it.plateid) allDispatchedPlateIds.add(Number(it.plateid));
@@ -493,6 +505,7 @@ export async function GET(
           type: "dispatch",
           id: d.id,
           label: d.challanno || `Dispatch #${d.id}`,
+          viewUrl: `/print/dispatch/${dToken}`,
         },
         meta: {
           invoiceNo: d.invoiceno,
@@ -573,7 +586,8 @@ export async function GET(
     // Step 3: Raw Material Procurement (PO)
     if (purchases.length > 0) {
       const firstPo = purchases[0];
-      const poVendors = Array.from(new Set(purchases.map((p) => vendMap.get(p.vname) || `Vendor #${p.vname}`))).join(", ");
+      const poVendors = Array.from(new Set(purchases.map((p) => vendMap.get(String(p.vname)) || p.vname || `Vendor #${p.vname}`))).join(", ");
+      const firstPoToken = createSecurePrintToken({ type: "purchase", id: firstPo.id });
       milestones.push({
         step: stepNumber++,
         id: `ms_purchases_${project.id}`,
@@ -586,19 +600,27 @@ export async function GET(
           type: "purchase",
           id: firstPo.id,
           label: firstPo.srno || `PO #${firstPo.id}`,
+          viewUrl: `/print/purchase/${firstPoToken}`,
         },
-        subItems: purchases.map((p) => ({
-          name: p.srno || `PO #${p.id}`,
-          status: vendMap.get(p.vname) || `Vendor #${p.vname}`,
-          note: p.odate || p.idate || undefined,
-        })),
+        subItems: purchases.map((p) => {
+          const token = createSecurePrintToken({ type: "purchase", id: p.id });
+          return {
+            name: p.srno || `PO #${p.id}`,
+            status: vendMap.get(String(p.vname)) || p.vname || `Vendor #${p.vname}`,
+            note: p.odate || p.idate || undefined,
+            docType: "purchase" as const,
+            docId: p.id,
+            viewUrl: `/print/purchase/${token}`,
+          };
+        }),
       });
     }
 
     // Step 4: Outward Jobwork (if any outside processing)
     if (challans.length > 0) {
       const firstCh = challans[0];
-      const chVendors = Array.from(new Set(challans.map((c) => vendMap.get(c.vendortid) || `Vendor #${c.vendortid}`))).join(", ");
+      const chVendors = Array.from(new Set(challans.map((c) => vendMap.get(String(c.vendorid || c.vendortid)) || `Vendor #${c.vendortid}`))).join(", ");
+      const firstChToken = createSecurePrintToken({ type: "challan", id: firstCh.id });
       milestones.push({
         step: stepNumber++,
         id: `ms_challans_${project.id}`,
@@ -611,12 +633,19 @@ export async function GET(
           type: "challan",
           id: firstCh.id,
           label: firstCh.challanno || `Challan #${firstCh.id}`,
+          viewUrl: `/print/challan/${firstChToken}`,
         },
-        subItems: challans.map((c) => ({
-          name: c.challanno || `Challan #${c.id}`,
-          status: vendMap.get(c.vendortid) || "Jobwork Vendor",
-          note: c.chdate || undefined,
-        })),
+        subItems: challans.map((c) => {
+          const token = createSecurePrintToken({ type: "challan", id: c.id });
+          return {
+            name: c.challanno || `Challan #${c.id}`,
+            status: vendMap.get(String(c.vendorid || c.vendortid)) || "Jobwork Vendor",
+            note: c.chdate || undefined,
+            docType: "challan" as const,
+            docId: c.id,
+            viewUrl: `/print/challan/${token}`,
+          };
+        }),
       });
     }
 
