@@ -209,7 +209,7 @@ export function Sidebar({
     setIsMounted(true);
   }, []);
   const cachedUser = isMounted && typeof window !== "undefined" ? getCachedSession() : null;
-  const activeUser = propUser !== undefined ? (propUser || cachedUser) : (authUser || cachedUser);
+  const activeUser = propUser || authUser || cachedUser;
   const userRoleId = activeUser?.role_id;
 
   const isItemActive = React.useCallback(

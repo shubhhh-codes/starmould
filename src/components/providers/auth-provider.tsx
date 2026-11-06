@@ -58,6 +58,7 @@ export function getCachedSession(): UserSession | null {
 
 export function AuthProvider({
   children,
+  initialUser,
 }: {
   children: React.ReactNode;
   initialUser?: UserSession | null;
@@ -66,13 +67,21 @@ export function AuthProvider({
   const pathname = usePathname();
   const queryClient = useQueryClient();
 
-  // Restore cached session synchronously on boot to prevent spurious generation shifts
+  // Restore cached session synchronously on boot from initialUser (SSR verified cookie) or localStorage
   const [currentUser, setCurrentUserState] = useState<UserSession | null>(() => {
-    return getCachedSession();
+    return initialUser || getCachedSession();
   });
   const [isSessionLoaded, setIsSessionLoaded] = useState<boolean>(() => {
-    return Boolean(getCachedSession());
+    return Boolean(initialUser || getCachedSession());
   });
+
+  // Keep state synchronized if initialUser arrives from SSR navigation
+  useEffect(() => {
+    if (initialUser) {
+      setCurrentUserState(initialUser);
+      setIsSessionLoaded(true);
+    }
+  }, [initialUser]);
 
   const setUser = useCallback((user: UserSession | null) => {
     const nextKey = user?.id && user.permissions_version ? `${user.id}_${user.role_id ?? 0}_${user.permissions_version}` : null;
@@ -102,10 +111,8 @@ export function AuthProvider({
   }, [queryClient]);
 
   const fetchSession = useCallback(async () => {
-    const generation = browserPrincipal().generation;
     try {
       const res = await fetch("/api/auth/me");
-      if (generation !== browserPrincipal().generation) return;
       if (res.status === 401) {
         // Only wipe session if server explicitly returned 401 Unauthorized
         setUser(null);
@@ -117,7 +124,6 @@ export function AuthProvider({
         return;
       }
       const data = await res.json();
-      if (generation !== browserPrincipal().generation) return;
       if (data?.user) {
         const formattedUser: UserSession = {
           id: data.user.id,

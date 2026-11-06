@@ -36,6 +36,12 @@ html {
   max-width: 100vw;
   overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
 body {
@@ -48,9 +54,68 @@ body {
   overflow-x: hidden;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 
-/* Universal High-Contrast Text Selection Across All Devices & Elements */
+/* =========================================================================
+   STRICT TEXT SELECTION & TOUCH CONTROLS (iOS / iPad / Tablet / Mobile)
+   - Disables accidental text highlighting, long-press magnifiers, and native
+     iOS popup menus across UI chrome, buttons, labels, tabs, and modals.
+   - Strictly permits selection in user text inputs and designated copyable areas.
+   ========================================================================= */
+
+/* Prevent selection and callouts across UI controls, labels, headers, and modal surfaces */
+button,
+label,
+summary,
+[role="button"],
+[role="tab"],
+nav,
+aside,
+header,
+footer,
+table th,
+dialog,
+[role="dialog"],
+[role="menu"],
+[role="menubar"],
+[role="listbox"],
+[role="option"] {
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  user-select: none !important;
+  -webkit-touch-callout: none !important;
+}
+
+/* Strictly permit text selection and normal editing in inputs, textareas, and explicit copyable zones */
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable=""],
+.select-text,
+.selectable,
+[data-selectable="true"],
+.copyable-text,
+code,
+pre,
+kbd,
+.printable-document,
+.voucher-content,
+[data-document-content="true"],
+.corbel-view-container {
+  -webkit-user-select: text !important;
+  -moz-user-select: text !important;
+  -ms-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default !important;
+}
+
+/* Universal High-Contrast Text Selection Across All Permitted Elements */
 ::selection,
 *::selection {
   background-color: #1d4ed8 !important; /* Rich contrast blue */
