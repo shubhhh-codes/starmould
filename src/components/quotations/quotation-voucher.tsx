@@ -28,17 +28,16 @@ const TEXT_LABEL   = VOUCHER_THEME.textLabel;
 // ─── Annexure Detailed Manufacturer Terms (23 Clauses Split Across 2 Pages) ───
 const ANNEXURE_TERMS_PART1 = [
   { no: 1, title: "PRICE VALIDITY", text: "This quotation is valid for 30 days from the date of issue. After the validity period, prices are subject to change without prior notice." },
-  { no: 2, title: "PAYMENT TERMS", text: "50% advance payment is mandatory along with order confirmation. The remaining 50% balance must be cleared before dispatch/delivery of goods. Failure to make payment on time may delay delivery." },
-  { no: 3, title: "TAXES", text: "GST and all applicable government taxes will be charged extra as per prevailing rates at the time of billing." },
-  { no: 4, title: "ORDER CONFIRMATION", text: "Orders will be treated as confirmed only after receipt of advance payment and a written purchase order or email confirmation from the customer." },
-  { no: 5, title: "PRODUCTION & DELIVERY SCHEDULE", text: "Manufacturing will start only after confirmation and receipt of advance. Delivery timeline will be calculated from the confirmation date and is subject to availability of raw material and production capacity." },
-  { no: 6, title: "TRANSPORTATION, LOADING & UNLOADING", text: "Transportation, packing, loading, unloading, and insurance are chargeable extra unless mentioned otherwise in writing. Risk transfers to the buyer once goods leave our premises." },
-  { no: 7, title: "RAW MATERIAL PRICE FLUCTUATION", text: "Prices are based on current raw material rates. Any significant increase in raw material prices before production may result in price revision." },
-  { no: 8, title: "DESIGN, DRAWING & SAMPLE APPROVAL", text: "If applicable, all drawings, samples, specifications, and designs must be approved by the customer before production. Any changes after approval will attract additional charges and delivery time." },
-  { no: 9, title: "INSPECTION & ACCEPTANCE", text: "Goods must be inspected immediately upon receipt. Any complaints regarding damage, defect, or shortage must be reported within 24–48 hours of delivery. No claims will be entertained thereafter." },
-  { no: 10, title: "WARRANTY", text: "Warranty is applicable only against manufacturing defects, if specifically mentioned. Warranty does not cover damage due to misuse, mishandling, overloading, improper installation, external impact, or power fluctuations." },
-  { no: 11, title: "REJECTION POLICY", text: "Rejection of goods after acceptance will not be entertained. Any rejection must be mutually agreed upon in writing and returned at the customer's cost." },
-  { no: 12, title: "CANCELLATION POLICY", text: "Once manufacturing has started, the order cannot be cancelled under any circumstances. The advance amount shall be non-refundable." },
+  { no: 2, title: "TAXES", text: "GST and all applicable government taxes will be charged extra as per prevailing rates at the time of billing." },
+  { no: 3, title: "ORDER CONFIRMATION", text: "Orders will be treated as confirmed only after receipt of advance payment and a written purchase order or email confirmation from the customer." },
+  { no: 4, title: "PRODUCTION & DELIVERY SCHEDULE", text: "Manufacturing will start only after confirmation and receipt of advance. Delivery timeline will be calculated from the confirmation date and is subject to availability of raw material and production capacity." },
+  { no: 5, title: "TRANSPORTATION, LOADING & UNLOADING", text: "Transportation, packing, loading, unloading, and insurance are chargeable extra unless mentioned otherwise in writing. Risk transfers to the buyer once goods leave our premises." },
+  { no: 6, title: "RAW MATERIAL PRICE FLUCTUATION", text: "Prices are based on current raw material rates. Any significant increase in raw material prices before production may result in price revision." },
+  { no: 7, title: "DESIGN, DRAWING & SAMPLE APPROVAL", text: "If applicable, all drawings, samples, specifications, and designs must be approved by the customer before production. Any changes after approval will attract additional charges and delivery time." },
+  { no: 8, title: "INSPECTION & ACCEPTANCE", text: "Goods must be inspected immediately upon receipt. Any complaints regarding damage, defect, or shortage must be reported within 24–48 hours of delivery. No claims will be entertained thereafter." },
+  { no: 9, title: "WARRANTY", text: "Warranty is applicable only against manufacturing defects, if specifically mentioned. Warranty does not cover damage due to misuse, mishandling, overloading, improper installation, external impact, or power fluctuations." },
+  { no: 10, title: "REJECTION POLICY", text: "Rejection of goods after acceptance will not be entertained. Any rejection must be mutually agreed upon in writing and returned at the customer's cost." },
+  { no: 11, title: "CANCELLATION POLICY", text: "Once manufacturing has started, the order cannot be cancelled under any circumstances. The advance amount shall be non-refundable." },
 ];
 
 const ANNEXURE_TERMS_PART2 = [
