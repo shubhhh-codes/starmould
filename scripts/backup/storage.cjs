@@ -50,12 +50,6 @@ class Storage {
     const actual = await digest(response.Body);
     if (actual.sha256 !== expected.sha256 || actual.size !== expected.size) throw new Error('BACKUP_CHECKSUM_MISMATCH');
   }
-  async manifest(key, manifest, signal) {
-    const body = Buffer.from(JSON.stringify(manifest));
-    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: body,
-      ContentType: 'application/json', IfNoneMatch: '*' }), { abortSignal: signal });
-    await this.verify(key, await digest([body]), signal);
-  }
   async deleteKeys(keys) {
     if (!keys.length) return;
     const result = await this.client.send(new DeleteObjectsCommand({ Bucket: this.bucket,

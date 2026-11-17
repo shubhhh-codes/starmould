@@ -87,3 +87,11 @@ jobs:
           path: ./backups/*
           if-no-files-found: error
           retention-days: 90
+      - name: Upload SQL backup to GitHub Actions
+        if: vars.BACKUP_AUTOMATION_ENABLED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: starmould-sql-backup-${{ github.run_id }}
+          path: ./backups/*.sql
+          if-no-files-found: ignore
+          retention-days: 7

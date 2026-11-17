@@ -3,6 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { capture } = require('./archive.cjs');
+const { backupFilename } = require('./names.cjs');
 
 async function executeJob(store, storage, id, source, options = {}) {
   const job = await store.claim(id, source);
@@ -19,7 +20,7 @@ async function executeJob(store, storage, id, source, options = {}) {
     const prefix = `database/${id}/${job.generation}-${randomUUID()}`;
     const files = [];
     for (const file of result.files) {
-      const key = `${prefix}/database.${file.format}`;
+      const key = `${prefix}/${backupFilename(result.capturedAt)}`;
       await store.renew(job);
       await storage.uploadFile(key, file.path, controller.signal);
       await storage.verify(key, file, controller.signal);
@@ -32,8 +33,12 @@ async function executeJob(store, storage, id, source, options = {}) {
       encryption: 'none',
       revision: process.env.GITHUB_SHA || process.env.BACKUP_SOURCE_REVISION || 'deployed-image', files };
     await store.renew(job);
-    await storage.manifest(`${prefix}/manifest.json`, manifest, controller.signal);
     await store.complete(job, manifest);
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      const artifacts = path.resolve('backups');
+      await fs.mkdir(artifacts, { recursive: true });
+      for (const file of result.files) await fs.copyFile(file.path, path.join(artifacts, backupFilename(result.capturedAt)));
+    }
     // Monitoring is performed by the independent status endpoint, so loss of a
     // webhook response cannot turn this committed recovery point into failure.
     return { status: 'completed', id, manifest };
@@ -52,7 +57,7 @@ async function retention(store, storage) {
   const { rows } = await store.pool.query(`SELECT id,manifest FROM backup_control.jobs
     WHERE status='completed' AND completed_at<clock_timestamp()-interval '90 days' LIMIT 100`);
   for (const job of rows) {
-    await storage.deleteKeys([...job.manifest.files.map(file => file.key), `${job.manifest.prefix}/manifest.json`]);
+    await storage.deleteKeys(job.manifest.files.map(file => file.key));
     await store.pool.query(`UPDATE backup_control.jobs SET status='expired',manifest=NULL
       WHERE id=$1 AND status='completed'`, [job.id]);
   }
