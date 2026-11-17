@@ -2,6 +2,8 @@
 
 ## What runs
 
+Activation on 17 November 2026: GitHub backend automation is published and its live verification passed; the existing Windows fallback worker is enabled. See the rollout report for evidence. The setup instructions below are for reinstalling/moving the system; do not regenerate the existing recovery key during routine operation.
+
 GitHub is primary at **10:05 AM, 12:35 PM, 04:05 PM and 07:05 PM Asia/Kolkata**.
 An independently hosted container checks due slots every five minutes and processes durable manual jobs every 15 seconds. After a 15-minute primary grace it may claim a missing slot. A valid running primary lease prevents duplicate capture. Three attempts per slot are allowed, with two-minute backoff; a running attempt renews a 90-second lease and has a 12-minute deadline.
 

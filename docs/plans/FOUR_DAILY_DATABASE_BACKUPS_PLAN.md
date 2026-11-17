@@ -1,7 +1,7 @@
 # Four daily database backups: implementation plan
 
 Date: 17 November 2026
-Status: Repository implementation and Windows local setup added; private coordinator migration applied and live manual backup verified. GitHub source/secrets cutover, automatic fallback activation and external monitoring remain pending. See `docs/reports/DATABASE_BACKUP_IMPLEMENTATION_2026_11_17.md` and the operations runbook.
+Status: Backup automation published, GitHub secrets/variables configured, live GitHub backup verified, and Windows fallback activated. Local manual backup and migration verified. Independent external notifications remain unconfigured; app UI changes await the separate app release. See `docs/reports/DATABASE_BACKUP_IMPLEMENTATION_2026_11_17.md` and the operations runbook.
 
 ## Objective and schedule
 

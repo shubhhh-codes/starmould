@@ -22,11 +22,13 @@ Implemented 17 November 2026. User clarified that no VPS/cloud compute host is a
 - Executed a live manual smoke backup: completed with two encrypted payloads persisted and read-back verified in R2. No live database restore was performed.
 - Enabled the local app backup UI configuration in ignored `.env.local`; restart Next.js to load the environment.
 
-## Pending live cutover
+## Live activation completed
 
-The updated YAML/shared code is in the working tree, not pushed/deployed to GitHub by this change. The existing GitHub primary continues its legacy four scheduled artifact exports until cutover. New GitHub storage/encryption secrets and `BACKUP_AUTOMATION_ENABLED=true` must be configured with the deployed source.
+Backup automation was published separately to main in commit 8c75a20, preserving unrelated staged app/photo changes. Repository-scoped storage/encryption/database secrets and activation variables were configured without printing secret values. The workflow installs its isolated dependency package so it does not depend on unpublished app package changes.
 
-The local worker deliberately has `BACKUP_FALLBACK_ENABLED=false` during this transition: manual jobs work, while old uncoordinated artifact-only GitHub successes are not incorrectly treated as missing new-format slots. After deploying/configuring the new GitHub primary, enable this flag in `.env.backup.local` and restart via `restart-windows-worker.ps1`. The UI explicitly distinguishes an active manual worker from fallback awaiting activation.
+A live GitHub manual verification completed successfully: https://github.com/shubhhh-codes/starmould/actions/runs/44024069488. The coordinator confirmed completed status on the first attempt. The four cron expressions are unchanged.
+
+After that success, `BACKUP_FALLBACK_ENABLED=true` was set locally and the Windows task restarted. The coordinator's schedule activation epoch was advanced to cutover time, and only unclaimed queued pre-cutover slots were marked expired/PRE_CUTOVER_SLOT. This prevents treating successful legacy artifact-only runs earlier that day as missed coordinated slots. New slots after cutover are covered by the paired primary/fallback system. The app UI changes remain part of the local pending app release; no unrelated app/photo changes were published.
 
 No independent external uptime monitor or notification destination is configured. Loopback `/monitor`, app status and local logs are available. No external messages were sent.
 
