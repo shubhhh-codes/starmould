@@ -1,0 +1,20 @@
+services:
+  backup:
+    build:
+      context: ../..
+      dockerfile: automation/db-backup-service/Dockerfile
+    env_file: .env
+    environment:
+      BACKUP_BIND_HOST: 0.0.0.0
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=2147483648,mode=1777
+    ports:
+      - "127.0.0.1:8085:8080"
+    stop_grace_period: 13m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
