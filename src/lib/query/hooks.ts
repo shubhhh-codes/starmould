@@ -557,6 +557,7 @@ export function useCreateChallanMutation() {
       }, principalSnapshot),
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
@@ -574,6 +575,7 @@ export function useDeleteChallanMutation() {
       }, principalSnapshot),
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
@@ -637,6 +639,7 @@ export function useCreateDispatchMutation() {
       }, principalSnapshot),
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
@@ -659,6 +662,7 @@ export function useDeleteDispatchMutation() {
       }, principalSnapshot),
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.dispatch.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
@@ -711,6 +715,7 @@ export function useCreateInwardMutation() {
       }, principalSnapshot),
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.inward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -729,6 +734,7 @@ export function useDeleteInwardMutation() {
       }, principalSnapshot),
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.inward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.challans.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -850,14 +856,17 @@ export function useCreatePurchaseInwardMutation() {
   const principalSnapshot = React.useMemo(() => browserPrincipal(), []);
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: any) =>
-      fetchJson<any>("/api/purchase-inward", {
+    mutationFn: (body: any) => {
+      const { photoRequestKey, ...payload } = body;
+      return fetchJson<any>("/api/purchase-inward", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      }, principalSnapshot),
+        headers: { "Content-Type": "application/json", ...(photoRequestKey ? { "Idempotency-Key": photoRequestKey } : {}) },
+        body: JSON.stringify(payload),
+      }, principalSnapshot);
+    },
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
@@ -880,6 +889,7 @@ export function useDeletePurchaseInwardMutation() {
       }, principalSnapshot),
     onSuccess: () => {
       if (!principalIsCurrent(principalSnapshot)) return;
+      queryClient.invalidateQueries({ queryKey: queryKeys.photoHistory.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
       queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });

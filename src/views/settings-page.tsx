@@ -4,6 +4,7 @@ import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 // removed createPortal
 import { AppLayout } from "@/components/layout/app-layout";
+import { DatabaseBackupPanel } from "@/components/backup/database-backup-panel";
 import { appStore } from "@/lib/state/store";
 import {
   Shield,
@@ -1689,11 +1690,11 @@ export function SettingsPage() {
                         Supabase Database & Auto-Backup
                       </h3>
                       <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                        Active
+                        Database tools
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-0.5">
-                      Automated 4-hour disaster recovery backups plus instant SQL & JSON downloads.
+                      Four daily backup slots with background fallback and on-demand backups.
                     </p>
                   </div>
                 </div>
@@ -1709,6 +1710,8 @@ export function SettingsPage() {
                 </button>
               </div>
             </div>
+
+            {isAdmin && <DatabaseBackupPanel />}
 
             {/* Instant Download Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1730,7 +1733,7 @@ export function SettingsPage() {
                   </div>
 
                   <p className="text-xs text-slate-600 leading-relaxed">
-                    Complete SQL dump of all active tables with idempotent <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded font-mono text-[11px]">ON CONFLICT DO UPDATE</code> logic.
+                    Data-only export of selected ERP tables with <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded font-mono text-[11px]">ON CONFLICT DO UPDATE</code> logic. Use saved archives above for schema recovery.
                   </p>
                 </div>
 

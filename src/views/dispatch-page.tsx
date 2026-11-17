@@ -1,4 +1,7 @@
 "use client";
+import { RecordActions } from "@/components/ui/record-actions";
+import { movementEvidence } from "@/lib/photos/movement-evidence";
+import { PhotoHistoryButton } from "@/components/photos/photo-history-button";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
@@ -51,12 +54,15 @@ import {
   useProjectsQuery,
   useSubplatesByProjectQuery,
 } from "@/lib/query/hooks";
+import { MovementPhotoUploader } from "@/components/photos/movement-photo-uploader";
 
 export function DispatchPage() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
   const { hasPermission } = useRolePermissions();
   const canCreateDispatch = hasPermission("action_create_dispatch");
+  const [hasDispatchPhoto, setHasDispatchPhoto] = useState(false);
+  const [dispatchPhotos, setDispatchPhotos] = useState<any[]>([]);
   const isRestoring = useIsRestoring();
   const { data, isLoading: queryLoading, error: fetchQueryError, refetch } = useDispatchQuery({ limit: 200 });
   const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
@@ -538,6 +544,11 @@ export function DispatchPage() {
       return;
     }
 
+    if (!hasDispatchPhoto) {
+      setFormError("At least one dispatch photo is mandatory before confirming customer delivery.");
+      return;
+    }
+
     for (let i = 0; i < modalForm.items.length; i++) {
       const item = modalForm.items[i];
       if (item.itemType === "regular" && !item.plateid) {
@@ -573,6 +584,7 @@ export function DispatchPage() {
 
     try {
       await createDispatchMutation.mutateAsync({
+        ...movementEvidence(dispatchPhotos),
         chdate: modalForm.chdate,
         customerid: Number(modalForm.customerid),
         vendortid: Number(modalForm.vendortid),
@@ -586,7 +598,10 @@ export function DispatchPage() {
         items: modalForm.items,
       });
 
+
       setIsModalOpen(false);
+      setDispatchPhotos([]);
+      setHasDispatchPhoto(false);
       setModalForm({
         chdate: new Date().toISOString().slice(0, 10),
         customerid: "",
@@ -696,7 +711,11 @@ export function DispatchPage() {
             </Link>
 
             {canCreateDispatch && (<button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setHasDispatchPhoto(false);
+                setDispatchPhotos([]);
+                setIsModalOpen(true);
+              }}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition shadow-sm shadow-indigo-500/20"
             >
               <Plus className="h-4 w-4" />
@@ -892,7 +911,8 @@ export function DispatchPage() {
                           </td>
 
                           <td className="px-4 py-3.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                            <RecordActions layout="row">
+                              <PhotoHistoryButton scope={{ kind: "dispatch", id: d.id }} />
                               <button
                                 type="button"
                                 onClick={() => handleOpenPrintTab(d.id)}
@@ -908,7 +928,7 @@ export function DispatchPage() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
-                            </div>
+                            </RecordActions>
                           </td>
                         </tr>
 
@@ -1024,11 +1044,12 @@ export function DispatchPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                    <div className="space-y-2 border-t border-slate-200/60 pt-3">
                       <span className="text-slate-500 text-[11px]">
                         {(d.items || []).length} items
                       </span>
-                      <div className="flex items-center gap-2">
+                      <RecordActions layout="card">
+                        <PhotoHistoryButton scope={{ kind: "dispatch", id: d.id }} />
                         <button
                           type="button"
                           onClick={() => handleOpenPrintTab(d.id)}
@@ -1043,7 +1064,7 @@ export function DispatchPage() {
                         >
                           {isExpanded ? "Hide Items" : "View Items"}
                         </button>
-                      </div>
+                      </RecordActions>
                     </div>
 
                     {isExpanded && (d.items || []).length > 0 && (
@@ -1559,6 +1580,21 @@ export function DispatchPage() {
               )}
             </div>
 
+            {/* Movement Photos (Mandatory Customer Dispatch Photo Evidence) */}
+            <MovementPhotoUploader
+              movementType="dispatch"
+              movementNumber={modalForm.invoiceno ? `INV_${modalForm.invoiceno}` : null}
+              partyName={selectedCustomer?.customername || null}
+              projectCodes={modalForm.projectid ? [modalForm.projectid] : []}
+              mouldCode={modalForm.projectid || null}
+              required={true}
+              onPhotosChange={(photos, hasValid) => {
+                setDispatchPhotos(photos);
+                setHasDispatchPhoto(hasValid);
+              }}
+              className="mt-3"
+            />
+
             {/* Modal Footer */}
             <div className="pt-4 border-t border-slate-200 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
               <div className="text-xs text-slate-500 font-medium">
@@ -1578,7 +1614,8 @@ export function DispatchPage() {
                 <MotionButton
                   type="submit"
                   loading={createDispatchMutation.isPending}
-                  disabled={createDispatchMutation.isPending || modalForm.items.length === 0}
+                  disabled={createDispatchMutation.isPending || modalForm.items.length === 0 || !hasDispatchPhoto}
+                  title={!hasDispatchPhoto ? "Take or upload at least 1 photo to enable dispatch" : undefined}
                   variant="primary"
                   size="md"
                 >

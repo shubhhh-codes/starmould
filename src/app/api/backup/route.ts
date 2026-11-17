@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       totalBackupsFound: backupFiles.length,
       latestBackup: backupFiles[0] || null,
       recentBackups: backupFiles.map(({ mtimeMs: _, ...rest }) => rest),
-      schedule: "4 Times Daily IST (10:00 AM, 12:30 PM, 04:00 PM, 07:00 PM IST)",
+      schedule: "4 Times Daily IST (10:05 AM, 12:35 PM, 04:05 PM, 07:05 PM IST)",
     });
   }
 

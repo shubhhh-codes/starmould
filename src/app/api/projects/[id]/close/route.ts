@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { invalidateCache } from "@/lib/cache";
+import { startProjectRetentionCycle } from "@/lib/r2/retention";
 
 export async function POST(
   req: NextRequest,
@@ -162,6 +163,13 @@ export async function POST(
 
     if (updateErr) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+
+    // Start 30-day photo retention cycle (Requirement F08)
+    try {
+      await startProjectRetentionCycle(project.id, project.projectid || String(project.id));
+    } catch (retentionErr) {
+      console.warn("[ProjectClose] Failed to initiate photo retention cycle:", retentionErr);
     }
 
     invalidateCache("api_counts_all");

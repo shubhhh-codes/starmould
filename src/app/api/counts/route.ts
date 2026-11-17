@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { getCached, invalidateCache } from "@/lib/cache";
@@ -106,6 +106,12 @@ export async function GET(req: NextRequest) {
     : await getCached("api_counts_all", 3, fetchTableCounts);
 
   const fetchPipelineCounts = async () => {
+    const aggregate = await supabaseAdmin.rpc("get_dashboard_pipeline_counts");
+    if (!aggregate.error && aggregate.data) return aggregate.data;
+    // Older databases use the previous calculation until the migration is installed.
+    if (aggregate.error && !["PGRST202", "42883"].includes(aggregate.error.code)) {
+      throw new Error("Dashboard pipeline totals are unavailable");
+    }
     let pipelineData: any = null;
     try {
       const { data, error } = await supabaseAdmin.rpc("get_pipeline_stage_counts");

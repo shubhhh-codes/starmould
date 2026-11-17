@@ -16,7 +16,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 import type { Subplate, User } from "@/lib/supabase/types";
-import type { StageDefinition } from "@/app/subplate/page";
+import type { StageDefinition } from "@/lib/subplate-stages";
 import type { UserSession } from "@/components/providers/auth-provider";
 
 interface AssignStaffModalProps {

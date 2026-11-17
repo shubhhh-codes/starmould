@@ -95,6 +95,7 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
     if (!principal.key) return;
 
     let isMounted = true;
+    let invalidationTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -187,9 +188,14 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
               if (!principalIsCurrent(principal)) return;
               if ((payload.new as { module?: string }).module === "app_config") window.dispatchEvent(new Event("starmould:permissions-changed"));
               // Markers contain no records. Every refreshed response is authorized by its API.
-              queryClient.invalidateQueries();
-              window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
-              scheduleCountsInvalidate(queryClient);
+              if (invalidationTimer !== null) return;
+              invalidationTimer = setTimeout(() => {
+                invalidationTimer = null;
+                if (!isMounted || !principalIsCurrent(principal)) return;
+                queryClient.invalidateQueries();
+                window.dispatchEvent(new CustomEvent("starmould:scan-changed"));
+                scheduleCountsInvalidate(queryClient);
+              }, 100);
             })
             .subscribe((status, err) => {
               if (err) {
@@ -235,6 +241,7 @@ export function useRealtimeManufacturingSync(options?: { isAuthenticated?: boole
 
     return () => {
       isMounted = false;
+      if (invalidationTimer !== null) clearTimeout(invalidationTimer);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       if (refreshTimer) clearTimeout(refreshTimer);
       if (retryTimer) clearTimeout(retryTimer);

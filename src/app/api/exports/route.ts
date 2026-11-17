@@ -3,6 +3,8 @@ import { authenticateRequest } from "@/lib/auth";
 import { ExportRequestV1 } from "@/lib/exports/contracts";
 import { buildMouldsDataset } from "@/lib/exports/datasets/moulds";
 import { buildProjectRegisterDataset } from "@/lib/exports/datasets/project-register";
+import { buildCustomersDataset } from "@/lib/exports/datasets/customers";
+import { buildVendorsDataset } from "@/lib/exports/datasets/vendors";
 import { renderXlsx, renderCsv } from "@/lib/exports/renderers/xlsx";
 import { renderPdf } from "@/lib/exports/renderers/pdf";
 import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unsupported export contract version. Expected version 1." }, { status: 400 });
     }
 
-    if (!body.dataset || !["moulds", "project_register"].includes(body.dataset)) {
+    if (!body.dataset || !["moulds", "project_register", "customers", "vendors"].includes(body.dataset)) {
       return NextResponse.json({ error: `Unsupported or unregistered dataset "${body.dataset}"` }, { status: 400 });
     }
 
@@ -57,6 +59,27 @@ export async function POST(req: NextRequest) {
         scope: body.scope,
         selectedIds: body.selectedIds,
         hasFinancialAccess,
+        format: body.format,
+      });
+    } else if (body.dataset === "customers") {
+      datasetResult = await buildCustomersDataset({
+        filters: body.filters,
+        search: body.search,
+        scope: body.scope,
+        selectedIds: body.selectedIds,
+        hasFinancialAccess,
+        format: body.format,
+      });
+    } else if (body.dataset === "vendors") {
+      const canViewBanking =
+        hasFinancialAccess ||
+        roleHasPermission(auth.user.role_id, "financial_view_banking", matrix);
+      datasetResult = await buildVendorsDataset({
+        filters: body.filters,
+        search: body.search,
+        scope: body.scope,
+        selectedIds: body.selectedIds,
+        hasFinancialAccess: canViewBanking,
         format: body.format,
       });
     } else {

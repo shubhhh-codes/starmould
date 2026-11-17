@@ -361,10 +361,14 @@ async function renderStandardFlatSheet(
   headerRow.height = 26;
 
   for (let c = 1; c <= dataset.columns.length; c++) {
+    const colDef = dataset.columns[c - 1];
     const cell = headerRow.getCell(c);
     cell.fill = fillHeader;
     cell.font = { name: "Segoe UI", size: 10.5, bold: true, color: { argb: "FFFFFFFF" } };
-    cell.alignment = { vertical: "middle", horizontal: "left" };
+    cell.alignment = {
+      vertical: "middle",
+      horizontal: colDef.center || colDef.type === "date" || colDef.type === "status" ? "center" : "left",
+    };
     cell.border = {
       bottom: { style: "medium", color: { argb: "FF0F172A" } },
       right: { style: "thin", color: { argb: "FF334155" } },
@@ -402,6 +406,11 @@ async function renderStandardFlatSheet(
       if (colDef.type === "currency") {
         cell.alignment = { vertical: "middle", horizontal: "right" };
         cell.numFmt = "₹#,##0.00";
+      } else if (colDef.center) {
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+        if (colDef.type === "number") {
+          cell.numFmt = "#,##0.##";
+        }
       } else if (colDef.type === "number") {
         cell.alignment = { vertical: "middle", horizontal: "right" };
         cell.numFmt = "#,##0.##";
@@ -413,10 +422,24 @@ async function renderStandardFlatSheet(
     }
   });
 
-  // Column Widths
-  ws.columns = dataset.columns.map((col) => {
-    const minW = Math.max(col.header.length, col.width || 12);
-    return { width: minW + 4 };
+  // Auto-fit Column Widths based on maximum content length across header and all rows
+  ws.columns.forEach((col, idx) => {
+    const colDef = dataset.columns[idx];
+    let maxLength = colDef ? colDef.header.length : 10;
+    col.eachCell?.({ includeEmpty: false }, (cell) => {
+      const cellValue = cell.value;
+      if (cellValue !== null && cellValue !== undefined) {
+        const text = String(cellValue);
+        const lines = text.split("\n");
+        for (const line of lines) {
+          if (line.length > maxLength) {
+            maxLength = line.length;
+          }
+        }
+      }
+    });
+    const minW = colDef?.width || 12;
+    col.width = Math.max(minW, maxLength + 4);
   });
 }
 

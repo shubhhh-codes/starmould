@@ -14,8 +14,10 @@ async function main() {
     const file = path.resolve(__dirname, '../../.env.local');
     let text = await fs.readFile(file, 'utf8');
     for (const name of [...names, 'BACKUP_JOBS_ENABLED']) text = text.replace(new RegExp(`^${name}=.*(?:\\r?\\n|$)`, 'gm'), '');
-    text += '\n# Saved backup UI (local Windows worker)\nBACKUP_JOBS_ENABLED=true\n' +
-      names.map(name => `${name}='${process.env[name]}'`).join('\n') + '\n';
+    const values = names.map(name => `${name}=${process.env[name]}`).join('\n') + '\n';
+    const parsed = require('node:util').parseEnv(values);
+    if (names.some(name => parsed[name] !== process.env[name])) throw new Error('Configuration cannot be represented without quotes');
+    text += '\n# Saved backup UI (local Windows worker)\nBACKUP_JOBS_ENABLED=true\n' + values;
     await fs.writeFile(file, text);
     console.log('Local backup UI configured. Restart Next.js to load the environment.');
   } finally { await pool.end(); }

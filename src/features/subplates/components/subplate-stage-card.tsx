@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { DispatchStageDetails } from "@/features/subplates/components/dispatch-stage-details";
 import { InwardStageDetails } from "@/features/subplates/components/inward-stage-details";
 import { PurchaseStageDetails } from "@/features/subplates/components/purchase-stage-details";
@@ -10,10 +11,14 @@ import {
   Clock,
   Lock,
   Truck,
+  Camera,
 } from "lucide-react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { STAGE_DEFINITIONS } from "@/lib/subplate-stages";
 import type { Subplate } from "@/lib/supabase/types";
+import { Modal } from "@/components/ui/dialog";
+import { MovementPhotoUploader } from "@/components/photos/movement-photo-uploader";
+import { PhotoHistoryButton } from "@/components/photos/photo-history-button";
 
 type Props = Pick<SubplatePageContext,
   | "currentUser"
@@ -35,6 +40,8 @@ export function SubplateStageCard({
   stage,
   isRoleCard = false,
 }: Props) {
+  const [showQCModal, setShowQCModal] = useState(false);
+  const isQCStage = stage.key === "vmc_qcby" || stage.key === "final_qcby";
   const val = (row as any)[stage.key];
   const timestamp = (row as any)[stage.atKey];
   const isAssigned = Boolean(val && val !== 0);
@@ -222,6 +229,21 @@ export function SubplateStageCard({
             placeholder="Unassigned"
           />
         )}
+
+        {(isQCStage || isStage9) && (
+          <PhotoHistoryButton scope={{ kind: "stage", id: row.id, stageKey: stage.key as "vmc_qcby" | "final_qcby" | "packing_workby" }} className="mt-1.5 w-full" />
+        )}
+        {isQCStage && (
+          <button
+            type="button"
+            onClick={() => setShowQCModal(true)}
+            className="w-full min-h-8 mt-1.5 flex items-center justify-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition cursor-pointer"
+            title="Add QC inspection photos"
+          >
+            <Camera className="w-3.5 h-3.5" />
+            <span>Add QC photos</span>
+          </button>
+        )}
       </div>
 
       {/* Timestamp Display */}
@@ -242,6 +264,38 @@ export function SubplateStageCard({
           <span className="text-slate-400 font-medium text-[10px]">Pending</span>
         )}
       </div>
+
+      {/* QC Photos Dialog */}
+      {isQCStage && showQCModal && (
+        <Modal
+          isOpen={showQCModal}
+          onClose={() => setShowQCModal(false)}
+          title={`${stage.label} — Photo Inspection`}
+          description={`Workpiece: "${row.platename}" (${row.projectid || ""})`}
+        >
+          <div className="space-y-4 pt-1">
+            <MovementPhotoUploader
+              movementType="subplate_qc"
+              subplateId={row.id}
+              subplateCode={row.platename}
+              stageKey={stage.key}
+              projectCodes={row.projectid ? [row.projectid] : []}
+              mouldCode={row.mold_code || row.projectid || null}
+              title={`${stage.label} Photos`}
+              required={true}
+            />
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowQCModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg cursor-pointer"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

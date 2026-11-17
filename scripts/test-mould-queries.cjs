@@ -79,6 +79,13 @@ async function run() {
   await projects.useDeleteProjectMutation().mutationFn({ id: 42, force: true });
   assert.equal(requests.at(-1).url, '/api/scanning?id=42&force=true');
   assert.equal(requests.at(-1).method, 'DELETE');
+  const receiptMutation = legacy.useCreatePurchaseInwardMutation();
+  const receiptBody = { pid: 9, photoIds: [31], photoBatchId: 'batch_fixture', photoRequestKey: 'receipt_batch_fixture_9', items: [] };
+  await receiptMutation.mutationFn(receiptBody);
+  assert.equal(requests.at(-1).headers['Idempotency-Key'], 'receipt_batch_fixture_9');
+  assert.equal(JSON.parse(requests.at(-1).body).photoRequestKey, undefined, 'Transport replay key is not business data');
+  await receiptMutation.mutationFn(receiptBody);
+  assert.equal(requests.at(-1).headers['Idempotency-Key'], 'receipt_batch_fixture_9', 'Partial receipt batch reuses successful request identity');
   status = 403; response = { error: 'Fixture access denied' };
   await assert.rejects(lazy.queryFn(), /Fixture access denied/);
   current = false;

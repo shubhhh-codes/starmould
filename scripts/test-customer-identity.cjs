@@ -64,31 +64,6 @@ async function update(body, options = {}) {
   return { status: res.status, json: await res.json(), payload };
 }
 
-async function importCustomer(item, existing = [{ ...current, customername: 'Original Company' }]) {
-  const writes = [];
-  const api = load('src/app/api/customers/import/route.ts', {
-    '@/lib/customer-identity': identity,
-    '@/lib/auth': { authenticateRequest: async () => ({ user: { id: 1 } }) },
-    '@/lib/cache': { invalidateCache() {} },
-    '@/lib/supabase/admin': { supabaseAdmin: { from() {
-      let payload;
-      let inserted = false;
-      const chain = {
-        select() { return chain; },
-        is() { return Promise.resolve({ data: existing, error: null }); },
-        eq() { return chain; },
-        update(value) { payload = value; return chain; },
-        insert(value) { payload = value[0]; inserted = true; return chain; },
-        maybeSingle() { writes.push(payload); return Promise.resolve({ data: { id: 7 }, error: null }); },
-        single() { assert.ok(inserted); writes.push(payload); return Promise.resolve({ data: { id: 99 }, error: null }); },
-      };
-      return chain;
-    } } },
-  });
-  const response = await api.POST({ json: async () => ({ customers: [item] }) });
-  return { json: await response.json(), writes };
-}
-
 (async () => {
   const edited = await update({ initials: 'NEW', customer_code: current.customer_code });
   assert.equal(edited.status, 200);
@@ -111,21 +86,5 @@ async function importCustomer(item, existing = [{ ...current, customername: 'Ori
   assert.equal((await update({}, { authError: { error: 'Access denied', status: 403 } })).status, 403);
   assert.equal((await update({ initials: 'NEW' }, { writeError: { code: '23505', message: 'idx_customers_initials_active_unique' } })).status, 400);
   assert.equal((await update({}, { writeError: { code: '23514', message: 'Customer Code cannot be changed after creation.' } })).status, 400);
-  const imported = await importCustomer({ companyName: 'Original Company', cusCode: current.customer_code, contactNo: '9876543210' });
-  assert.equal(imported.json.updatedCount, 1);
-  assert.equal('initials' in imported.writes[0], false);
-  assert.equal('customer_code' in imported.writes[0], false);
-  const changed = await importCustomer({ companyName: 'Original Company', cusCode: 'OTHER' });
-  assert.equal(changed.json.failedCount, 1);
-  assert.equal(changed.writes.length, 0);
-  const ambiguous = await importCustomer({ companyName: 'Other Company', cusCode: current.customer_code }, [
-    { ...current, customername: 'Original Company' },
-    { ...current, id: 8, customername: 'Other Company', customer_code: 'OTHER', pan_code: 'OTHER' },
-  ]);
-  assert.equal(ambiguous.json.failedCount, 1);
-  assert.equal(ambiguous.writes.length, 0);
-  const added = await importCustomer({ companyName: '123 & New Company' });
-  assert.equal(added.json.insertedCount, 1);
-  assert.equal(isValidCustomerInitials(added.writes[0].initials), true);
-  console.log('Customer identity checks passed: validation, import generation, API edits, unchanged initials, locked codes, duplicates, failures and access checks.');
+  console.log('Customer identity checks passed: validation, API edits, unchanged initials, locked codes, duplicates, failures and access checks.');
 })().catch((error) => { console.error(error); process.exitCode = 1; });

@@ -29,6 +29,7 @@ import {
   Settings,
   FileText,
   Archive,
+  HardDrive,
 } from "lucide-react";
 
 export interface NavItem {
@@ -163,10 +164,18 @@ export const navigationItems: NavItem[] = [
     permKey: "nav_reports",
   },
   {
-    title: "Export Streams",
+    title: "Photo Storage",
+    href: "/photo-storage",
+    icon: HardDrive,
+    badge: "Admin",
+    allowedRoles: [0], // Admin only
+    permKey: "nav_photo_storage",
+  },
+  {
+    title: "Database Backups",
     href: "/export",
     icon: FileDown,
-    allowedRoles: [0, 1, 5, 9],
+    allowedRoles: [0],
     permKey: "nav_export",
   },
 ];
@@ -265,7 +274,7 @@ export function Sidebar({
     // First, filter items that the role has permission to view
     const allowed = navigationItems.filter((item) => {
       // Role & Permissions (/settings) is strictly Admin only
-      if (item.href === "/settings" || item.permKey === "nav_settings" || item.href === "/project-register" || item.permKey === "nav_project_register") {
+      if (item.href === "/settings" || item.permKey === "nav_settings" || item.href === "/project-register" || item.permKey === "nav_project_register" || item.href === "/photo-storage") {
         return roleId === 0;
       }
       if (roleId === 0) return true; // Admin has universal access
@@ -356,17 +365,17 @@ export function Sidebar({
         }`}
       >
         {/* Brand Logo Header */}
-        <div className="relative h-16 flex items-center justify-center px-3 border-b border-slate-800/80 bg-slate-950/50 select-none">
+        <div className="relative h-16 flex items-center justify-center px-2 border-b border-slate-800/80 bg-slate-950/50 select-none">
           <div className="flex items-center justify-center overflow-hidden py-1 pointer-events-none w-full">
             {collapsed ? (
-              <div className="h-10 w-10 flex items-center justify-center flex-shrink-0">
+              <div className="h-10 w-10 flex items-center justify-center mx-auto">
                 <Image
-                  src="/images/star-mould-logo.webp?v=1"
+                  src="/apple-icon.png"
                   alt="Star Mould"
-                  width={36}
-                  height={36}
+                  width={32}
+                  height={32}
                   unoptimized
-                  className="h-8 w-8 object-contain"
+                  className="h-8 w-8 object-contain rounded-md"
                   priority
                 />
               </div>
@@ -384,25 +393,26 @@ export function Sidebar({
               </div>
             )}
           </div>
-
         </div>
 
         {/* Navigation Links Scrollable Area */}
-        <div className="flex-1 overflow-y-auto px-2 py-4 space-y-1 sidebar-nav-scroll">
-          <div className="px-2 pb-2 flex items-center justify-between">
-            {!collapsed && (
-              <>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Core Modules
-                </p>
-                {isMounted && activeUser?.role && (
-                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50" suppressHydrationWarning>
-                    {activeUser.role}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
+        <div
+          className={`flex-1 overflow-y-auto ${
+            collapsed ? "px-1.5 space-y-1.5 flex flex-col items-center" : "px-2 space-y-1"
+          } py-4 sidebar-nav-scroll`}
+        >
+          {!collapsed && (
+            <div className="px-2 pb-2 flex items-center justify-between w-full">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                Core Modules
+              </p>
+              {isMounted && activeUser?.role && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50" suppressHydrationWarning>
+                  {activeUser.role}
+                </span>
+              )}
+            </div>
+          )}
 
           {visibleItems.map((item) => {
             const isActive = isItemActive(item.href);
@@ -416,7 +426,11 @@ export function Sidebar({
                 onMouseEnter={() => handlePrefetch(item.href)}
                 onFocus={() => handlePrefetch(item.href)}
                 title={collapsed ? item.title : undefined}
-                className={`group flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-medium relative select-none ${
+                className={`group flex items-center ${
+                  collapsed
+                    ? "justify-center w-10 h-10 mx-auto"
+                    : "gap-3 px-3 py-2 w-full"
+                } rounded-lg text-xs font-medium relative select-none ${
                   isActive
                     ? "text-white"
                     : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors duration-100"
@@ -433,7 +447,7 @@ export function Sidebar({
                   />
                 )}
                 <Icon
-                  className={`h-4 w-4 flex-shrink-0 relative z-10 transition-colors duration-100 ${
+                  className={`h-4.5 w-4.5 flex-shrink-0 relative z-10 transition-colors duration-100 ${
                     isActive ? "text-white" : "text-slate-400 group-hover:text-blue-400"
                   }`}
                 />
@@ -449,7 +463,7 @@ export function Sidebar({
         </div>
 
         {/* Sidebar Footer / User Profile & Logout */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
+        <div className={`${collapsed ? "p-2 flex justify-center" : "p-3"} border-t border-slate-800/80 bg-slate-950/40 space-y-2`}>
           {!collapsed ? (
             <div className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-800/50 text-xs">
               <div className="flex items-center gap-2 overflow-hidden">
@@ -474,10 +488,10 @@ export function Sidebar({
               </button>
             </div>
           ) : (
-            <div className="flex justify-center">
+            <div className="flex justify-center w-full">
               <button
                 onClick={handleLogout}
-                className="p-2 text-slate-400 hover:text-rose-400 rounded transition cursor-pointer"
+                className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-lg transition cursor-pointer"
                 title="Logout"
               >
                 <LogOut className="h-4 w-4" />

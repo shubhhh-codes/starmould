@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import { authenticateRequest } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { invalidateCache } from "@/lib/cache";
 import { readBoundedBody, RequestBodyTooLarge } from "@/lib/bounded-body";
+import { resolveProjectAssociations, linkPhotosToProjects } from "@/lib/photos/associations";
+import { tryPhotoStorageMoves } from "@/lib/photos/storage-moves";
 
 const operations = {
   purchase: { permission: "action_create_purchase", result: "purchase" },
@@ -28,6 +30,25 @@ export async function createInventoryDocument(req: NextRequest, operation: keyof
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return NextResponse.json({ error: "Document body required" }, { status: 400 });
   }
+
+  // The RPC validates evidence and creates its associations atomically, after checking replay.
+
+  const docBody = body as Record<string, any>;
+  const isMovementWithPhotos = ["purchase-receipt", "challan", "jobwork-receipt", "dispatch"].includes(operation);
+
+  // Extract and validate photo evidence (Requirement F03)
+  const rawPhotoIds = docBody.photoIds || docBody.photo_ids;
+  const photoIds: number[] = Array.isArray(rawPhotoIds)
+    ? rawPhotoIds.map(Number).filter((n) => Number.isFinite(n) && n > 0)
+    : [];
+
+  if (isMovementWithPhotos && photoIds.length === 0) {
+    return NextResponse.json(
+      { error: "At least one verification photo is required to complete this movement." },
+      { status: 400 }
+    );
+  }
+
   const { data, error } = await supabaseAdmin.rpc("create_inventory_document", {
     p_operation: operation, p_actor: auth.user.id, p_key: key, p_body: body,
   });
@@ -40,8 +61,32 @@ export async function createInventoryDocument(req: NextRequest, operation: keyof
       { status: invalid ? 400 : conflict ? 409 : 503 });
   }
   if (!data) return NextResponse.json({ error: "Document result unavailable; retry with the same Idempotency-Key" }, { status: 503 });
+
+
+  // Post-RPC Canonical Project Association Linking (Requirement F02)
+  if (isMovementWithPhotos && photoIds.length > 0) {
+    try {
+      const projectCodes: string[] = [];
+      if (docBody.projectid) projectCodes.push(String(docBody.projectid));
+      if (data.projectid) projectCodes.push(String(data.projectid));
+      if (Array.isArray(docBody.items)) {
+        for (const it of docBody.items) {
+          if (it.project) projectCodes.push(String(it.project));
+          if (it.projectid) projectCodes.push(String(it.projectid));
+        }
+      }
+      if (projectCodes.length > 0) {
+        const resolved = await resolveProjectAssociations({ projectCodes });
+        await linkPhotosToProjects(photoIds, resolved);
+      }
+    } catch (assocErr) {
+      console.warn("[InventoryDocuments] Failed to link canonical project associations:", assocErr);
+    }
+  }
+
   for (const prefix of ["api_counts_all", "api_pipeline_stage_counts", "scanning_default_", "subplate_default_",
     "shared_scans_lookup", "scanning_kpi_metrics_v2", "subplates_worklog_lookup"]) invalidateCache(prefix);
+  after(() => tryPhotoStorageMoves(photoIds));
   const message = operation === "challan" ? "Outward Challan created successfully" :
     operation === "jobwork-receipt" ? "Job Work Inward recorded successfully" : undefined;
   return NextResponse.json({ [definition.result]: data, ...(message ? { message } : {}) },

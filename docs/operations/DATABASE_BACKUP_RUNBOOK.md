@@ -41,3 +41,9 @@ Disposable database QA uses scripts/test-database-backups-db.cjs with BACKUP_TES
 ## Historical transition
 
 Encryption was removed at the user's request. Existing completed encrypted SQL backups were converted and read-back verified; obsolete .enc objects were removed. Prior rollout reports describe historical encryption tests and are not current configuration instructions.
+
+## Timestamped SQL files and deletion
+
+SQL filenames include their actual capture timestamp in Asia/Kolkata, for example starmould_backup_2026-11-17_12-50-22_IST.sql. R2 stores only SQL payloads; metadata remains in the private database coordinator, not JSON objects in the bucket. The admin Database Backups page filters to SQL, offers downloads and confirms permanent deletion. Deletion removes the R2 object and expires matching job metadata when its coordinator is accessible; otherwise the UI explicitly reports that job history could not be updated.
+
+GitHub primary runs also upload their newly captured SQL to the Actions run Artifacts section, with seven-day retention. GitHub wraps artifact downloads in ZIP; the payload is SQL only. R2 retains backups for 90 days unless an administrator deletes them earlier. Runs that skip because another valid attempt owns/completed the slot do not create a new artifact.

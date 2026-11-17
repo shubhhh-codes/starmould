@@ -5,7 +5,7 @@ import { authenticateRequest } from "@/lib/auth";
 import { amountInWords } from "@/lib/number-to-words";
 import { calculateGST } from "@/lib/gst-calculation";
 
-export async function generateNextQuotationNo(offset = 0): Promise<string> {
+async function generateNextQuotationNo(offset = 0): Promise<string> {
   const nowIST = new Date(
     new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" })
   );
@@ -51,8 +51,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ nextNumber: nextNo });
     }
 
-    const page = searchParams.get("page") ? Math.max(1, Number(searchParams.get("page"))) : null;
-    const limit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "50");
+    const page = Number(searchParams.get("page") || "1");
+    const requestedLimit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "50");
     const search = searchParams.get("search")?.trim();
     const status = searchParams.get("status")?.trim();
     const id = searchParams.get("id");
@@ -91,6 +91,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ quotation: { ...quote, customer_code: customerCode, items: items || [] } });
     }
 
+    if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger(requestedLimit) || requestedLimit < 1) {
+      return NextResponse.json({ error: "Page and limit must be positive integers" }, { status: 400 });
+    }
+    const limit = Math.min(requestedLimit, 100);
+    if (!Number.isSafeInteger(page * limit)) {
+      return NextResponse.json({ error: "Page is too large" }, { status: 400 });
+    }
     let query = supabaseAdmin
       .from("quotations")
       .select("*", { count: "exact" })
@@ -133,7 +140,7 @@ export async function GET(req: NextRequest) {
       allItems = itemsData || [];
     }
 
-    const customerIds = Array.from(new Set(quotationList.map((q: any) => q.customer_id).filter(Boolean)));
+    const customerIds = Array.from(new Set(quotationList.filter(q => !q.customer_code && q.customer_id).map(q => q.customer_id)));
     const custMap = new Map<number, string>();
     if (customerIds.length > 0) {
       const { data: custs } = await supabaseAdmin
@@ -145,10 +152,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const itemsByQuote = new Map<number, typeof allItems>();
+    for (const item of allItems) {
+      const group = itemsByQuote.get(item.quotation_id);
+      if (group) group.push(item);
+      else itemsByQuote.set(item.quotation_id, [item]);
+    }
     const enrichedQuotes = quotationList.map((q: any) => ({
       ...q,
       customer_code: q.customer_code || (q.customer_id ? custMap.get(q.customer_id) : null) || null,
-      items: allItems.filter((it: any) => it.quotation_id === q.id),
+      items: itemsByQuote.get(q.id) || [],
     }));
 
     const totalCount = count ?? quotationList.length;

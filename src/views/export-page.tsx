@@ -1,455 +1,62 @@
 "use client";
-import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
-import React, { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
-import { useIsRestoring } from "@tanstack/react-query";
-import { useExportCountsQuery } from "@/lib/query/hooks";
-import {
-    FileDown,
-    FileSpreadsheet,
-    Layers,
-    ShoppingCart,
-    Truck,
-    PackagePlus,
-    ArrowUpRight,
-    Briefcase,
-    CheckCircle2,
-    DownloadCloud,
-    RefreshCw,
-    Database,
-    Download,
-} from "lucide-react";
-import { CardGridSkeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/components/providers/auth-provider";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
+import { Database, Download, RefreshCw, Trash2 } from "lucide-react";
 
-export interface ExportDataset {
-    id: string;
-    method: string;
-    title: string;
-    filename: string;
-    description: string;
-    queryFilter: string;
-    icon: React.ElementType;
-    columns: string[];
-}
-
-// Standard ERP exports
-export const exportDatasets: ExportDataset[] = [
-    {
-        id: "export",
-        method: "Purchases",
-        title: "Active Purchases",
-        filename: "purchase.csv",
-        description:
-            "Purchase orders with customer and line items details where status is active.",
-        queryFilter: "Active purchase orders with line items & vendor data",
-        icon: ShoppingCart,
-        columns: [
-            "PO No",
-            "Customer",
-            "Vendor",
-            "Order Date",
-            "Material",
-            "Type",
-            "Qty",
-            "Status",
-        ],
-    },
-    {
-        id: "exportmould",
-        method: "Moulds",
-        title: "Pending Mould Dashboard",
-        filename: "dashboard.csv",
-        description:
-            "Active production moulds with associated subplate counts and completion tracking.",
-        queryFilter: "Active production moulds excluding standalone samples",
-        icon: Layers,
-        columns: [
-            "ID",
-            "Project Code",
-            "Customer",
-            "Description",
-            "Work Type",
-            "RDate",
-            "CDate",
-            "Plates Count",
-        ],
-    },
-    {
-        id: "exportmouldreg",
-        method: "Register",
-        title: "Project Register",
-        filename: "project_register.csv",
-        description:
-            "Full register of commercial mould projects and customer accounts.",
-        queryFilter: "Registered moulds with customer billing and QC records",
-        icon: Briefcase,
-        columns: [
-            "ID",
-            "Project Code",
-            "Customer",
-            "Description",
-            "Amount",
-            "QC By",
-            "Status",
-        ],
-    },
-    {
-        id: "exportpurchaserec",
-        method: "Inward Pending",
-        title: "Pending Purchase Receive",
-        filename: "pending_purchase_receive.csv",
-        description:
-            "Purchase order inward records with remaining delivery balance.",
-        queryFilter: "Pending line items where pending quantity > 0",
-        icon: PackagePlus,
-        columns: [
-            "PO ID",
-            "Customer",
-            "Vendor",
-            "Material",
-            "Ordered Qty",
-            "Inward Qty",
-            "Pending Qty",
-        ],
-    },
-    {
-        id: "exportoutward",
-        method: "Outward",
-        title: "Outward Challan",
-        filename: "outward.csv",
-        description:
-            "Outward delivery challans and external vendor movements.",
-        queryFilter: "Active outward challan dispatches",
-        icon: ArrowUpRight,
-        columns: [
-            "Challan ID",
-            "Challan No",
-            "Customer",
-            "Vendor",
-            "Transporter",
-            "Date",
-            "Items Qty",
-        ],
-    },
-    {
-        id: "exportdispatchchallan",
-        method: "Dispatch",
-        title: "Dispatch Challan",
-        filename: "DispatchChallan.csv",
-        description:
-            "Final finished product dispatch notes and transport records.",
-        queryFilter: "Dispatched mould orders with transporter details",
-        icon: Truck,
-        columns: [
-            "ID",
-            "Challan No",
-            "Invoice No",
-            "Customer",
-            "Vehicle No",
-            "Delivery Type",
-            "Cases",
-            "Status",
-        ],
-    },
-    {
-        id: "exportpendingoutward",
-        method: "Job Work Pending",
-        title: "Pending Outward (Inward Return)",
-        filename: "pending_outward.csv",
-        description:
-            "Job work items awaiting receipt back from vendor.",
-        queryFilter: "Dispatched plates where return balance > 0",
-        icon: Layers,
-        columns: [
-            "Challan ID",
-            "Challan No",
-            "Customer",
-            "Vendor",
-            "Plate Name",
-            "Sent Qty",
-            "Received Qty",
-            "Pending Qty",
-        ],
-    },
-];
-
+type Archive = { key: string; filename?: string; size: number; modified: string | null };
 export function ExportPage() {
-    const [downloadingId, setDownloadingId] = useState<string | null>(null);
-    const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
-    const [isDownloadingSql, setIsDownloadingSql] = useState(false);
-    const [isDownloadingJson, setIsDownloadingJson] = useState(false);
-    const [backupMessage, setBackupMessage] = useState<string | null>(null);
-
-    const isRestoring = useIsRestoring();
-    const { data: countsData, isLoading: queryLoading, isFetching, refetch } = useExportCountsQuery();
-    const counts = (countsData || {}) as Record<string, number>;
-    const hasCounts = Object.keys(counts).length > 0 || (!!countsData && !queryLoading);
-    const isLoadingCounts = isRestoring || (!hasCounts && queryLoading);
-
-    const handleDownloadBackup = async (format: "sql" | "json") => {
-        if (format === "sql") setIsDownloadingSql(true);
-        else setIsDownloadingJson(true);
-
-        try {
-            const response = await fetch(`/api/backup?format=${format}`);
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || "Failed to generate backup");
-            }
-
-            const blob = await response.blob();
-            const contentDisposition = response.headers.get("Content-Disposition");
-            const istDateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-            let filename = `starmould_backup_${istDateStr}_IST.${format}`;
-            if (contentDisposition) {
-                const match = contentDisposition.match(/filename="?([^"]+)"?/);
-                if (match && match[1]) filename = match[1];
-            }
-
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            setBackupMessage(`Backup ${filename} downloaded successfully!`);
-            setTimeout(() => setBackupMessage(null), 3000);
-        } catch (err: any) {
-            console.error("Backup error:", err);
-            alert(err.message || "Failed to download database backup.");
-        } finally {
-            if (format === "sql") setIsDownloadingSql(false);
-            else setIsDownloadingJson(false);
-        }
-    };
-
-    const handleExport = async (dataset: ExportDataset) => {
-        setDownloadingId(dataset.id);
-        try {
-            const response = await fetch(`/api/export?type=${dataset.id}`);
-            if (!response.ok) throw new Error("Export failed");
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = dataset.filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            setDownloadSuccess(dataset.id);
-            setTimeout(() => setDownloadSuccess(null), 2500);
-        } catch (err) {
-            console.error("Export error:", err);
-            alert("Failed to download export from database.");
-        } finally {
-            setDownloadingId(null);
-        }
-    };
-
-    return (
-        <AppLayout>
-            <div className="space-y-6 w-full">
-                {/* Header */}
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 mb-1">
-                            <FileDown className="h-3.5 w-3.5 text-blue-600" />
-                            <span>Reports & Exports</span>
-                            <span>/</span>
-                            <span className="text-slate-600">
-                                Export Center
-                            </span>
-                        </div>
-                        <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                            Data Exports
-                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                7 Standard Export Streams
-                            </span>
-                        </h1>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            Download structured CSV data sheets for accounting, procurement, and shop-floor tracking.
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => handleDownloadBackup("sql")}
-                            disabled={isDownloadingSql}
-                            className="btn-interactive inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-lg shadow-sm transition cursor-pointer disabled:opacity-60"
-                        >
-                            <Download className={`w-3.5 h-3.5 ${isDownloadingSql ? "animate-bounce" : ""}`} />
-                            <span>{isDownloadingSql ? "Generating..." : "Download Backup (.sql)"}</span>
-                        </button>
-
-                        <button
-                            onClick={() => refetch()}
-                            disabled={isLoadingCounts || isFetching}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm disabled:opacity-50 cursor-pointer"
-                        >
-                            <RefreshCw
-                                suppressHydrationWarning
-                                className={`w-3.5 h-3.5 text-slate-500 ${isFetching || isLoadingCounts ? "animate-spin text-blue-600" : ""}`}
-                            />
-                            <span>Refresh Counts</span>
-                        </button>
-                    </div>
-                </div>
-
-                {backupMessage && (
-                    <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in duration-200">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>{backupMessage}</span>
-                    </div>
-                )}
-
-                {/* Database Backup & Disaster Recovery Banner */}
-                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 border border-slate-700/80 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden">
-                    <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-                    <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 relative z-10">
-                        <div className="flex items-start gap-3.5">
-                            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 flex items-center justify-center text-blue-300 shrink-0">
-                                <Database className="w-5 h-5" />
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2">
-                                    <h2 className="text-sm font-bold text-white tracking-wide">
-                                        Full Database Backup (Supabase SQL & JSON)
-                                    </h2>
-                                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-medium">
-                                        Cloud & 1-Click Backup
-                                    </span>
-                                </div>
-                                <p className="text-xs text-slate-300 mt-0.5 max-w-2xl leading-relaxed">
-                                    Complete SQL dump of all 22 active tables with idempotent <code className="text-blue-300 font-mono text-[11px]">ON CONFLICT DO UPDATE</code> syntax. Edit in VS Code or paste directly into Supabase SQL Editor.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2.5 shrink-0 w-full sm:w-auto">
-                            <button
-                                type="button"
-                                onClick={() => handleDownloadBackup("sql")}
-                                disabled={isDownloadingSql}
-                                className="btn-interactive flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-xl transition shadow-md shadow-blue-600/30 cursor-pointer disabled:opacity-60"
-                            >
-                                <Download className={`w-3.5 h-3.5 ${isDownloadingSql ? "animate-bounce" : ""}`} />
-                                <span>{isDownloadingSql ? "Generating SQL Dump..." : "Download SQL Backup (.sql)"}</span>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => handleDownloadBackup("json")}
-                                disabled={isDownloadingJson}
-                                className="btn-interactive flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-300 bg-slate-800/80 hover:bg-slate-700/80 hover:text-white rounded-xl border border-slate-700 transition cursor-pointer disabled:opacity-60"
-                            >
-                                <Database className="w-3.5 h-3.5 text-slate-400" />
-                                <span>{isDownloadingJson ? "Exporting JSON..." : "JSON Snapshot"}</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Grid of the 7 Exact Exports */}
-                {isLoadingCounts && Object.keys(counts).length === 0 ? (
-                    <CardGridSkeleton count={6} />
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                        {exportDatasets.map((dataset) => {
-                            const Icon = dataset.icon;
-                            const isDownloading = downloadingId === dataset.id;
-                            const isSuccess = downloadSuccess === dataset.id;
-                            const recordCount = counts[dataset.id];
-
-                            return (
-                                <div
-                                    key={dataset.id}
-                                    className="bg-white rounded-xl border border-slate-200 shadow-xs hover:shadow-md transition-all p-5 flex flex-col justify-between"
-                                >
-                                    <div>
-                                        {/* Header */}
-                                        <div className="flex items-start justify-between gap-3 mb-2.5">
-                                            <div className="flex items-center gap-2.5">
-                                                <div className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100 flex-shrink-0">
-                                                    <Icon className="h-4 w-4" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                                                        {dataset.title}
-                                                    </h3>
-                                                    <span className="font-mono text-[10px] text-blue-600 font-medium">
-                                                        {dataset.method}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-semibold">
-                                                {isLoadingCounts
-                                                    ? "..."
-                                                    : `${recordCount ?? 0} rows`}
-                                            </span>
-                                        </div>
-
-                                        <p className="text-xs text-slate-600 mb-3 leading-relaxed">
-                                            {dataset.description}
-                                        </p>
-
-                                        {/* Scope info */}
-                                        <div className="p-2 rounded bg-slate-50 border border-slate-100 mb-4">
-                                            <div className="text-[10px] font-semibold text-slate-400 uppercase">
-                                                Data Scope
-                                            </div>
-                                            <span className="text-[11px] text-slate-700 block mt-0.5 font-medium">
-                                                {dataset.queryFilter}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* Action Button */}
-                                    <button
-                                        onClick={() => handleExport(dataset)}
-                                        disabled={isDownloading}
-                                        className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-lg text-xs font-semibold transition-all shadow-xs cursor-pointer ${
-                                            isSuccess
-                                                ? "bg-emerald-600 text-white"
-                                                : "bg-slate-900 hover:bg-slate-800 text-white"
-                                        }`}
-                                    >
-                                        {isSuccess ? (
-                                            <>
-                                                <CheckCircle2 className="h-3.5 w-3.5" />
-                                                <span>Downloaded!</span>
-                                            </>
-                                        ) : isDownloading ? (
-                                            <>
-                                                <DownloadCloud className="h-3.5 w-3.5 animate-bounce" />
-                                                <span>
-                                                    Streaming {dataset.filename}
-                                                    ...
-                                                </span>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-400" />
-                                                <span>
-                                                    Download {dataset.filename}
-                                                </span>
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </div>
-        </AppLayout>
-    );
+  const { currentUser } = useAuth();
+  const admin = currentUser?.role_id === 0;
+  const [files, setFiles] = useState<Archive[]>([]);
+  const [bucket, setBucket] = useState("");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const load = useCallback(async (next?: string) => {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/backup/archives${next ? `?cursor=${encodeURIComponent(next)}` : ""}`, { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not load saved backups");
+      setFiles(previous => next ? [...new Map([...previous, ...data.files].map((file: Archive) => [file.key, file])).values()] : data.files);
+      setBucket(data.bucket); setCursor(data.nextCursor || null);
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not load backups"); }
+    finally { setBusy(false); }
+  }, []);
+  useEffect(() => { if (admin) void load(); }, [admin, load]);
+  async function deleteBackup(file: Archive) {
+    if (!window.confirm('Permanently delete this SQL backup? ' + (file.filename || file.key.split('/').at(-1)))) return;
+    setBusy(true); setError('');
+    try {
+      const response = await fetch('/api/backup/archives', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: file.key }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not delete backup');
+      setFiles(previous => previous.filter(item => item.key !== file.key));
+      if (!data.metadataUpdated) setError('File deleted. Backup job history could not be updated for this environment.');
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not delete backup'); }
+    finally { setBusy(false); }
+  }
+  return <AppLayout><div className="space-y-5 p-4 sm:p-6">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div><h1 className="flex items-center gap-2 text-xl font-bold text-slate-900"><Database className="h-5 w-5 text-blue-600" />Database Backups</h1>
+        <p className="mt-1 text-sm text-slate-500">Saved backup files from {bucket ? `R2 bucket: ${bucket}` : "your R2 bucket"}.</p></div>
+      {admin && <button type="button" disabled={busy} onClick={() => void load()} className="flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />Refresh backups</button>}
+    </div>
+    {!admin ? <p role="alert" className="rounded-xl border bg-white p-5">Only administrators can access database backups.</p> : <>
+      <p className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-900">Download readable SQL backups directly, without a password. Files are stored in your private backup bucket.</p>
+      {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="w-full text-left text-sm"><thead className="border-b bg-slate-50 text-slate-600"><tr><th className="p-4">SQL backup file</th><th className="p-4">Uploaded (IST)</th><th className="p-4">Size</th><th className="p-4">Actions</th></tr></thead>
+          <tbody>{files.map(file => <tr key={file.key} className="border-b border-slate-100 last:border-0"><td className="p-4"><span className="font-semibold text-slate-900">{file.filename || file.key.split("/").at(-1)}</span><span className="mt-1 block max-w-xl break-all text-xs text-slate-500">{file.key}</span></td>
+            <td className="whitespace-nowrap p-4 text-xs">{file.modified ? new Date(file.modified).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}</td>
+            <td className="whitespace-nowrap p-4">{(file.size / 1024).toLocaleString("en-IN", { maximumFractionDigits: 1 })} KB</td>
+            <td className="p-4"><a className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white" href={`/api/backup/archives?key=${encodeURIComponent(file.key)}`} referrerPolicy="no-referrer"><Download className="h-4 w-4" />Download</a><button type="button" disabled={busy} onClick={() => void deleteBackup(file)} aria-label={`Delete ${file.filename || file.key}`} className="ml-2 inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-semibold text-red-700 disabled:opacity-50"><Trash2 className="h-4 w-4" />Delete</button></td></tr>)}</tbody></table>
+        {!files.length && <p className="p-8 text-center text-sm text-slate-500">{busy ? "Loading saved backups…" : error ? "Backups could not be loaded. Refresh to try again." : "No database backup files found in this bucket."}</p>}
+      </div>
+      {cursor && <button type="button" disabled={busy} onClick={() => void load(cursor)} className="rounded-lg border bg-white px-4 py-2 text-sm disabled:opacity-50">{busy ? "Loading…" : "Load more backups"}</button>}
+    </>}
+  </div></AppLayout>;
 }

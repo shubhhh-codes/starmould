@@ -1,6 +1,7 @@
 "use client";
 
 import { browserPrincipal, principalIsCurrent } from "@/lib/cache/principal";
+import { createClientId, payloadSha256 } from "@/lib/browser-crypto";
 
 const paths = new Set(["/api/purchases", "/api/purchase-inward", "/api/challan", "/api/inward", "/api/dispatch"]);
 function canonical(value: unknown): string {
@@ -18,16 +19,14 @@ export async function prepareInventoryRetry(url: string, init?: RequestInit) {
   const headers = new Headers(init.headers);
   if (headers.has("Idempotency-Key")) return { headers, complete: () => {} };
   if (typeof init.body !== "string") throw new Error("Inventory document requires JSON");
-  const bytes = new TextEncoder().encode(canonical(JSON.parse(init.body)));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  const hash = await payloadSha256(canonical(JSON.parse(init.body)));
   if (!principalIsCurrent(principal)) throw new Error("Session changed before document submission");
-  const hash = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join("");
   // Permission changes invalidate caches, but must not turn an unknown committed outcome into a new operation.
   const actor = principal.key.split("_", 1)[0];
   const storageKey = `STARMOULD_INVENTORY_RETRY:${actor}:${url}:${hash}`;
   let key = sessionStorage.getItem(storageKey);
   if (!key) {
-    key = crypto.randomUUID();
+    key = createClientId();
     sessionStorage.setItem(storageKey, key);
   }
   headers.set("Idempotency-Key", key);

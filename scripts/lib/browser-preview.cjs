@@ -24,7 +24,7 @@ async function browserPreview(entry, aliases = {}) {
   const server = http.createServer((req, res) => {
     if (req.url === '/preview.js') { res.setHeader('Content-Type', 'text/javascript'); res.end(bundle); }
     else if (req.url === '/preview.css') { res.setHeader('Content-Type', 'text/css'); res.end(css); }
-    else { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/preview.css"></head><body><div id="root"></div><script src="/preview.js"></script></body></html>'); }
+    else { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/preview.css"></head><body><div id="root"></div><script src="/preview.js"></script></body></html>'); }
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return { url: `http://127.0.0.1:${server.address().port}`, output, close: () => new Promise((resolve) => server.close(resolve)) };

@@ -6,6 +6,10 @@
  */
 
 export const queryKeys = {
+  photoHistory: {
+    all: () => ["photo-history"] as const,
+    summary: (principal: string | null, scopes: string[]) => ["photo-history", "summary", principal, scopes] as const,
+  },
   auth: {
     me: () => ["auth", "me"] as const,
   },

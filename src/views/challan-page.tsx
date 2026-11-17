@@ -1,4 +1,7 @@
 "use client";
+import { RecordActions } from "@/components/ui/record-actions";
+import { movementEvidence } from "@/lib/photos/movement-evidence";
+import { PhotoHistoryButton } from "@/components/photos/photo-history-button";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo, useEffect, useRef, Suspense } from "react";
@@ -60,12 +63,17 @@ import {
   useVendorDropdownQuery,
   useProjectsQuery,
 } from "@/lib/query/hooks";
+import { MovementPhotoUploader } from "@/components/photos/movement-photo-uploader";
 
 function ChallanPageContent() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
   const { hasPermission } = useRolePermissions();
   const canCreateChallan = hasPermission("action_create_challan");
+  const [hasChallanPhoto, setHasChallanPhoto] = useState(false);
+  const [challanPhotos, setChallanPhotos] = useState<any[]>([]);
+  const [hasInwardReturnPhoto, setHasInwardReturnPhoto] = useState(false);
+  const [inwardReturnPhotos, setInwardReturnPhotos] = useState<any[]>([]);
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get("search") || searchParams.get("q") || "";
 
@@ -105,6 +113,8 @@ function ChallanPageContent() {
   const handleOpenInwardModal = (c: Challan) => {
     setInwardModalChallan(c);
     setInwardError(null);
+    setHasInwardReturnPhoto(false);
+    setInwardReturnPhotos([]);
     setInwardForm({
       chdate: new Date().toISOString().slice(0, 10),
       inchallanno: "",
@@ -134,6 +144,11 @@ function ChallanPageContent() {
       return;
     }
 
+    if (!hasInwardReturnPhoto) {
+      setInwardError("At least one movement photo is mandatory before inwarding returned jobwork plates.");
+      return;
+    }
+
     for (const item of inwardForm.items) {
       if (!item.inward_qty || item.inward_qty <= 0) {
         setInwardError(`Inward quantity for "${item.platename}" must be at least 1.`);
@@ -149,6 +164,7 @@ function ChallanPageContent() {
     try {
       setIsInwardSubmitting(true);
       const res = await createInwardMutation.mutateAsync({
+        ...movementEvidence(inwardReturnPhotos),
         challanid: inwardModalChallan.id,
         inchallanno: inwardForm.inchallanno.trim() || undefined,
         customerid: inwardModalChallan.customerid,
@@ -166,7 +182,10 @@ function ChallanPageContent() {
         })),
       });
 
+
       setInwardModalChallan(null);
+      setInwardReturnPhotos([]);
+      setHasInwardReturnPhoto(false);
       appStore.addToast({ type: "success", message: `Inward receipt ${res?.inward?.inchallanno || ""} recorded successfully.`, });
       setTimeout(() => setNotification(null), 4000);
     } catch (err: any) {
@@ -222,7 +241,7 @@ function ChallanPageContent() {
   }, [urlSearch]);
   const [vendorFilter, setVendorFilter] = useState("ALL");
 
-  
+
   const [pageSize, setPageSize] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
@@ -271,7 +290,7 @@ function ChallanPageContent() {
   // Explicitly separate vendors, transporters, and customers by table
   const vendors = useMemo(() => (supplierLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })), [supplierLookup]);
 
-  
+
   const transporters = useMemo(() => (transporterLookup || []).map((v: any) => ({ ...v, customername: v.vendor_name })), [transporterLookup]);
   const customersList = useMemo(() => (customerLookup || []).filter((c: any) => c.usertype === "Customer" || !c.usertype), [customerLookup]);
 
@@ -415,7 +434,7 @@ function ChallanPageContent() {
     // Auto-populate when available plates are loaded and we haven't auto-loaded this mould yet
     if (availablePlates.length > 0 && lastLoadedMouldRef.current !== modalForm.projectid) {
       const readyPlates = availablePlates.filter((p) => Number(p.jobwork_balance?.available_sm_qty ?? 0) > 0);
-      
+
       // Only lock once we have resolved the ready plates with jobwork balance
       if (readyPlates.length > 0) {
         lastLoadedMouldRef.current = modalForm.projectid;
@@ -814,6 +833,11 @@ function ChallanPageContent() {
       return;
     }
 
+    if (!hasChallanPhoto) {
+      setFormError("At least one movement photo is mandatory before generating challan.");
+      return;
+    }
+
     for (let i = 0; i < modalForm.items.length; i++) {
       const item = modalForm.items[i];
       if (!item.plateid) {
@@ -832,8 +856,10 @@ function ChallanPageContent() {
 
     try {
       setIsSubmitting(true);
-      await createChallanMutation.mutateAsync(modalForm);
+      await createChallanMutation.mutateAsync({ ...modalForm, ...movementEvidence(challanPhotos) });
       setIsModalOpen(false);
+      setChallanPhotos([]);
+      setHasChallanPhoto(false);
       setModalForm({
         chdate: new Date().toISOString().slice(0, 10),
         vendorid: "",
@@ -1238,7 +1264,7 @@ function ChallanPageContent() {
                             </td>
 
                             <td className="px-4 py-3.5 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
+                              <RecordActions layout="row">
                                 {(String(c.status) === "1" || (c as any).status === 1) && (
                                   <button
                                     type="button"
@@ -1253,6 +1279,7 @@ function ChallanPageContent() {
                                     <span>Inward</span>
                                   </button>
                                 )}
+                                <PhotoHistoryButton scope={{ kind: "jobwork_outward", id: c.id }} />
                                 <button
                                   type="button"
                                   onClick={(e) => {
@@ -1275,7 +1302,7 @@ function ChallanPageContent() {
                                 >
                                   <Trash2 className="h-4 w-4" />
                                 </button>
-                              </div>
+                              </RecordActions>
                             </td>
                           </tr>
 
@@ -1370,10 +1397,32 @@ function ChallanPageContent() {
                             {c.chdate}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             Outward
                           </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Vendor:</span>
+                          <span className="font-medium text-slate-800 truncate block">
+                            {c.vendorname}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[10px]">Transport:</span>
+                          <span className="font-medium text-slate-800 truncate block">
+                            {c.transportername || "Self"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 border-t border-slate-200/60 pt-3">
+<span className="text-slate-500 text-[11px]">
+                          {(c.items || []).length} plates
+                        </span>
+<RecordActions layout="card">
+
                           {(String(c.status) === "1" || (c as any).status === 1) && (
                             <button
                               type="button"
@@ -1388,6 +1437,7 @@ function ChallanPageContent() {
                               <span>Inward</span>
                             </button>
                           )}
+                          <PhotoHistoryButton scope={{ kind: "jobwork_outward", id: c.id }} />
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1410,35 +1460,15 @@ function ChallanPageContent() {
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        </div>
-                      </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-500 pt-1.5 border-t border-slate-200/60">
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">Vendor:</span>
-                          <span className="font-medium text-slate-800 truncate block">
-                            {c.vendorname}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400 block text-[10px]">Transport:</span>
-                          <span className="font-medium text-slate-800 truncate block">
-                            {c.transportername || "Self"}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                        <span className="text-slate-500 text-[11px]">
-                          {(c.items || []).length} plates
-                        </span>
-                        <button
+<button
                           onClick={() => toggleRow(c.id)}
                           className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition flex items-center justify-center cursor-pointer"
                         >
                           {isExpanded ? "Hide Plates" : "View Plates"}
                         </button>
-                      </div>
+</RecordActions>
+</div>
 
                       {isExpanded && (c.items || []).length > 0 && (
                         <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5">
@@ -2060,6 +2090,21 @@ function ChallanPageContent() {
               )}
             </div>
 
+            {/* Movement Photos (Mandatory Outward Photo Evidence) */}
+            <MovementPhotoUploader
+              movementType="jobwork_outward"
+              movementNumber={modalForm.projectid ? `JW_${modalForm.projectid}` : null}
+              partyName={vendors.find((v: any) => String(v.id) === modalForm.vendorid)?.customername || null}
+              projectCodes={modalForm.projectid ? [modalForm.projectid] : []}
+              mouldCode={modalForm.projectid || null}
+              required={true}
+              onPhotosChange={(photos, hasValid) => {
+                setChallanPhotos(photos);
+                setHasChallanPhoto(hasValid);
+              }}
+              className="mt-3"
+            />
+
             {/* Modal Footer */}
             <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
@@ -2072,8 +2117,8 @@ function ChallanPageContent() {
               <MotionButton
                 type="submit"
                 loading={createChallanMutation.isPending}
-                disabled={createChallanMutation.isPending || modalForm.items.length === 0 || mouldStatus.isAllPending}
-                title={mouldStatus.isAllPending ? "Cannot generate challan: Raw material is not inwarded yet" : undefined}
+                disabled={createChallanMutation.isPending || modalForm.items.length === 0 || mouldStatus.isAllPending || !hasChallanPhoto}
+                title={mouldStatus.isAllPending ? "Cannot generate challan: Raw material is not inwarded yet" : !hasChallanPhoto ? "Take or upload at least 1 photo to enable challan generation" : undefined}
                 variant="primary"
                 size="md"
               >
@@ -2201,6 +2246,21 @@ function ChallanPageContent() {
               </div>
             </div>
 
+            {/* Movement Photos (Mandatory Jobwork Return Inward Photo Evidence) */}
+            <MovementPhotoUploader
+              movementType="jobwork_inward"
+              movementNumber={inwardModalChallan?.challanno || null}
+              partyName={inwardModalChallan?.vendorname || null}
+              projectCodes={inwardModalChallan?.projectid ? [inwardModalChallan.projectid] : []}
+              mouldCode={inwardModalChallan?.projectid || null}
+              required={true}
+              onPhotosChange={(photos, hasValid) => {
+                setInwardReturnPhotos(photos);
+                setHasInwardReturnPhoto(hasValid);
+              }}
+              className="mt-3"
+            />
+
             {/* Modal Actions */}
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
               <button
@@ -2212,8 +2272,9 @@ function ChallanPageContent() {
               </button>
               <button
                 type="submit"
-                disabled={isInwardSubmitting}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold shadow-xs transition disabled:opacity-50 cursor-pointer"
+                disabled={isInwardSubmitting || !hasInwardReturnPhoto}
+                title={!hasInwardReturnPhoto ? "Take or upload at least 1 photo to enable inward receipt" : undefined}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
               >
                 <ArrowDownLeft className="h-4 w-4" />
                 <span>{isInwardSubmitting ? "Saving Inward..." : "Confirm Inward Receipt"}</span>

@@ -7,6 +7,7 @@ export interface ExportColumn {
   type: "string" | "number" | "currency" | "date" | "status";
   width?: number; // character width for xlsx / percent for pdf
   financial?: boolean; // requires financial_view_amounts
+  center?: boolean; // force center alignment for this column in xlsx
 }
 
 export interface ExportDatasetResult {

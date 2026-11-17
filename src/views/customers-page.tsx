@@ -1,6 +1,5 @@
 "use client";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
-import { readCustomerSpreadsheet } from "@/lib/import/spreadsheet";
 import { normalizeCustomerInitials, isValidCustomerInitials } from "@/lib/customer-identity";
 
 import React, { useState, useMemo, useEffect, useCallback, Suspense } from "react";
@@ -18,7 +17,6 @@ import {
     Pencil,
     Trash2,
     FileSpreadsheet,
-    Printer,
     X,
     AlertCircle,
     CheckCircle2,
@@ -28,7 +26,6 @@ import {
     Loader2,
     ShieldCheck,
     Lock,
-    Upload,
     ArrowUpDown,
     ArrowUp,
     ArrowDown,
@@ -36,7 +33,7 @@ import {
     Check,
 } from "lucide-react";
 import type { Customer } from "@/lib/supabase/types";
-import { exportToCsv } from "@/lib/utils";
+import { triggerFileExport } from "@/lib/exports/download";
 import { TableSkeletonRows, CardGridSkeleton } from "@/components/ui/skeleton";
 import { Modal, ConfirmDialog } from "@/components/ui/dialog";
 import { TablePagination } from "@/components/ui/table-pagination";
@@ -175,13 +172,6 @@ function CustomerPageContent() {
         pan: "",
         contact_person: "",
     });
-
-    // Excel Import states
-    const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [importPreviewData, setImportPreviewData] = useState<any[]>([]);
-    const [importFileName, setImportFileName] = useState("");
-    const [isImporting, setIsImporting] = useState(false);
 
     // Sorting states
     type SortField =
@@ -600,133 +590,14 @@ function CustomerPageContent() {
         }
     };
 
-    // Export CSV function via shared exportToCsv
-    const handleExportCSV = () => {
-        const headers = [
-            "Sr. No",
-            "Cus. Code",
-            "Company Name",
-            "GSTIN",
-            "PAN No",
-            "Authorise Person",
-            "Contact No",
-            "Mail ID",
-        ];
-        const rows = filteredCustomers.map((c, idx) => [
-            idx + 1,
-            c.customer_code || c.pan_code || "",
-            c.customername || "",
-            c.gstin || "",
-            c.pan || "",
-            c.contact_person || "",
-            c.mobile || "",
-            c.email || "",
-        ]);
-        exportToCsv(
-            `STPL_Customer_Details_${new Date().toISOString().slice(0, 10)}`,
-            headers,
-            rows,
-        );
-    };
-
-    // Excel / CSV File Import Handler
-    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        try {
-            const rawJson = await readCustomerSpreadsheet(file);
-
-            const parsed = rawJson
-                .map((row: any) => {
-                    const cusCode =
-                        row["Cus. Code"] ||
-                        row["Cus Code"] ||
-                        row["Customer Code"] ||
-                        row["Code"] ||
-                        "";
-                    const companyName =
-                        row["Company Name"] ||
-                        row["Customer Name"] ||
-                        row["Name"] ||
-                        "";
-                    const gstin =
-                        row["GSTIN"] ||
-                        row["GST No"] ||
-                        row["GST"] ||
-                        "";
-                    const pan = row["PAN No"] || row["PAN"] || "";
-                    const contactPerson =
-                        row["Authorise Person"] ||
-                        row["Authorised Person"] ||
-                        row["Contact Person"] ||
-                        "";
-                    const contactNo =
-                        row["Contact No"] ||
-                        row["Mobile"] ||
-                        row["Phone"] ||
-                        "";
-                    const email =
-                        row["Mail ID"] || row["Email"] || row["Mail"] || "";
-
-                    return {
-                        cusCode: String(cusCode || "").trim(),
-                        companyName: String(companyName || "").trim(),
-                        gstin: String(gstin || "").trim().toUpperCase(),
-                        pan: String(pan || "").trim().toUpperCase(),
-                        contactPerson: String(contactPerson || "").trim(),
-                        contactNo: String(contactNo || "").trim(),
-                        email: String(email || "").trim(),
-                    };
-                })
-                .filter((r: any) => Boolean(r.companyName));
-
-            if (parsed.length === 0) {
-                showNotification("error", "No valid customer rows found in file.");
-                return;
-            }
-
-            setImportFileName(file.name);
-            setImportPreviewData(parsed);
-            setIsImportModalOpen(true);
-        } catch (err: any) {
-            showNotification("error", "Failed to parse Excel file: " + (err.message || "Invalid format"));
-        } finally {
-            if (fileInputRef.current) fileInputRef.current.value = "";
-        }
-    };
-
-    const handleConfirmImport = async () => {
-        if (importPreviewData.length === 0) return;
-        try {
-            setIsImporting(true);
-            const res = await fetch("/api/customers/import", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ customers: importPreviewData }),
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                throw new Error(data.error || "Import failed");
-            }
-
-            showNotification(
-                data.failedCount ? "error" : "success",
-                data.message || `Successfully imported ${importPreviewData.length} customers.`
-            );
-            if (data.failedCount) {
-                const failedRows = new Set<number>(data.failures.map((failure: { rowIndex: number }) => failure.rowIndex));
-                setImportPreviewData((rows) => rows.filter((_, index) => failedRows.has(index)));
-            } else {
-                setIsImportModalOpen(false);
-                setImportPreviewData([]);
-            }
-            fetchCustomers();
-        } catch (err: any) {
-            showNotification("error", err.message || "Failed to import customers");
-        } finally {
-            setIsImporting(false);
-        }
+    // Export Excel via the unified export API (same engine as Project Register)
+    const handleExportExcel = () => {
+        triggerFileExport({
+            dataset: "customers",
+            format: "xlsx",
+            scope: "filtered",
+            search: searchQuery || undefined,
+        });
     };
 
     return (
@@ -764,38 +635,13 @@ function CustomerPageContent() {
                             />
                             <span className="hidden sm:inline">Refresh</span>
                         </button>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            accept=".xlsx,.xls,.csv"
-                            onChange={handleFileSelect}
-                            className="hidden"
-                        />
-                        {canCreateCustomer && (
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition shadow-xs cursor-pointer"
-                                title="Import customers from Excel or CSV file"
-                            >
-                                <Upload className="w-4 h-4 text-indigo-600" />
-                                <span>Import Excel</span>
-                            </button>
-                        )}
                         <button
-                            onClick={handleExportCSV}
+                            onClick={handleExportExcel}
                             className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-xs cursor-pointer"
-                            title="Export filtered records to CSV/Excel"
+                            title="Export customers to Excel"
                         >
                             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                            <span>Export CSV</span>
-                        </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-xs cursor-pointer"
-                            title="Print data table"
-                        >
-                            <Printer className="w-4 h-4 text-slate-500" />
-                            <span>Print</span>
+                            <span>Export Excel</span>
                         </button>
 
                         {/* Customer Creation Button */}
@@ -1620,85 +1466,6 @@ function CustomerPageContent() {
                             </MotionButton>
                         </div>
                     </form>
-                </Modal>
-
-                {/* ========================================================================= */}
-                {/* EXCEL IMPORT CONFIRMATION MODAL */}
-                {/* ========================================================================= */}
-                <Modal
-                    isOpen={isImportModalOpen}
-                    onClose={() => setIsImportModalOpen(false)}
-                    title="Import Customers from Excel / CSV"
-                    description={`Ready to import ${importPreviewData.length} records from "${importFileName}"`}
-                    size="xl"
-                >
-                    <div className="space-y-4 text-xs">
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
-                            <p className="font-semibold mb-1">
-                                File: {importFileName} ({importPreviewData.length} customers detected)
-                            </p>
-                            <p className="text-[11px] text-blue-700">
-                                Existing customers will be safely updated by Customer Code or Name; new customers will be created automatically.
-                            </p>
-                        </div>
-
-                        {/* Preview Table */}
-                        <div className="border border-slate-200 rounded-lg overflow-x-auto max-h-60 custom-scrollbar">
-                            <table className="w-full text-left text-xs min-w-[700px]">
-                                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold text-[10px] uppercase">
-                                    <tr>
-                                        <th className="py-2 px-3">Sr. No</th>
-                                        <th className="py-2 px-3">Cus. Code</th>
-                                        <th className="py-2 px-3">Company Name</th>
-                                        <th className="py-2 px-3">GSTIN</th>
-                                        <th className="py-2 px-3">PAN No</th>
-                                        <th className="py-2 px-3">Authorise Person</th>
-                                        <th className="py-2 px-3">Contact No</th>
-                                        <th className="py-2 px-3">Mail ID</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                                    {importPreviewData.slice(0, 10).map((r, i) => (
-                                        <tr key={i} className="hover:bg-slate-50">
-                                            <td className="py-1.5 px-3">{i + 1}</td>
-                                            <td className="py-1.5 px-3 font-bold text-indigo-700">{r.cusCode || "—"}</td>
-                                            <td className="py-1.5 px-3 font-sans font-medium text-slate-900">{r.companyName}</td>
-                                            <td className="py-1.5 px-3">{r.gstin || "—"}</td>
-                                            <td className="py-1.5 px-3">{r.pan || "—"}</td>
-                                            <td className="py-1.5 px-3 font-sans">{r.contactPerson || "—"}</td>
-                                            <td className="py-1.5 px-3">{r.contactNo || "—"}</td>
-                                            <td className="py-1.5 px-3 font-sans truncate max-w-[120px]">{r.email || "—"}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                        {importPreviewData.length > 10 && (
-                            <p className="text-[11px] text-slate-500 italic text-center">
-                                ...and {importPreviewData.length - 10} more records
-                            </p>
-                        )}
-
-                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-200">
-                            <button
-                                type="button"
-                                disabled={isImporting}
-                                onClick={() => setIsImportModalOpen(false)}
-                                className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
-                            >
-                                Cancel
-                            </button>
-                            <MotionButton
-                                type="button"
-                                loading={isImporting}
-                                onClick={handleConfirmImport}
-                                variant="primary"
-                                size="sm"
-                            >
-                                {isImporting ? "Importing Data..." : `Confirm & Import (${importPreviewData.length})`}
-                            </MotionButton>
-                        </div>
-                    </div>
                 </Modal>
 
                 {/* ========================================================================= */}

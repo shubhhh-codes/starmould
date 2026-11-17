@@ -7,6 +7,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { TopProgressBar } from "@/components/ui/top-progress-bar";
 import { ShieldAlert } from "lucide-react";
+import { PhotoHistoryProvider } from "@/components/photos/photo-history-provider";
 
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
@@ -108,5 +109,6 @@ function AppLayoutContent({ children }: AppLayoutProps) {
 }
 
 export function AppLayout({ children }: AppLayoutProps) {
-  return <AppLayoutContent>{children}</AppLayoutContent>;
+  const { currentUser } = useAuth();
+  return <PhotoHistoryProvider key={`${currentUser?.id}:${currentUser?.permissions_version}`}><AppLayoutContent>{children}</AppLayoutContent></PhotoHistoryProvider>;
 }

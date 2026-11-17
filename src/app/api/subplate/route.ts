@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
+import { tryPhotoStorageMoves } from "@/lib/photos/storage-moves";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
 import { loadEffectivePermissions, roleHasPermission } from "@/lib/permissions/loader";
@@ -1123,6 +1124,59 @@ export async function PUT(req: NextRequest) {
       }
     }
 
+    // Enforce compulsory photo evidence for VMC QC, Final QC, and Packing (Requirement F04)
+    const compulsoryQCStages = [
+      { key: "vmc_qcby", label: "VMC QC" },
+      { key: "final_qcby", label: "Final QC" },
+      { key: "packing_workby", label: "Packing" },
+    ];
+
+    for (const { key: stageKey, label: stageLabel } of compulsoryQCStages) {
+      if (stageKey in updatePayload) {
+        const val = updatePayload[stageKey];
+        if (val && Number(val) > 0) {
+          const rawIds = body.photoIds || body.photo_ids;
+          const reqPhotoIds = Array.isArray(rawIds)
+            ? rawIds.map(Number).filter((n: number) => Number.isFinite(n) && n > 0)
+            : [];
+
+          let hasEvidence = reqPhotoIds.length > 0;
+          if (!hasEvidence) {
+            const { count } = await supabaseAdmin
+              .from("movement_photos")
+              .select("id", { count: "exact", head: true })
+              .eq("subplate_id", subplateId)
+              .eq("stage_key", stageKey)
+              .is("deleted_at", null);
+            hasEvidence = (count || 0) > 0;
+          }
+
+          if (!hasEvidence) {
+            return NextResponse.json(
+              {
+                error: `Photo evidence is required to complete ${stageLabel}. Please capture or attach at least 1 inspection photo before completing this stage.`,
+                code: "PHOTO_EVIDENCE_REQUIRED",
+              },
+              { status: 400 }
+            );
+          }
+
+          if (reqPhotoIds.length > 0) {
+            const mType = stageKey === "packing_workby" ? "packing" : "subplate_qc";
+            await supabaseAdmin
+              .from("movement_photos")
+              .update({
+                subplate_id: subplateId,
+                stage_key: stageKey,
+                movement_type: mType,
+                updated_at: now,
+              })
+              .in("id", reqPhotoIds);
+          }
+        }
+      }
+    }
+
     for (const [byField, atField] of Object.entries(stageTimestampMap)) {
       if (byField in updatePayload) {
         const val = updatePayload[byField];
@@ -1157,6 +1211,8 @@ export async function PUT(req: NextRequest) {
       "project_cname",
       "cname",
       "staff_name",
+      "photoIds",
+      "photo_ids",
     ];
     for (const key of nonColumnKeys) {
       delete updatePayload[key];
@@ -1244,6 +1300,8 @@ export async function PUT(req: NextRequest) {
     invalidateCache("api_pipeline_stage_counts");
     invalidateCache("shared_scans_lookup");
 
+    const evidenceIds = body.photoIds || body.photo_ids;
+    if (Array.isArray(evidenceIds)) after(() => tryPhotoStorageMoves(evidenceIds.map(Number).filter(Number.isSafeInteger)));
     return NextResponse.json({ subplate: enrichedData, message: "Subplate updated successfully in database" });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal error";

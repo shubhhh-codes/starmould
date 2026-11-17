@@ -1,4 +1,7 @@
 "use client";
+import { RecordActions } from "@/components/ui/record-actions";
+import { movementEvidence } from "@/lib/photos/movement-evidence";
+import { PhotoHistoryButton } from "@/components/photos/photo-history-button";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo, useEffect } from "react";
@@ -63,12 +66,15 @@ import {
 } from "@/lib/query/hooks";
 import { queryKeys } from "@/lib/query/keys";
 import { calculateSubplateWeight } from "@/lib/weight-calculator";
+import { MovementPhotoUploader } from "@/components/photos/movement-photo-uploader";
 
 export function PurchaseInwardPage() {
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role_id === 0 || currentUser?.role?.toLowerCase() === "admin";
   const { hasPermission } = useRolePermissions();
   const canCreatePurchaseInward = hasPermission("action_create_purchase_inward");
+  const [hasInwardPhoto, setHasInwardPhoto] = useState(false);
+  const [inwardPhotos, setInwardPhotos] = useState<any[]>([]);
     const [isMounted, setIsMounted] = useState(false);
     useEffect(() => {
         setIsMounted(true);
@@ -404,6 +410,8 @@ export function PurchaseInwardPage() {
             receiveQtys: { [itemKey]: item.pending_qty, [item.plateid]: item.pending_qty },
         });
         setReceiveError(null);
+        setHasInwardPhoto(false);
+        setInwardPhotos([]);
         setIsReceiveModalOpen(true);
     };
 
@@ -423,6 +431,8 @@ export function PurchaseInwardPage() {
             receiveQtys: qtys,
         });
         setReceiveError(null);
+        setHasInwardPhoto(false);
+        setInwardPhotos([]);
         setIsReceiveModalOpen(true);
     };
 
@@ -462,6 +472,11 @@ export function PurchaseInwardPage() {
             return;
         }
 
+        if (!hasInwardPhoto) {
+            setReceiveError("At least one movement photo is mandatory before confirming inward receipt.");
+            return;
+        }
+
         // Validate quantities
         for (const item of selectedReceiveItems) {
             const itemKey = `${item.id}_${item.plateid}_${item.source_line_id ?? "legacy"}`;
@@ -493,6 +508,9 @@ export function PurchaseInwardPage() {
             for (const [poIdStr, groupItems] of Object.entries(poGroups)) {
                 const first = groupItems[0];
                 await createInwardMutation.mutateAsync({
+                    ...movementEvidence(inwardPhotos),
+                    // Stable across partial batch retries, even after an earlier PO succeeded.
+                    photoRequestKey: `receipt_${movementEvidence(inwardPhotos).photoBatchId}_${poIdStr}`,
                     pid: Number(poIdStr),
                     inpono: receiveForm.inpono.trim() || null,
                     cname: first.cname,
@@ -519,10 +537,14 @@ export function PurchaseInwardPage() {
                 });
             }
 
+            // Attach photos to the finalized inward movement
+
             queryClient.invalidateQueries({ queryKey: queryKeys.purchaseInward.all() });
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
             queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
             setIsReceiveModalOpen(false);
+            setInwardPhotos([]);
+            setHasInwardPhoto(false);
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : "Error saving receipt";
             setReceiveError(message);
@@ -1230,7 +1252,7 @@ export function PurchaseInwardPage() {
                                         <th className="py-3 px-4 w-[12%]">Mould Project</th>
                                         <th className="py-3 px-4 w-[20%]">Supplier Name</th>
                                         <th className="py-3 px-4 w-[18%]">Customer Name</th>
-                                        <th className="py-3 px-4 w-[12%] text-right">Actions</th>
+                                        <th className="py-3 px-4 w-[220px] whitespace-nowrap text-right">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -1292,6 +1314,8 @@ export function PurchaseInwardPage() {
                                                             {clientName}
                                                         </td>
                                                         <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                                            <RecordActions>
+                                                            <PhotoHistoryButton scope={{ kind: "purchase_receipt", id: inw.id }}  />
                                                             {(() => {
                                                                 const createdAtTime = inw.created_at ? new Date(inw.created_at).getTime() : 0;
                                                                 const elapsedMin = createdAtTime > 0 ? (currentTime - createdAtTime) / (60 * 1000) : 999;
@@ -1338,6 +1362,7 @@ export function PurchaseInwardPage() {
                                                                     }
                                                                     return (
                                                                         <span
+                                                                            data-action-status
                                                                             title="20-minute undo window expired. Contact an Administrator to revert."
                                                                             className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-slate-400 bg-slate-100 rounded border border-slate-200 cursor-not-allowed"
                                                                         >
@@ -1349,6 +1374,7 @@ export function PurchaseInwardPage() {
 
                                                                 return <span className="text-slate-300 text-xs">—</span>;
                                                             })()}
+                                                        </RecordActions>
                                                         </td>
                                                     </tr>
 
@@ -1800,6 +1826,22 @@ export function PurchaseInwardPage() {
                                     </div>
                                 </div>
 
+                                {/* Movement Photos (Mandatory Photo Evidence) */}
+                                <MovementPhotoUploader
+                                    movementType="purchase_inward"
+                                    movementNumber={receiveForm.inpono.trim() || selectedReceiveItems[0]?.pno || null}
+                                    partyName={selectedReceiveItems[0]?.vendorname || null}
+                                    projectCodes={selectedReceiveItems.length > 0 ? [selectedReceiveItems[0].projectid] : []}
+                                    mouldCode={selectedReceiveItems[0]?.projectid || null}
+                                    subplateId={selectedReceiveItems.length === 1 ? selectedReceiveItems[0]?.plateid : null}
+                                    subplateCode={selectedReceiveItems.length === 1 ? selectedReceiveItems[0]?.platename : null}
+                                    required={true}
+                                    onPhotosChange={(photos, hasValid) => {
+                                        setInwardPhotos(photos);
+                                        setHasInwardPhoto(hasValid);
+                                    }}
+                                />
+
                                 {/* 4. MODAL FOOTER */}
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-200">
                                     {/* Left: Summary Counter */}
@@ -1827,9 +1869,11 @@ export function PurchaseInwardPage() {
                                         <MotionButton
                                             type="submit"
                                             loading={createInwardMutation.isPending}
+                                            disabled={createInwardMutation.isPending || !hasInwardPhoto || totalReceivingUnits === 0}
+                                            title={!hasInwardPhoto ? "Take or upload at least 1 photo to enable inward receipt" : undefined}
                                             variant="primary"
                                             size="sm"
-                                            className="px-5 py-2 font-semibold text-xs rounded-xl shadow-2xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+                                            className="px-5 py-2 font-semibold text-xs rounded-xl shadow-2xs bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white cursor-pointer"
                                         >
                                             Confirm Inward Receipt ({totalReceivingUnits} pcs)
                                         </MotionButton>

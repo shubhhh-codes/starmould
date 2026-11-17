@@ -58,7 +58,7 @@ export function createIDBPersister(userKeySuffix: string = "default"): Persister
 
         client.clientState.queries = client.clientState.queries.filter((q) => {
           const key1 = String(q.queryKey?.[1] || "");
-          return !excludedKeys.has(key1);
+          return q.queryKey?.[0] !== "photo-history" && !excludedKeys.has(key1);
         });
 
         return client;

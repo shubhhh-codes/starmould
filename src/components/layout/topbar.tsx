@@ -64,7 +64,7 @@ const PAGE_INFO: Record<string, { title: string; category?: string; icon: React.
   "/user": { title: "Staff & User Management", category: "Admin", icon: Shield },
   "/expense": { title: "Expense Ledger", category: "Finance", icon: Receipt },
   "/report": { title: "Production & Financial Reports", category: "Analytics", icon: Compass },
-  "/export": { title: "Master CSV Exports", category: "Exports", icon: FileDown },
+  "/export": { title: "Database Backups", category: "Backups", icon: FileDown },
   "/settings": { title: "System & Permissions Settings", category: "Settings", icon: Settings },
 };
 

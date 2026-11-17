@@ -1,4 +1,6 @@
 "use client";
+import { RecordActions } from "@/components/ui/record-actions";
+import { PhotoHistoryButton } from "@/components/photos/photo-history-button";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo, useEffect, useCallback, useRef, Suspense } from "react";
@@ -1548,7 +1550,8 @@ function PurchasePageContent() {
 
                     {/* Action Buttons */}
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <RecordActions layout="row">
+                            <PhotoHistoryButton scope={{ kind: "purchase_order", id: po.id }} />
                             <button
                                 type="button"
                                 onClick={() => handleOpenVoucherTab(po)}
@@ -1609,7 +1612,7 @@ function PurchasePageContent() {
                                     </button>
                                 )
                             )}
-                        </div>
+                        </RecordActions>
                     </td>
                 </tr>
 
@@ -1744,7 +1747,8 @@ function PurchasePageContent() {
                         </span>
                         <span className="text-[10px] text-slate-400">PO Actions</span>
                     </div>
-                    <div className="grid grid-cols-4 gap-1.5">
+                    <RecordActions layout="grid">
+                        <PhotoHistoryButton scope={{ kind: "purchase_order", id: po.id }} />
                         <button
                             type="button"
                             onClick={() => handleOpenVoucherTab(po)}
@@ -1804,7 +1808,7 @@ function PurchasePageContent() {
                                 </button>
                             )
                         )}
-                    </div>
+                    </RecordActions>
                 </div>
 
                 {/* Mobile Expanded Items */}

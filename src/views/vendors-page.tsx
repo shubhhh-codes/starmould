@@ -5,7 +5,7 @@ import React, { useState, useMemo, useEffect, useCallback, Suspense } from "reac
 import { useSearchParams, useRouter } from "next/navigation";
 // removed createPortal
 import { AppLayout } from "@/components/layout/app-layout";
-import { exportToCsv } from "@/lib/utils";
+import { triggerFileExport } from "@/lib/exports/download";
 import {
     Users,
     Plus,
@@ -17,7 +17,6 @@ import {
     Pencil,
     Trash2,
     FileSpreadsheet,
-    Printer,
     X,
     AlertCircle,
     CheckCircle2,
@@ -679,49 +678,17 @@ function CustomerPageContent() {
         }
     };
 
-    // Export CSV function
-    const handleExportCSV = () => {
-        const headers = [
-            "ID",
-            "Name",
-            "Initials",
-            "Vendor Code",
-            "City",
-            "GSTIN",
-            "PAN",
-            "Bank Name",
-            "A/C No",
-            "IFSC Code",
-            "Contact Person",
-            "Mobile 1",
-            "Mobile 2",
-            "Email",
-            "Address",
-            "Type",
-        ];
-        const rows = filteredCustomers.map((c) => [
-            c.id,
-            c.customername || "",
-            c.initials || "",
-            c.vendor_code || "",
-            c.city || "",
-            c.gstin || "",
-            c.pan || "",
-            c.bank_name || "",
-            c.account_no || "",
-            c.ifsc_code || "",
-            c.contact_person || "",
-            c.mobile || "",
-            c.mobile1 || "",
-            c.email || "",
-            c.address || "",
-            c.usertype || "",
-        ]);
-        exportToCsv(
-            `starmould_entities_${activeTab.toLowerCase()}_${new Date().toISOString().slice(0, 10)}`,
-            headers,
-            rows,
-        );
+    // Export Excel via unified exports API
+    const handleExportExcel = () => {
+        triggerFileExport({
+            dataset: "vendors",
+            format: "xlsx",
+            scope: "filtered",
+            filters: {
+                tab: activeTab,
+            },
+            search: searchQuery || undefined,
+        });
     };
 
     return (
@@ -836,20 +803,12 @@ function CustomerPageContent() {
                             <span className="hidden sm:inline">Refresh</span>
                         </button>
                         <button
-                            onClick={handleExportCSV}
+                            onClick={handleExportExcel}
                             className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-xs cursor-pointer"
-                            title="Export filtered records to CSV/Excel"
+                            title="Export vendors to Excel"
                         >
                             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                            <span>Export CSV</span>
-                        </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-xs cursor-pointer"
-                            title="Print data table"
-                        >
-                            <Printer className="w-4 h-4 text-slate-500" />
-                            <span>Print</span>
+                            <span>Export Excel</span>
                         </button>
 
                         {/* Dedicated Admin-Only Customer Creation Button */}

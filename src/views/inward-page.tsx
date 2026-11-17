@@ -1,4 +1,7 @@
 "use client";
+import { RecordActions } from "@/components/ui/record-actions";
+import { movementEvidence } from "@/lib/photos/movement-evidence";
+import { PhotoHistoryButton } from "@/components/photos/photo-history-button";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo } from "react";
@@ -37,6 +40,7 @@ import { KpiCardSkeleton, TableSkeletonRows } from "@/components/ui/skeleton";
 import { Modal } from "@/components/ui/dialog";
 import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
 import { MotionButton } from "@/components/ui/motion-button";
+import { MovementPhotoUploader } from "@/components/photos/movement-photo-uploader";
 import {
     useInwardQuery,
     useCreateInwardMutation,
@@ -84,6 +88,8 @@ export function InwardPage() {
 
     // Add Inward Receipt Modal State (Source: inward/index.blade.php lines 53-150)
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [hasInwardPhoto, setHasInwardPhoto] = useState(false);
+    const [inwardPhotos, setInwardPhotos] = useState<any[]>([]);
     const [modalForm, setModalForm] = useState<{
         chdate: string;
         vendorid: string;
@@ -296,6 +302,11 @@ export function InwardPage() {
             return;
         }
 
+        if (!hasInwardPhoto) {
+            setFormError("At least one movement photo is mandatory before confirming inward receipt.");
+            return;
+        }
+
         for (let i = 0; i < modalForm.items.length; i++) {
             const it = modalForm.items[i];
             if (it.inward_qty < 0) {
@@ -315,8 +326,10 @@ export function InwardPage() {
 
         try {
             setIsSubmitting(true);
-            await createInwardMutation.mutateAsync(modalForm);
+            await createInwardMutation.mutateAsync({ ...modalForm, ...movementEvidence(inwardPhotos) });
             setIsModalOpen(false);
+            setInwardPhotos([]);
+            setHasInwardPhoto(false);
             setModalForm({
                 chdate: new Date().toISOString().slice(0, 10),
                 vendorid: "",
@@ -393,7 +406,11 @@ export function InwardPage() {
                         </Link>
 
                         {canCreateInward && (<button
-                            onClick={() => setIsModalOpen(true)}
+                            onClick={() => {
+                                setHasInwardPhoto(false);
+                                setInwardPhotos([]);
+                                setIsModalOpen(true);
+                            }}
                             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium transition shadow-sm shadow-emerald-500/20"
                         >
                             <Plus className="h-4 w-4" />
@@ -617,6 +634,8 @@ export function InwardPage() {
                                                     </td>
 
                                                     <td className="px-4 py-3.5 text-right">
+                                                            <RecordActions>
+                                                        <PhotoHistoryButton scope={{ kind: "jobwork_receipt", id: i.id }} />
                                                         <button
                                                             type="button"
                                                             onClick={() =>
@@ -629,7 +648,8 @@ export function InwardPage() {
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                         </button>
-                                                    </td>
+                                                    </RecordActions>
+                                                        </td>
                                                 </tr>
 
                                                 {/* Child Rows: Sub-table for Received Inward Items */}
@@ -794,21 +814,9 @@ export function InwardPage() {
                                                     (Ref: {i.challanno})
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-[10px] text-slate-400">
+                                            <span className="text-[10px] text-slate-400">
                                                     {i.chdate}
                                                 </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        handleCancelInward(i.id)
-                                                    }
-                                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
-                                                    title="Cancel / Delete Inward"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
-                                            </div>
                                         </div>
 
                                         <div>
@@ -821,12 +829,26 @@ export function InwardPage() {
                                             </p>
                                         </div>
 
-                                        <div className="flex items-center justify-between pt-2 border-t border-slate-200/60">
-                                            <span className="text-slate-500 text-[11px]">
+                                        <div className="space-y-2 border-t border-slate-200/60 pt-3">
+<span className="text-slate-500 text-[11px]">
                                                 {(i.items || []).length}{" "}
                                                 received plates
                                             </span>
-                                            <button
+<RecordActions layout="card">
+
+                                                <PhotoHistoryButton scope={{ kind: "jobwork_receipt", id: i.id }} />
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleCancelInward(i.id)
+                                                    }
+                                                    className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition cursor-pointer"
+                                                    title="Cancel / Delete Inward"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+
+<button
                                                 onClick={() => toggleRow(i.id)}
                                                 className="min-h-[40px] px-3.5 py-2 text-xs font-semibold text-emerald-600 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition flex items-center justify-center cursor-pointer"
                                             >
@@ -834,7 +856,8 @@ export function InwardPage() {
                                                     ? "Hide Plates"
                                                     : "View Plates"}
                                             </button>
-                                        </div>
+</RecordActions>
+</div>
 
                                         {isExpanded &&
                                             (i.items || []).length > 0 && (
@@ -1077,6 +1100,21 @@ export function InwardPage() {
                             )}
                         </div>
 
+                        {/* Movement Photos (Mandatory Jobwork Return Inward Photo Evidence) */}
+                        <MovementPhotoUploader
+                            movementType="jobwork_inward"
+                            movementNumber={pendingChallans.find((c: any) => c.id === Number(modalForm.challanid))?.challanno || null}
+                            partyName={vendors.find((v: any) => String(v.id) === modalForm.vendorid)?.customername || null}
+                            projectCodes={Array.from(new Set(modalForm.items.map((i) => i.project).filter(Boolean)))}
+                            mouldCode={modalForm.items[0]?.project || null}
+                            required={true}
+                            onPhotosChange={(photos, hasValid) => {
+                                setInwardPhotos(photos);
+                                setHasInwardPhoto(hasValid);
+                            }}
+                            className="mt-3"
+                        />
+
                         {/* Modal Footer */}
                         <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
                             <MotionButton
@@ -1089,8 +1127,10 @@ export function InwardPage() {
                             <MotionButton
                                 type="submit"
                                 variant="primary"
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                                 loading={isSubmitting}
+                                disabled={isSubmitting || !hasInwardPhoto || modalForm.items.length === 0}
+                                title={!hasInwardPhoto ? "Take or upload at least 1 photo to enable inward receipt" : undefined}
                             >
                                 Confirm Inward Receipt
                             </MotionButton>

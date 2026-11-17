@@ -12,6 +12,13 @@ if (process.argv.includes('--libraries')) {
     ['Customer identity', [path.join(__dirname, 'test-customer-identity.cjs')]],
     ['Mould model', [path.join(__dirname, 'test-mould-model.cjs')]],
     ['Mould queries', [path.join(__dirname, 'test-mould-queries.cjs')]],
+    ['Photo history', [path.join(__dirname, 'test-photo-history.cjs')]],
+    ['Photo storage layout', [path.join(__dirname, 'test-photo-storage-layout.cjs')]],
+    ['Photo storage worker', [path.join(__dirname, 'test-photo-storage-worker.cjs')]],
+    ['Photo storage ZIP', [path.join(__dirname, 'test-photo-storage-zip.cjs')]],
+    ['HTTP browser compatibility', [path.join(__dirname, 'test-browser-crypto.cjs')]],
+    ['Database backup contracts', ['--test', path.join(__dirname, 'test-database-backups.cjs')]],
+    ['Database backup access', [path.join(__dirname, 'test-backup-routes.cjs')]],
   ];
   for (const [label, args] of checks) {
     console.log(`\nRunning ${label}`);

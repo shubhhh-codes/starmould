@@ -11,9 +11,17 @@
     "check:language": "node scripts/check-language.mjs",
     "test": "node scripts/run-regression.cjs",
     "typecheck": "tsc --noEmit --incremental false",
-    "test:ui": "node scripts/test-dashboard-ui.cjs && node scripts/test-subplate-ui.cjs && node scripts/test-drawers.cjs"
+    "test:ui": "node scripts/test-dashboard-ui.cjs && node scripts/test-subplate-ui.cjs && node scripts/test-drawers.cjs",
+    "test:photos": "node scripts/test-photo-history.cjs && node scripts/test-browser-crypto.cjs && node scripts/test-photo-storage-layout.cjs && node scripts/test-photo-storage-worker.cjs && node scripts/test-photo-storage-zip.cjs && node scripts/test-photo-history-ui.cjs && node scripts/test-http-photo-upload-ui.cjs",
+    "test:photos:db": "node scripts/test-photo-history-db.cjs && node scripts/test-photo-storage-db.cjs",
+    "photos:organize": "node scripts/organize-photo-storage.cjs",
+    "env:status": "node scripts/switch-env.mjs status",
+    "env:staging": "node scripts/switch-env.mjs staging",
+    "env:prod": "node scripts/switch-env.mjs prod"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1169.0",
+    "@aws-sdk/s3-request-presigner": "^3.1169.0",
     "@supabase/supabase-js": "^2.116.0",
     "@tanstack/react-query": "^5.103.1",
     "@tanstack/react-query-persist-client": "5.103.1",
