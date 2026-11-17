@@ -3,14 +3,11 @@ const path = require('node:path');
 const { Store, createPool, SLOTS, istDate } = require('./control.cjs');
 const { Storage } = require('./storage.cjs');
 const { executeJob } = require('./runner.cjs');
-const { decryptFile, encryptionKey } = require('./archive.cjs');
+
 
 async function main() {
   const [command, arg, output] = process.argv.slice(2);
-  if (command === 'decrypt') {
-    if (!arg || !output) throw new Error('Usage: decrypt INPUT.enc OUTPUT');
-    await decryptFile(arg, output, encryptionKey()); return;
-  }
+
   const pool = createPool(); const store = new Store(pool);
   try {
     if (command === 'migrate') {
@@ -18,7 +15,7 @@ async function main() {
       await pool.query(sql); console.log('Backup coordinator migration applied.'); return;
     }
     if (command === 'pause' || command === 'resume') { await store.pause(command === 'pause'); return; }
-    if (command !== 'primary') throw new Error('Usage: primary [slot] | migrate | pause | resume | decrypt INPUT OUTPUT');
+    if (command !== 'primary') throw new Error('Usage: primary [slot] | migrate | pause | resume');
     if ((await store.settings()).paused) { console.log('Backups paused.'); return; }
     const storage = new Storage();
     const now = new Date();
@@ -33,7 +30,7 @@ async function main() {
     }
     const result = await executeJob(store, storage, id, 'github');
     const summary = `## Database backup\n\n- Result: ${result.status}\n- Job: ${id}\n` +
-      (result.manifest ? `- Captured: ${result.manifest.capturedAt}\n- Verified: ${result.manifest.verifiedAt}\n- Schemas: ${result.manifest.schemas.join(', ')}\n- Encrypted files: ${result.manifest.files.length}\n- Storage: private R2; 90-day retention\n` : '');
+      (result.manifest ? `- Captured: ${result.manifest.capturedAt}\n- Verified: ${result.manifest.verifiedAt}\n- Schemas: ${result.manifest.schemas.join(', ')}\n- SQL files: ${result.manifest.files.length}\n- Storage: private R2; 90-day retention\n` : '');
     if (process.env.GITHUB_STEP_SUMMARY) await fs.appendFile(process.env.GITHUB_STEP_SUMMARY, summary);
     console.log(JSON.stringify({ status: result.status, id }));
     if (result.status === 'skipped') {

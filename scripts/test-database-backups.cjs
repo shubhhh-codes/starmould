@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { randomBytes, randomUUID } = require('node:crypto');
 const { SLOTS, scheduledJobs, istDate, connectionOptions } = require('./backup/control.cjs');
-const { encryptFile, decryptFile, encryptionKey, postgresEnv } = require('./backup/archive.cjs');
+const { postgresEnv } = require('./backup/archive.cjs');
 const { Storage } = require('./backup/storage.cjs');
 const { executeJob } = require('./backup/runner.cjs');
 const { authorized } = require('../automation/db-backup-service/service.cjs');
@@ -20,24 +20,6 @@ test('four IST slots map to UTC and reconcile across midnight without future sna
   assert.equal(istDate(new Date('2026-11-17T18:31:00Z')), '2026-11-18');
   assert.equal(scheduledJobs(new Date('2026-11-17T04:34:59Z'), new Date('2026-11-17')).length, 0);
   assert.equal(scheduledJobs(new Date('2026-11-17T18:31:00Z'), new Date('2026-11-17')).length, 4);
-});
-test('encryption authenticates plaintext and rejects wrong keys/tampering without publishing output', async () => {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'backup-crypto-test-'));
-  try {
-    const input = path.join(dir, 'input'); const encrypted = path.join(dir, 'archive.enc'); const output = path.join(dir, 'output');
-    const data = randomBytes(2 * 1024 * 1024); const key = randomBytes(32);
-    await fs.writeFile(input, data);
-    const result = await encryptFile(input, encrypted, key);
-    assert.equal(result.size, data.length + 33);
-    await decryptFile(encrypted, output, key);
-    assert.deepEqual(await fs.readFile(output), data);
-    await assert.rejects(decryptFile(encrypted, path.join(dir, 'wrong'), randomBytes(32)));
-    await assert.rejects(fs.access(path.join(dir, 'wrong')));
-    const tampered = await fs.readFile(encrypted); tampered[40] ^= 1; await fs.writeFile(encrypted, tampered);
-    await assert.rejects(decryptFile(encrypted, path.join(dir, 'tampered'), key));
-    await assert.rejects(fs.access(path.join(dir, 'tampered')));
-    assert.throws(() => encryptionKey({ BACKUP_ENCRYPTION_KEY: 'invalid' }));
-  } finally { await fs.rm(dir, { recursive: true, force: true }); }
 });
 test('dump connection keeps credentials out of arguments and defaults to verified TLS', () => {
   const env = postgresEnv({ DATABASE_URL: 'postgresql://test:p%40ss@localhost:5543/backup_test' });

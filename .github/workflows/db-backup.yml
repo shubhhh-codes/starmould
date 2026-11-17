@@ -38,8 +38,6 @@ jobs:
       BACKUP_R2_BUCKET: ${{ secrets.BACKUP_R2_BUCKET }}
       BACKUP_R2_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
       BACKUP_R2_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
-      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
-      BACKUP_ENCRYPTION_KEY_ID: ${{ vars.BACKUP_ENCRYPTION_KEY_ID || 'v1' }}
       BACKUP_SCHEMAS: ${{ vars.BACKUP_SCHEMAS || 'public' }}
       NODE_PATH: ${{ github.workspace }}/automation/db-backup-service/node_modules
     steps:

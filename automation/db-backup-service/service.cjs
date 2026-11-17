@@ -3,7 +3,6 @@ const http = require('node:http');
 const { timingSafeEqual } = require('node:crypto');
 const { Store, createPool, scheduledJobs } = require('../../scripts/backup/control.cjs');
 const { Storage } = require('../../scripts/backup/storage.cjs');
-const { encryptionKey } = require('../../scripts/backup/archive.cjs');
 const { executeJob, retention } = require('../../scripts/backup/runner.cjs');
 
 async function monitor(store, now = new Date()) {
@@ -47,7 +46,6 @@ async function tick(store, storage, { reconcile = true, execute = executeJob,
   }
 }
 async function main() {
-  encryptionKey(); // Fail before accepting work if encryption/storage is not configured.
   if (!process.env.BACKUP_MONITOR_SECRET || process.env.BACKUP_MONITOR_SECRET.length < 32) {
     throw new Error('BACKUP_MONITOR_SECRET_REQUIRED');
   }

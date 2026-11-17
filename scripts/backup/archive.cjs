@@ -1,47 +1,16 @@
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
-const { createCipheriv, createDecipheriv, createHash, randomBytes } = require('node:crypto');
-const { pipeline } = require('node:stream/promises');
+const { createHash } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const exec = promisify(execFile);
-const MAGIC = Buffer.from('SMBK1');
 
-function encryptionKey(env = process.env) {
-  const key = Buffer.from(env.BACKUP_ENCRYPTION_KEY || '', 'base64');
-  if (key.length !== 32) throw new Error('BACKUP_ENCRYPTION_KEY_MUST_BE_32_BYTES_BASE64');
-  return key;
-}
+
 async function digest(stream) {
   const hash = createHash('sha256'); let size = 0;
   for await (const chunk of stream) { hash.update(chunk); size += chunk.length; }
   return { sha256: hash.digest('hex'), size };
-}
-async function encryptFile(input, output, key) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  await fsp.writeFile(output, Buffer.concat([MAGIC, iv]), { mode: 0o600 });
-  await pipeline(fs.createReadStream(input), cipher, fs.createWriteStream(output, { flags: 'a' }));
-  await fsp.appendFile(output, cipher.getAuthTag());
-  return digest(fs.createReadStream(output));
-}
-async function decryptFile(input, output, key) {
-  const handle = await fsp.open(input, 'r');
-  const tmp = `${output}.${randomBytes(8).toString('hex')}.tmp`;
-  try {
-    const { size } = await handle.stat();
-    if (size < 33) throw new Error('INVALID_BACKUP_ARCHIVE');
-    const header = Buffer.alloc(17); const tag = Buffer.alloc(16);
-    await handle.read(header, 0, 17, 0); await handle.read(tag, 0, 16, size - 16);
-    if (!header.subarray(0, 5).equals(MAGIC)) throw new Error('INVALID_BACKUP_ARCHIVE');
-    const decipher = createDecipheriv('aes-256-gcm', key, header.subarray(5));
-    decipher.setAuthTag(tag);
-    await pipeline(fs.createReadStream(input, { start: 17, end: size - 17 }), decipher,
-      fs.createWriteStream(tmp, { flags: 'wx', mode: 0o600 }));
-    // Never expose plaintext at the requested path until authentication succeeds.
-    await fsp.copyFile(tmp, output, fs.constants.COPYFILE_EXCL);
-  } finally { await handle.close(); await fsp.rm(tmp, { force: true }); }
 }
 function postgresEnv(env = process.env) {
   const url = new URL(env.BACKUP_DUMP_DATABASE_URL || env.DATABASE_URL || '');
@@ -79,15 +48,10 @@ async function capture(directory, signal, env = process.env) {
     '--lock-wait-timeout=30000', ...schemas.map(s => `--schema=${s}`), `--file=${dump}`], options);
   await exec(env.PG_RESTORE_BIN || 'pg_restore', ['--list', dump], options);
   await exec(env.PG_RESTORE_BIN || 'pg_restore', ['--no-owner', '--no-acl', `--file=${sql}`, dump], options);
-  const key = encryptionKey(env);
-  const files = [];
-  for (const [format, input] of [['dump', dump], ['sql', sql]]) {
-    const output = `${input}.enc`;
-    const checks = await encryptFile(input, output, key);
-    if (checks.size <= 33) throw new Error('EMPTY_BACKUP_ARCHIVE');
-    files.push({ format, path: output, ...checks });
-    await fsp.rm(input);
-  }
+  const checks = await digest(fs.createReadStream(sql));
+  if (!checks.size) throw new Error('EMPTY_BACKUP_ARCHIVE');
+  const files = [{ format: 'sql', path: sql, ...checks }];
+  await fsp.rm(dump);
   return { capturedAt, postgresTool: version.trim(), schemas, files };
 }
-module.exports = { encryptionKey, encryptFile, decryptFile, digest, postgresEnv, capture };
+module.exports = { digest, postgresEnv, capture };

@@ -19,7 +19,7 @@ async function executeJob(store, storage, id, source, options = {}) {
     const prefix = `database/${id}/${job.generation}-${randomUUID()}`;
     const files = [];
     for (const file of result.files) {
-      const key = `${prefix}/database.${file.format}.enc`;
+      const key = `${prefix}/database.${file.format}`;
       await store.renew(job);
       await storage.uploadFile(key, file.path, controller.signal);
       await storage.verify(key, file, controller.signal);
@@ -29,7 +29,7 @@ async function executeJob(store, storage, id, source, options = {}) {
     const manifest = { version: 1, id, generation: job.generation, source, prefix,
       scheduledAt: new Date(job.scheduled_at).toISOString(), capturedAt: result.capturedAt,
       verifiedAt: new Date().toISOString(), schemas: result.schemas, postgresTool: result.postgresTool,
-      encryption: 'AES-256-GCM/SMBK1', keyId: process.env.BACKUP_ENCRYPTION_KEY_ID || 'v1',
+      encryption: 'none',
       revision: process.env.GITHUB_SHA || process.env.BACKUP_SOURCE_REVISION || 'deployed-image', files };
     await store.renew(job);
     await storage.manifest(`${prefix}/manifest.json`, manifest, controller.signal);
