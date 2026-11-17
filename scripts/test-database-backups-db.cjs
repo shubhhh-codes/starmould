@@ -66,7 +66,7 @@ async function main() {
     const fakeStorage = { uploadFile: async () => {}, verify: async () => {}, manifest: async () => {} };
     await tick(store, fakeStorage, { execute: (s, storage, id, source) => executeJob(s, storage, id, source, {
       capture: async directory => {
-        const file = path.join(directory, 'fixture.enc'); await fs.writeFile(file, 'encrypted-fixture');
+        const file = path.join(directory, 'fixture.sql'); await fs.writeFile(file, 'sql-test-fixture');
         return { capturedAt: new Date().toISOString(), schemas: ['public'], postgresTool: 'fixture',
           files: [{ format: 'dump', path: file, size: 17, sha256: 'fixture' }] };
       },

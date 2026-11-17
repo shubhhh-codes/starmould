@@ -3,7 +3,6 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { randomBytes, randomUUID } = require('node:crypto');
 const { SLOTS, scheduledJobs, istDate, connectionOptions } = require('./backup/control.cjs');
 const { postgresEnv } = require('./backup/archive.cjs');
 const { Storage } = require('./backup/storage.cjs');
