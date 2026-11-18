@@ -19,6 +19,12 @@ function getLocalIPs(): string[] {
 
 const nextConfig: NextConfig = {
   compress: true,
+  outputFileTracingIncludes: {
+    '/api/backup': ['scripts/backup/native/**/*'],
+    '/api/backup/generate': ['scripts/backup/native/**/*'],
+    '/api/backup/cron': ['scripts/backup/native/**/*'],
+    '/api/backup/cron/*': ['scripts/backup/native/**/*'],
+  },
   turbopack: {
     root: path.resolve(__dirname),
   },

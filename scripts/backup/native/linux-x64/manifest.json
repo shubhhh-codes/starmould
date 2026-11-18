@@ -1,0 +1,30 @@
+{
+  "version": "17.12",
+  "architecture": "linux-x64-static",
+  "sources": {
+    "postgres": {
+      "url": "https://ftp.postgresql.org/pub/source/v17.12/postgresql-17.12.tar.gz",
+      "sha256": "b46f61048797e9cf1728dd4ac459831f5126c4745581f729500541c86e59a8ac"
+    },
+    "openssl": {
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+    },
+    "zlib": {
+      "url": "https://zlib.net/zlib-1.4.tar.gz",
+      "sha256": "02dd159783677a749c04adbdd02b55b8a2bcc7e054f51b76b549199a916ad584"
+    }
+  },
+  "files": [
+    {
+      "name": "pg_dump",
+      "size": 5512568,
+      "sha256": "2b2cd037b2dbd0c5f7354c17557301f87270e80aebdb7e7f85734f560818f570"
+    },
+    {
+      "name": "pg_restore",
+      "size": 5284952,
+      "sha256": "3a39a86920a79c4ad040a884afb65e8995cd87c3525eccd58ba96ba87ac2ea82"
+    }
+  ]
+}

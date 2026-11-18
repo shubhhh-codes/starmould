@@ -12,7 +12,8 @@ export async function GET(req: NextRequest) {
   const auth = await authorizeBackupAdmin(req);
   if (auth instanceof NextResponse) return auth;
   const key = req.nextUrl.searchParams.get("key");
-  if (key && (!key.startsWith("database/") || !key.endsWith(".sql") || key.includes("..") || /[\r\n]/.test(key))) {
+  const prefix = process.env.BACKUP_R2_PREFIX || 'database';
+  if (key && (!key.startsWith(prefix + '/') || !key.endsWith(".sql") || key.includes("..") || /[\r\n]/.test(key))) {
     return NextResponse.json({ error: "Invalid backup key" }, { status: 400 });
   }
   try {
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
           ResponseContentDisposition: `attachment; filename="${filename}"` }), { expiresIn: 60 });
         return NextResponse.redirect(url, { status: 303, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
       }
-      const result = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: "database/",
+      const result = await client.send(new ListObjectsV2Command({ Bucket: bucket, Prefix: prefix + '/',
         MaxKeys: 100, ContinuationToken: req.nextUrl.searchParams.get("cursor") || undefined }));
       return NextResponse.json({ bucket, files: (result.Contents || []).filter(item => item.Key?.endsWith(".sql")).map(item => ({
         key: item.Key, filename: item.Key!.split('/').at(-1) === 'database.sql' && item.LastModified ? backupFilename(item.LastModified.toISOString()) : item.Key!.split('/').at(-1), size: item.Size || 0, modified: item.LastModified?.toISOString() || null,
@@ -40,7 +41,7 @@ export async function DELETE(req: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   let key;
   try { key = (await req.json()).key; } catch { return NextResponse.json({ error: "Invalid request" }, { status: 400 }); }
-  if (typeof key !== 'string' || !key.startsWith('database/') || !key.endsWith('.sql') || key.includes('..') || /[\r\n]/.test(key)) {
+  if (typeof key !== 'string' || !key.startsWith((process.env.BACKUP_R2_PREFIX || 'database') + '/') || !key.endsWith('.sql') || key.includes('..') || /[\r\n]/.test(key)) {
     return NextResponse.json({ error: "Invalid SQL backup key" }, { status: 400 });
   }
   try {

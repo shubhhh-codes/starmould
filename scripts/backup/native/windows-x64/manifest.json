@@ -1,0 +1,51 @@
+{
+  "version": "17.12",
+  "source": "https://get.enterprisedb.com/postgresql/postgresql-17.12-1-windows-x64-binaries.zip",
+  "files": [
+    {
+      "name": "pg_restore.exe",
+      "size": 383608,
+      "sha256": "ea7e1d1855f720d0593cb1683b38e12e215dd26302decb2759aaf7972bc52382"
+    },
+    {
+      "name": "libcrypto-3-x64.dll",
+      "size": 5496952,
+      "sha256": "8efe1edb434ea9f44f1fbb9be38374857e33666d4aab058a6413e6db566f1baf"
+    },
+    {
+      "name": "libzstd.dll",
+      "size": 737400,
+      "sha256": "a2c58d2cbca1feaab58cfb36e895ce2671f9658a251d865296b6fadf099de88c"
+    },
+    {
+      "name": "liblz4.dll",
+      "size": 150648,
+      "sha256": "72f8fcb62128bc52cc9b679f27b2517740f0898f7a4da5400ea9206e8b4d771f"
+    },
+    {
+      "name": "libintl-9.dll",
+      "size": 457336,
+      "sha256": "87fbcee976b4b051e0f3f11a6a2fd5613b42ddb2b97716d069942828f2840d13"
+    },
+    {
+      "name": "libiconv-2.dll",
+      "size": 1430176,
+      "sha256": "6fce90bc8ea4b730e897e8d5bcd4cbb1e83a7f5083e1d2f82acde8c49b1ea41f"
+    },
+    {
+      "name": "libpq.dll",
+      "size": 361592,
+      "sha256": "d87674d536cb8fcc4897f8d6a1c8445675e33447ca0e6ebac210559029f19d04"
+    },
+    {
+      "name": "libssl-3-x64.dll",
+      "size": 1303160,
+      "sha256": "45a45bc89cd4c6621f84da60356c64a69140bf61b027cc9858c36ea37d7f74c1"
+    },
+    {
+      "name": "pg_dump.exe",
+      "size": 626808,
+      "sha256": "64539be632194750c9846f3a22056ffd15500310d9aefae6a46fc5b48fdd9928"
+    }
+  ]
+}

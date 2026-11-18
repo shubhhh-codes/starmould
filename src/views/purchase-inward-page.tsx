@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { exportToCsv } from "@/lib/utils";
+import { triggerFileExport } from "@/lib/exports/download";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -20,7 +20,6 @@ import {
     Layers,
     CheckCircle2,
     Clock,
-    Printer,
     FileSpreadsheet,
     X,
     AlertCircle,
@@ -556,37 +555,17 @@ export function PurchaseInwardPage() {
         setExpandedInwardRows((prev) => ({ ...prev, [id]: !prev[id] }));
     };
 
-    // Export CSV
-    const handleExportCSV = () => {
-        const headers = [
-            "PO No.",
-            "Order Date",
-            "Supplier",
-            "Customer",
-            "Mould",
-            "Plate Name",
-            "Material Type",
-            "Ordered Qty",
-            "Received Qty",
-            "Pending Qty",
-        ];
-        const rows = filteredPendingItems.map((it) => [
-            it.srno,
-            it.odate,
-            it.vendorname,
-            it.customername,
-            it.projectid,
-            it.platename,
-            it.materialtype,
-            it.qty,
-            it.inward_qty,
-            it.pending_qty,
-        ]);
-        exportToCsv(
-            `starmould_pending_receive_${new Date().toISOString().slice(0, 10)}`,
-            headers,
-            rows,
-        );
+    // Export Excel via unified exports engine
+    const handleExportExcel = () => {
+        triggerFileExport({
+            dataset: "purchase_inwards",
+            format: "xlsx",
+            scope: "filtered",
+            filters: {
+                tab: activeTab,
+            },
+            search: searchQuery || undefined,
+        });
     };
 
     return (
@@ -622,19 +601,12 @@ export function PurchaseInwardPage() {
                             <span className="hidden sm:inline">Refresh</span>
                         </button>
                         <button
-                            onClick={handleExportCSV}
-                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-2xs"
-                            title="Export pending receive records to CSV"
+                            onClick={handleExportExcel}
+                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-2xs cursor-pointer"
+                            title="Export records to Excel"
                         >
                             <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                            <span>Export CSV</span>
-                        </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-2xs"
-                        >
-                            <Printer className="w-4 h-4 text-slate-500" />
-                            <span>Print</span>
+                            <span>Export Excel</span>
                         </button>
                     </div>
                 </div>

@@ -4,6 +4,7 @@ import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { AppLayout } from "@/components/layout/app-layout";
+import { triggerFileExport } from "@/lib/exports/download";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -437,42 +438,23 @@ export function WorkPage() {
     }
   };
 
-  // Export CSV
-  const handleExportCSV = () => {
-    const dataToExport = activeTab === "history" ? historyWorklogs : dailyWorklogs;
-    const headers = [
-      "ID",
-      "Date",
-      "Customer",
-      "Mould Code",
-      "Subplate",
-      "Worker",
-      "Duration",
-      "Start Time",
-      "End Time",
-      "Description",
-    ];
-    const rows = dataToExport.map((w) => [
-      w.id,
-      formatDateStr(w.rdate),
-      `"${w.customername || ""}"`,
-      w.projectid,
-      w.subplateid || "—",
-      `"${w.username || ""}"`,
-      w.work_hr,
-      w.starttime,
-      w.endtime,
-      `"${(w.workdescription || "").replace(/"/g, '""')}"`,
-    ]);
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Worklogs_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // Export Excel
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      await triggerFileExport({
+        dataset: "worklogs",
+        format: "xlsx",
+        search: historySearch || undefined,
+      });
+    } catch (err: any) {
+      console.error("Failed to export worklogs:", err);
+      alert(err?.message || "Failed to export Excel file");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -496,11 +478,13 @@ export function WorkPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm"
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm disabled:opacity-50 cursor-pointer"
+              title="Export Worklogs to formatted Excel spreadsheet"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-              Export
+              <FileSpreadsheet className={`w-4 h-4 text-emerald-600 ${isExporting ? "animate-pulse" : ""}`} />
+              <span>{isExporting ? "Exporting..." : "Export Excel"}</span>
             </button>
             {canCreateWorklog && (<button
               onClick={() => setIsModalOpen(true)}

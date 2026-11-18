@@ -19,27 +19,11 @@ export async function GET(req: NextRequest) {
     }
     const status = await store.status();
     const workerHealthy = status.workers.some((worker: { name: string; last_seen: string }) =>
-      worker.name === "fallback" && Date.now() - new Date(worker.last_seen).getTime() < 6 * 60000);
+      worker.name === "server-cron" && Date.now() - new Date(worker.last_seen).getTime() < 3 * 60000);
     const fallbackEnabled = status.workers.some((worker: { name: string; fallback_enabled: boolean }) =>
-      worker.name === "fallback" && worker.fallback_enabled);
+      worker.name === "server-cron" && worker.fallback_enabled);
     return NextResponse.json({ configured: true, ...status, workerHealthy, fallbackEnabled }, { headers });
   } catch { return backupUnavailable(); }
-}
-export async function POST(req: NextRequest) {
-  const auth = await authorizeBackupAdmin(req, true);
-  if (auth instanceof NextResponse) return auth;
-  if (!jobsEnabled()) return backupUnavailable();
-  const key = req.headers.get("idempotency-key") || "";
-  if (!/^[a-f0-9-]{36}$/i.test(key)) return NextResponse.json({ error: "A valid idempotency key is required" }, { status: 400 });
-  try {
-    const job = await backupStore().enqueueManual(auth.id, key);
-    return NextResponse.json({ job: publicJob(job) }, { status: 202, headers });
-  } catch (error) {
-    const code = error instanceof Error ? error.message : "";
-    if (code === "BACKUPS_PAUSED") return NextResponse.json({ error: "Backups are paused" }, { status: 409, headers });
-    if (code === "BACKUP_QUEUE_FULL") return NextResponse.json({ error: "Backup queue is full. Please wait." }, { status: 429, headers });
-    return backupUnavailable();
-  }
 }
 export async function PATCH(req: NextRequest) {
   const auth = await authorizeBackupAdmin(req, true);

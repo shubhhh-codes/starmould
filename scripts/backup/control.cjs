@@ -2,10 +2,10 @@ const { Pool } = require('pg');
 const { randomUUID } = require('node:crypto');
 
 const SLOTS = Object.freeze([
-  { id: 'morning', time: '10:05', cron: '35 4 * * *' },
-  { id: 'midday', time: '12:35', cron: '5 7 * * *' },
-  { id: 'afternoon', time: '16:05', cron: '35 10 * * *' },
-  { id: 'evening', time: '19:05', cron: '35 13 * * *' },
+  { id: 'morning', time: '10:00', cron: '30 4 * * *' },
+  { id: 'midday', time: '12:30', cron: '0 7 * * *' },
+  { id: 'afternoon', time: '16:00', cron: '30 10 * * *' },
+  { id: 'evening', time: '19:00', cron: '30 13 * * *' },
 ]);
 function istDate(now = new Date()) {
   return new Date(now.getTime() + 330 * 60000).toISOString().slice(0, 10);
@@ -57,7 +57,8 @@ class Store {
     }
     return jobs;
   }
-  async enqueueManual(userId, key) {
+  async enqueueManual(userId, key, namespace = 'manual') {
+    if (!['manual', 'manual-web'].includes(namespace)) throw new Error('INVALID_BACKUP_NAMESPACE');
     if (!/^[a-f0-9-]{36}$/i.test(key)) throw new Error('INVALID_IDEMPOTENCY_KEY');
     const client = await this.pool.connect();
     try {
@@ -65,7 +66,9 @@ class Store {
       // Serialize admission; the cap cannot be bypassed by concurrent button requests.
       const { rows: [settings] } = await client.query('SELECT * FROM backup_control.settings WHERE singleton FOR UPDATE');
       if (!settings || settings.paused) throw new Error('BACKUPS_PAUSED');
-      const id = `manual/${userId}/${key}`;
+      const id = `${namespace}/${userId}/${key}`;
+      await client.query(`UPDATE backup_control.jobs SET status='failed',attempts=3,error_code='BACKUP_START_TIMEOUT'
+        WHERE kind='manual' AND status='queued' AND created_at<clock_timestamp()-interval '30 minutes'`);
       const { rows: [existing] } = await client.query('SELECT * FROM backup_control.jobs WHERE id=$1', [id]);
       if (existing) { await client.query('COMMIT'); return existing; }
       const { rows: [count] } = await client.query(`SELECT count(*)::integer AS n FROM backup_control.jobs
@@ -81,10 +84,10 @@ class Store {
     const { rows } = await this.pool.query(`UPDATE backup_control.jobs SET status='running',source=$2,
       generation=generation+1,attempts=attempts+1,lease_until=clock_timestamp()+interval '90 seconds',
       deadline=clock_timestamp()+interval '12 minutes',error_code=NULL
-      WHERE id=$1 AND status IN ('queued','failed','running') AND attempts < 3
+      WHERE id=$1 AND status IN ('queued','failed','running') AND (attempts < 3 OR staged_manifest IS NOT NULL)
       AND retry_at <= clock_timestamp() AND (lease_until IS NULL OR lease_until < clock_timestamp())
       AND scheduled_at <= clock_timestamp()
-      AND ($2 <> 'fallback' OR kind='manual' OR scheduled_at <= clock_timestamp()-interval '15 minutes')
+      AND (kind='manual' OR scheduled_at > clock_timestamp()-interval '30 minutes' OR staged_manifest IS NOT NULL)
       AND NOT (SELECT paused FROM backup_control.settings WHERE singleton) RETURNING *`, [id, source]);
     return rows[0] || null;
   }
@@ -92,15 +95,15 @@ class Store {
     const { rowCount } = await this.pool.query(`UPDATE backup_control.jobs SET
       lease_until=least(clock_timestamp()+interval '90 seconds',deadline)
       WHERE id=$1 AND generation=$2 AND status='running' AND lease_until>clock_timestamp()
-      AND deadline>clock_timestamp() AND NOT (SELECT paused FROM backup_control.settings WHERE singleton)`, [job.id, job.generation]);
+      AND deadline>clock_timestamp()`, [job.id, job.generation]);
     if (!rowCount) throw new Error('BACKUP_LEASE_LOST');
   }
   async complete(job, manifest) {
     // The DB row is the authoritative fenced manifest. R2 manifest objects are attempt-specific.
     const { rowCount } = await this.pool.query(`UPDATE backup_control.jobs SET status='completed',
-      manifest=$3::jsonb,captured_at=$4,completed_at=clock_timestamp(),lease_until=NULL,error_code=NULL
+      manifest=$3::jsonb,staged_manifest=NULL,captured_at=$4,completed_at=clock_timestamp(),lease_until=NULL,error_code=NULL
       WHERE id=$1 AND generation=$2 AND status='running' AND lease_until>clock_timestamp()
-      AND deadline>clock_timestamp() AND NOT (SELECT paused FROM backup_control.settings WHERE singleton)`,
+      AND deadline>clock_timestamp()`,
       [job.id, job.generation, JSON.stringify(manifest), manifest.capturedAt]);
     if (!rowCount) throw new Error('BACKUP_LEASE_LOST');
   }
@@ -111,14 +114,34 @@ class Store {
   }
   async pending() {
     const { rows } = await this.pool.query(`SELECT id FROM backup_control.jobs WHERE
-      status IN ('queued','failed','running') AND attempts<3 AND retry_at<=clock_timestamp()
+      status IN ('queued','failed','running') AND id NOT LIKE 'manual-web/%' AND (attempts<3 OR staged_manifest IS NOT NULL) AND retry_at<=clock_timestamp()
       AND (lease_until IS NULL OR lease_until<clock_timestamp())
-      AND (kind='manual' OR scheduled_at<=clock_timestamp()-interval '15 minutes')
-      ORDER BY scheduled_at DESC LIMIT 8`);
+      AND scheduled_at<=clock_timestamp()
+      AND (kind='manual' OR scheduled_at>clock_timestamp()-interval '30 minutes' OR staged_manifest IS NOT NULL)
+      ORDER BY scheduled_at ASC LIMIT 8`);
     return rows;
   }
   async get(id) {
     return (await this.pool.query('SELECT * FROM backup_control.jobs WHERE id=$1', [id])).rows[0] || null;
+  }
+  async stage(job, manifest) {
+    const { rowCount } = await this.pool.query(`UPDATE backup_control.jobs SET staged_manifest=$3::jsonb
+      WHERE id=$1 AND generation=$2 AND status='running' AND lease_until>clock_timestamp() AND deadline>clock_timestamp()`,
+      [job.id, job.generation, JSON.stringify(manifest)]);
+    if (!rowCount) throw new Error('BACKUP_LEASE_LOST');
+  }
+  async discardStage(job) {
+    const { rowCount } = await this.pool.query(`UPDATE backup_control.jobs SET staged_manifest=NULL
+      WHERE id=$1 AND generation=$2 AND status='running' AND lease_until>clock_timestamp()`, [job.id,job.generation]);
+    if (!rowCount) throw new Error('BACKUP_LEASE_LOST');
+  }
+  async expireMissed() {
+    await this.pool.query(`UPDATE backup_control.jobs SET status='missed',error_code=CASE
+      WHEN attempts>=3 THEN 'RETRIES_EXHAUSTED' ELSE 'CAPTURE_WINDOW_MISSED' END,lease_until=NULL
+      WHERE kind='scheduled' AND status IN ('queued','failed','running')
+      AND staged_manifest IS NULL
+      AND (lease_until IS NULL OR lease_until<clock_timestamp())
+      AND (scheduled_at<=clock_timestamp()-interval '30 minutes' OR attempts>=3)`);
   }
   async status() {
     const settings = await this.settings();
@@ -128,9 +151,9 @@ class Store {
     return { paused: settings.paused, enabledAt: settings.enabled_at, jobs, workers, slots: SLOTS };
   }
   async heartbeat() {
-    await this.pool.query(`INSERT INTO backup_control.workers(name,fallback_enabled) VALUES ('fallback',$1)
+    await this.pool.query(`INSERT INTO backup_control.workers(name,fallback_enabled) VALUES ('server-cron',$1)
       ON CONFLICT(name) DO UPDATE SET last_seen=clock_timestamp(),fallback_enabled=excluded.fallback_enabled`,
-      [process.env.BACKUP_FALLBACK_ENABLED !== 'false']);
+        [true]);
   }
   async pause(paused) {
     await this.pool.query('UPDATE backup_control.settings SET paused=$1 WHERE singleton', [paused]);

@@ -4,7 +4,6 @@ import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/app-layout";
-import { exportToCsv } from "@/lib/utils";
 import { triggerFileExport } from "@/lib/exports/download";
 import {
   Archive,
@@ -185,46 +184,6 @@ export function ProjectRegisterPage() {
       },
       search: searchQuery || undefined,
     });
-  };
-
-  const handleExportCSV = () => {
-    if (filteredProjects.length === 0) return;
-    const headers = [
-      "Project Code",
-      "Customer",
-      "Work Type",
-      "Description",
-      "Received Date",
-      "Dispatch Date",
-      "Total Plates",
-      "Dispatched Plates",
-      "Direct Closed Plates",
-      "Machine Hours",
-    ];
-
-    const rows = filteredProjects.map((p: any) => {
-      const sublist = p.subplates || [];
-      const dispCount = sublist.filter((sp: any) => sp.location === "Customer" || sp.dispatch_status === "dispatched").length;
-      const closedCount = sublist.filter((sp: any) => sp.dispatch_status === "closed_without_challan").length;
-      return [
-        p.projectid || p.id,
-        p.customername || "",
-        p.worktype || "",
-        p.description || "",
-        p.rdate || "",
-        p.dispatchdate || "",
-        sublist.length,
-        dispCount,
-        closedCount,
-        p.scan_hr || 0,
-      ];
-    });
-
-    exportToCsv(
-      `projects_${new Date().toISOString().slice(0, 10)}`,
-      headers,
-      rows,
-    );
   };
 
   if (isMounted && !isAdmin) {

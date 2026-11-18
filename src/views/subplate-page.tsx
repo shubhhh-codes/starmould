@@ -44,7 +44,8 @@ function SubplatePageContent() {
     isMounted,
     isFetching,
     canExportCSV,
-    handleExportCSV,
+    isExporting,
+    handleExportExcel,
     canCreateSubplate,
     handleOpenAddModal,
     isLoading,
@@ -169,11 +170,13 @@ function SubplatePageContent() {
             </button>
             {canExportCSV && (
               <button
-                onClick={handleExportCSV}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-xs text-xs sm:text-sm cursor-pointer"
+                onClick={handleExportExcel}
+                disabled={isExporting}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-xs text-xs sm:text-sm cursor-pointer disabled:opacity-50"
+                title="Export Subplates to formatted Excel spreadsheet"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
-                <span>Export CSV</span>
+                <FileSpreadsheet className={`w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 ${isExporting ? "animate-pulse" : ""}`} />
+                <span>{isExporting ? "Exporting..." : "Export Excel"}</span>
               </button>
             )}
             {canCreateSubplate && (

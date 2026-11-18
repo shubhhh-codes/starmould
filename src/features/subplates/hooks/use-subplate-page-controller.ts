@@ -28,6 +28,7 @@ import { STAGE_DEFINITIONS, getAllowedStagesForUser } from "@/lib/subplate-stage
 import { useAuth } from "@/components/providers/auth-provider";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useTableHighlight } from "@/lib/hooks/use-table-highlight";
+import { triggerFileExport } from "@/lib/exports/download";
 import { useQueryClient, useIsRestoring } from "@tanstack/react-query";
 import {
   useSubplatesQuery,
@@ -993,51 +994,31 @@ export function useSubplatePageController() {
     }
   };
 
-  const handleExportCSV = () => {
-    const headers = [
-      "ID",
-      "Plate Name",
-      "Mould Project Code",
-      "Customer",
-      "Subproject ID",
-      "Shape",
-      "Dimensions (LxWxH)",
-      "Material",
-      "Weight (kg)",
-      "Qty",
-      "Location",
-      "Completed Stages (out of 9)",
-    ];
-    const rows = filteredSubplates.map((sp) => [
-      sp.id,
-      `"${sp.platename}"`,
-      `"${(sp as any).mould_project_code || sp.projectid || ""}"`,
-      `"${(sp as any).mould_customer_name || ""}"`,
-      sp.subprojectid || "",
-      sp.shape || "Plate",
-      `"${sp.length}x${sp.width}x${sp.height} ${sp.unit || "mm"}"`,
-      sp.material || "",
-      sp.weight || "",
-      sp.sqty || 1,
-      sp.location || "SM",
-      countCompletedStages(sp),
-    ]);
-    const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", `Subplates_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      await triggerFileExport({
+        dataset: "subplates",
+        format: "xlsx",
+        search: searchQuery || undefined,
+      });
+    } catch (err: any) {
+      console.error("Failed to export subplates:", err);
+      alert(err?.message || "Failed to export Excel file");
+    } finally {
+      setIsExporting(false);
+    }
   };
   return {
     refetchSubplates,
     isMounted,
     isFetching,
     canExportCSV,
-    handleExportCSV,
+    isExporting,
+    handleExportExcel,
+    handleExportCSV: handleExportExcel,
     canCreateSubplate,
     handleOpenAddModal,
     isLoading,

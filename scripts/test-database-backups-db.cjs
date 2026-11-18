@@ -9,7 +9,7 @@ const { pathToFileURL } = require('node:url');
 const { randomUUID, randomBytes } = require('node:crypto');
 const { Pool } = require('pg');
 const { Store } = require('./backup/control.cjs');
-const { monitor, tick } = require('../automation/db-backup-service/service.cjs');
+const { monitor, tick } = require('./backup/reconcile.cjs');
 async function main() {
   if (!process.env.BACKUP_TEST_TOOLS) throw new Error('BACKUP_TEST_TOOLS must point to an external QA package installation');
   const entry = require.resolve('embedded-postgres', { paths: [process.env.BACKUP_TEST_TOOLS] });
@@ -27,6 +27,7 @@ async function main() {
     await pool.query(await fs.readFile(path.join(__dirname, '../supabase/migrations/20261117120000_database_backup_jobs.sql'), 'utf8'));
     // Migration is idempotent.
     await pool.query(await fs.readFile(path.join(__dirname, '../supabase/migrations/20261117120000_database_backup_jobs.sql'), 'utf8'));
+    await pool.query(await fs.readFile(path.join(__dirname, '../supabase/migrations/20261118150000_backup_fixed_ist_slots.sql'), 'utf8'));
     const store = new Store(pool);
     const key = randomUUID();
     const [a, b] = await Promise.all([store.enqueueManual(1, key), store.enqueueManual(1, key)]);
@@ -48,19 +49,37 @@ async function main() {
     await store.pause(false);
     await pool.query(`INSERT INTO backup_control.jobs(id,kind,slot,scheduled_at)
       VALUES ('test/morning','scheduled','morning',now()-interval '5 minutes')`);
-    assert.equal(await store.claim('test/morning', 'fallback'), null, 'fallback waits for primary grace');
+    const immediate = await store.claim('test/morning', 'server-cron'); assert.ok(immediate, 'no primary grace at exact slot');
+    await store.fail(immediate);
+    await pool.query(`UPDATE backup_control.jobs SET retry_at=now()-interval '1 second' WHERE id='test/morning'`);
     await pool.query(`UPDATE backup_control.jobs SET scheduled_at=now()-interval '20 minutes' WHERE id='test/morning'`);
     const due = await store.claim('test/morning', 'fallback'); assert.ok(due);
     await store.fail(due);
     assert.equal(await store.claim('test/morning', 'fallback'), null, 'retry backoff enforced');
     await pool.query(`UPDATE backup_control.jobs SET retry_at=now()-interval '1 minute',attempts=3 WHERE id='test/morning'`);
     assert.equal(await store.claim('test/morning', 'fallback'), null, 'retry budget enforced');
+    // All four slots: exact due time is allowed; early and >=30-minute late starts are rejected.
+    for (const slot of ['morning','midday','afternoon','evening']) {
+      const id = `boundary/${slot}`;
+      await pool.query(`INSERT INTO backup_control.jobs(id,kind,slot,scheduled_at)
+        VALUES ($1,'scheduled',$2,now()+interval '1 minute')`, [id,slot]);
+      assert.equal(await store.claim(id,'server-cron'),null,'future slot cannot start');
+      await pool.query(`UPDATE backup_control.jobs SET scheduled_at=now() WHERE id=$1`,[id]);
+      const active = await store.claim(id,'server-cron'); assert.ok(active,'due slot starts immediately');
+      await store.pause(true); await store.renew(active); await store.pause(false);
+      await store.fail(active);
+      await pool.query(`UPDATE backup_control.jobs SET scheduled_at=now()-interval '30 minutes',retry_at=now() WHERE id=$1`,[id]);
+      assert.equal(await store.claim(id,'server-cron'),null,'cutoff blocks new capture');
+    }
+    await store.expireMissed();
+    assert.equal((await store.get('boundary/morning')).status,'missed');
     await store.heartbeat(); assert.equal((await monitor(store)).workerHealthy, true);
     await store.pause(true); assert.equal((await monitor(store)).healthy, false);
     await store.pause(false);
     // Simulate GitHub never starting: the real tick claims a missing due slot.
     await pool.query(`UPDATE backup_control.settings SET enabled_at=now()-interval '1 day'`);
     await store.ensureScheduled();
+    await pool.query(`INSERT INTO backup_control.jobs(id,kind,slot,scheduled_at) VALUES ('test/midday','scheduled','midday',now()-interval '1 minute')`);
     const pending = await store.pending(); assert.ok(pending.length > 0);
     const { executeJob } = require('./backup/runner.cjs');
     const fakeStorage = { uploadFile: async () => {}, verify: async () => {}, manifest: async () => {} };
@@ -76,11 +95,15 @@ async function main() {
     'background reconciler captures slots when GitHub never runs');
     console.log('PASS: PostgreSQL migration, concurrent admission/claims, lease fencing, pause, grace, retries, reconciliation and monitor.');
 
+
     if (process.env.PG_DUMP_BIN && process.env.PG_RESTORE_BIN) {
-      const { capture } = require('./backup/archive.cjs');
+      const { captureApplicationBackup: capture } = require('./backup/app-capture.cjs');
       const { promisify } = require('node:util'); const exec = promisify(require('node:child_process').execFile);
       await pool.query(`CREATE TABLE public.backup_fixture(id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY, body jsonb, amount numeric);
         INSERT INTO public.backup_fixture(body,amount) VALUES ('{"unicode":"नमस्ते","quote":"O''Brien"}',1234567890.1234);
+        ALTER TABLE public.backup_fixture ENABLE ROW LEVEL SECURITY;
+        CREATE POLICY fixture_read ON public.backup_fixture FOR SELECT USING (true);
+        CREATE VIEW public.fixture_view AS SELECT id,amount FROM public.backup_fixture;
         CREATE FUNCTION public.fixture_count() RETURNS bigint LANGUAGE sql AS 'SELECT count(*) FROM public.backup_fixture';`);
       const env = { ...process.env, DATABASE_URL: `postgres://postgres:${password}@127.0.0.1:${port}/backup_test?sslmode=disable`,
         BACKUP_DUMP_DATABASE_URL: '', BACKUP_SCHEMAS: 'public' };
@@ -97,6 +120,8 @@ async function main() {
             env: { ...env, PGHOST: '127.0.0.1', PGPORT: String(port), PGUSER: 'postgres', PGPASSWORD: password, PGSSLMODE: 'disable' }, windowsHide: true });
         const row = (await restored.query('SELECT *,public.fixture_count() AS n FROM public.backup_fixture')).rows[0];
         assert.equal(row.body.unicode, 'नमस्ते'); assert.equal(row.amount, '1234567890.1234'); assert.equal(row.n, '1');
+        assert.equal((await restored.query("SELECT count(*)::int AS n FROM pg_policies WHERE policyname='fixture_read'")).rows[0].n,1);
+        assert.equal((await restored.query('SELECT count(*)::int AS n FROM public.fixture_view')).rows[0].n,1);
         assert.equal((await restored.query(`INSERT INTO public.backup_fixture(body) VALUES ('{}') RETURNING id`)).rows[0].id, '2');
         console.log('PASS: actual pg_dump -> readable SQL -> isolated psql restore, data/function/sequence checks, without encryption keys.');
       } finally { await restored.end(); }

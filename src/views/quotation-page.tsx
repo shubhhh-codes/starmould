@@ -3,8 +3,10 @@ import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
+import { triggerFileExport } from "@/lib/exports/download";
 import {
   FileText,
+  FileSpreadsheet,
   Plus,
   Search,
   Printer,
@@ -310,6 +312,26 @@ function QuotationPageContent() {
             >
               <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${loading ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">Refresh</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                triggerFileExport({
+                  dataset: "quotations",
+                  format: "xlsx",
+                  scope: "filtered",
+                  filters: {
+                    status: activeTab === "All" ? undefined : activeTab,
+                  },
+                  search: searchQuery || undefined,
+                });
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-xs cursor-pointer"
+              title="Export quotations to Excel"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Export Excel</span>
             </button>
 
             <button

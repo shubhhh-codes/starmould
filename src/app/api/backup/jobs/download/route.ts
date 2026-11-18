@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     try {
       const url = await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: file.key,
         ResponseContentType: "application/octet-stream",
-        ResponseContentDisposition: `attachment; filename="starmould-${id.replace(/[^a-zA-Z0-9-]/g, "-")}.${format}"` }), { expiresIn: 60 });
+        ResponseContentDisposition: `attachment; filename="${file.key.split("/").at(-1)?.replace(/[^a-zA-Z0-9_.-]/g, "_") || "starmould_backup.sql"}"` }), { expiresIn: 60 });
       return NextResponse.redirect(url, { status: 303, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } });
     } finally { client.destroy(); }
   } catch { return backupUnavailable(); }

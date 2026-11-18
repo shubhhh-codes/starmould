@@ -1,49 +1,40 @@
-# Database backup operations
+# Four daily independent SQL backups
 
-Backups are plain, readable `database.sql` files. No encryption key, password, decrypt command or .enc payload is used. R2 remains private; app listing/download routes require administrator authentication and issue short-lived download links.
+## Daily targets and ownership
 
-## Automatic execution
+Production automatically captures full SQL at 10:00 AM, 12:30 PM, 4:00 PM and 7:00 PM in Asia/Kolkata. One database primary key per IST date/slot prevents duplicate scheduled jobs. Manual Generate & download remains separate and can create additional snapshots.
 
-GitHub primary runs at 10:05 AM, 12:35 PM, 04:05 PM and 07:05 PM IST. The Windows worker reconciles missed slots after a 15-minute grace, using shared database leases and checksum verification. The PC must be powered on, online and logged in for Windows fallback/manual jobs. Vercel only queues manual jobs and serves status/downloads; it does not execute pg_dump.
+cron-job.org calls the APP directly every minute. The app starts a capture only when a slot is due. GitHub is manual-only; vercel.json has no competing automatic schedules. No GitHub token, local PC worker or always-on development server is needed.
 
-Capture uses version-compatible pg_dump to obtain a consistent snapshot, validates its temporary archive, then exports SQL with pg_restore. Only readable SQL and a manifest are uploaded. The temporary archive is removed. R2 read-back SHA-256 and size are checked before the fenced coordinator marks completion. Retention is 90 days. Photos/object bytes are outside this database snapshot.
+The minute request records a heartbeat, reconciles due slots and atomically claims at most one eligible job. It returns 202/running before capture begins, using Next after() to run the server task within maxDuration=300 and a 240-second capture deadline. 202 means accepted, not completed. Repeated calls while a job is running/completed do not create another capture. A killed background function leaves a durable row; a later minute check can reclaim it after its 90-second lease expires.
 
-## Download
+## Retry and completion rules
 
-Open the admin Database Backups page at /export. It lists files under database/ in the configured R2 bucket with upload times, sizes and download links. No file upload by the user is required. Alternatively use Cloudflare R2 dashboard and download database.sql from its date/slot/attempt folder. The manifest describes coverage and checksums; a stored attempt file alone is not proof of completed job status.
+New automatic attempts may start only in [slot time, slot time + 30 minutes). Up to three attempts are allowed, separated by a two-minute backoff. A capture started in that window can finish afterward within its execution deadline. Previous-day jobs are never captured overnight. Expired windows/exhausted retries become missed, not fake successes. Pausing stops new admissions but lets already active captures finish.
 
-SQL opens directly in a text editor. To restore, first use an isolated compatible PostgreSQL/Supabase target and psql with ON_ERROR_STOP enabled. Prepare required roles/extensions/managed schemas on the target. Never restore to production merely for QA. Default public-schema coverage does not include global roles, Supabase auth identities or photo bytes.
+Full capture uses the SAME archive.cjs engine as GitHub manual backups: PostgreSQL custom dump, archive validation, then readable SQL. It includes public tables/data/sequences/views/functions/triggers/constraints/policies, not global roles, auth identities or photos. PostgreSQL 17.12 Linux x64 tools are bundled with the server; there is no request-time install or download. Capture time depends on database size and network.
 
-## Configuration
+A checkpoint containing the capture timestamp, file key, size and SHA-256 is saved before uploading. Every upload is read back and verified before database completion. If the process dies after upload, retry verifies/reuses that SQL rather than recapturing it. Unknown storage errors defer recovery; only a missing/corrupt candidate permits recapture. Attempt-specific SQL keys prevent a stale process overwriting a newer attempt. Only one manifest is committed per slot. Incomplete attempt objects are removed on recovery or by the seven-day orphan cleanup; no JSON/encrypted backup objects are created.
 
-App/Vercel: BACKUP_JOBS_ENABLED=true, BACKUP_CONTROL_DATABASE_URL pointing to the matching coordinator, BACKUP_R2_ACCOUNT_ID, BACKUP_R2_BUCKET, BACKUP_R2_ACCESS_KEY_ID, BACKUP_R2_SECRET_ACCESS_KEY, and BACKUP_DATABASE_CA with the Supabase PEM. Local CA_FILE paths are for the Windows workstation, not Vercel. Redeploy after Vercel environment changes.
+Retention is 90 days. Cleanup/artifact-copy errors do not invalidate a committed backup. Existing saved files remain available on /export; expand Automatic backup schedule & history for target time, capture time, attempts and error details.
 
-Worker: use ignored .env.backup.local with database, R2, monitor secret and verified TLS settings. No BACKUP_ENCRYPTION_KEY or BACKUP_ENCRYPTION_KEY_ID is required. Existing database/R2 settings remain unchanged. Never upload real env files to Git.
+## Required server configuration
 
-GitHub: database/R2 secrets plus BACKUP_AUTOMATION_ENABLED=true and BACKUP_SCHEMAS=public. No encryption secret or key-ID variable is required. The workflow installs isolated automation/db-backup-service dependencies.
+Keep DATABASE_URL, optional BACKUP_DUMP_DATABASE_URL, BACKUP_CONTROL_DATABASE_URL, BACKUP_DATABASE_CA, BACKUP_JOBS_ENABLED=true and the existing BACKUP_R2_* credentials. BACKUP_R2_PREFIX is database for production and database-staging for staging. CRON_SECRET authenticates scheduler requests and is not a GitHub token. Never put secrets in URLs or upload .env files. Workstation BACKUP_DATABASE_CA_FILE paths do not belong on Vercel; use inline PEM there.
 
-Windows restart: automation/db-backup-service/restart-windows-worker.ps1. Setup helpers and portable PostgreSQL 17 tools are under that directory. The task starts at user login, hidden. Logs and tools remain ignored under .backup-logs and .backup-tools. Do not point staging at the production coordinator. Staging needs its own worker and isolated storage before enabling jobs.
+Run `node scripts/backup/cli.cjs migrate` with the target environment loaded before deploying. It applies the base coordinator migration and 20261118150000_backup_fixed_ist_slots.sql. Completed historical timestamps are preserved. The latter migration adds missed status and staged_manifest; it is idempotent.
 
-## Monitoring and QA
+## Activation checklist (deployment required)
 
-GET /monitor requires the configured BACKUP_MONITOR_SECRET. It reports worker freshness, pause state, missing slots, fallback recoveries and late completions. External alert delivery requires an independently configured reachable monitor; it is not implicitly provided by the local task.
+1. Deploy the verified app bundle and confirm the Vercel project allows a 300-second Node route duration. Linux pg_dump/pg_restore assets must be present in both generate and cron function traces. A local build/test is not hosted verification.
+2. Confirm an authenticated manual Generate & download succeeds on the deployed server and the SQL copy completes in R2. Restore a sample into an isolated database.
+3. Change existing cron-job.org job 8705801 from the GitHub dispatch URL to `https://YOUR_PRODUCTION_DOMAIN/api/backup/cron`. Use POST, timezone Asia/Kolkata, every minute (`* * * * *`), Authorization header `Bearer <CRON_SECRET>`, no GitHub headers/body. Enable failure and recovery email notifications. Do not enable a new duplicate job alongside the old dispatch job.
+4. Add a separate health-check job: GET the same URL with `?action=health` every five minutes, same authorization header. Enable failure/recovery email notifications. Health checks do NOT update the scheduler heartbeat, so they cannot hide a stopped wakeup job. A 503 reports stale heartbeat, paused automation or an overdue incomplete slot.
+5. Confirm no other legacy job dispatches GitHub or calls old backup endpoints. GitHub schedule/repository_dispatch and Vercel automatic crons are removed in this release; do not restore them during rollout.
+6. Observe all four production slots for one full day. Check scheduled and captured IST times, one verified completed file per slot and no overnight new captures. Scheduler acceptance alone is not evidence of backup success.
 
-Checks:
-- node --test scripts/test-database-backups.cjs
-- node scripts/test-backup-routes.cjs
-- node scripts/test-backup-archives.cjs
-- node scripts/test-backup-ui.cjs
-- npm run typecheck
-- npm run build
+The external service targets each minute but is not a real-time guarantee. Provider/network/database outages may cause retries or honest missed slots. The app cannot recreate database state from a past uncaptured moment.
 
-Disposable database QA uses scripts/test-database-backups-db.cjs with BACKUP_TEST_TOOLS, PG_DUMP_BIN, PG_RESTORE_BIN and optional PSQL_BIN. It restores readable SQL into an isolated local database and verifies data, functions and sequences, without encryption keys.
+## Validation
 
-## Historical transition
-
-Encryption was removed at the user's request. Existing completed encrypted SQL backups were converted and read-back verified; obsolete .enc objects were removed. Prior rollout reports describe historical encryption tests and are not current configuration instructions.
-
-## Timestamped SQL files and deletion
-
-SQL filenames include their actual capture timestamp in Asia/Kolkata, for example starmould_backup_2026-11-17_12-50-22_IST.sql. R2 stores only SQL payloads; metadata remains in the private database coordinator, not JSON objects in the bucket. The admin Database Backups page filters to SQL, offers downloads and confirms permanent deletion. Deletion removes the R2 object and expires matching job metadata when its coordinator is accessible; otherwise the UI explicitly reports that job history could not be updated.
-
-GitHub primary runs also upload their newly captured SQL to the Actions run Artifacts section, with seven-day retention. GitHub wraps artifact downloads in ZIP; the payload is SQL only. R2 retains backups for 90 days unless an administrator deletes them earlier. Runs that skip because another valid attempt owns/completed the slot do not create a new artifact.
+Unit/route tests exercise exact UTC mappings, quick admission/background execution, duplicate exclusion, authorization, pause, integrity and checkpoint reuse. The disposable PostgreSQL suite checks real concurrent claims, expired leases, fencing, all four time-window boundaries, retry limits and idempotent migrations. With PostgreSQL test tools it captures/restores real SQL and checks data, functions, views, policies and sequences. Production rollout and a full-day observation remain separate acceptance steps.

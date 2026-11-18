@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import { TablePagination } from "@/components/ui/table-pagination";
-import { exportToCsv } from "@/lib/utils";
+import { triggerFileExport } from "@/lib/exports/download";
 import { motion } from "motion/react";
 import {
     ShoppingCart,
@@ -1425,31 +1425,23 @@ function PurchasePageContent() {
         }
     };
 
-    // Export CSV
-    const handleExportCSV = () => {
-        const headers = [
-            "PO No.",
-            "Order Date",
-            "Supplier",
-            "Customer",
-            "Mould",
-            "Created By",
-            "Total Items",
-        ];
-        const rows = filteredPurchases.map((p) => [
-            p.srno,
-            p.odate,
-            getVendorName(p.vname),
-            getCustomerName(p.cname),
-            p.projectid,
-            p.created_by,
-            p.items ? p.items.length : 0,
-        ]);
-        exportToCsv(
-            `starmould_purchase_orders_${new Date().toISOString().slice(0, 10)}`,
-            headers,
-            rows,
-        );
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Export Excel
+    const handleExportExcel = async () => {
+        try {
+            setIsExporting(true);
+            await triggerFileExport({
+                dataset: "purchases",
+                format: "xlsx",
+                search: searchQuery || undefined,
+            });
+        } catch (err: any) {
+            console.error("Failed to export purchases:", err);
+            alert(err?.message || "Failed to export Excel file");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     // Render desktop row for a Purchase Order (supports multi-item expand)
@@ -1929,19 +1921,13 @@ function PurchasePageContent() {
                                 <span>Refresh</span>
                             </button>
                             <button
-                                onClick={handleExportCSV}
-                                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-2xs cursor-pointer"
-                                title="Export POs to CSV matching legacy export()"
+                                onClick={handleExportExcel}
+                                disabled={isExporting}
+                                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-2xs cursor-pointer disabled:opacity-50"
+                                title="Export Purchase Orders to formatted Excel spreadsheet"
                             >
-                                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                                <span>Export</span>
-                            </button>
-                            <button
-                                onClick={() => window.print()}
-                                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-2xs cursor-pointer"
-                            >
-                                <Printer className="w-3.5 h-3.5 text-slate-500" />
-                                <span>Print</span>
+                                <FileSpreadsheet className={`w-3.5 h-3.5 text-emerald-600 ${isExporting ? "animate-pulse" : ""}`} />
+                                <span>{isExporting ? "Exporting..." : "Export Excel"}</span>
                             </button>
                         </div>
                     </div>

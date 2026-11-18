@@ -6,18 +6,20 @@ const { S3Client, PutObjectCommand, GetObjectCommand, CreateMultipartUploadComma
 const { digest } = require('./archive.cjs');
 
 function storageConfig(env = process.env) {
+  const prefix = env.BACKUP_R2_PREFIX || 'database';
+  if (!/^database(?:-[a-z0-9-]+)?$/.test(prefix)) throw new Error('INVALID_BACKUP_STORAGE_PREFIX');
   const bucket = env.BACKUP_R2_BUCKET;
   const account = env.BACKUP_R2_ACCOUNT_ID;
   const accessKeyId = env.BACKUP_R2_ACCESS_KEY_ID;
   const secretAccessKey = env.BACKUP_R2_SECRET_ACCESS_KEY;
   if (!bucket || !account || !accessKeyId || !secretAccessKey) throw new Error('BACKUP_STORAGE_NOT_CONFIGURED');
-  return { bucket, client: new S3Client({ region: 'auto',
+  return { bucket, prefix, client: new S3Client({ region: 'auto',
     endpoint: `https://${account}.r2.cloudflarestorage.com`, credentials: { accessKeyId, secretAccessKey },
     requestChecksumCalculation: 'WHEN_REQUIRED', responseChecksumValidation: 'WHEN_REQUIRED', maxAttempts: 3,
     requestHandler: { connectionTimeout: 10000, requestTimeout: 60000 } }) };
 }
 class Storage {
-  constructor(config = storageConfig()) { this.client = config.client; this.bucket = config.bucket; }
+  constructor(config = storageConfig()) { this.client = config.client; this.bucket = config.bucket; this.prefix = config.prefix || 'database'; }
   async uploadFile(key, file, signal) {
     const size = (await fsp.stat(file)).size;
     const base = { Bucket: this.bucket, Key: key, ContentType: 'application/octet-stream' };
@@ -56,14 +58,14 @@ class Storage {
       Delete: { Objects: keys.map(Key => ({ Key })), Quiet: true } }));
     if (result.Errors?.length) throw new Error('BACKUP_RETENTION_DELETE_FAILED');
   }
-  async cleanupOrphans(referencedPrefixes, now = Date.now()) {
+  async cleanupOrphans(referencedPrefixes, referencedKeys = new Set(), now = Date.now()) {
     let ContinuationToken;
     do {
       const page = await this.client.send(new ListObjectsV2Command({ Bucket: this.bucket,
-        Prefix: 'database/', ContinuationToken }));
+        Prefix: this.prefix + '/', ContinuationToken }));
       const keys = (page.Contents || []).filter(object => object.LastModified &&
         now - object.LastModified.getTime() > 7 * 86400000 &&
-        !referencedPrefixes.some(prefix => object.Key.startsWith(prefix + '/'))).map(object => object.Key);
+        !referencedKeys.has(object.Key)).map(object => object.Key);
       await this.deleteKeys(keys);
       ContinuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
     } while (ContinuationToken);

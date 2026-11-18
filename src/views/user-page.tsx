@@ -4,6 +4,7 @@ import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 // removed createPortal
 import { AppLayout } from "@/components/layout/app-layout";
+import { triggerFileExport } from "@/lib/exports/download";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -20,7 +21,6 @@ import {
     AlertCircle,
     CheckCircle2,
     FileSpreadsheet,
-    Printer,
     Shield,
     Briefcase,
     ToggleLeft,
@@ -354,46 +354,23 @@ export function UserPage() {
         }
     };
 
-    // Export CSV (Never includes passwords!)
-    const handleExportCSV = () => {
-        const headers = [
-            "ID",
-            "Name",
-            "Username",
-            "Initials",
-            "User Type",
-            "User Subtype",
-            "Email",
-            "Role (Roles Table)",
-            "Status",
-        ];
-        const rows = filteredUsers.map((u) => {
-            const roleDef = getRoleById(u.role_id);
-            return [
-                u.id,
-                `"${(u.name || "").replace(/"/g, '""')}"`,
-                `"${(u.username || "").replace(/"/g, '""')}"`,
-                `"${u.initials || ""}"`,
-                `"${u.usertype || ""}"`,
-                `"${u.usersubtype || ""}"`,
-                `"${u.email || ""}"`,
-                `"${roleDef.display_name} (id:${roleDef.id})"`,
-                Number(u.status) === 1 ? "Active" : "Inactive",
-            ];
-        });
-        const csvContent =
-            "data:text/csv;charset=utf-8," +
-            [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute(
-            "download",
-            `starmould_users_${new Date().toISOString().slice(0, 10)}.csv`,
-        );
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+    const [isExporting, setIsExporting] = useState(false);
+
+    // Export Excel (Safe directory without credentials)
+    const handleExportExcel = async () => {
+        try {
+            setIsExporting(true);
+            await triggerFileExport({
+                dataset: "users",
+                format: "xlsx",
+                search: searchQuery || undefined,
+            });
+        } catch (err: any) {
+            console.error("Failed to export users:", err);
+            showNotification("error", err?.message || "Failed to export Excel file");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     const isAutoSubtypeLocked = Boolean(getAutoUserSubtype(formData.usertype));
@@ -472,19 +449,13 @@ export function UserPage() {
                             <span className="hidden sm:inline">Refresh</span>
                         </button>
                         <button
-                            onClick={handleExportCSV}
-                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm"
-                            title="Export filtered users (strictly without credentials)"
+                            onClick={handleExportExcel}
+                            disabled={isExporting}
+                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm disabled:opacity-50 cursor-pointer"
+                            title="Export filtered users to formatted Excel spreadsheet (strictly without credentials)"
                         >
-                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                            <span>Export CSV</span>
-                        </button>
-                        <button
-                            onClick={() => window.print()}
-                            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shadow-sm"
-                        >
-                            <Printer className="w-4 h-4 text-slate-500" />
-                            <span>Print</span>
+                            <FileSpreadsheet className={`w-4 h-4 text-emerald-600 ${isExporting ? "animate-pulse" : ""}`} />
+                            <span>{isExporting ? "Exporting..." : "Export Excel"}</span>
                         </button>
                         {canManageUsers && (<button
                             onClick={handleOpenAdd}

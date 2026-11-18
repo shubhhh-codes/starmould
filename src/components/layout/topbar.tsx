@@ -265,7 +265,7 @@ export function Topbar({
                     animate={{ opacity: 1, y: "0%" }}
                     exit={{ opacity: 0, y: "-100%" }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="text-xs sm:text-sm font-bold text-white tracking-tight truncate max-w-[120px] xs:max-w-[150px] sm:max-w-[180px] md:max-w-[240px] block leading-none"
+                    className="block max-w-[120px] whitespace-normal break-words text-xs font-bold leading-tight tracking-tight text-white sm:max-w-[180px] sm:truncate sm:text-sm sm:leading-none md:max-w-[240px]"
                   >
                     {currentPage.title}
                   </motion.h2>

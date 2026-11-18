@@ -7,6 +7,7 @@ import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
 import { AppLayout } from "@/components/layout/app-layout";
+import { triggerFileExport } from "@/lib/exports/download";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -82,6 +83,23 @@ export function InwardPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [vendorFilter, setVendorFilter] = useState("ALL");
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExportExcel = async () => {
+        try {
+            setIsExporting(true);
+            await triggerFileExport({
+                dataset: "inwards",
+                format: "xlsx",
+                search: searchQuery || undefined,
+            });
+        } catch (err: any) {
+            console.error("Failed to export inward receipts:", err);
+            alert(err?.message || "Failed to export Excel file");
+        } finally {
+            setIsExporting(false);
+        }
+    };
     const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>(
         {},
     );
@@ -397,13 +415,15 @@ export function InwardPage() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <Link
-                            href="/export"
-                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition shadow-sm"
+                        <button
+                            onClick={handleExportExcel}
+                            disabled={isExporting}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition shadow-sm disabled:opacity-50 cursor-pointer"
+                            title="Export Job Work Inward Receipts to formatted Excel spreadsheet"
                         >
-                            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-                            <span>Export Pending Outward</span>
-                        </Link>
+                            <FileSpreadsheet className={`h-4 w-4 text-emerald-600 ${isExporting ? "animate-pulse" : ""}`} />
+                            <span>{isExporting ? "Exporting..." : "Export Excel"}</span>
+                        </button>
 
                         {canCreateInward && (<button
                             onClick={() => {

@@ -22,7 +22,21 @@ export interface ExportDatasetResult {
 
 export interface ExportRequestV1 {
   version: 1;
-  dataset: "moulds" | "project_register" | "subplates" | "purchases" | "challans" | "dispatches" | "inwards" | "customers" | "vendors" | "worklogs";
+  dataset:
+    | "moulds"
+    | "project_register"
+    | "subplates"
+    | "purchases"
+    | "purchase_inwards"
+    | "challans"
+    | "dispatches"
+    | "inwards"
+    | "customers"
+    | "vendors"
+    | "quotations"
+    | "expenses"
+    | "users"
+    | "worklogs";
   format: ExportFormat;
   scope: ExportScope;
   filters?: Record<string, any>;

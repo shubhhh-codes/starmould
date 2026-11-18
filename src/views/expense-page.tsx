@@ -3,7 +3,7 @@ import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 
 import React, { useState, useMemo } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
-import { exportToCsv } from "@/lib/utils";
+import { triggerFileExport } from "@/lib/exports/download";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -373,32 +373,22 @@ export function ExpensePage() {
         }
     };
 
-    const handleExportCSV = () => {
-        const headers = [
-            "ID",
-            "Date",
-            "Account Name",
-            "Description",
-            "Mode",
-            "Type",
-            "Amount",
-            "Balance",
-        ];
-        const rows = filteredExpenses.map((e) => [
-            e.id,
-            e.rdate,
-            e.customername || "General",
-            e.description || "",
-            e.payment_mode,
-            e.payment_type,
-            e.amount,
-            e.balance,
-        ]);
-        exportToCsv(
-            `expenses_${new Date().toISOString().slice(0, 10)}`,
-            headers,
-            rows,
-        );
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleExportExcel = async () => {
+        try {
+            setIsExporting(true);
+            await triggerFileExport({
+                dataset: "expenses",
+                format: "xlsx",
+                search: searchQuery || undefined,
+            });
+        } catch (err: any) {
+            console.error("Failed to export expenses:", err);
+            alert(err?.message || "Failed to export Excel file");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     return (
@@ -422,11 +412,13 @@ export function ExpensePage() {
                     </div>
                     <div className="flex items-center gap-3">
                         <button
-                            onClick={handleExportCSV}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm"
+                            onClick={handleExportExcel}
+                            disabled={isExporting}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-medium rounded-xl transition shadow-sm text-sm disabled:opacity-50 cursor-pointer"
+                            title="Export Expenses to formatted Excel spreadsheet"
                         >
-                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                            Export CSV
+                            <FileSpreadsheet className={`w-4 h-4 text-emerald-600 ${isExporting ? "animate-pulse" : ""}`} />
+                            <span>{isExporting ? "Exporting..." : "Export Excel"}</span>
                         </button>
                         <button
                             onClick={() => setIsAddAccountOpen(true)}

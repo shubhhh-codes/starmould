@@ -8,6 +8,7 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
+import { triggerFileExport } from "@/lib/exports/download";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -139,6 +140,23 @@ export function DispatchPage() {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [customerFilter, setCustomerFilter] = useState("ALL");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      await triggerFileExport({
+        dataset: "dispatches",
+        format: "xlsx",
+        search: searchQuery || undefined,
+      });
+    } catch (err: any) {
+      console.error("Failed to export dispatches:", err);
+      alert(err?.message || "Failed to export Excel file");
+    } finally {
+      setIsExporting(false);
+    }
+  };
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 
   // Add Dispatch Challan Modal State (Source: dispatch/index.blade.php lines 96-280)
@@ -702,13 +720,15 @@ export function DispatchPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/export"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition shadow-sm"
+            <button
+              onClick={handleExportExcel}
+              disabled={isExporting}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium transition shadow-sm disabled:opacity-50 cursor-pointer"
+              title="Export Dispatch Challans to formatted Excel spreadsheet"
             >
-              <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-              <span>Export Dispatch Challans</span>
-            </Link>
+              <FileSpreadsheet className={`h-4 w-4 text-emerald-600 ${isExporting ? "animate-pulse" : ""}`} />
+              <span>{isExporting ? "Exporting..." : "Export Excel"}</span>
+            </button>
 
             {canCreateDispatch && (<button
               onClick={() => {

@@ -1,5 +1,5 @@
 "use client";
-import { principalFetch as fetch } from "@/lib/query/principal-fetch";
+
 
 import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 // removed createPortal
@@ -40,9 +40,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Database,
-  Clock,
-  FileCode,
-  Download,
   Lock,
   HardHat,
   Palette,
@@ -159,10 +156,10 @@ export function SettingsPage() {
 
   const [menuSearchQuery, setMenuSearchQuery] = useState<string>("");
   const [actionSearchQuery, setActionSearchQuery] = useState<string>("");
-  const [isDownloadingSql, setIsDownloadingSql] = useState(false);
-  const [isDownloadingJson, setIsDownloadingJson] = useState(false);
-  const [backupStatus, setBackupStatus] = useState<any>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(false);
+
+
+
+
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
@@ -188,72 +185,6 @@ export function SettingsPage() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [isRoleComboboxOpen]);
-
-  const fetchBackupStatus = useCallback(async () => {
-    try {
-      setIsLoadingStatus(true);
-      const res = await fetch("/api/backup?action=status");
-      if (res.ok) {
-        const data = await res.json();
-        setBackupStatus(data);
-      }
-    } catch {
-      // Ignore
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "backup") {
-      fetchBackupStatus();
-    }
-  }, [activeTab, fetchBackupStatus]);
-
-  const handleDownloadBackup = async (format: "sql" | "json") => {
-    if (format === "sql") setIsDownloadingSql(true);
-    else setIsDownloadingJson(true);
-
-    try {
-      const response = await fetch(`/api/backup?format=${format}`);
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || "Failed to generate backup");
-      }
-
-      const blob = await response.blob();
-      const contentDisposition = response.headers.get("Content-Disposition");
-      const istDateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
-      let filename = `starmould_backup_${istDateStr}_IST.${format}`;
-      if (contentDisposition) {
-        const match = contentDisposition.match(/filename="?([^"]+)"?/);
-        if (match && match[1]) filename = match[1];
-      }
-
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      setNotification({
-        type: "success",
-        message: `Backup ${filename} downloaded successfully!`,
-      });
-      fetchBackupStatus();
-    } catch (err: any) {
-      setNotification({
-        type: "error",
-        message: err.message || "Backup download failed",
-      });
-    } finally {
-      if (format === "sql") setIsDownloadingSql(false);
-      else setIsDownloadingJson(false);
-    }
-  };
 
   // Local state for permissions and active menu order
   const [localPermissions, setLocalPermissions] = useState<Record<string, boolean>>({});
@@ -1676,121 +1607,10 @@ export function SettingsPage() {
         {/* TAB 4: DATABASE & AUTO-BACKUP MANAGEMENT */}
         {/* ========================================================================= */}
         {activeTab === "backup" && (
-          <div className="space-y-4 animate-in fade-in duration-150">
-            {/* Header Card */}
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 text-slate-800 relative overflow-hidden shadow-xs">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shadow-2xs shrink-0">
-                    <Database className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-slate-900 tracking-wide">
-                        Supabase Database & Auto-Backup
-                      </h3>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-                        Database tools
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Four daily backup slots with background fallback and on-demand backups.
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={fetchBackupStatus}
-                  disabled={isLoadingStatus}
-                  className="px-3 py-1.5 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shrink-0 border border-slate-200"
-                >
-                  <Clock className={`w-3.5 h-3.5 ${isLoadingStatus ? "animate-spin" : ""}`} />
-                  <span>Refresh Status</span>
-                </button>
-              </div>
-            </div>
-
+          <div className="space-y-4">
+            <h3 className="text-sm font-bold text-slate-900">Database backups</h3>
+            <p className="text-xs text-slate-600">Scheduled and on-demand backups use the same complete SQL capture, including public schema, data, functions and policies.</p>
             {isAdmin && <DatabaseBackupPanel />}
-
-            {/* Instant Download Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Option A: SQL Dump */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-200">
-                        <FileCode className="w-3.5 h-3.5" />
-                      </div>
-                      <h4 className="text-xs font-bold text-slate-900">
-                        Supabase SQL Dump (.sql)
-                      </h4>
-                    </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-blue-50 text-blue-700 border border-blue-200 font-semibold">
-                      Recommended
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    Data-only export of selected ERP tables with <code className="text-blue-600 bg-blue-50 px-1 py-0.5 rounded font-mono text-[11px]">ON CONFLICT DO UPDATE</code> logic. Use saved archives above for schema recovery.
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-slate-400 font-mono">Format: .sql</span>
-                  <MotionButton
-                    type="button"
-                    onClick={() => handleDownloadBackup("sql")}
-                    loading={isDownloadingSql}
-                    variant="primary"
-                    size="sm"
-                    className="shadow-sm cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1.5" />
-                    Download SQL
-                  </MotionButton>
-                </div>
-              </div>
-
-              {/* Option B: JSON Snapshot */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-200">
-                        <Database className="w-3.5 h-3.5" />
-                      </div>
-                      <h4 className="text-xs font-bold text-slate-900">
-                        Structured JSON Snapshot (.json)
-                      </h4>
-                    </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-slate-100 text-slate-600 border border-slate-200">
-                      Raw Data
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-600 leading-relaxed">
-                    All ERP table records serialized into structured JSON objects with row counts and metadata.
-                  </p>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-slate-400 font-mono">Format: .json</span>
-                  <MotionButton
-                    type="button"
-                    onClick={() => handleDownloadBackup("json")}
-                    loading={isDownloadingJson}
-                    variant="outline"
-                    size="sm"
-                    className="shadow-sm cursor-pointer"
-                  >
-                    <Download className="w-3.5 h-3.5 mr-1.5" />
-                    Download JSON
-                  </MotionButton>
-                </div>
-              </div>
-            </div>
           </div>
         )}
 

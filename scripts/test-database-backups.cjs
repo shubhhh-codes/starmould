@@ -7,17 +7,17 @@ const { SLOTS, scheduledJobs, istDate, connectionOptions } = require('./backup/c
 const { postgresEnv } = require('./backup/archive.cjs');
 const { Storage } = require('./backup/storage.cjs');
 const { executeJob } = require('./backup/runner.cjs');
-const { authorized } = require('../automation/db-backup-service/service.cjs');
+const { authorized } = require('./backup/reconcile.cjs');
 
 test('four IST slots map to UTC and reconcile across midnight without future snapshots', () => {
   const jobs = scheduledJobs(new Date('2026-11-17T14:00:00Z'), new Date('2026-11-17T00:00:00Z'));
   assert.equal(jobs.length, 4);
   assert.deepEqual(jobs.map(j => j.scheduledAt.toISOString()), [
-    '2026-11-17T04:35:00.000Z', '2026-11-17T07:05:00.000Z',
-    '2026-11-17T10:35:00.000Z', '2026-11-17T13:35:00.000Z']);
+    '2026-11-17T04:30:00.000Z', '2026-11-17T07:00:00.000Z',
+    '2026-11-17T10:30:00.000Z', '2026-11-17T13:30:00.000Z']);
   assert.equal(SLOTS.length, 4);
   assert.equal(istDate(new Date('2026-11-17T18:31:00Z')), '2026-11-18');
-  assert.equal(scheduledJobs(new Date('2026-11-17T04:34:59Z'), new Date('2026-11-17')).length, 0);
+  assert.equal(scheduledJobs(new Date('2026-11-17T04:29:59Z'), new Date('2026-11-17')).length, 0);
   assert.equal(scheduledJobs(new Date('2026-11-17T18:31:00Z'), new Date('2026-11-17')).length, 4);
 });
 test('dump connection keeps credentials out of arguments and defaults to verified TLS', () => {
@@ -56,6 +56,25 @@ test('duplicate trigger skips capture entirely', async () => {
   const result = await executeJob({ claim: async () => null }, {}, 'same-slot', 'fallback', {
     capture: async () => { throw new Error('must not run'); } });
   assert.equal(result.status, 'skipped');
+});
+
+test('uploaded checkpoint completes without recapturing after an interrupted commit', async () => {
+  const manifest = { capturedAt:'2026-11-18T04:30:01Z', files:[{key:'private/backup.sql',size:4,sha256:'fixture'}] };
+  let saved;
+  const result = await executeJob({ claim:async()=>({id:'slot',generation:2,staged_manifest:manifest}),
+    renew:async()=>{}, complete:async(_job,value)=>{saved=value;} }, {verify:async()=>{}}, 'slot','server-cron', {
+    capture:async()=>{throw new Error('must reuse prior SQL');} });
+  assert.equal(result.recovered,true);assert.equal(saved,manifest);
+});
+
+test('missing old checkpoint cannot bypass the capture window or create an overnight backup', async () => {
+  let discarded=false;
+  const store={claim:async()=>({id:'old',kind:'scheduled',generation:2,attempts:2,
+    scheduled_at:'2020-01-01T04:30:00Z',staged_manifest:{files:[{key:'old.sql'}]}}),
+    renew:async()=>{},discardStage:async()=>{discarded=true;},fail:async()=>{}};
+  await assert.rejects(executeJob(store,{verify:async()=>{const e=new Error('missing');e.name='NoSuchKey';throw e;},
+    deleteKeys:async()=>{}},'old','server-cron',{capture:async()=>{assert.fail('must not capture outside the window');}}),/BACKUP_ATTEMPT_FAILED/);
+  assert.equal(discarded,true);
 });
 test('stale lease cannot publish a verified archive as completed', async () => {
   let completed = false; let failed = false;
