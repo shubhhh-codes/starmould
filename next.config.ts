@@ -19,12 +19,17 @@ function getLocalIPs(): string[] {
 
 const nextConfig: NextConfig = {
   compress: true,
+  serverExternalPackages: ["@sparticuz/chromium", "puppeteer-core"],
   outputFileTracingIncludes: {
     '/api/download-quotation-pdf': [
-      './node_modules/@sparticuz/chromium/bin/*.br',
+      './node_modules/@sparticuz/chromium/bin/**/*',
       './public/images/quotation-cover.jpg',
       './public/images/stpl-logo.png',
       './public/images/starmould-stamp.*',
+    ],
+    '/api/**/*': [
+      './node_modules/@sparticuz/chromium/bin/**/*',
+      './public/images/**/*',
     ],
     '/api/backup': ['scripts/backup/native/**/*'],
     '/api/backup/generate': ['scripts/backup/native/**/*'],

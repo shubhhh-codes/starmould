@@ -25,13 +25,14 @@ function getLaunchOptions(): Promise<LaunchOptions> | LaunchOptions {
     };
   }
 
-  const chromiumModule = "@sparticuz/chromium";
-  vercelLaunchOptions ??= import(/* webpackIgnore: true */ chromiumModule).then<LaunchOptions>(async ({ default: chromium }: any) => ({
-    executablePath: await chromium.executablePath(),
-    headless: "shell",
-    args: await puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
-    ignoreDefaultArgs: true,
-  })).catch((error: unknown) => {
+  vercelLaunchOptions ??= import("@sparticuz/chromium").then<LaunchOptions>(async (mod: any) => {
+    const chromium = mod.default || mod;
+    return {
+      executablePath: await chromium.executablePath(),
+      headless: "shell" as const,
+      args: chromium.args,
+    };
+  }).catch((error: unknown) => {
     vercelLaunchOptions = undefined;
     throw error;
   });
@@ -1508,6 +1509,7 @@ export async function GET(req: NextRequest) {
     });
   } catch (err: unknown) {
     console.error("Quotation PDF generation failed", err);
-    return NextResponse.json({ error: "Unable to generate quotation PDF" }, { status: 500 });
+    const message = err instanceof Error ? err.message : "Unable to generate quotation PDF";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

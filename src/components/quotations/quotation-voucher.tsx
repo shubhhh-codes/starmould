@@ -105,13 +105,7 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
       document.body.removeChild(a);
     } catch (err) {
       console.error("PDF download error:", err);
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = `/api/download-quotation-pdf?id=${quote.id}`;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        if (iframe.parentNode) document.body.removeChild(iframe);
-      }, 30000);
+      window.print();
     } finally {
       setIsDownloading(false);
     }

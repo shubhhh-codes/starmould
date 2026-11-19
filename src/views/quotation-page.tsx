@@ -362,9 +362,9 @@ function QuotationPageContent() {
 
   // Initiate PDF download directly on the same working tab without opening any new tab
   const handleDownloadPDF = async (id: number, quoteNo?: string) => {
+    let token = "";
     try {
       setDownloadingId(id);
-      let token = "";
       try {
         const tokenRes = await fetch("/api/print-token", {
           method: "POST",
@@ -402,14 +402,9 @@ function QuotationPageContent() {
       document.body.removeChild(a);
     } catch (err) {
       console.error("Direct PDF download error:", err);
-      // Fallback iframe triggers download without opening a new browser tab
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = `/api/download-quotation-pdf?id=${id}`;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        if (iframe.parentNode) document.body.removeChild(iframe);
-      }, 30000);
+      // Fallback: Open print voucher directly in a new tab so user can immediately view and save as PDF
+      const fallbackUrl = token ? `/print/quotation/${token}` : `/print/quotation/${id}`;
+      window.open(fallbackUrl, "_blank", "noopener,noreferrer");
     } finally {
       setDownloadingId(null);
     }
