@@ -69,7 +69,28 @@ export const QuotationVoucher: React.FC<QuotationVoucherProps> = ({
   const handleDownloadPDF = async () => {
     try {
       setIsDownloading(true);
-      const res = await fetch(`/api/download-quotation-pdf?id=${quote.id}`);
+      let token = "";
+      try {
+        const tokenRes = await fetch("/api/print-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "quotation", id: String(quote.id) }),
+        });
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          if (tokenData?.token) {
+            token = tokenData.token;
+          }
+        }
+      } catch {
+        // Fall back to direct ID
+      }
+
+      const downloadUrl = token
+        ? `/api/download-quotation-pdf?id=${encodeURIComponent(quote.id)}&token=${encodeURIComponent(token)}`
+        : `/api/download-quotation-pdf?id=${quote.id}`;
+
+      const res = await fetch(downloadUrl);
       if (!res.ok) throw new Error("Failed to download PDF");
       const blob = await res.blob();
       const fileName = `${quote.quotation_no || `Quotation_${quote.id}`}.pdf`;

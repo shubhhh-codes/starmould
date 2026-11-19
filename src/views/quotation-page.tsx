@@ -9,7 +9,6 @@ import {
   FileSpreadsheet,
   Plus,
   Search,
-  Printer,
   Download,
   Edit2,
   Trash2,
@@ -153,7 +152,28 @@ function QuotationPageContent() {
   const handleDownloadPDF = async (id: number, quoteNo?: string) => {
     try {
       setDownloadingId(id);
-      const res = await fetch(`/api/download-quotation-pdf?id=${id}`);
+      let token = "";
+      try {
+        const tokenRes = await fetch("/api/print-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "quotation", id: String(id) }),
+        });
+        if (tokenRes.ok) {
+          const tokenData = await tokenRes.json();
+          if (tokenData?.token) {
+            token = tokenData.token;
+          }
+        }
+      } catch {
+        // Fall back to direct ID
+      }
+
+      const downloadUrl = token
+        ? `/api/download-quotation-pdf?id=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`
+        : `/api/download-quotation-pdf?id=${id}`;
+
+      const res = await fetch(downloadUrl);
       if (!res.ok) {
         throw new Error("Failed to download PDF");
       }
@@ -535,15 +555,6 @@ function QuotationPageContent() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenVoucherTab(q)}
-                                className="px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 transition flex items-center gap-1 cursor-pointer"
-                                title="Open Quotation Voucher"
-                              >
-                                <Printer className="w-3 h-3" />
-                                <span>Voucher</span>
-                              </button>
                               <button
                                 type="button"
                                 onClick={() => handleOpenVoucherTab(q)}

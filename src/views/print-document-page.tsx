@@ -653,17 +653,19 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       const fileName = `${doc?.docNumber || (isQuotation ? "Quotation" : isDispatch ? "Delivery_Challan" : isChallan ? "Outward_Challan" : "Purchase_Order")}.pdf`;
 
       const isToken = typeof id === "string" && id.includes(".");
-      const tokenParam = isToken ? `&token=${encodeURIComponent(id)}` : "";
-      const targetId = isToken ? id : (doc?.id || doc?.quote?.id || id);
+      const tokenParam = isToken ? `token=${encodeURIComponent(id)}` : "";
+      const numericId = doc?.id || doc?.quote?.id;
+      const idParam = numericId ? `id=${encodeURIComponent(numericId)}` : (isToken ? "" : `id=${encodeURIComponent(id)}`);
+      const queryParams = [idParam, tokenParam].filter(Boolean).join("&");
 
       // Fetch pristine vector PDF from server Puppeteer engine
       const downloadUrl = isQuotation
-        ? `/api/download-quotation-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
+        ? `/api/download-quotation-pdf?${queryParams}`
         : isDispatch
-        ? `/api/download-dispatch-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
+        ? `/api/download-dispatch-pdf?${queryParams}`
         : isChallan
-        ? `/api/download-challan-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
-        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(targetId)}${tokenParam}`;
+        ? `/api/download-challan-pdf?${queryParams}`
+        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&${queryParams}`;
       const res = await fetch(downloadUrl);
 
       if (!res.ok) {
@@ -681,8 +683,26 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       document.body.removeChild(a);
     } catch (err) {
       console.error("Direct PDF download error:", err);
-      // Fallback to browser print if server generation encounters an issue
-      handlePrint();
+      // Fallback: trigger download via hidden iframe without opening print window
+      const isToken = typeof id === "string" && id.includes(".");
+      const tokenParam = isToken ? `token=${encodeURIComponent(id)}` : "";
+      const numericId = doc?.id || doc?.quote?.id;
+      const idParam = numericId ? `id=${encodeURIComponent(numericId)}` : (isToken ? "" : `id=${encodeURIComponent(id)}`);
+      const queryParams = [idParam, tokenParam].filter(Boolean).join("&");
+      const fallbackUrl = type === "quotation"
+        ? `/api/download-quotation-pdf?${queryParams}`
+        : type === "dispatch"
+        ? `/api/download-dispatch-pdf?${queryParams}`
+        : type === "challan"
+        ? `/api/download-challan-pdf?${queryParams}`
+        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&${queryParams}`;
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = fallbackUrl;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        if (iframe.parentNode) document.body.removeChild(iframe);
+      }, 30000);
     } finally {
       setIsDownloading(false);
     }
@@ -705,63 +725,36 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       const docNum = doc?.docNumber || "";
       const partyName = doc?.party?.customername || doc?.party?.vendor_name || doc?.customerName || "";
       const title = `${docLabel} ${docNum} - Star Mould`.trim();
-      const rawFileName = `${docNum || docLabel.replace(/\s+/g, "_")}.pdf`;
-      const fileName = rawFileName.replace(/[/\\?%*:|"<>]/g, "_");
+      const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+      const shareText = `Star Mould ${docLabel} ${docNum}${partyName ? ` for ${partyName}` : ""}`;
 
-      const isToken = typeof id === "string" && id.includes(".");
-      const tokenParam = isToken ? `&token=${encodeURIComponent(id)}` : "";
-      const targetId = isToken ? id : (doc?.id || doc?.quote?.id || id);
-
-      // Fetch pristine vector PDF from server Puppeteer engine
-      const downloadUrl = isQuotation
-        ? `/api/download-quotation-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
-        : isDispatch
-        ? `/api/download-dispatch-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
-        : isChallan
-        ? `/api/download-challan-pdf?id=${encodeURIComponent(targetId)}${tokenParam}`
-        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&id=${encodeURIComponent(targetId)}${tokenParam}`;
-
-      const res = await fetch(downloadUrl);
-      if (!res.ok) {
-        throw new Error("Server PDF generation failed");
+      // 1. Try native Web Share API (mobile devices & supported browsers)
+      if (typeof navigator !== "undefined" && navigator.share) {
+        try {
+          await navigator.share({
+            title,
+            text: shareText,
+            url: shareUrl,
+          });
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2500);
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === "AbortError") {
+            // User cancelled/closed the share sheet
+            return;
+          }
+        }
       }
 
-      const blob = await res.blob();
-      const pdfFile = new File([blob], fileName, { type: "application/pdf" });
-
-      // Check if navigator supports sharing files directly (e.g. WhatsApp, Outlook, Nearby Share, Teams)
-      // When files are provided without a URL, OS share sheets attach the actual PDF file rather than a web link
-      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        await navigator.share({
-          title,
-          text: `Star Mould ${docLabel} ${docNum}${partyName ? ` for ${partyName}` : ""}`,
-          files: [pdfFile],
-        });
+      // 2. Clipboard copy fallback for desktop browsers
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
         setCopied(true);
         setTimeout(() => setCopied(false), 2500);
-        return;
       }
-
-      // If browser doesn't support file sharing via Web Share API, directly download the PDF file
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch (err: any) {
-      if (err?.name === "AbortError") {
-        // User dismissed the native share popup
-        return;
-      }
-      console.error("Direct PDF share error:", err);
-      // Fallback: trigger standard PDF download
-      handleDownloadPdf();
+    } catch (err) {
+      console.error("Direct share error:", err);
     } finally {
       setIsSharing(false);
     }
@@ -1034,12 +1027,12 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               {isSharing ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
-                  <span className="hidden sm:inline">Preparing PDF...</span>
+                  <span className="hidden sm:inline">Sharing...</span>
                 </>
               ) : copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="hidden sm:inline text-emerald-700 font-bold">Shared</span>
+                  <span className="hidden sm:inline text-emerald-700 font-bold">Link Copied!</span>
                 </>
               ) : (
                 <>
