@@ -22,6 +22,7 @@ import { PurchaseOrderVoucher } from "@/components/documents/purchase-order-vouc
 import { DispatchChallanVoucher } from "@/components/documents/dispatch-challan-voucher";
 import { OutwardChallanVoucher } from "@/components/documents/outward-challan-voucher";
 import { QuotationVoucher } from "@/components/quotations/quotation-voucher";
+import { formatDate } from "@/lib/utils";
 
 export interface PrintDocumentPageProps {
   params: Promise<{
@@ -1348,7 +1349,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               {doc.docType}
             </span>
             <p className="text-base font-black text-slate-900">{doc.docNumber}</p>
-            <p className="text-xs font-semibold text-slate-600">Date: {doc.docDate}</p>
+            <p className="text-xs font-semibold text-slate-600">Date: {formatDate(doc.docDate)}</p>
           </div>
         </div>
 

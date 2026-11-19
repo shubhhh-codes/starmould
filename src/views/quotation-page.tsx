@@ -4,6 +4,7 @@ import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { AppLayout } from "@/components/layout/app-layout";
 import { triggerFileExport } from "@/lib/exports/download";
+import { formatDate } from "@/lib/utils";
 import {
   FileText,
   FileSpreadsheet,
@@ -24,6 +25,13 @@ import {
   X,
   ChevronDown,
   ChevronRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Filter,
+  SlidersHorizontal,
+  RotateCcw,
+  Calendar,
 } from "lucide-react";
 import { Quotation } from "@/types/quotation";
 import { QuotationModal } from "@/components/quotations/quotation-modal";
@@ -34,6 +42,79 @@ import { TermsPresetModal } from "@/components/quotations/terms-preset-modal";
 import { TableSkeletonRows } from "@/components/ui/skeleton";
 import { useAuth } from "@/components/providers/auth-provider";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
+import { useCustomerDropdownQuery } from "@/lib/query/hooks";
+
+type SortField =
+  | "quotation_no"
+  | "quotation_date"
+  | "consignee_name"
+  | "items"
+  | "taxable_amount"
+  | "grand_total"
+  | "status";
+
+interface SortableThProps {
+  label: string;
+  field: SortField;
+  currentSortField: SortField;
+  currentSortDirection: "asc" | "desc";
+  onSort: (field: SortField) => void;
+  align?: "left" | "center" | "right";
+  className?: string;
+}
+
+function SortableTh({
+  label,
+  field,
+  currentSortField,
+  currentSortDirection,
+  onSort,
+  align = "left",
+  className = "",
+}: SortableThProps) {
+  const isSorted = currentSortField === field;
+
+  return (
+    <th
+      onClick={() => onSort(field)}
+      className={`py-3 px-4 font-bold select-none cursor-pointer transition-colors hover:bg-slate-100 ${
+        align === "right"
+          ? "text-right"
+          : align === "center"
+          ? "text-center"
+          : "text-left"
+      } ${isSorted ? "text-blue-700 bg-blue-50/70" : "text-slate-600"} ${className}`}
+      title={`Click to sort by ${label}`}
+    >
+      <div
+        className={`inline-flex items-center gap-1.5 ${
+          align === "right"
+            ? "justify-end"
+            : align === "center"
+            ? "justify-center"
+            : "justify-start"
+        }`}
+      >
+        <span className="tracking-tight">{label}</span>
+        <span
+          className={`inline-flex items-center text-[11px] font-mono transition-transform ${
+            isSorted ? "text-blue-600 scale-110" : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          {isSorted ? (
+            currentSortDirection === "asc" ? (
+              <ArrowUp className="w-3.5 h-3.5 stroke-[2.5]" />
+            ) : (
+              <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
+            )
+          ) : (
+            <ArrowUpDown className="w-3.5 h-3.5 stroke-[1.8] opacity-60" />
+          )}
+        </span>
+      </div>
+    </th>
+  );
+}
 
 const STATUS_CONFIG: Record<
   string,
@@ -100,19 +181,137 @@ function QuotationPageContent() {
   const [isPresetModalOpen, setIsPresetModalOpen] = useState(false);
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
 
+  // Sorting State
+  const [sortField, setSortField] = useState<SortField>("quotation_date");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+
+  // Filter State
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("ALL");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [minAmount, setMinAmount] = useState<string>("");
+  const [maxAmount, setMaxAmount] = useState<string>("");
+  const [taxTypeFilter, setTaxTypeFilter] = useState<string>("ALL");
+
+  // Real-time customers dropdown query
+  const { data: customerLookup = [] } = useCustomerDropdownQuery("Customer");
+  const customerList = (customerLookup as any[]) || [];
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      if (
+        field === "quotation_date" ||
+        field === "taxable_amount" ||
+        field === "grand_total" ||
+        field === "items"
+      ) {
+        setSortDirection("desc");
+      } else {
+        setSortDirection("asc");
+      }
+    }
+    setCurrentPage(1);
+  };
+
+  const applyDatePreset = (
+    preset: "today" | "this_month" | "last_30_days" | "this_year"
+  ) => {
+    const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
+
+    if (preset === "today") {
+      setStartDate(todayStr);
+      setEndDate(todayStr);
+    } else if (preset === "this_month") {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+        .toISOString()
+        .split("T")[0];
+      setStartDate(firstDay);
+      setEndDate(todayStr);
+    } else if (preset === "last_30_days") {
+      const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        .toISOString()
+        .split("T")[0];
+      setStartDate(past30);
+      setEndDate(todayStr);
+    } else if (preset === "this_year") {
+      const firstDayOfYear = new Date(now.getFullYear(), 0, 1)
+        .toISOString()
+        .split("T")[0];
+      setStartDate(firstDayOfYear);
+      setEndDate(todayStr);
+    }
+    setCurrentPage(1);
+  };
+
+  const resetFilters = () => {
+    setSelectedCustomerId("ALL");
+    setStartDate("");
+    setEndDate("");
+    setMinAmount("");
+    setMaxAmount("");
+    setTaxTypeFilter("ALL");
+    setSearchQuery("");
+    setCurrentPage(1);
+  };
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCustomerId !== "ALL") count++;
+    if (startDate) count++;
+    if (endDate) count++;
+    if (minAmount) count++;
+    if (maxAmount) count++;
+    if (taxTypeFilter !== "ALL") count++;
+    return count;
+  }, [
+    selectedCustomerId,
+    startDate,
+    endDate,
+    minAmount,
+    maxAmount,
+    taxTypeFilter,
+  ]);
+
   const fetchQuotations = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.set("search", searchQuery.trim());
       if (activeTab && activeTab !== "All") params.set("status", activeTab);
+      if (selectedCustomerId && selectedCustomerId !== "ALL") {
+        params.set("customerId", selectedCustomerId);
+      }
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+      if (minAmount) params.set("minAmount", minAmount);
+      if (maxAmount) params.set("maxAmount", maxAmount);
+      if (taxTypeFilter && taxTypeFilter !== "ALL") {
+        params.set("taxType", taxTypeFilter);
+      }
+      if (sortField !== "items") {
+        params.set("sortBy", sortField);
+        params.set("sortOrder", sortDirection);
+      }
       params.set("page", String(currentPage));
       params.set("limit", String(pageSize));
 
       const res = await fetch(`/api/quotations?${params.toString()}`);
       const data = await res.json();
       if (res.ok && data.quotations) {
-        setQuotations(data.quotations);
+        let list: Quotation[] = data.quotations;
+        if (sortField === "items") {
+          list = [...list].sort((a, b) => {
+            const countA = a.items?.length || 0;
+            const countB = b.items?.length || 0;
+            return sortDirection === "asc" ? countA - countB : countB - countA;
+          });
+        }
+        setQuotations(list);
         if (data.pagination) setPagination(data.pagination);
       }
     } catch (err) {
@@ -120,7 +319,20 @@ function QuotationPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, activeTab, currentPage, pageSize]);
+  }, [
+    searchQuery,
+    activeTab,
+    selectedCustomerId,
+    startDate,
+    endDate,
+    minAmount,
+    maxAmount,
+    taxTypeFilter,
+    sortField,
+    sortDirection,
+    currentPage,
+    pageSize,
+  ]);
 
   useEffect(() => {
     fetchQuotations();
@@ -343,6 +555,12 @@ function QuotationPageContent() {
                   scope: "filtered",
                   filters: {
                     status: activeTab === "All" ? undefined : activeTab,
+                    customerId: selectedCustomerId !== "ALL" ? selectedCustomerId : undefined,
+                    startDate: startDate || undefined,
+                    endDate: endDate || undefined,
+                    minAmount: minAmount || undefined,
+                    maxAmount: maxAmount || undefined,
+                    taxType: taxTypeFilter !== "ALL" ? taxTypeFilter : undefined,
                   },
                   search: searchQuery || undefined,
                 });
@@ -379,8 +597,8 @@ function QuotationPageContent() {
           </div>
         </div>
 
-        {/* Search & Page Size Toolbar */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+        {/* Search & Filter Toolbar */}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -405,23 +623,329 @@ function QuotationPageContent() {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-500">Rows per page:</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden"
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* Filter Drawer Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`inline-flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                  isFilterOpen || activeFiltersCount > 0
+                    ? "bg-blue-50 text-blue-700 border-blue-300 shadow-xs ring-2 ring-blue-500/10"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                }`}
               >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
+                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-600 text-white">
+                    {activeFiltersCount}
+                  </span>
+                )}
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+                    isFilterOpen ? "rotate-180 text-blue-600" : ""
+                  }`}
+                />
+              </button>
+
+              <div className="flex items-center gap-2 pl-1 border-l border-slate-200">
+                <span className="text-xs text-slate-500 hidden sm:inline">Rows per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
             </div>
           </div>
+
+          {/* Collapsible Filter Panel */}
+          {isFilterOpen && (
+            <div className="pt-3 border-t border-slate-100 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  <Filter className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Filter Options</span>
+                  {activeFiltersCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 font-sans">
+                      {activeFiltersCount} active
+                    </span>
+                  )}
+                </div>
+                {activeFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Reset All Filters</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/80">
+                {/* Customer Filter */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Customer
+                  </label>
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      setSelectedCustomerId(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  >
+                    <option value="ALL">All Customers</option>
+                    {customerList.map((c: any) => (
+                      <option key={c.id} value={String(c.id)}>
+                        {c.customername} {c.initials ? `(${c.initials})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Date From */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    From Date
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  />
+                </div>
+
+                {/* Date To */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    To Date
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  />
+                </div>
+
+                {/* Tax Type Filter */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Tax Type
+                  </label>
+                  <select
+                    value={taxTypeFilter}
+                    onChange={(e) => {
+                      setTaxTypeFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  >
+                    <option value="ALL">All Tax Types</option>
+                    <option value="gst_18">GST 18%</option>
+                    <option value="exempt">Exempt (0%)</option>
+                    <option value="cgst_sgst">CGST + SGST</option>
+                    <option value="igst">IGST</option>
+                  </select>
+                </div>
+
+                {/* Amount Range Min */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Min Grand Total (₹)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 50000"
+                    value={minAmount}
+                    onChange={(e) => {
+                      setMinAmount(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  />
+                </div>
+
+                {/* Amount Range Max */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Max Grand Total (₹)
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 500000"
+                    value={maxAmount}
+                    onChange={(e) => {
+                      setMaxAmount(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-slate-800"
+                  />
+                </div>
+
+                {/* Date Quick Presets */}
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                    Quick Date Range Presets
+                  </label>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => applyDatePreset("today")}
+                      className="px-2.5 py-1 text-[11px] font-medium bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-700 cursor-pointer"
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyDatePreset("this_month")}
+                      className="px-2.5 py-1 text-[11px] font-medium bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-700 cursor-pointer"
+                    >
+                      This Month
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyDatePreset("last_30_days")}
+                      className="px-2.5 py-1 text-[11px] font-medium bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-700 cursor-pointer"
+                    >
+                      Last 30 Days
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => applyDatePreset("this_year")}
+                      className="px-2.5 py-1 text-[11px] font-medium bg-white border border-slate-200 rounded-md hover:bg-slate-100 text-slate-700 cursor-pointer"
+                    >
+                      This Year
+                    </button>
+                    {(startDate || endDate) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStartDate("");
+                          setEndDate("");
+                          setCurrentPage(1);
+                        }}
+                        className="px-2 py-1 text-[11px] font-semibold text-rose-600 hover:underline cursor-pointer"
+                      >
+                        Clear Dates
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active Filter Chips Row */}
+          {activeFiltersCount > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
+              <span className="text-[11px] font-semibold text-slate-500">Active Filters:</span>
+              {selectedCustomerId !== "ALL" && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  Customer:{" "}
+                  {customerList.find((c: any) => String(c.id) === selectedCustomerId)
+                    ?.customername || selectedCustomerId}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomerId("ALL");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-blue-900 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {(startDate || endDate) && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  Date: {startDate || "Earliest"} → {endDate || "Latest"}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStartDate("");
+                      setEndDate("");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-emerald-900 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {minAmount && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                  Min: ₹{Number(minAmount).toLocaleString("en-IN")}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMinAmount("");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-purple-900 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {maxAmount && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                  Max: ₹{Number(maxAmount).toLocaleString("en-IN")}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMaxAmount("");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-purple-900 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              {taxTypeFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                  Tax: {taxTypeFilter.toUpperCase()}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTaxTypeFilter("ALL");
+                      setCurrentPage(1);
+                    }}
+                    className="hover:text-amber-900 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline cursor-pointer ml-1"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Quotations Table (Desktop) & Responsive Cards (Tablet & Mobile) */}
@@ -434,13 +958,59 @@ function QuotationPageContent() {
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
                     <tr>
                       <th className="py-3 px-3 w-8"></th>
-                      <th className="py-3 px-4">Quotation No</th>
-                      <th className="py-3 px-4">Date</th>
-                      <th className="py-3 px-4">Customer</th>
-                      <th className="py-3 px-4 text-center">Items</th>
-                      <th className="py-3 px-4 text-right">Taxable (₹)</th>
-                      <th className="py-3 px-4 text-right">Grand Total (₹)</th>
-                      <th className="py-3 px-4 text-center">Status</th>
+                      <SortableTh
+                        label="Quotation No"
+                        field="quotation_no"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTh
+                        label="Date"
+                        field="quotation_date"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTh
+                        label="Customer"
+                        field="consignee_name"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTh
+                        label="Items"
+                        field="items"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="center"
+                      />
+                      <SortableTh
+                        label="Taxable (₹)"
+                        field="taxable_amount"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="right"
+                      />
+                      <SortableTh
+                        label="Grand Total (₹)"
+                        field="grand_total"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="right"
+                      />
+                      <SortableTh
+                        label="Status"
+                        field="status"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="center"
+                      />
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -480,18 +1050,64 @@ function QuotationPageContent() {
               <div className="hidden xl:block overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-3 w-8"></th>
-                    <th className="py-3 px-4">Quotation No</th>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4 text-center">Items</th>
-                    <th className="py-3 px-4 text-right">Taxable (₹)</th>
-                    <th className="py-3 px-4 text-right">Grand Total (₹)</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
-                  </tr>
-                </thead>
+                    <tr>
+                      <th className="py-3 px-3 w-8"></th>
+                      <SortableTh
+                        label="Quotation No"
+                        field="quotation_no"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTh
+                        label="Date"
+                        field="quotation_date"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTh
+                        label="Customer"
+                        field="consignee_name"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                      />
+                      <SortableTh
+                        label="Items"
+                        field="items"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="center"
+                      />
+                      <SortableTh
+                        label="Taxable (₹)"
+                        field="taxable_amount"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="right"
+                      />
+                      <SortableTh
+                        label="Grand Total (₹)"
+                        field="grand_total"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="right"
+                      />
+                      <SortableTh
+                        label="Status"
+                        field="status"
+                        currentSortField={sortField}
+                        currentSortDirection={sortDirection}
+                        onSort={handleSort}
+                        align="center"
+                      />
+                      <th className="py-3 px-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
                 <tbody className="divide-y divide-slate-100">
                   {quotations.map((q) => {
                     const isExpanded = expandedRows.has(q.id);
@@ -522,7 +1138,7 @@ function QuotationPageContent() {
                             {q.quotation_no}
                           </td>
                           <td className="py-3 px-4 text-slate-600 whitespace-nowrap">
-                            {q.quotation_date}
+                            {formatDate(q.quotation_date)}
                           </td>
                           <td className="py-3 px-4">
                             <div className="font-semibold text-slate-800">{q.consignee_name}</div>

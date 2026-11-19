@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Quotation } from "@/types/quotation";
 import { QuotationStatusBadge } from "@/components/quotations/quotation-status-badge";
+import { formatDate } from "@/lib/utils";
 
 export interface QuotationCardListProps {
   quotations: Quotation[];
@@ -97,7 +98,7 @@ export function QuotationCardList({
 
               <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>{q.quotation_date}</span>
+                <span>{formatDate(q.quotation_date)}</span>
               </div>
             </div>
 

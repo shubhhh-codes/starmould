@@ -7,6 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "-";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split("-");
+    return `${d}/${m}/${y}`;
+  }
   try {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return dateStr;

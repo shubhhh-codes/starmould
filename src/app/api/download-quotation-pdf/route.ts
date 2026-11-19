@@ -5,15 +5,37 @@ import { resolveDocumentRequest } from "@/lib/document-access";
 import { escapeHtml, formatDate } from "@/lib/utils";
 import { COMPANY_PROFILE as COMPANY } from "@/lib/constants/company";
 import puppeteer from "puppeteer-core";
+import type { Browser, LaunchOptions } from "puppeteer-core";
 import fs from "fs";
 import path from "path";
 import { calculateGST, formatINRTwoDecimals } from "@/lib/gst-calculation";
 import { amountInWords } from "@/lib/number-to-words";
 import type { QuotationItem } from "@/types/quotation";
 
+export const maxDuration = 60;
 
+let vercelLaunchOptions: Promise<LaunchOptions> | undefined;
 
+function getLaunchOptions(): Promise<LaunchOptions> | LaunchOptions {
+  if (process.env.VERCEL !== "1" || process.env.CHROME_EXECUTABLE_PATH) {
+    return {
+      executablePath: findChromePath(),
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
+    };
+  }
 
+  vercelLaunchOptions ??= import("@sparticuz/chromium").then<LaunchOptions>(async ({ default: chromium }) => ({
+    executablePath: await chromium.executablePath(),
+    headless: "shell",
+    args: await puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
+    ignoreDefaultArgs: true,
+  })).catch((error: unknown) => {
+    vercelLaunchOptions = undefined;
+    throw error;
+  });
+  return vercelLaunchOptions;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -1446,14 +1468,10 @@ export async function GET(req: NextRequest) {
     `;
 
     // Launch Headless Chrome via Puppeteer-core with exact A4 dimensions and try-finally cleanup
-    let browser: any = null;
+    let browser: Browser | null = null;
     let pdfBuffer: Uint8Array | null = null;
     try {
-      browser = await puppeteer.launch({
-        executablePath: findChromePath(),
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
-      });
+      browser = await puppeteer.launch(await getLaunchOptions());
 
       const page = await browser.newPage();
       await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });
@@ -1488,7 +1506,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Quotation PDF Generation Error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("Quotation PDF generation failed", err);
+    return NextResponse.json({ error: "Unable to generate quotation PDF" }, { status: 500 });
   }
 }

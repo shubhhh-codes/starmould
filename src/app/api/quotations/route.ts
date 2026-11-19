@@ -55,6 +55,14 @@ export async function GET(req: NextRequest) {
     const requestedLimit = Number(searchParams.get("limit") || searchParams.get("pageSize") || "50");
     const search = searchParams.get("search")?.trim();
     const status = searchParams.get("status")?.trim();
+    const customerId = searchParams.get("customerId") || searchParams.get("customer_id");
+    const startDate = searchParams.get("startDate") || searchParams.get("from");
+    const endDate = searchParams.get("endDate") || searchParams.get("to");
+    const minAmount = searchParams.get("minAmount");
+    const maxAmount = searchParams.get("maxAmount");
+    const taxType = searchParams.get("taxType");
+    const sortBy = searchParams.get("sortBy") || "id";
+    const sortOrder = (searchParams.get("sortOrder") || "desc").toLowerCase();
     const id = searchParams.get("id");
 
     // Single quotation fetch
@@ -98,14 +106,55 @@ export async function GET(req: NextRequest) {
     if (!Number.isSafeInteger(page * limit)) {
       return NextResponse.json({ error: "Page is too large" }, { status: 400 });
     }
+    const ALLOWED_SORT_FIELDS: Record<string, string> = {
+      id: "id",
+      quotation_no: "quotation_no",
+      quotation_date: "quotation_date",
+      date: "quotation_date",
+      consignee_name: "consignee_name",
+      customer: "consignee_name",
+      taxable_amount: "taxable_amount",
+      grand_total: "grand_total",
+      status: "status",
+    };
+    const orderColumn = ALLOWED_SORT_FIELDS[sortBy] || "id";
+    const ascending = sortOrder === "asc";
+
     let query = supabaseAdmin
       .from("quotations")
       .select("*", { count: "exact" })
       .is("deleted_at", null)
-      .order("id", { ascending: false });
+      .order(orderColumn, { ascending, nullsFirst: false });
 
     if (status && status !== "ALL" && status !== "All") {
       query = query.eq("status", status);
+    }
+
+    if (customerId && customerId !== "ALL") {
+      const parsedCustId = Number(customerId);
+      if (!isNaN(parsedCustId)) {
+        query = query.eq("customer_id", parsedCustId);
+      }
+    }
+
+    if (startDate) {
+      query = query.gte("quotation_date", startDate);
+    }
+
+    if (endDate) {
+      query = query.lte("quotation_date", endDate);
+    }
+
+    if (minAmount && !isNaN(Number(minAmount))) {
+      query = query.gte("grand_total", Number(minAmount));
+    }
+
+    if (maxAmount && !isNaN(Number(maxAmount))) {
+      query = query.lte("grand_total", Number(maxAmount));
+    }
+
+    if (taxType && taxType !== "ALL") {
+      query = query.eq("tax_type", taxType);
     }
 
     if (search) {

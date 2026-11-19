@@ -46,6 +46,31 @@ export async function buildQuotationsDataset(
     query = query.eq("status", filters.status);
   }
 
+  if (filters.customerId && filters.customerId !== "ALL") {
+    const custId = Number(filters.customerId);
+    if (!isNaN(custId)) query = query.eq("customer_id", custId);
+  }
+
+  if (filters.startDate) {
+    query = query.gte("quotation_date", filters.startDate);
+  }
+
+  if (filters.endDate) {
+    query = query.lte("quotation_date", filters.endDate);
+  }
+
+  if (filters.minAmount && !isNaN(Number(filters.minAmount))) {
+    query = query.gte("grand_total", Number(filters.minAmount));
+  }
+
+  if (filters.maxAmount && !isNaN(Number(filters.maxAmount))) {
+    query = query.lte("grand_total", Number(filters.maxAmount));
+  }
+
+  if (filters.taxType && filters.taxType !== "ALL") {
+    query = query.eq("tax_type", filters.taxType);
+  }
+
   if (scope === "selected" && Array.isArray(selectedIds) && selectedIds.length > 0) {
     query = query.in("id", selectedIds);
   }

@@ -20,6 +20,12 @@ function getLocalIPs(): string[] {
 const nextConfig: NextConfig = {
   compress: true,
   outputFileTracingIncludes: {
+    '/api/download-quotation-pdf': [
+      './node_modules/@sparticuz/chromium/bin/*.br',
+      './public/images/quotation-cover.jpg',
+      './public/images/stpl-logo.png',
+      './public/images/starmould-stamp.*',
+    ],
     '/api/backup': ['scripts/backup/native/**/*'],
     '/api/backup/generate': ['scripts/backup/native/**/*'],
     '/api/backup/cron': ['scripts/backup/native/**/*'],
