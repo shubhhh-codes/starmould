@@ -25,7 +25,8 @@ function getLaunchOptions(): Promise<LaunchOptions> | LaunchOptions {
     };
   }
 
-  vercelLaunchOptions ??= import("@sparticuz/chromium").then<LaunchOptions>(async ({ default: chromium }) => ({
+  const chromiumModule = "@sparticuz/chromium";
+  vercelLaunchOptions ??= import(/* webpackIgnore: true */ chromiumModule).then<LaunchOptions>(async ({ default: chromium }: any) => ({
     executablePath: await chromium.executablePath(),
     headless: "shell",
     args: await puppeteer.defaultArgs({ args: chromium.args, headless: "shell" }),
