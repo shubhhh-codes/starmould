@@ -147,7 +147,13 @@ export function SubplateMouldGroup({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const targetId = group.project?.id ? String(group.project.id) : (group.id !== "unassigned" ? group.id.replace("proj_", "") : "");
+                  const targetId = group.project?.id
+                    ? String(group.project.id)
+                    : group.plates[0]?.mold_id
+                      ? String(group.plates[0].mold_id)
+                      : group.plates[0]?.projectid
+                        ? String(group.plates[0].projectid)
+                        : (group.mouldCode && group.mouldCode !== "Unassigned Mould" ? group.mouldCode : (group.id !== "unassigned" ? group.id.replace("proj_", "") : ""));
                   handleOpenAddModal(targetId);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-semibold shadow-xs transition cursor-pointer shrink-0"
@@ -258,7 +264,13 @@ export function SubplateMouldGroup({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const targetId = group.project?.id ? String(group.project.id) : (group.id !== "unassigned" ? group.id.replace("proj_", "") : "");
+                  const targetId = group.project?.id
+                    ? String(group.project.id)
+                    : group.plates[0]?.mold_id
+                      ? String(group.plates[0].mold_id)
+                      : group.plates[0]?.projectid
+                        ? String(group.plates[0].projectid)
+                        : (group.mouldCode && group.mouldCode !== "Unassigned Mould" ? group.mouldCode : (group.id !== "unassigned" ? group.id.replace("proj_", "") : ""));
                   handleOpenAddModal(targetId);
                 }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs shadow-blue-600/30 transition-all cursor-pointer"

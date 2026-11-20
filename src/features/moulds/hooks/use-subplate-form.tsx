@@ -7,6 +7,7 @@ import {
   isSubplateFormValid,
   createSubplatePayload,
 } from "../model/subplate-form";
+import type { BatchSubplateItem } from "../model/types";
 import { principalFetch as fetch } from "@/lib/query/principal-fetch";
 import React, { useState, useMemo } from "react";
 import { type ERPSelectOption } from "@/components/ui/erp-select";
@@ -48,10 +49,27 @@ export function useSubplateForm({
   const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
   const [isSubmittingPlate, setIsSubmittingPlate] = useState(false);
   const [plateForm, setPlateForm] = useState(createEmptySubplateForm());
+  const [batchPlates, setBatchPlates] = useState<BatchSubplateItem[]>([]);
 
   const handleOpenAddPlate = (project: ScanProject) => {
     setEditingSubplate(null);
     setAddPlateProject(project);
+    const count = (project.total_plates || 0) + 1;
+    const initialItem: BatchSubplateItem = {
+      id: `sp-${Date.now()}-1`,
+      platename: `Plate ${count}`,
+      subprojectid: project.projectid ? `${project.projectid}_${String(count).padStart(3, "0")}` : "",
+      material: "MS-Bright",
+      shape: "Plate",
+      length: "",
+      width: "",
+      height: "",
+      weight: "",
+      unit: "mm",
+      sqty: "1",
+      location: "SM",
+    };
+    setBatchPlates([initialItem]);
     setPlateForm(createNewSubplateForm(project));
   };
 
@@ -60,6 +78,77 @@ export function useSubplateForm({
     setEditingSubplate(subplate);
     setAddPlateProject(proj);
     setPlateForm(createEditingSubplateForm(subplate));
+  };
+
+  const addBatchPlate = () => {
+    if (!addPlateProject) return;
+    const nextNum = (addPlateProject.total_plates || 0) + batchPlates.length + 1;
+    const newItem: BatchSubplateItem = {
+      id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platename: `Plate ${nextNum}`,
+      subprojectid: addPlateProject.projectid ? `${addPlateProject.projectid}_${String(nextNum).padStart(3, "0")}` : "",
+      material: "MS-Bright",
+      shape: "Plate",
+      length: "",
+      width: "",
+      height: "",
+      weight: "",
+      unit: "mm",
+      sqty: "1",
+      location: "SM",
+    };
+    setBatchPlates((prev) => [...prev, newItem]);
+  };
+
+  const removeBatchPlate = (id: string) => {
+    if (batchPlates.length <= 1) return;
+    setBatchPlates((prev) => {
+      const filtered = prev.filter((p) => p.id !== id);
+      if (!addPlateProject) return filtered;
+      const baseCount = (addPlateProject.total_plates || 0);
+      return filtered.map((p, idx) => ({
+        ...p,
+        subprojectid: addPlateProject.projectid ? `${addPlateProject.projectid}_${String(baseCount + idx + 1).padStart(3, "0")}` : p.subprojectid,
+      }));
+    });
+  };
+
+  const duplicateBatchPlate = (id: string) => {
+    const target = batchPlates.find((p) => p.id === id);
+    if (!target || !addPlateProject) return;
+    const nextNum = (addPlateProject.total_plates || 0) + batchPlates.length + 1;
+    const duplicated: BatchSubplateItem = {
+      ...target,
+      id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platename: `${target.platename} (Copy)`,
+      subprojectid: addPlateProject.projectid ? `${addPlateProject.projectid}_${String(nextNum).padStart(3, "0")}` : "",
+    };
+    setBatchPlates((prev) => [...prev, duplicated]);
+  };
+
+  const updateBatchPlate = (id: string, field: keyof BatchSubplateItem, value: string) => {
+    setBatchPlates((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const updated = { ...p, [field]: value };
+        if (field === "shape" && isHeightDisabled(value)) {
+          updated.height = "";
+        }
+        if (["shape", "material", "length", "width", "height", "unit", "sqty"].includes(field)) {
+          const wt = calculateSubplateWeight({
+            shape: updated.shape,
+            material: updated.material,
+            length: updated.length,
+            width: updated.width,
+            height: updated.height,
+            unit: updated.unit,
+            quantity: updated.sqty,
+          });
+          updated.weight = wt > 0 ? wt.toFixed(3) : "";
+        }
+        return updated;
+      })
+    );
   };
 
   // Dynamic dimension labels and shape constraints for Add Plate modal
@@ -72,7 +161,25 @@ export function useSubplateForm({
     [plateForm.shape]
   );
 
-  const isPlateFormValid = useMemo(() => isSubplateFormValid({ platename: plateForm.platename, sqty: plateForm.sqty, length: plateForm.length, width: plateForm.width, height: plateForm.height }, plateHeightDisabled), [plateForm.platename, plateForm.length, plateForm.width, plateForm.height, plateForm.sqty, plateHeightDisabled]);
+  const isPlateFormValid = useMemo(() => {
+    if (editingSubplate) {
+      return isSubplateFormValid(
+        { platename: plateForm.platename, sqty: plateForm.sqty, length: plateForm.length, width: plateForm.width, height: plateForm.height },
+        plateHeightDisabled
+      );
+    }
+    if (!batchPlates.length) return false;
+    return batchPlates.every((p) => {
+      if (!p.platename?.trim()) return false;
+      const q = parseInt(p.sqty || "0", 10);
+      if (isNaN(q) || q < 1) return false;
+      const hDisabled = isHeightDisabled(p.shape);
+      if (p.length && (isNaN(parseFloat(p.length)) || parseFloat(p.length) < 0)) return false;
+      if (p.width && (isNaN(parseFloat(p.width)) || parseFloat(p.width) < 0)) return false;
+      if (!hDisabled && p.height && (isNaN(parseFloat(p.height)) || parseFloat(p.height) < 0)) return false;
+      return true;
+    });
+  }, [editingSubplate, plateForm, plateHeightDisabled, batchPlates]);
 
   // Dynamic auto-calculation of subplate weight based on geometry, density, unit and quantity
   const recalculatePlateWeight = (form: typeof plateForm) => {
@@ -89,21 +196,6 @@ export function useSubplateForm({
   };
 
   // Strict numeric validation and keyboard filters for Add Plate modal
-  const handleStepPlateQty = (delta: number) => {
-    const current = parseInt(plateForm.sqty || '1', 10) || 1;
-    const next = Math.max(1, current + delta);
-    const updated = { ...plateForm, sqty: String(next) };
-    updated.weight = recalculatePlateWeight(updated);
-    setPlateForm(updated);
-  };
-
-  const handlePlateQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const clean = e.target.value.replace(/[^0-9]/g, "");
-    const updated = { ...plateForm, sqty: clean };
-    updated.weight = recalculatePlateWeight(updated);
-    setPlateForm(updated);
-  };
-
   const handleNumericPlateDimension = (field: "length" | "width" | "height", rawVal: string) => {
     let clean = rawVal.replace(/[^0-9.]/g, "");
     const parts = clean.split(".");
@@ -115,12 +207,6 @@ export function useSubplateForm({
 
   const blockInvalidNumberKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (["e", "E", "+", "-"].includes(e.key)) {
-      e.preventDefault();
-    }
-  };
-
-  const blockInvalidIntegerKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (["e", "E", "+", "-", "."].includes(e.key)) {
       e.preventDefault();
     }
   };
@@ -137,90 +223,152 @@ export function useSubplateForm({
 
   const handleSubmitPlate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!addPlateProject || !plateForm.platename?.trim()) {
-      appStore.addToast({
-        type: "warning",
-        message: "Please enter a valid plate name.",
-      });
-      return;
-    }
+    if (!addPlateProject) return;
 
-    if (!isPlateFormValid) {
-      appStore.addToast({
-        type: "warning",
-        message: "Please enter valid, positive dimensions.",
-      });
-      return;
-    }
-
-    try {
-      setIsSubmittingPlate(true);
-      const isEditing = Boolean(editingSubplate);
-      const url = "/api/subplate";
-      const method = isEditing ? "PUT" : "POST";
-      const payload = createSubplatePayload(plateForm, editingSubplate, addPlateProject, plateHeightDisabled, isEditing);
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || `Failed to ${isEditing ? "update" : "create"} subplate`);
+    if (editingSubplate) {
+      if (!plateForm.platename?.trim()) {
+        appStore.addToast({
+          type: "warning",
+          message: "Please enter a valid plate name.",
+        });
+        return;
       }
 
-      const resData = await res.json();
-      const plateResult = resData.subplate || resData.data;
+      if (!isPlateFormValid) {
+        appStore.addToast({
+          type: "warning",
+          message: "Please enter valid, positive dimensions.",
+        });
+        return;
+      }
 
-      // If view modal is open for this same project, refresh its subplates
-      if (viewProject && addPlateProject && viewProject.id === addPlateProject.id) {
-        if (isEditing && plateResult) {
-          setViewSubplates((prev) =>
-            prev.map((p) => (p.id === editingSubplate!.id ? { ...p, ...plateResult } : p))
-          );
-        } else {
-          await fetchSubplatesForProject(viewProject);
+      try {
+        setIsSubmittingPlate(true);
+        const url = "/api/subplate";
+        const payload = createSubplatePayload(plateForm, editingSubplate, addPlateProject, plateHeightDisabled, true);
+
+        const res = await fetch(url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to update subplate");
         }
-      }
 
-      // Invalidate queries so TanStack Query updates all active subplate tables/accordions & purchase orders
-      queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
-      broadcastQueryInvalidation(queryKeys.subplates.all());
-      broadcastQueryInvalidation(queryKeys.projects.all());
-      broadcastQueryInvalidation(queryKeys.purchases.all());
-      broadcastQueryInvalidation(queryKeys.dashboard.counts());
+        const resData = await res.json();
+        const plateResult = resData.subplate || resData.data;
 
-      appStore.addToast({
-        type: "success",
-        message: isEditing ? "Subplate updated successfully" : "Subplate added successfully",
-      });
+        if (viewProject && addPlateProject && viewProject.id === addPlateProject.id) {
+          if (plateResult) {
+            setViewSubplates((prev) =>
+              prev.map((p) => (p.id === editingSubplate.id ? { ...p, ...plateResult } : p))
+            );
+          } else {
+            await fetchSubplatesForProject(viewProject);
+          }
+        }
 
-      setEditingSubplate(null);
-      setAddPlateProject(null);
-      onRefresh?.();
-    } catch (err: any) {
-      const errMsg = err?.message || "Error saving subplate";
-      if (errMsg.toLowerCase().includes("permission") || errMsg.toLowerCase().includes("access denied")) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+        broadcastQueryInvalidation(queryKeys.subplates.all());
+        broadcastQueryInvalidation(queryKeys.projects.all());
+        broadcastQueryInvalidation(queryKeys.purchases.all());
+        broadcastQueryInvalidation(queryKeys.dashboard.counts());
+
+        appStore.addToast({
+          type: "success",
+          message: "Subplate updated successfully",
+        });
+
         setEditingSubplate(null);
         setAddPlateProject(null);
-        appStore.addToast({
-          type: "error",
-          message: "Access Denied: Your permission was revoked by administrator.",
-          duration: 5000,
-        });
-      } else {
+        onRefresh?.();
+      } catch (err: any) {
+        const errMsg = err?.message || "Error saving subplate";
         appStore.addToast({
           type: "error",
           message: "Error saving subplate: " + errMsg,
         });
+      } finally {
+        setIsSubmittingPlate(false);
       }
-    } finally {
-      setIsSubmittingPlate(false);
+    } else {
+      // Batch Add Subplates
+      if (!batchPlates.length || !isPlateFormValid) {
+        appStore.addToast({
+          type: "warning",
+          message: "Please ensure all subplates have valid names and positive dimensions.",
+        });
+        return;
+      }
+
+      try {
+        setIsSubmittingPlate(true);
+        const url = "/api/subplate";
+        const payload = {
+          projectid: addPlateProject.id,
+          subplates: batchPlates.map((p) => ({
+            platename: p.platename.trim(),
+            subprojectid: p.subprojectid?.trim() || undefined,
+            shape: p.shape,
+            material: p.material,
+            length: p.length ? Number(p.length) : null,
+            width: p.width ? Number(p.width) : null,
+            height: isHeightDisabled(p.shape) || !p.height ? null : Number(p.height),
+            weight: Number(p.weight || "0") || null,
+            unit: p.unit || "mm",
+            sqty: Math.max(1, parseInt(p.sqty || "1", 10) || 1),
+            location: p.location || "SM",
+          })),
+        };
+
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to create subplates");
+        }
+
+        if (viewProject && addPlateProject && viewProject.id === addPlateProject.id) {
+          await fetchSubplatesForProject(viewProject);
+        }
+
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.purchases.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
+        broadcastQueryInvalidation(queryKeys.subplates.all());
+        broadcastQueryInvalidation(queryKeys.projects.all());
+        broadcastQueryInvalidation(queryKeys.purchases.all());
+        broadcastQueryInvalidation(queryKeys.dashboard.counts());
+
+        const count = batchPlates.length;
+        appStore.addToast({
+          type: "success",
+          message: count > 1 ? `${count} subplates added successfully!` : "Subplate added successfully!",
+        });
+
+        setEditingSubplate(null);
+        setAddPlateProject(null);
+        onRefresh?.();
+      } catch (err: any) {
+        const errMsg = err?.message || "Error adding subplates";
+        appStore.addToast({
+          type: "error",
+          message: "Error adding subplates: " + errMsg,
+        });
+      } finally {
+        setIsSubmittingPlate(false);
+      }
     }
   };
 
@@ -233,6 +381,7 @@ export function useSubplateForm({
   }));
 
   const modalPlateUnitOptions: ERPSelectOption[] = SUPPORTED_UNITS.map((u) => ({ value: u, label: u }));
+
   return {
     addPlateProject,
     setAddPlateProject,
@@ -243,6 +392,12 @@ export function useSubplateForm({
     handleSubmitPlate,
     plateForm,
     setPlateForm,
+    batchPlates,
+    setBatchPlates,
+    addBatchPlate,
+    removeBatchPlate,
+    duplicateBatchPlate,
+    updateBatchPlate,
     handleDimensionChange,
     modalPlateShapeOptions,
     modalPlateMaterialOptions,

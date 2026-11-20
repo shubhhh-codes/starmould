@@ -49,3 +49,18 @@ export interface SubplateFormState {
   sqty: string;
   location: string;
 }
+
+export interface BatchSubplateItem {
+  id: string;
+  platename: string;
+  subprojectid: string;
+  material: string;
+  shape: string;
+  length: string;
+  width: string;
+  height: string;
+  weight: string;
+  unit: string;
+  sqty: string;
+  location: string;
+}

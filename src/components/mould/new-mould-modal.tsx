@@ -32,6 +32,21 @@ import {
 import type { Customer } from "@/lib/supabase/types";
 import { GhostDescriptionInput } from "@/components/mould/ghost-description-input";
 import { learnMouldDescription } from "@/lib/mould-autocomplete";
+import { Scale, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { ERPSelect, type ERPSelectOption } from "@/components/ui/erp-select";
+import { RollingCounter } from "@/components/ui/rolling-counter";
+import {
+  calculateSubplateWeight,
+  isHeightDisabled,
+  getDimensionLabels,
+  SUPPORTED_UNITS,
+  SUPPORTED_SHAPES,
+  MATERIAL_DENSITIES,
+} from "@/lib/weight-calculator";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/lib/query/keys";
+import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 
 export type WorkType =
   | "Pulp Mould"
@@ -131,6 +146,8 @@ export function NewMouldModal({
     return d.toISOString().split("T")[0];
   };
 
+  const queryClient = useQueryClient();
+
   const [form, setForm] = useState({
     cname: "",
     worktype: "Pulp Mould" as WorkType,
@@ -139,6 +156,89 @@ export function NewMouldModal({
     description: "",
     note: "",
   });
+
+  interface InitialSubplate {
+    id: string;
+    platename: string;
+    shape: string;
+    material: string;
+    length: string;
+    width: string;
+    height: string;
+    weight: string;
+    unit: string;
+    sqty: string;
+  }
+
+  const [subplates, setSubplates] = useState<InitialSubplate[]>([]);
+  const [showSubplatesSection, setShowSubplatesSection] = useState(false);
+
+  const addInitialSubplate = () => {
+    const nextIdx = subplates.length + 1;
+    const newItem: InitialSubplate = {
+      id: `new-sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platename: `Plate ${nextIdx}`,
+      shape: "Plate",
+      material: "MS-Bright",
+      length: "",
+      width: "",
+      height: "",
+      weight: "",
+      unit: "mm",
+      sqty: "1",
+    };
+    setSubplates((prev) => [...prev, newItem]);
+    setShowSubplatesSection(true);
+  };
+
+  const removeInitialSubplate = (id: string) => {
+    setSubplates((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const duplicateInitialSubplate = (id: string) => {
+    const target = subplates.find((p) => p.id === id);
+    if (!target) return;
+    const nextIdx = subplates.length + 1;
+    const duplicated: InitialSubplate = {
+      ...target,
+      id: `new-sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platename: `Plate ${nextIdx}`,
+    };
+    setSubplates((prev) => [...prev, duplicated]);
+  };
+
+  const updateInitialSubplate = (id: string, field: keyof InitialSubplate, value: string) => {
+    setSubplates((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const updated = { ...p, [field]: value };
+        if (field === "shape" && isHeightDisabled(value)) {
+          updated.height = "";
+        }
+        if (["shape", "material", "length", "width", "height", "unit", "sqty"].includes(field)) {
+          const wt = calculateSubplateWeight({
+            shape: updated.shape,
+            material: updated.material,
+            length: updated.length,
+            width: updated.width,
+            height: updated.height,
+            unit: updated.unit,
+            quantity: updated.sqty,
+          });
+          updated.weight = wt > 0 ? wt.toFixed(3) : "";
+        }
+        return updated;
+      })
+    );
+  };
+
+  const shapeOptions: ERPSelectOption[] = SUPPORTED_SHAPES.map((s) => ({ value: s, label: s }));
+  const materialOptions: ERPSelectOption[] = Object.keys(MATERIAL_DENSITIES).map((m) => ({
+    value: m,
+    label: m,
+    subtitle: `${MATERIAL_DENSITIES[m] || 7.81} g/cm³`,
+  }));
+  const unitOptions: ERPSelectOption[] = SUPPORTED_UNITS.map((u) => ({ value: u, label: u }));
 
   const selectedCustomer = useMemo(() => {
     if (!form.cname) return null;
@@ -257,6 +357,8 @@ export function NewMouldModal({
         description: "",
         note: "",
       });
+      setSubplates([]);
+      setShowSubplatesSection(false);
       setErrorMessage(null);
       setCopied(false);
 
@@ -309,6 +411,43 @@ export function NewMouldModal({
         });
       }
 
+      // If user configured any subplates, batch-create them now
+      const validSubplates = subplates.filter((sp) => sp.platename.trim());
+      if (created?.id && validSubplates.length > 0) {
+        try {
+          const baseCode = created.projectid || `PRJ${created.id}`;
+          await fetch("/api/subplate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              projectid: created.id,
+              subplates: validSubplates.map((sp, idx) => ({
+                platename: sp.platename.trim(),
+                subprojectid: `${baseCode}_${String(idx + 1).padStart(3, "0")}`,
+                shape: sp.shape,
+                material: sp.material,
+                length: sp.length ? Number(sp.length) : null,
+                width: sp.width ? Number(sp.width) : null,
+                height: isHeightDisabled(sp.shape) || !sp.height ? null : Number(sp.height),
+                weight: Number(sp.weight || "0") || null,
+                unit: sp.unit || "mm",
+                sqty: Math.max(1, parseInt(sp.sqty || "1", 10) || 1),
+                location: "SM",
+              })),
+            }),
+          });
+          queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+          broadcastQueryInvalidation(queryKeys.subplates.all());
+          appStore.addToast({
+            type: "success",
+            message: `Attached ${validSubplates.length} subplates to ${assignedCode || "mould"}`,
+            duration: 4000,
+          });
+        } catch (subErr) {
+          console.error("Failed to attach initial subplates", subErr);
+        }
+      }
+
       if (onSuccess) {
         onSuccess(created);
       }
@@ -338,7 +477,7 @@ export function NewMouldModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      maxWidth="xl"
+      maxWidth={subplates.length > 0 ? "2xl" : "xl"}
       title={
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-50 text-blue-600 rounded-xl border border-blue-100 shrink-0">
@@ -586,6 +725,353 @@ export function NewMouldModal({
             }}
             className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all placeholder:text-slate-400 resize-none text-slate-800"
           />
+        </div>
+
+        {/* Subplates / Workpieces Section (Optional) */}
+        <div className="rounded-2xl border border-slate-200/90 bg-slate-50/60 overflow-hidden transition-all">
+          <div className="p-3 sm:p-3.5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-50 border border-blue-200/60 text-blue-600 flex items-center justify-center shrink-0">
+                <Layers className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span>Initial Subplates / Workpieces</span>
+                  <span className="text-[10px] text-slate-400 font-normal">(Optional)</span>
+                </span>
+                <p className="text-[10px] text-slate-500">
+                  {subplates.length > 0
+                    ? `${subplates.length} ${subplates.length === 1 ? "plate" : "plates"} configured for this mould`
+                    : "Add plates now or configure later"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {subplates.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowSubplatesSection((prev) => !prev)}
+                  className="px-2.5 py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg flex items-center gap-1 transition-all"
+                >
+                  <span>{showSubplatesSection ? "Hide Plates" : `Show Plates (${subplates.length})`}</span>
+                  {showSubplatesSection ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={addInitialSubplate}
+                  className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50/80 hover:bg-blue-100/80 border border-blue-200 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Subplate</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {showSubplatesSection && subplates.length > 0 && (
+            <div className="p-3 sm:p-3.5 pt-0 space-y-3 border-t border-slate-200/60 bg-white/50">
+              <div className="max-h-[300px] overflow-y-auto space-y-2.5 pr-1 mt-2.5">
+                {subplates.map((plate, index) => {
+                  const shape = plate.shape || "Plate";
+                  const unit = plate.unit || "mm";
+                  const dimLabels = getDimensionLabels(shape, unit);
+                  const hDisabled = isHeightDisabled(shape);
+                  const previewPrefix = nextIdQuery.data?.previewCode || "PRJ";
+                  const itemCode = `${previewPrefix}_${String(index + 1).padStart(3, "0")}`;
+
+                  return (
+                    <div
+                      key={plate.id}
+                      className="p-3 rounded-xl bg-white border border-slate-200/80 shadow-2xs space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-md bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center">
+                            {index + 1}
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200/60">
+                            {itemCode}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => duplicateInitialSubplate(plate.id)}
+                            title="Duplicate"
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeInitialSubplate(plate.id)}
+                            title="Remove"
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded transition-colors"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+                        <div className="sm:col-span-4">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                            Plate Name *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Cavity Plate"
+                            value={plate.platename}
+                            onChange={(e) =>
+                              updateInitialSubplate(plate.id, "platename", e.target.value)
+                            }
+                            className="w-full h-8 px-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                            Shape
+                          </label>
+                          <ERPSelect
+                            value={plate.shape}
+                            onChange={(val) => updateInitialSubplate(plate.id, "shape", String(val))}
+                            options={shapeOptions}
+                            showSearch={false}
+                            placeholder="Shape"
+                          />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                            Material
+                          </label>
+                          <ERPSelect
+                            value={plate.material}
+                            onChange={(val) => updateInitialSubplate(plate.id, "material", String(val))}
+                            options={materialOptions}
+                            showSearch={false}
+                            placeholder="Material"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                            Qty
+                          </label>
+                          <RollingCounter
+                            size="sm"
+                            variant="input"
+                            min={1}
+                            max={9999}
+                            value={Math.max(1, parseInt(plate.sqty || "1", 10) || 1)}
+                            onChange={(val) => {
+                              updateInitialSubplate(plate.id, "sqty", String(Math.max(1, val)));
+                            }}
+                            fullWidth
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dimensions Row */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {dimLabels.isRound ? (
+                          <>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.widthPlaceholder}
+                                value={plate.width}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "width", clean);
+                                }}
+                                className="w-full h-8 pl-2.5 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                OD
+                              </span>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.length}
+                                value={plate.length}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "length", clean);
+                                }}
+                                className="w-full h-8 pl-2.5 pr-6 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                L
+                              </span>
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                disabled
+                                placeholder="—"
+                                value=""
+                                className="w-full h-8 pl-2.5 pr-6 rounded-lg text-xs font-mono font-bold bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+                              />
+                            </div>
+                          </>
+                        ) : dimLabels.isPipe ? (
+                          <>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.widthPlaceholder}
+                                value={plate.width}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "width", clean);
+                                }}
+                                className="w-full h-8 pl-2.5 pr-7 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                OD
+                              </span>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.heightPlaceholder}
+                                value={plate.height}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "height", clean);
+                                }}
+                                className="w-full h-8 pl-2.5 pr-6 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                T
+                              </span>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.length}
+                                value={plate.length}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "length", clean);
+                                }}
+                                className="w-full h-8 pl-2.5 pr-6 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                L
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.length}
+                                value={plate.length}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "length", clean);
+                                }}
+                                className="w-full h-8 pl-2.5 pr-6 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                L
+                              </span>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.widthPlaceholder}
+                                value={plate.width}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "width", clean);
+                                }}
+                                className="w-full h-8 pl-2.5 pr-6 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                W
+                              </span>
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder={dimLabels.heightPlaceholder}
+                                value={plate.height}
+                                disabled={hDisabled}
+                                onChange={(e) => {
+                                  const clean = e.target.value.replace(/[^0-9.]/g, "");
+                                  updateInitialSubplate(plate.id, "height", clean);
+                                }}
+                                className={"w-full h-8 pl-2.5 pr-6 rounded-lg text-xs font-mono font-bold " + (
+                                  hDisabled
+                                    ? "bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed"
+                                    : "bg-slate-50 border border-slate-200 text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                )}
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-bold text-slate-400 pointer-events-none uppercase">
+                                {hDisabled ? "—" : "H"}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                        <div>
+                          <ERPSelect
+                            value={plate.unit || "mm"}
+                            onChange={(val) => updateInitialSubplate(plate.id, "unit", String(val))}
+                            options={unitOptions}
+                            showSearch={false}
+                            placeholder="Unit"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Compact Theoretical Weight */}
+                      <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200/70 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <Scale className="w-3 h-3 text-blue-600 shrink-0" />
+                          <span className="text-[10px] font-bold text-slate-600 uppercase">Weight:</span>
+                          <span className="font-mono font-bold text-slate-900 text-xs">
+                            {plate.weight ? `${plate.weight} kg` : "0.000 kg"}
+                          </span>
+                        </div>
+                        {Number(plate.sqty) > 1 && Boolean(plate.weight) && (
+                          <span className="text-[10px] font-mono text-slate-500">
+                            {(Number(plate.weight) / Number(plate.sqty)).toFixed(3)} kg/pc ({plate.sqty} pcs)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={addInitialSubplate}
+                className="w-full py-2 rounded-xl border border-dashed border-blue-300 hover:border-blue-500 bg-blue-50/40 hover:bg-blue-50 text-blue-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Another Subplate</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 6. Footer Action Bar (Responsive) */}

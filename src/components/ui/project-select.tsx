@@ -62,7 +62,7 @@ export function ProjectSelect({
     if (!value) return null;
     return (
       projects.find(
-        (p) => String(p.id) === value || (p.projectid && p.projectid === value)
+        (p) => String(p.id) === value || (p.projectid && (p.projectid === value || p.projectid.toLowerCase() === value.toLowerCase()))
       ) || null
     );
   }, [projects, value]);
@@ -266,15 +266,7 @@ export function ProjectSelect({
                 inputRef.current?.select();
               }}
               onFocus={() => {
-                setIsOpen(true);
-                setIsTyping(false);
-                setQuery("");
-                const selIdx = filteredProjects.findIndex(
-                  (p) => String(p.id) === value || p.projectid === value
-                );
-                setActiveIndex(selIdx >= 0 ? selIdx : 0);
-                inputRef.current?.select();
-                if (onOpen) onOpen();
+                // Never auto-open dropdown simply on focus (e.g. dialog mount)
               }}
               onBlur={(e) => {
                 if (containerRef.current && containerRef.current.contains(e.relatedTarget as Node)) {

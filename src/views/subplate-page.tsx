@@ -121,6 +121,11 @@ function SubplatePageContent() {
     modalUnitOptions,
     isSubmitting,
     isModalFormValid,
+    batchPlates,
+    addBatchPlate,
+    removeBatchPlate,
+    duplicateBatchPlate,
+    updateBatchPlate,
     contextMenu,
     setContextMenu,
     getTargetStageForUser,
@@ -412,6 +417,11 @@ function SubplatePageContent() {
           modalUnitOptions={modalUnitOptions}
           isSubmitting={isSubmitting}
           isModalFormValid={isModalFormValid}
+          batchPlates={batchPlates}
+          addBatchPlate={addBatchPlate}
+          removeBatchPlate={removeBatchPlate}
+          duplicateBatchPlate={duplicateBatchPlate}
+          updateBatchPlate={updateBatchPlate}
         />
 
         {/* Right-Click Floating Context Menu on Subplate */}

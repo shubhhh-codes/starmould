@@ -594,6 +594,144 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
+    // Support batch subplate insertion
+    const rawSubplates = Array.isArray(body)
+      ? body
+      : Array.isArray(body?.subplates)
+        ? body.subplates
+        : null;
+
+    if (rawSubplates && rawSubplates.length > 0) {
+      const numProjectId = Number(body?.projectid || rawSubplates[0]?.projectid);
+      if (!numProjectId || isNaN(numProjectId) || numProjectId <= 0) {
+        return NextResponse.json(
+          { error: "A valid positive Mould Project ID is required." },
+          { status: 400 }
+        );
+      }
+
+      const { data: scanProject, error: scanErr } = await supabaseAdmin
+        .from("scan")
+        .select("id, projectid")
+        .eq("id", numProjectId)
+        .maybeSingle();
+
+      if (scanErr || !scanProject) {
+        return NextResponse.json(
+          { error: `Associated Mould Project #${numProjectId} does not exist.` },
+          { status: 400 }
+        );
+      }
+
+      // Fetch count of existing active subplates to auto-increment subproject code
+      const { count: existingCount } = await supabaseAdmin
+        .from("subplate")
+        .select("id", { count: "exact", head: true })
+        .eq("projectid", numProjectId)
+        .is("deleted_at", null);
+
+      let nextIndex = (existingCount || 0) + 1;
+      const baseCode = scanProject.projectid || `PRJ${numProjectId}`;
+      const now = new Date().toISOString();
+
+      const rowsToInsert = [];
+
+      for (let i = 0; i < rawSubplates.length; i++) {
+        const item = rawSubplates[i];
+        const cleanName = typeof item.platename === "string" ? item.platename.trim() : "";
+        if (!cleanName) {
+          return NextResponse.json(
+            { error: `Subplate #${i + 1} must have a valid plate name.` },
+            { status: 400 }
+          );
+        }
+
+        const normShape = (item.shape || "Plate").trim();
+        const normShapeLower = normShape.toLowerCase();
+        const isRound = normShapeLower === "round" || normShapeLower === "round bar";
+
+        const hasLength = item.length !== undefined && item.length !== null && String(item.length).trim() !== "";
+        const hasWidth = item.width !== undefined && item.width !== null && String(item.width).trim() !== "";
+        const hasHeight = item.height !== undefined && item.height !== null && String(item.height).trim() !== "";
+
+        const numLength = hasLength ? Number(item.length) : null;
+        const numWidth = hasWidth ? Number(item.width) : null;
+        const numHeight = isRound ? null : (hasHeight ? Number(item.height) : null);
+        const numQty = Math.max(1, parseInt(String(item.sqty || 1), 10) || 1);
+
+        let finalWeight = Number(item.weight) || 0;
+        if (finalWeight <= 0 && numLength !== null && numWidth !== null && (isRound || numHeight !== null)) {
+          finalWeight = calculateSubplateWeight({
+            shape: normShape,
+            material: item.material || "MS-Bright",
+            length: numLength,
+            width: numWidth,
+            height: isRound ? 0 : (numHeight || 0),
+            unit: item.unit || "mm",
+            quantity: numQty,
+          });
+        }
+
+        let cleanSubprojectId = typeof item.subprojectid === "string" ? item.subprojectid.trim() : "";
+        if (!cleanSubprojectId) {
+          cleanSubprojectId = `${baseCode}_${String(nextIndex++).padStart(3, "0")}`;
+        }
+
+        const determinedCategory = (
+          item.plate_category ||
+          item.category ||
+          inferPlateCategory(cleanName)
+        ).trim();
+
+        rowsToInsert.push({
+          platename: cleanName,
+          projectid: numProjectId,
+          mold_id: numProjectId,
+          mold_code: scanProject.projectid || null,
+          plate_category: determinedCategory,
+          subprojectid: cleanSubprojectId,
+          shape: normShape,
+          width: numWidth,
+          height: isRound ? null : numHeight,
+          length: numLength,
+          weight: finalWeight > 0 ? finalWeight : null,
+          unit: item.unit || "mm",
+          material: item.material || "MS-Bright",
+          sqty: numQty,
+          location: item.location || "SM",
+          design_by: item.design_by ? Number(item.design_by) : null,
+          vmc_workby: item.vmc_workby ? Number(item.vmc_workby) : null,
+          created_at: now,
+          updated_at: now,
+        });
+      }
+
+      const { data: insertedData, error: insertErr } = await supabaseAdmin
+        .from("subplate")
+        .insert(rowsToInsert)
+        .select();
+
+      if (insertErr) {
+        return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      }
+
+      invalidateCache("subplate_default_");
+      invalidateCache("scanning_default_");
+      invalidateCache("subplates_worklog_lookup");
+      invalidateCache("subplate_kpi_counts");
+      invalidateCache("api_counts_all");
+      invalidateCache("api_pipeline_stage_counts");
+
+      return NextResponse.json(
+        {
+          subplates: insertedData,
+          subplate: insertedData?.[0] || null,
+          message: `${insertedData?.length || 0} subplates created successfully`,
+        },
+        { status: 201 }
+      );
+    }
+
     const {
       platename,
       projectid,

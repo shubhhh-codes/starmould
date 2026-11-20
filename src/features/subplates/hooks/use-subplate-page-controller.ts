@@ -37,6 +37,9 @@ import {
   useUpdateSubplateMutation,
   useDeleteSubplateMutation,
 } from "@/lib/query/hooks";
+import { principalFetch as fetch } from "@/lib/query/principal-fetch";
+import { queryKeys } from "@/lib/query/keys";
+import { broadcastQueryInvalidation } from "@/lib/query/realtime";
 
 // The 23 authentic materials extracted from resources/views/scanning/index.blade.php
 const REAL_MATERIALS = [
@@ -66,6 +69,19 @@ const REAL_MATERIALS = [
 ];
 
 const SHAPES = SUPPORTED_SHAPES;
+export interface SubplateBatchItem {
+  id: string;
+  platename: string;
+  shape: string;
+  material: string;
+  length: string;
+  width: string;
+  height: string;
+  weight: string;
+  unit: string;
+  sqty: string;
+}
+
 export function useSubplatePageController() {
 
   const router = useRouter();
@@ -95,7 +111,7 @@ export function useSubplatePageController() {
   const [editingSubplate, setEditingSubplate] = useState<Subplate | null>(null);
 
   // On-Demand Projects Query: Only fetched when opening Add/Edit modal, not on initial page load
-  const projectsQuery = useProjectsQuery({ pageSize: 500, status: "pending", enabled: isModalOpen });
+  const projectsQuery = useProjectsQuery({ pageSize: 500, status: "pending" });
   const createSubplateMutation = useCreateSubplateMutation();
   const updateSubplateMutation = useUpdateSubplateMutation();
   const deleteSubplateMutation = useDeleteSubplateMutation();
@@ -344,6 +360,8 @@ export function useSubplatePageController() {
 
   const modalUnitOptions: ERPSelectOption[] = SUPPORTED_UNITS.map((u) => ({ value: u, label: u }));
 
+
+
   const [modalForm, setModalForm] = useState({
     platename: "",
     projectid: "",
@@ -360,9 +378,94 @@ export function useSubplatePageController() {
     plate_category: "General Component",
   });
 
+  const [batchPlates, setBatchPlates] = useState<SubplateBatchItem[]>([
+    {
+      id: "sp-1",
+      platename: "Plate 1",
+      shape: "Plate",
+      material: "MS-Bright",
+      length: "",
+      width: "",
+      height: "",
+      weight: "",
+      unit: "mm",
+      sqty: "1",
+    },
+  ]);
+
+  const addBatchPlate = () => {
+    const nextIdx = batchPlates.length + 1;
+    const newItem: SubplateBatchItem = {
+      id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platename: `Plate ${nextIdx}`,
+      shape: "Plate",
+      material: "MS-Bright",
+      length: "",
+      width: "",
+      height: "",
+      weight: "",
+      unit: "mm",
+      sqty: "1",
+    };
+    setBatchPlates((prev) => [...prev, newItem]);
+  };
+
+  const removeBatchPlate = (id: string) => {
+    if (batchPlates.length <= 1) return;
+    setBatchPlates((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const duplicateBatchPlate = (id: string) => {
+    const target = batchPlates.find((p) => p.id === id);
+    if (!target) return;
+    const nextIdx = batchPlates.length + 1;
+    const duplicated: SubplateBatchItem = {
+      ...target,
+      id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      platename: `Plate ${nextIdx}`,
+    };
+    setBatchPlates((prev) => [...prev, duplicated]);
+  };
+
+  const updateBatchPlate = (id: string, field: keyof SubplateBatchItem, value: string) => {
+    setBatchPlates((prev) =>
+      prev.map((p) => {
+        if (p.id !== id) return p;
+        const updated = { ...p, [field]: value };
+        if (field === "shape" && isHeightDisabled(value)) {
+          updated.height = "";
+        }
+        if (["shape", "material", "length", "width", "height", "unit", "sqty"].includes(field)) {
+          const wt = calculateSubplateWeight({
+            shape: updated.shape,
+            material: updated.material,
+            length: updated.length,
+            width: updated.width,
+            height: updated.height,
+            unit: updated.unit,
+            quantity: updated.sqty,
+          });
+          updated.weight = wt > 0 ? wt.toFixed(3) : "";
+        }
+        return updated;
+      })
+    );
+  };
+
   const handleOpenAddModal = (defaultProjectId?: string | React.MouseEvent) => {
     setEditingSubplate(null);
-    const targetProjectId = typeof defaultProjectId === "string" ? defaultProjectId : (projectFilter && projectFilter !== "ALL" ? projectFilter : "");
+    let targetProjectId = typeof defaultProjectId === "string" ? defaultProjectId : (projectFilter && projectFilter !== "ALL" ? projectFilter : "");
+
+    if (targetProjectId) {
+      const match = (scans || []).find((s: any) =>
+        String(s.id) === targetProjectId ||
+        (s.projectid && s.projectid.toLowerCase() === targetProjectId.toLowerCase())
+      );
+      if (match?.id) {
+        targetProjectId = String(match.id);
+      }
+    }
+
     setModalForm({
       platename: "",
       projectid: targetProjectId,
@@ -378,6 +481,20 @@ export function useSubplatePageController() {
       location: "SM",
       plate_category: "General Component",
     });
+    setBatchPlates([
+      {
+        id: "sp-1",
+        platename: "Plate 1",
+        shape: "Plate",
+        material: "MS-Bright",
+        length: "",
+        width: "",
+        height: "",
+        weight: "",
+        unit: "mm",
+        sqty: "1",
+      },
+    ]);
     setIsModalOpen(true);
     // Actively guarantee fresh project list when modal is invoked
     projectsQuery.refetch();
@@ -439,14 +556,28 @@ export function useSubplatePageController() {
   );
 
   const isModalFormValid = useMemo(() => {
-    if (!modalForm.platename?.trim() || !modalForm.projectid || isNaN(Number(modalForm.projectid)) || Number(modalForm.projectid) <= 0) return false;
-    const q = parseInt(modalForm.sqty || "0", 10);
-    if (isNaN(q) || q < 1) return false;
-    if (modalForm.length && (isNaN(parseFloat(modalForm.length)) || parseFloat(modalForm.length) < 0)) return false;
-    if (modalForm.width && (isNaN(parseFloat(modalForm.width)) || parseFloat(modalForm.width) < 0)) return false;
-    if (!heightDisabled && modalForm.height && (isNaN(parseFloat(modalForm.height)) || parseFloat(modalForm.height) < 0)) return false;
-    return true;
-  }, [modalForm.platename, modalForm.projectid, modalForm.length, modalForm.width, modalForm.height, modalForm.sqty, heightDisabled]);
+    if (!modalForm.projectid || isNaN(Number(modalForm.projectid)) || Number(modalForm.projectid) <= 0) return false;
+    if (editingSubplate) {
+      if (!modalForm.platename?.trim()) return false;
+      const q = parseInt(modalForm.sqty || "0", 10);
+      if (isNaN(q) || q < 1) return false;
+      if (modalForm.length && (isNaN(parseFloat(modalForm.length)) || parseFloat(modalForm.length) < 0)) return false;
+      if (modalForm.width && (isNaN(parseFloat(modalForm.width)) || parseFloat(modalForm.width) < 0)) return false;
+      if (!heightDisabled && modalForm.height && (isNaN(parseFloat(modalForm.height)) || parseFloat(modalForm.height) < 0)) return false;
+      return true;
+    }
+    if (!batchPlates.length) return false;
+    return batchPlates.every((p) => {
+      if (!p.platename?.trim()) return false;
+      const q = parseInt(p.sqty || "0", 10);
+      if (isNaN(q) || q < 1) return false;
+      const hDisabled = isHeightDisabled(p.shape);
+      if (p.length && (isNaN(parseFloat(p.length)) || parseFloat(p.length) < 0)) return false;
+      if (p.width && (isNaN(parseFloat(p.width)) || parseFloat(p.width) < 0)) return false;
+      if (!hDisabled && p.height && (isNaN(parseFloat(p.height)) || parseFloat(p.height) < 0)) return false;
+      return true;
+    });
+  }, [editingSubplate, modalForm.projectid, modalForm.platename, modalForm.length, modalForm.width, modalForm.height, modalForm.sqty, heightDisabled, batchPlates]);
 
   // Dynamic auto-calculation of subplate weight based on geometry, density, unit, and quantity
   const recalculateWeight = (form: typeof modalForm) => {
@@ -943,16 +1074,44 @@ export function useSubplatePageController() {
             location: modalForm.location || "SM",
           },
         });
+        appStore.addToast({
+          type: "success",
+          message: "Subplate updated successfully",
+        });
       } else {
-        await createSubplateMutation.mutateAsync({
-          ...modalForm,
-          platename: modalForm.platename.trim(),
+        const payload = {
           projectid: Number(modalForm.projectid),
-          length: Number(modalForm.length),
-          width: Number(modalForm.width),
-          height: heightDisabled ? null : Number(modalForm.height),
-          weight: Number(modalForm.weight || "0") || null,
-          sqty: Number(modalForm.sqty || "1"),
+          subplates: batchPlates.map((p) => ({
+            platename: p.platename.trim(),
+            shape: p.shape,
+            material: p.material,
+            length: p.length ? Number(p.length) : null,
+            width: p.width ? Number(p.width) : null,
+            height: isHeightDisabled(p.shape) || !p.height ? null : Number(p.height),
+            weight: Number(p.weight || "0") || null,
+            unit: p.unit || "mm",
+            sqty: Math.max(1, parseInt(p.sqty || "1", 10) || 1),
+            location: "SM",
+          })),
+        };
+
+        const res = await fetch("/api/subplate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Failed to create subplates");
+        }
+
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+        broadcastQueryInvalidation(queryKeys.subplates.all());
+        const count = batchPlates.length;
+        appStore.addToast({
+          type: "success",
+          message: count > 1 ? `${count} subplates added successfully!` : "Subplate added successfully!",
         });
       }
 
@@ -1079,6 +1238,12 @@ export function useSubplatePageController() {
     companionRecommendations,
     handleApplyCompanion,
     modalForm,
+    batchPlates,
+    setBatchPlates,
+    addBatchPlate,
+    removeBatchPlate,
+    duplicateBatchPlate,
+    updateBatchPlate,
     modalTargetPlateNames,
     setModalForm,
     isProjectsLoading,

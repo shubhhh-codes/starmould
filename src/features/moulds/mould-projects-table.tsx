@@ -68,6 +68,11 @@ export function MouldProjectsTable(props: MouldProjectsTableProps) {
     handleSubmitPlate,
     plateForm,
     setPlateForm,
+    batchPlates,
+    addBatchPlate,
+    removeBatchPlate,
+    duplicateBatchPlate,
+    updateBatchPlate,
     handleDimensionChange,
     modalPlateShapeOptions,
     modalPlateMaterialOptions,
@@ -192,6 +197,11 @@ export function MouldProjectsTable(props: MouldProjectsTableProps) {
         handleSubmitPlate={handleSubmitPlate}
         plateForm={plateForm}
         setPlateForm={setPlateForm}
+        batchPlates={batchPlates}
+        addBatchPlate={addBatchPlate}
+        removeBatchPlate={removeBatchPlate}
+        duplicateBatchPlate={duplicateBatchPlate}
+        updateBatchPlate={updateBatchPlate}
         handleDimensionChange={handleDimensionChange}
         modalPlateShapeOptions={modalPlateShapeOptions}
         modalPlateMaterialOptions={modalPlateMaterialOptions}
