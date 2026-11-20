@@ -55,6 +55,7 @@ export function useSubplateForm({
     setEditingSubplate(null);
     setAddPlateProject(project);
     const count = (project.total_plates || 0) + 1;
+    const isRework = (project.worktype || "").toLowerCase().includes("rework");
     const initialItem: BatchSubplateItem = {
       id: `sp-${Date.now()}-1`,
       platename: `Plate ${count}`,
@@ -68,6 +69,7 @@ export function useSubplateForm({
       unit: "mm",
       sqty: "1",
       location: "SM",
+      subplate_type: isRework ? "repair" : "new_make",
     };
     setBatchPlates([initialItem]);
     setPlateForm(createNewSubplateForm(project));
@@ -83,6 +85,7 @@ export function useSubplateForm({
   const addBatchPlate = () => {
     if (!addPlateProject) return;
     const nextNum = (addPlateProject.total_plates || 0) + batchPlates.length + 1;
+    const isRework = (addPlateProject.worktype || "").toLowerCase().includes("rework");
     const newItem: BatchSubplateItem = {
       id: `sp-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       platename: `Plate ${nextNum}`,
@@ -96,6 +99,7 @@ export function useSubplateForm({
       unit: "mm",
       sqty: "1",
       location: "SM",
+      subplate_type: isRework ? "repair" : "new_make",
     };
     setBatchPlates((prev) => [...prev, newItem]);
   };
@@ -164,7 +168,7 @@ export function useSubplateForm({
   const isPlateFormValid = useMemo(() => {
     if (editingSubplate) {
       return isSubplateFormValid(
-        { platename: plateForm.platename, sqty: plateForm.sqty, length: plateForm.length, width: plateForm.width, height: plateForm.height },
+        { platename: plateForm.platename, sqty: plateForm.sqty, length: plateForm.length, width: plateForm.width, height: plateForm.height, subplate_type: plateForm.subplate_type },
         plateHeightDisabled
       );
     }
@@ -173,6 +177,8 @@ export function useSubplateForm({
       if (!p.platename?.trim()) return false;
       const q = parseInt(p.sqty || "0", 10);
       if (isNaN(q) || q < 1) return false;
+      // Repair subplates skip dimension validation
+      if (p.subplate_type === "repair") return true;
       const hDisabled = isHeightDisabled(p.shape);
       if (p.length && (isNaN(parseFloat(p.length)) || parseFloat(p.length) < 0)) return false;
       if (p.width && (isNaN(parseFloat(p.width)) || parseFloat(p.width) < 0)) return false;
@@ -312,19 +318,23 @@ export function useSubplateForm({
         const url = "/api/subplate";
         const payload = {
           projectid: addPlateProject.id,
-          subplates: batchPlates.map((p) => ({
-            platename: p.platename.trim(),
-            subprojectid: p.subprojectid?.trim() || undefined,
-            shape: p.shape,
-            material: p.material,
-            length: p.length ? Number(p.length) : null,
-            width: p.width ? Number(p.width) : null,
-            height: isHeightDisabled(p.shape) || !p.height ? null : Number(p.height),
-            weight: Number(p.weight || "0") || null,
-            unit: p.unit || "mm",
-            sqty: Math.max(1, parseInt(p.sqty || "1", 10) || 1),
-            location: p.location || "SM",
-          })),
+          subplates: batchPlates.map((p) => {
+            const isRepair = p.subplate_type === "repair";
+            return {
+              platename: p.platename.trim(),
+              subprojectid: p.subprojectid?.trim() || undefined,
+              subplate_type: p.subplate_type || "new_make",
+              shape: isRepair ? null : p.shape,
+              material: isRepair ? null : p.material,
+              length: isRepair ? null : (p.length ? Number(p.length) : null),
+              width: isRepair ? null : (p.width ? Number(p.width) : null),
+              height: isRepair ? null : (isHeightDisabled(p.shape) || !p.height ? null : Number(p.height)),
+              weight: isRepair ? null : (Number(p.weight || "0") || null),
+              unit: isRepair ? null : (p.unit || "mm"),
+              sqty: Math.max(1, parseInt(p.sqty || "1", 10) || 1),
+              location: p.location || "SM",
+            };
+          }),
         };
 
         const res = await fetch(url, {

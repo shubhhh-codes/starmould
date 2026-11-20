@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Minus, Plus, RotateCcw } from "lucide-react";
 import { Modal } from "@/components/ui/dialog";
 import { principalFetch } from "@/lib/query/principal-fetch";
 import { formatPhotoUploadTime, type PhotoHistoryItem } from "@/lib/photos/history-types";
@@ -65,6 +65,16 @@ export function PhotoViewer({ photo, onClose, onPrevious, onNext }: {
     resize.observe(box);
     return () => { box.removeEventListener("wheel", wheel); resize.disconnect(); };
   }, []);
+  const handleDownload = () => {
+    if (!source) return;
+    const a = document.createElement("a");
+    a.href = source;
+    const baseName = photo.original_filename || `photo-${photo.id}`;
+    a.download = baseName.endsWith(".webp") ? baseName : `${baseName.replace(/\.[^.]+$/, "")}.webp`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
   return <Modal isOpen onClose={onClose} title="Photo preview" description={`${photo.uploader_name} · ${formatPhotoUploadTime(photo.server_uploaded_at)}`} maxWidth="6xl">
     <div onKeyDown={event => { if (event.key === "ArrowLeft") onPrevious?.(); if (event.key === "ArrowRight") onNext?.(); }}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -74,6 +84,7 @@ export function PhotoViewer({ photo, onClose, onPrevious, onNext }: {
           <span className="w-12 text-center text-xs tabular-nums">{Math.round(transform.zoom * 100)}%</span>
           <button type="button" aria-label="Zoom in" onClick={() => update({ ...transform, zoom: transform.zoom * 1.3 })} className="rounded-lg border p-2"><Plus size={18} /></button>
           <button type="button" onClick={() => setTransform({ zoom: 1, x: 0, y: 0 })} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-xs"><RotateCcw size={14} /> Fit / reset</button>
+          <button type="button" aria-label="Download photo" title="Download photo" disabled={!source} onClick={handleDownload} className="flex items-center gap-1 rounded-lg border px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 disabled:opacity-30"><Download size={14} /> Download</button>
           <button type="button" aria-label="Previous photo" disabled={!onPrevious} onClick={onPrevious} className="rounded-lg border p-2 disabled:opacity-30"><ChevronLeft size={18} /></button>
           <button type="button" aria-label="Next photo" disabled={!onNext} onClick={onNext} className="rounded-lg border p-2 disabled:opacity-30"><ChevronRight size={18} /></button>
         </div>

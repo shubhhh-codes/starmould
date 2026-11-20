@@ -94,9 +94,9 @@ export async function processAndWatermarkPhoto(
 
   const movementLabel =
     MOVEMENT_DISPLAY_NAMES[input.movementType] || input.movementType.toUpperCase();
-  const docRef = input.movementNumber ? ` • ${input.movementNumber}` : "";
+  const docRef = input.movementNumber ? ` - ${input.movementNumber}` : "";
   const partyRef = input.partyName ? `PARTY: ${input.partyName}` : "";
-  const subplateRef = input.subplateCode ? ` • ITEM: ${input.subplateCode}` : "";
+  const subplateRef = input.subplateCode ? ` - ITEM: ${input.subplateCode}` : "";
   const stageRef = input.stageKey ? ` (${input.stageKey})` : "";
 
   // Canonical watermark textual representation
@@ -173,7 +173,7 @@ export async function processAndWatermarkPhoto(
   const maxChars = Math.max(30, Math.floor(finalCanvasWidth / 10));
   const truncate = (s: string) => (s.length > maxChars ? s.slice(0, maxChars - 3) + "..." : s);
 
-  const line1 = escapeXml(truncate(`STARMOULD ERP • ${movementLabel}${docRef}`));
+  const line1 = escapeXml(truncate(`STARMOULD ERP - ${movementLabel}${docRef}`));
   const line2 = escapeXml(truncate(`${partyRef}${subplateRef}${stageRef}`.trim() || "STARMOULD VERIFIED MOVEMENT"));
   const line3 = escapeXml(`VERIFIED UPLOAD: ${istTimestampString}`);
 
@@ -192,13 +192,13 @@ export async function processAndWatermarkPhoto(
       <rect x="0" y="0" width="8" height="${bannerHeight}" fill="#3b82f6" />
       
       <!-- Text content -->
-      <text x="${paddingX + 10}" y="${line1Y}" font-family="system-ui, -apple-system, sans-serif" font-size="${fontSizeTitle}px" font-weight="700" fill="#ffffff">
+      <text x="${paddingX + 10}" y="${line1Y}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${fontSizeTitle}px" font-weight="700" fill="#ffffff">
         ${line1}
       </text>
-      <text x="${paddingX + 10}" y="${line2Y}" font-family="system-ui, -apple-system, sans-serif" font-size="${fontSizeMeta}px" font-weight="500" fill="#93c5fd">
+      <text x="${paddingX + 10}" y="${line2Y}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${fontSizeMeta}px" font-weight="500" fill="#93c5fd">
         ${line2}
       </text>
-      <text x="${paddingX + 10}" y="${line3Y}" font-family="system-ui, -apple-system, sans-serif" font-size="${fontSizeTimestamp}px" font-weight="600" fill="#38bdf8">
+      <text x="${paddingX + 10}" y="${line3Y}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${fontSizeTimestamp}px" font-weight="600" fill="#38bdf8">
         ${line3}
       </text>
     </svg>

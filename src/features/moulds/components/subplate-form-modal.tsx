@@ -78,6 +78,11 @@ export function SubplateFormModal({
 }: Props) {
   const isEditing = Boolean(editingSubplate);
 
+  const isReworkProject = useMemo(() => {
+    const wt = (addPlateProject?.worktype || "").toLowerCase();
+    return wt.includes("rework") || (isEditing && editingSubplate?.subplate_type === "repair");
+  }, [addPlateProject?.worktype, isEditing, editingSubplate?.subplate_type]);
+
   const totalBatchWeight = useMemo(() => {
     return (batchPlates || []).reduce((sum, p) => sum + (parseFloat(p.weight) || 0), 0);
   }, [batchPlates]);
@@ -125,6 +130,39 @@ export function SubplateFormModal({
         {isEditing ? (
           /* ================= SINGLE SUBPLATE EDIT MODE ================= */
           <div className="space-y-4">
+            {/* Repair / New Make Toggle — only for Rework projects */}
+            {isReworkProject && (
+              <div className="flex items-center gap-3">
+                <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">Type:</span>
+                <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs font-semibold shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPlateForm({ ...plateForm, subplate_type: "repair" })}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors ${
+                      plateForm.subplate_type === "repair"
+                        ? "bg-orange-500 text-white"
+                        : "bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    🔧 Rework/sample
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlateForm({ ...plateForm, subplate_type: "new_make" })}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 transition-colors border-l border-slate-200 ${
+                      plateForm.subplate_type !== "repair"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    ✦ New Make
+                  </button>
+                </div>
+                {plateForm.subplate_type === "repair" && (
+                  <span className="text-[11px] text-orange-600 font-medium">Size fields hidden — rework/sample</span>
+                )}
+              </div>
+            )}
             {/* Identification */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
@@ -160,7 +198,26 @@ export function SubplateFormModal({
               </div>
             </div>
 
-            {/* Geometry Specifications */}
+            {/* Geometry Specifications / Repair Mode */}
+            {isReworkProject && plateForm.subplate_type === "repair" ? (
+              <div className="p-3.5 rounded-2xl bg-orange-50/50 border border-orange-200/80 max-w-xs space-y-2">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Package className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Quantity</span>
+                </label>
+                <RollingCounter
+                  size="sm"
+                  variant="input"
+                  min={1}
+                  max={9999}
+                  value={Math.max(1, parseInt(plateForm.sqty || "1", 10) || 1)}
+                  onChange={(val) => {
+                    setPlateForm({ ...plateForm, sqty: String(Math.max(1, val)) });
+                  }}
+                  fullWidth
+                />
+              </div>
+            ) : (
             <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 space-y-3.5">
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                 <div className="sm:col-span-4">
@@ -410,6 +467,7 @@ export function SubplateFormModal({
                 )}
               </div>
             </div>
+            )}
           </div>
         ) : (
           /* ================= BATCH SUBPLATE ADD MODE ================= */
@@ -437,6 +495,33 @@ export function SubplateFormModal({
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5">
+                        {/* Subplate Type Pill Toggle — only visible for Rework projects */}
+                        {isReworkProject && (
+                          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-[11px] font-semibold shadow-2xs mr-1">
+                            <button
+                              type="button"
+                              onClick={() => updateBatchPlate?.(plate.id, "subplate_type", "repair")}
+                              className={`flex items-center gap-1 px-2.5 py-1 transition-colors ${
+                                plate.subplate_type === "repair"
+                                  ? "bg-orange-500 text-white"
+                                  : "bg-white text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              🔧 Rework/sample
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => updateBatchPlate?.(plate.id, "subplate_type", "new_make")}
+                              className={`flex items-center gap-1 px-2.5 py-1 transition-colors border-l border-slate-200 ${
+                                plate.subplate_type !== "repair"
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-white text-slate-600 hover:bg-slate-50"
+                              }`}
+                            >
+                              ✦ New Make
+                            </button>
+                          </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => duplicateBatchPlate?.(plate.id)}
@@ -460,6 +545,46 @@ export function SubplateFormModal({
                     </div>
 
                     {/* Subplate Form Fields */}
+                    {isReworkProject && plate.subplate_type === "repair" ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
+                        <div className="sm:col-span-9">
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <Tag className="w-3 h-3 text-blue-600" />
+                            <span>Plate Name</span>
+                            <span className="text-rose-500 font-bold">*</span>
+                            <span className="text-[10px] text-orange-600 font-normal ml-2">(Rework/sample — dimensions not required)</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. Cavity Plate A"
+                            value={plate.platename}
+                            onChange={(e) =>
+                              updateBatchPlate?.(plate.id, "platename", e.target.value)
+                            }
+                            className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-xs"
+                          />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <Package className="w-3 h-3 text-indigo-600" />
+                            <span>Qty</span>
+                          </label>
+                          <RollingCounter
+                            size="sm"
+                            variant="input"
+                            min={1}
+                            max={9999}
+                            value={Math.max(1, parseInt(plate.sqty || "1", 10) || 1)}
+                            onChange={(val) => {
+                              updateBatchPlate?.(plate.id, "sqty", String(Math.max(1, val)));
+                            }}
+                            fullWidth
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                    <>
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                       {/* Plate Name (sm:col-span-4) */}
                       <div className="sm:col-span-4">
@@ -722,6 +847,8 @@ export function SubplateFormModal({
                         </span>
                       )}
                     </div>
+                    </>
+                    )}
                   </div>
                 );
               })}

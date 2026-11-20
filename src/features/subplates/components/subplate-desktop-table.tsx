@@ -114,6 +114,11 @@ export function SubplateDesktopTable({
                       <span className="font-mono text-[11px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded shrink-0">
                         #{row.id}
                       </span>
+                      {row.subplate_type === "repair" && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200 shrink-0">
+                          🔧 Rework/sample
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       {row.subprojectid ? (

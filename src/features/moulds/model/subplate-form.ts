@@ -1,6 +1,10 @@
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import type { SubplateFormState } from "./types";
 
+function isReworkProject(project: ScanProject): boolean {
+  return (project.worktype || "").toLowerCase().includes("rework");
+}
+
 export function createEmptySubplateForm(): SubplateFormState {
   return {
     platename: "",
@@ -14,6 +18,7 @@ export function createEmptySubplateForm(): SubplateFormState {
     unit: "mm",
     sqty: "1",
     location: "SM",
+    subplate_type: "new_make",
   };
 }
 
@@ -31,6 +36,7 @@ export function createNewSubplateForm(project: ScanProject): SubplateFormState {
     unit: "mm",
     sqty: "1",
     location: "SM",
+    subplate_type: isReworkProject(project) ? "repair" : "new_make",
   };
 }
 
@@ -47,13 +53,16 @@ export function createEditingSubplateForm(subplate: Subplate): SubplateFormState
     unit: subplate.unit || "mm",
     sqty: subplate.sqty !== null && subplate.sqty !== undefined ? String(subplate.sqty) : "1",
     location: subplate.location || "SM",
+    subplate_type: subplate.subplate_type ?? "new_make",
   };
 }
 
-export function isSubplateFormValid(plateForm: Pick<SubplateFormState, "platename" | "sqty" | "length" | "width" | "height">, plateHeightDisabled: boolean) {
+export function isSubplateFormValid(plateForm: Pick<SubplateFormState, "platename" | "sqty" | "length" | "width" | "height" | "subplate_type">, plateHeightDisabled: boolean) {
   if (!plateForm.platename?.trim()) return false;
   const q = parseInt(plateForm.sqty || "0", 10);
   if (isNaN(q) || q < 1) return false;
+  // Repair subplates skip dimension validation
+  if (plateForm.subplate_type === "repair") return true;
   if (plateForm.length && (isNaN(parseFloat(plateForm.length)) || parseFloat(plateForm.length) < 0)) return false;
   if (plateForm.width && (isNaN(parseFloat(plateForm.width)) || parseFloat(plateForm.width) < 0)) return false;
   if (!plateHeightDisabled && plateForm.height && (isNaN(parseFloat(plateForm.height)) || parseFloat(plateForm.height) < 0)) return false;
@@ -61,19 +70,21 @@ export function isSubplateFormValid(plateForm: Pick<SubplateFormState, "platenam
 }
 
 export function createSubplatePayload(plateForm: SubplateFormState, editingSubplate: Subplate | null, addPlateProject: ScanProject, plateHeightDisabled: boolean, isEditing: boolean) {
+  const isRepair = plateForm.subplate_type === "repair";
   return isEditing
     ? {
       id: editingSubplate!.id,
       updates: {
         platename: plateForm.platename.trim(),
         subprojectid: plateForm.subprojectid?.trim() || undefined,
-        shape: plateForm.shape,
-        material: plateForm.material,
-        length: plateForm.length ? Number(plateForm.length) : null,
-        width: plateForm.width ? Number(plateForm.width) : null,
-        height: plateHeightDisabled || !plateForm.height ? null : Number(plateForm.height),
-        weight: Number(plateForm.weight || "0") || null,
-        unit: plateForm.unit || "mm",
+        subplate_type: plateForm.subplate_type,
+        shape: isRepair ? null : plateForm.shape,
+        material: isRepair ? null : plateForm.material,
+        length: isRepair ? null : (plateForm.length ? Number(plateForm.length) : null),
+        width: isRepair ? null : (plateForm.width ? Number(plateForm.width) : null),
+        height: isRepair ? null : (plateHeightDisabled || !plateForm.height ? null : Number(plateForm.height)),
+        weight: isRepair ? null : (Number(plateForm.weight || "0") || null),
+        unit: isRepair ? null : (plateForm.unit || "mm"),
         sqty: Number(plateForm.sqty || "1"),
         location: plateForm.location || "SM",
       },
@@ -81,10 +92,13 @@ export function createSubplatePayload(plateForm: SubplateFormState, editingSubpl
     : {
       ...plateForm,
       platename: plateForm.platename.trim(),
-      length: plateForm.length ? Number(plateForm.length) : null,
-      width: plateForm.width ? Number(plateForm.width) : null,
-      height: plateHeightDisabled || !plateForm.height ? null : Number(plateForm.height),
-      weight: Number(plateForm.weight || "0") || null,
+      subplate_type: plateForm.subplate_type,
+      shape: isRepair ? null : plateForm.shape,
+      material: isRepair ? null : plateForm.material,
+      length: isRepair ? null : (plateForm.length ? Number(plateForm.length) : null),
+      width: isRepair ? null : (plateForm.width ? Number(plateForm.width) : null),
+      height: isRepair ? null : (plateHeightDisabled || !plateForm.height ? null : Number(plateForm.height)),
+      weight: isRepair ? null : (Number(plateForm.weight || "0") || null),
       sqty: Number(plateForm.sqty || "1"),
       projectid: addPlateProject.id,
     };

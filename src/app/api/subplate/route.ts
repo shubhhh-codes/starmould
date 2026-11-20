@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
       const safeProjectId = projectid.replace(/[(),%]/g, "").trim();
       let leanQuery = supabaseAdmin
         .from("subplate")
-        .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, dispatch_status, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
+        .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, dispatch_status, shape, width, height, length, weight, unit, sqty, subplate_type, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
         .is("deleted_at", null)
         .order("id", { ascending: true });
 
@@ -269,7 +269,7 @@ export async function GET(req: NextRequest) {
 
     let subplateQuery = supabaseAdmin
       .from("subplate")
-      .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at", { count: "exact" })
+      .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, subplate_type, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at", { count: "exact" })
       .is("deleted_at", null)
       .order("id", { ascending: false });
 
@@ -690,13 +690,14 @@ export async function POST(req: NextRequest) {
           mold_code: scanProject.projectid || null,
           plate_category: determinedCategory,
           subprojectid: cleanSubprojectId,
-          shape: normShape,
-          width: numWidth,
-          height: isRound ? null : numHeight,
-          length: numLength,
-          weight: finalWeight > 0 ? finalWeight : null,
-          unit: item.unit || "mm",
-          material: item.material || "MS-Bright",
+          subplate_type: (item.subplate_type === "repair" ? "repair" : "new_make"),
+          shape: item.subplate_type === "repair" ? null : normShape,
+          width: item.subplate_type === "repair" ? null : numWidth,
+          height: item.subplate_type === "repair" ? null : (isRound ? null : numHeight),
+          length: item.subplate_type === "repair" ? null : numLength,
+          weight: item.subplate_type === "repair" ? null : (finalWeight > 0 ? finalWeight : null),
+          unit: item.subplate_type === "repair" ? null : (item.unit || "mm"),
+          material: item.subplate_type === "repair" ? null : (item.material || "MS-Bright"),
           sqty: numQty,
           location: item.location || "SM",
           design_by: item.design_by ? Number(item.design_by) : null,
@@ -938,6 +939,7 @@ export async function PUT(req: NextRequest) {
     const writableFields = new Set([
       "platename", "plate_category", "category", "subprojectid", "length", "width", "height",
       "shape", "material", "sqty", "unit", "weight", "remarks", "process_remarks", "location", "projectid",
+      "subplate_type",
       "design_by", "order_by", "received_workby", "received_qcby", "vmc_workby", "vmc_qcby",
       "drilltap_workby", "final_qcby", "packing_workby",
       "design_at", "order_at", "received_work_at", "received_qc_at", "vmc_work_at", "vmc_qc_at",
@@ -981,6 +983,7 @@ export async function PUT(req: NextRequest) {
       "subprojectid",
       "plate_category",
       "category",
+      "subplate_type",
       "length",
       "width",
       "height",

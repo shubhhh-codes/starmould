@@ -48,6 +48,7 @@ export interface SubplateFormState {
   unit: string;
   sqty: string;
   location: string;
+  subplate_type: 'new_make' | 'repair';
 }
 
 export interface BatchSubplateItem {
@@ -63,4 +64,5 @@ export interface BatchSubplateItem {
   unit: string;
   sqty: string;
   location: string;
+  subplate_type: 'new_make' | 'repair';
 }

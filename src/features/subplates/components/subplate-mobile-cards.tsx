@@ -70,6 +70,11 @@ export function SubplateMobileCards({
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                 <span className="font-mono text-slate-400 text-[11px] shrink-0">#{row.id}</span>
                 <span className="font-bold text-slate-900 break-words leading-tight">{row.platename}</span>
+                {row.subplate_type === "repair" && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200 shrink-0">
+                    🔧 Rework/sample
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <SubplateJobworkLocationBadge subplate={row} size="sm" />

@@ -173,6 +173,7 @@ export interface Subplate {
   dispatch_challanno?: string | null;
   dispatch_id?: number | null;
   is_dispatched?: boolean;
+  subplate_type?: 'new_make' | 'repair';
   jobwork_balance?: {
     outward_jobwork_qty: number;
     available_sm_qty: number;
