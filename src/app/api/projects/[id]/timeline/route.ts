@@ -742,7 +742,9 @@ export async function GET(
         title: "Project Completed & Moved to Register",
         badgeLabel: "Archived in Register",
         badgeColor: "emerald",
-        description: `All ${totalPlates} subplates fully accounted for (${dispatchedPlatesCount} dispatched, ${directClosedPlates.length} direct closed). Permanent historical dossier preserved.`,
+        description: project.register_closure_reason
+          ? `Closure reason: ${project.register_closure_reason}${project.register_closure_notes ? ` — ${project.register_closure_notes}` : ""}`
+          : `All ${totalPlates} subplates fully accounted for (${dispatchedPlatesCount} dispatched, ${directClosedPlates.length} direct closed).`,
       });
     }
 

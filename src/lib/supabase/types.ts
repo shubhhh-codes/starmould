@@ -155,6 +155,8 @@ export interface Subplate {
   packing_photo: string | null;
   location: string;
   dispatch_status?: 'dispatched' | 'closed_without_challan' | string | null;
+  po_bypassed?: boolean;
+  mould_worktype?: string;
   closure_reason?: string | null;
   closed_at?: string | null;
   closed_by?: number | null;

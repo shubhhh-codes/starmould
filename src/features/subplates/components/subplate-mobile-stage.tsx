@@ -1,5 +1,6 @@
 "use client";
 
+import { hasInHousePurchaseClearance, isPurchaseOptional } from "@/lib/subplate-purchase";
 import type { SubplatePageContext } from "../hooks/use-subplate-page-controller";
 import { formatTimestamp } from "@/features/subplates/model/format-timestamp";
 import {
@@ -7,6 +8,7 @@ import {
   Package,
   Lock,
   ShoppingCart,
+  Warehouse,
 } from "lucide-react";
 import { StaffSelect } from "@/components/ui/staff-select";
 import { STAGE_DEFINITIONS } from "@/lib/subplate-stages";
@@ -38,6 +40,7 @@ export function SubplateMobileStage({
   const isAssignedToOther = isAssigned && !isAssignedToMe;
   const isStage2 = stage.key === "order_by";
   const isStage3 = stage.key === "received_workby";
+  const inHouse = (isStage2 || isStage3) && hasInHousePurchaseClearance(row);
   const totalQty = Number(row.sqty) || 1;
   const orderedQty = row.ordered_qty ?? 0;
   const remainingQty = row.remaining_qty !== undefined ? row.remaining_qty : Math.max(0, totalQty - orderedQty);
@@ -48,6 +51,47 @@ export function SubplateMobileStage({
   const remainingInwardQty = (row as any).remaining_inward_qty !== undefined ? (row as any).remaining_inward_qty : Math.max(0, totalQty - inwardQty);
   const isPartialInward = isStage3 && ((row as any).inward_status === "PARTIAL" || (inwardQty > 0 && remainingInwardQty > 0));
   const isFullyInwarded = isStage3 && ((row as any).inward_status === "FULLY_INWARDED" || (inwardQty >= totalQty && inwardQty > 0));
+
+  if (inHouse) {
+    const isStage2 = stage.key === "order_by";
+    const staffMember = activeStaff.find((u) => u.id === Number(val || (isStage2 ? row.order_by : row.received_workby)));
+    const staffName = staffMember?.name || (isStage2 ? (row as any).order_by_name : (row as any).received_workby_name) || "In-House";
+    const staffInitials = staffMember?.initials || (isStage2 ? (row as any).order_by_name : (row as any).received_workby_name)?.slice(0, 2).toUpperCase() || "IH";
+
+    return (
+      <div
+        key={stage.key}
+        className="p-2.5 rounded-xl bg-emerald-50/50 border border-emerald-300 shadow-2xs space-y-1.5"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-[11px] font-bold text-slate-900 whitespace-nowrap">
+              {stage.label}
+            </span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono whitespace-nowrap">
+              {isStage2 ? "PO Skipped" : "Inward Cleared"}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-white border border-emerald-200 text-slate-800 text-[11px] font-medium shrink-0 max-w-[140px] shadow-2xs">
+            <div className="w-4 h-4 rounded-full bg-emerald-600 text-white font-bold text-[8px] flex items-center justify-center shrink-0">
+              {staffInitials}
+            </div>
+            <span className="truncate font-semibold">{staffName}</span>
+            <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0 ml-0.5" />
+          </div>
+        </div>
+
+        <div className="pt-1.5 border-t border-emerald-100/80 flex items-center justify-between text-[10px] text-emerald-800 font-semibold">
+          <span className="flex items-center gap-1">
+            <Warehouse className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>{isStage2 ? "In-House Material Confirmed" : "Factory Stock (No Inward Needed)"}</span>
+          </span>
+          <span className="font-mono text-emerald-700 font-bold">{totalQty} pcs</span>
+        </div>
+      </div>
+    );
+  }
 
   if (isStage2) {
     const staffMember = activeStaff.find((u) => u.id === Number(val));
@@ -222,7 +266,7 @@ export function SubplateMobileStage({
             {stage.label}
           </div>
           <div className="text-[10px] text-amber-700 font-medium">
-            PO required ({totalQty} pcs)
+            {isPurchaseOptional(row) ? "PO optional" : "PO required"} ({totalQty} pcs)
           </div>
         </div>
         <button
@@ -231,7 +275,7 @@ export function SubplateMobileStage({
           className="h-7 px-3 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-2xs transition shrink-0 cursor-pointer"
         >
           <ShoppingCart className="w-3.5 h-3.5" />
-          <span>Create PO</span>
+          <span>{isPurchaseOptional(row) ? "Purchase Options" : "Create PO"}</span>
         </button>
       </div>
     );

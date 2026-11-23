@@ -9,6 +9,7 @@ import {
   Lock,
   Pencil,
 } from "lucide-react";
+import { hasInHousePurchaseClearance, isPurchaseOptional } from "@/lib/subplate-purchase";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
 import { STAGE_DEFINITIONS, getAllowedStagesForUser } from "@/lib/subplate-stages";
 
@@ -74,6 +75,19 @@ export function SubplateActionsMenu({
               const isDone = Boolean(val && val !== 0);
               const staffMember = activeStaff.find((u) => u.id === Number(val));
               const staffName = (sp as any)[st.nameKey] || staffMember?.name || staffMember?.initials || `Staff #${val}`;
+
+              if (st.key === "order_by" && isPurchaseOptional(sp) && !sp.has_active_po && !sp.jobwork_balance?.has_po && !sp.po_bypassed) {
+                items.push({
+                  label: "Choose Purchase Option (Stage 2)",
+                  icon: UserCheck,
+                  onClick: () => handleStageStaffChange(sp.id, st.key, Number(currentUser?.id)),
+                });
+                return;
+              }
+              if ((st.key === "order_by" || st.key === "received_workby") && hasInHousePurchaseClearance(sp)) {
+                items.push({ label: "Cleared (in-house material)", icon: CheckCircle2, disabled: true, onClick: () => {} });
+                return;
+              }
 
               if (st.key === "received_workby") {
                 const inwardQty = Number((sp as any).po_inward_qty) || 0;
@@ -177,7 +191,7 @@ export function SubplateActionsMenu({
                     disabled: true,
                     onClick: () => { },
                   });
-                } else if (st.key === "received_workby" && (Number((sp as any).po_inward_qty) || 0) <= 0) {
+                } else if (st.key === "received_workby" && !hasInHousePurchaseClearance(sp) && (Number((sp as any).po_inward_qty) || 0) <= 0) {
                   items.push({
                     label: `Material Inward (Gate Entry Required)`,
                     subtext: `Stage 3 • Receive steel at factory gate to unlock`,

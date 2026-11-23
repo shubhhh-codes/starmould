@@ -10,6 +10,8 @@ if (process.argv.includes('--libraries')) {
   const checks = [
     ['Existing library regressions', [__filename, '--libraries']],
     ['Customer identity', [path.join(__dirname, 'test-customer-identity.cjs')]],
+    ['Rework purchase', [path.join(__dirname, 'test-rework-purchase.cjs')]],
+    ['Rework register', [path.join(__dirname, 'test-rework-register.cjs')]],
     ['Mould model', [path.join(__dirname, 'test-mould-model.cjs')]],
     ['Mould queries', [path.join(__dirname, 'test-mould-queries.cjs')]],
     ['Photo history', [path.join(__dirname, 'test-photo-history.cjs')]],

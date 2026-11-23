@@ -8,7 +8,7 @@ const project = { id: 42, projectid: '0042_KEEP_003', total_plates: 2 };
 const form = model.createNewSubplateForm(project);
 assert.deepEqual(form, {
   platename: 'Plate 3', subprojectid: '0042_KEEP_003_003', material: 'MS-Bright', shape: 'Plate',
-  length: '', width: '', height: '', weight: '', unit: 'mm', sqty: '1', location: 'SM',
+  length: '', width: '', height: '', weight: '', unit: 'mm', sqty: '1', location: 'SM', subplate_type: 'new_make',
 });
 assert.equal(model.isSubplateFormValid(form, false), true, 'Existing blank-dimension behavior');
 for (const patch of [{ platename: '  ' }, { sqty: '0' }, { sqty: '' }, { length: '-1' }, { width: 'bad' }, { height: '-1' }]) {
@@ -26,7 +26,7 @@ assert.deepEqual(model.createSubplatePayload(form, null, project, false, false),
 });
 const changed = { ...form, platename: '  Edited plate  ', length: '100', width: '50', height: '20', weight: '0.781', sqty: '2' };
 assert.deepEqual(model.createSubplatePayload(changed, { id: 7 }, project, false, true), {
-  id: 7, updates: { platename: 'Edited plate', subprojectid: '0042_KEEP_003_003', shape: 'Plate', material: 'MS-Bright',
+  id: 7, updates: { platename: 'Edited plate', subprojectid: '0042_KEEP_003_003', shape: 'Plate', material: 'MS-Bright', subplate_type: 'new_make',
     length: 100, width: 50, height: 20, weight: 0.781, unit: 'mm', sqty: 2, location: 'SM' },
 });
 assert.equal(model.createSubplatePayload(changed, null, project, true, false).height, null);

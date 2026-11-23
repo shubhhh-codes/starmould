@@ -218,7 +218,7 @@ export async function DELETE(req: NextRequest) {
       .eq("id", inwardId);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: error.message }, { status: error.code === "P0001" ? 409 : 500 });
     }
 
     // Recompute subplate locations based on remaining active jobwork balances

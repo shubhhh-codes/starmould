@@ -1,7 +1,8 @@
 "use client";
 
+import { hasInHousePurchaseClearance } from "@/lib/subplate-purchase";
 import type { SubplatePageContext } from "../hooks/use-subplate-page-controller";
-import { CheckCircle2, Package } from "lucide-react";
+import { CheckCircle2, Package, Warehouse } from "lucide-react";
 import type { Subplate } from "@/lib/supabase/types";
 
 type Props = Pick<SubplatePageContext,
@@ -30,10 +31,38 @@ export function InwardStageDetails({
   router,
   remainingInwardQty,
 }: Props) {
-  const staffMember = activeStaff.find((u) => u.id === Number(val));
+  const staffMember = activeStaff.find((u) => u.id === Number(val || row.received_workby));
   const staffName = staffMember?.name || (row as any).received_workby_name || (val ? `Staff #${val}` : "Gate Inward");
   const staffInitials = staffMember?.initials || (row as any).received_workby_name?.slice(0, 2).toUpperCase() || "PI";
   const mouldParam = encodeURIComponent(row.subprojectid || (row as any).mould_project_code || (row as any).mold_code || "");
+
+  // In-House Material (Inward Cleared / Not Required)
+  if (hasInHousePurchaseClearance(row)) {
+    return (
+      <div
+        title="Material already present in factory. Gate Inward not required."
+        className="h-9 px-2 rounded-lg bg-emerald-50/80 border border-emerald-300 hover:border-emerald-400 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-default"
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+            {staffInitials}
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold text-slate-900 truncate leading-tight group-hover:text-emerald-950">
+              {staffName}
+            </div>
+            <div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none flex items-center gap-1">
+              <span>In-House Stock</span>
+              <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                Inward Cleared
+              </span>
+            </div>
+          </div>
+        </div>
+        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+      </div>
+    );
+  }
 
   const linkedInwards: any[] =
     row.linked_inwards && row.linked_inwards.length > 0

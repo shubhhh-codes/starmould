@@ -91,6 +91,7 @@ function SubplatePageContent() {
     isAdmin,
     currentUser,
     handleOpenCreatePOForPlate,
+    openPOFormForPlate,
     router,
     handleStageStaffChange,
     scans,
@@ -481,7 +482,7 @@ function SubplatePageContent() {
         <PurchaseRequiredModal
           poRequiredModal={poRequiredModal}
           setPoRequiredModal={setPoRequiredModal}
-          handleOpenCreatePOForPlate={handleOpenCreatePOForPlate}
+          handleOpenCreatePOForPlate={openPOFormForPlate}
         />
       </div>
     </AppLayout>

@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import type { Subplate, ScanProject } from "@/lib/supabase/types";
 import { type ERPSelectOption } from "@/components/ui/erp-select";
+import { hasInHousePurchaseClearance, isPurchaseOptional } from "@/lib/subplate-purchase";
 import { appStore } from "@/lib/state/store";
 import { useRolePermissions } from "@/components/providers/permissions-provider";
 import {
@@ -720,7 +721,8 @@ export function useSubplatePageController() {
 
     if (field === "order_by") {
       const targetSp = subplates.find((s) => Number(s.id) === Number(subplateId));
-      if (targetSp && !targetSp.has_active_po && (!targetSp.order_by || targetSp.order_by === 0)) {
+      if (hasInHousePurchaseClearance(targetSp)) return;
+      if (targetSp && !targetSp.has_active_po && !targetSp.jobwork_balance?.has_po && (!targetSp.order_by || isPurchaseOptional(targetSp))) {
         setPoRequiredModal(targetSp);
         return;
       }
@@ -739,7 +741,7 @@ export function useSubplatePageController() {
     if (field === "received_workby" && userId !== 0) {
       const targetSp = subplates.find((s) => Number(s.id) === Number(subplateId));
       const inwardQty = Number((targetSp as any)?.po_inward_qty) || 0;
-      if (inwardQty <= 0) {
+      if (inwardQty <= 0 && !hasInHousePurchaseClearance(targetSp)) {
         appStore.addToast({
           type: "error",
           message: "Stage 3 (Material Inward) cannot be assigned manually. Steel has not been received at factory gate. Record receipt in Purchase Inward first.",
@@ -1222,7 +1224,14 @@ export function useSubplatePageController() {
     allowedStages,
     isAdmin,
     currentUser,
-    handleOpenCreatePOForPlate,
+    handleOpenCreatePOForPlate: (plate: Subplate) => {
+      if (isPurchaseOptional(plate) && !plate.has_active_po && !plate.jobwork_balance?.has_po && !plate.po_bypassed) {
+        setPoRequiredModal(plate);
+      } else {
+        handleOpenCreatePOForPlate(plate);
+      }
+    },
+    openPOFormForPlate: handleOpenCreatePOForPlate,
     router,
     handleStageStaffChange,
     scans,

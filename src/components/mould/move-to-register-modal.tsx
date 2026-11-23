@@ -7,13 +7,13 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  ArrowRight,
   ShieldCheck,
   Truck,
   Box,
   FileCheck2,
   Lock,
 } from "lucide-react";
+import { hasCompletedManufacturing, isPurchaseOptional } from "@/lib/subplate-purchase";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import { useSubplatesByProjectQuery } from "@/lib/query/hooks";
 
@@ -45,22 +45,29 @@ export function MoveToRegisterModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    const lookupId = project ? (project.projectid || String(project.id)) : undefined;
-  const { data: liveSubplates } = useSubplatesByProjectQuery(isOpen ? lookupId : undefined, {
+  const lookupId = project ? (project.projectid || String(project.id)) : undefined;
+  const { data: liveSubplates, isFetching: isCheckingPlates, isError: plateLookupFailed } = useSubplatesByProjectQuery(isOpen ? lookupId : undefined, {
     enabled: isOpen && !!lookupId,
+    refetchOnMount: "always",
   });
 
   // Compute plates and dispatch status + strict in-progress work validation
   const { subplates, dispatchedPlates, remainingPlates, neverPurchasedPlates, blockingPlates } = useMemo(() => {
     if (!project) return { subplates: [], dispatchedPlates: [], remainingPlates: [], neverPurchasedPlates: [], blockingPlates: [] };
 
-    const plates = (liveSubplates && liveSubplates.length > 0) ? liveSubplates : (project.subplates || []);
+    const plates = liveSubplates ?? project.subplates ?? [];
     const dispatched: Subplate[] = [];
     const remaining: Subplate[] = [];
     const neverPurchased: Subplate[] = [];
     const blocking: Array<{ plate: Subplate; reason: string }> = [];
 
     plates.forEach((p: Subplate) => {
+      const outwardQty = Number(p.jobwork_balance?.outward_jobwork_qty ?? 0);
+      if (outwardQty > 0) {
+        blocking.push({ plate: p, reason: `${outwardQty} pcs pending at ${p.jobwork_balance?.active_vendors || "vendor"}. Record an Inward Challan before moving to Project Register.` });
+        return;
+      }
+
       const totalQty = Number(p.sqty) || 1;
       const poOrderedQty = Number(p.jobwork_balance?.po_ordered_qty ?? (p as any).po_ordered_qty ?? 0);
       const poInwardQty = Number(p.jobwork_balance?.po_inward_qty ?? (p as any).po_inward_qty ?? 0);
@@ -72,7 +79,7 @@ export function MoveToRegisterModal({
 
       const hasPO = Boolean(
         poOrderedQty > 0 ||
-        (p.order_by && Number(p.order_by) > 0) ||
+        (!p.po_bypassed && Number(p.order_by) > 0) ||
         (p as any).has_active_po ||
         (p as any).has_po ||
         (p as any).po_srno
@@ -101,9 +108,7 @@ export function MoveToRegisterModal({
         (dispatchedQty >= totalQty && totalQty > 0) ||
         ((p.location === "Customer" || p.dispatch_status === "dispatched") && pendingInwardQty === 0 && (dispatchedQty === 0 || dispatchedQty >= totalQty));
 
-      const isFullyPacked = Number(p.packing_workby) > 0 && isFullyDispatched;
-
-      if (isFullyDispatched || isFullyPacked) {
+      if (isFullyDispatched) {
         dispatched.push(p);
         return;
       }
@@ -120,7 +125,7 @@ export function MoveToRegisterModal({
         (p.packing_workby && Number(p.packing_workby) > 0)
       );
 
-      if (!hasPO && !hasShopFloorStarted) {
+      if (!hasPO && !hasShopFloorStarted && !p.po_bypassed) {
         // Plate was never purchased and no shop-floor work was started: can be closed cleanly
         neverPurchased.push(p);
         return;
@@ -134,8 +139,10 @@ export function MoveToRegisterModal({
         return;
       }
 
+      if (isPurchaseOptional(p, project.worktype) && hasCompletedManufacturing(p)) return;
+
       // If shop floor work (Stage 4 to Stage 9) has started, HARD BLOCK until full packing and dispatch
-      if (hasShopFloorStarted && !isFullyDispatched) {
+      if (hasShopFloorStarted || p.po_bypassed) {
         let stageName = "Manufacturing";
         if (p.packing_workby && Number(p.packing_workby) > 0) stageName = "Packing Done (Dispatch Pending)";
         else if (p.final_qcby && Number(p.final_qcby) > 0) stageName = "Final QC Done (Packing Pending)";
@@ -146,7 +153,7 @@ export function MoveToRegisterModal({
 
         blocking.push({
           plate: p,
-          reason: `Shop floor work has already started (${stageName}). This mould cannot be moved to Project Register until all stages through Final Packing and Customer Delivery Challan are 100% completed.`,
+          reason: `${stageName}. ${isPurchaseOptional(p, project.worktype) ? "Complete Programming through Final Packing before closing." : "Complete all stages through Final Packing and Customer Delivery Challan."}`,
         });
         return;
       }
@@ -170,19 +177,19 @@ export function MoveToRegisterModal({
     remainingPlates.length === 0 &&
     blockingPlates.length === 0;
 
+  const requiresNote = remainingPlates.length > 0 && selectedReason === "Other / Custom Note";
+
   const handleDirectClose = async () => {
-    if (!project) return;
+    if (!project || isCheckingPlates || plateLookupFailed || hasBlockingPlates || (requiresNote && !customNote.trim())) return;
     setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
-      const remainingIds = remainingPlates.map((p: Subplate) => p.id);
       const res = await fetch(`/api/projects/${encodeURIComponent(project.id)}/close`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          directClosePlateIds: remainingIds,
-          closureReason: selectedReason,
+          closureReason: remainingPlates.length > 0 ? selectedReason : undefined,
           closureNotes: customNote.trim(),
         }),
       });
@@ -240,6 +247,8 @@ export function MoveToRegisterModal({
 
         {/* Modal Body */}
         <div className="p-5 space-y-4">
+          {isCheckingPlates && <p className="text-xs text-slate-600">Checking current subplate balances…</p>}
+          {plateLookupFailed && <p className="text-xs text-rose-700">Could not verify subplate balances.</p>}
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -255,7 +264,7 @@ export function MoveToRegisterModal({
                 <span>Move to Project Register Blocked</span>
               </div>
               <p className="text-rose-700 leading-relaxed text-[11px]">
-                Some subplates have work in progress (such as pending PO inward, programming, or machining). Please complete all remaining stages through Final Packing or Delivery Challan before moving this mould to the Project Register:
+                Resolve these subplate holds before moving this project to the register.
               </p>
               <div className="border border-rose-200 rounded-lg overflow-hidden bg-white divide-y divide-rose-100 max-h-40 overflow-y-auto">
                 {blockingPlates.map(({ plate, reason }) => (
@@ -389,6 +398,16 @@ export function MoveToRegisterModal({
               </div>
             </div>
           )}
+          {isNoDispatch && !hasBlockingPlates && requiresNote && (
+            <input
+              type="text"
+              aria-label="Closure note"
+              placeholder="Enter closure note"
+              value={customNote}
+              onChange={(event) => setCustomNote(event.target.value)}
+              className="w-full text-xs p-2.5 border border-slate-200 rounded-xl"
+            />
+          )}
         </div>
 
         {/* Modal Action Footer */}
@@ -408,7 +427,7 @@ export function MoveToRegisterModal({
               <button
                 type="button"
                 onClick={handleCreateRemainingChallan}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isCheckingPlates || plateLookupFailed}
                 className="px-3.5 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-2xs flex items-center gap-1.5"
               >
                 <Truck className="w-3.5 h-3.5" />
@@ -420,7 +439,7 @@ export function MoveToRegisterModal({
             <button
               type="button"
               onClick={handleDirectClose}
-              disabled={isSubmitting || hasBlockingPlates}
+              disabled={isSubmitting || isCheckingPlates || plateLookupFailed || hasBlockingPlates || (requiresNote && !customNote.trim())}
               title={hasBlockingPlates ? "Cannot move: Subplates have in-progress work" : undefined}
               className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 ${
                 hasBlockingPlates

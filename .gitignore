@@ -68,3 +68,4 @@ AUDIT_REPORT.md
 PERF_AUDIT.md
 docs/SECURITY_IMPLEMENTATION.md
 REMEDIATION_PLAN.md
+scripts/run-migrations.mjs

@@ -68,7 +68,7 @@ export function useSubplatesQuery(params: SubplatesQueryParams = {}) {
 
 export function useSubplatesByProjectQuery(
   projectId: number | string | undefined,
-  options?: { enabled?: boolean; }
+  options?: { enabled?: boolean; refetchOnMount?: "always"; }
 ) {
   return useQuery({
     queryKey: queryKeys.subplates.byProject(projectId || "0"),
@@ -78,7 +78,8 @@ export function useSubplatesByProjectQuery(
       return (res.subplates || res.data || []) as Subplate[];
     },
     enabled: options?.enabled !== false && !!projectId && projectId !== "0",
-    staleTime: 5 * 60 * 1000, // 5 minutes cache for on-demand lazy accordion rows
+    refetchOnMount: options?.refetchOnMount,
+    staleTime: options?.refetchOnMount === "always" ? 0 : 5 * 60 * 1000,
   });
 }
 
@@ -122,6 +123,7 @@ export function useUpdateSubplateMutation() {
         body: JSON.stringify(body),
       }, principalSnapshot),
     onMutate: async (updated) => {
+      if (updated.action === "bypass_purchase") return;
       await queryClient.cancelQueries({ queryKey: queryKeys.subplates.all() });
       const previousData = queryClient.getQueriesData({ queryKey: queryKeys.subplates.all() });
 
@@ -159,6 +161,11 @@ export function useUpdateSubplateMutation() {
         if (variables?.projectid) {
           queryClient.invalidateQueries({ queryKey: queryKeys.subplates.byProject(variables.projectid) });
         }
+      }
+      if (variables.action === "bypass_purchase") {
+        queryClient.invalidateQueries({ queryKey: queryKeys.subplates.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.projects.all() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.counts() });
       }
       // Invalidate purchases ONLY when order_by key is present (including null/0)
       const vars = variables?.updates ?? variables;

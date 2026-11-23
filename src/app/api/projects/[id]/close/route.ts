@@ -1,3 +1,4 @@
+import { hasCompletedManufacturing, isPurchaseOptional } from "@/lib/subplate-purchase";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { authenticateRequest } from "@/lib/auth";
@@ -21,10 +22,15 @@ export async function POST(
 
     const trimmedId = decodeURIComponent(id).trim();
     const body = await req.json().catch(() => ({}));
-    const { directClosePlateIds = [], closureReason = "Direct Archive", closureNotes = "" } = body;
+    const closureReason = typeof body?.closureReason === "string" ? body.closureReason.trim() : "Direct Archive";
+    const closureNotes = typeof body?.closureNotes === "string" ? body.closureNotes.trim() : "";
+    if (!closureReason || closureReason.length > 200 || closureNotes.length > 2000 ||
+        (closureReason === "Other / Custom Note" && !closureNotes)) {
+      return NextResponse.json({ error: "Enter a valid closure reason and note." }, { status: 400 });
+    }
 
     // 1. Fetch Project
-    let projectQuery = supabaseAdmin.from("scan").select("id, projectid, status");
+    let projectQuery = supabaseAdmin.from("scan").select("id, projectid, status, worktype");
     if (!isNaN(Number(trimmedId))) {
       projectQuery = projectQuery.or(`id.eq.${trimmedId},projectid.eq.${trimmedId}`);
     } else {
@@ -38,43 +44,29 @@ export async function POST(
 
     // 2. Strict In-Progress Work Guard
     // If any plate has PO created without inward, or work started without packing/dispatch: BLOCK!
-    const projKey = project.projectid || project.id;
-    const { data: subplates } = await supabaseAdmin
+    const projectKey = project.projectid || String(project.id);
+    const legacyLinks = `projectid.eq.${project.id},projectid.eq.${projectKey},mold_code.eq.${projectKey}`;
+    const { data: subplates, error: platesError } = await supabaseAdmin
       .from("subplate")
-      .select("id, platename, sqty, location, dispatch_status, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby")
-      .or(`projectid.eq.${projKey},mold_code.eq.${projKey},mold_id.eq.${project.id}`)
+      .select("id, platename, sqty, subplate_type, po_bypassed, location, dispatch_status, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby")
+      .or(`mold_id.eq.${project.id},and(mold_id.is.null,or(${legacyLinks}))`)
       .is("deleted_at", null);
 
+    if (platesError) return NextResponse.json({ error: "Could not verify project subplates." }, { status: 500 });
+
     const plateIds = (subplates || []).map((p: any) => p.id);
-    const orderedSet = new Set<number>();
-    const inwardSet = new Set<number>();
     const blockingErrors: string[] = [];
+    let hasUndispatchedPlates = false;
 
     if (plateIds.length > 0) {
-      const [{ data: poItems }, { data: inwItems }, { data: jwBalances }] = await Promise.all([
-        supabaseAdmin
-          .from("purchase_items")
-          .select("plateid, qty, purchase:pid!inner(status)")
-          .in("plateid", plateIds)
-          .neq("purchase.status", "0"),
-        supabaseAdmin
-          .from("purchase_inward_items")
-          .select("plateid, inward_qty")
-          .in("plateid", plateIds),
-        supabaseAdmin
-          .from("view_subplate_jobwork_balance")
-          .select("plateid, po_ordered_qty, po_inward_qty, pending_po_inward_qty, customer_dispatched_qty")
-          .in("plateid", plateIds),
-      ]);
-
-      (poItems || []).forEach((it: any) => {
-        if (it.plateid) orderedSet.add(Number(it.plateid));
-      });
-      (inwItems || []).forEach((it: any) => {
-        if (it.plateid) inwardSet.add(Number(it.plateid));
-      });
-
-      const balanceMap = new Map((jwBalances || []).map((b: any) => [Number(b.plateid), b]));
+      const { data: jwBalances, error: balanceError } = await supabaseAdmin
+        .from("view_subplate_jobwork_balance")
+        .select("plateid, outward_jobwork_qty, active_vendors, has_po, po_ordered_qty, po_inward_qty, pending_po_inward_qty, customer_dispatched_qty")
+        .in("plateid", plateIds);
+      const balanceMap = new Map((jwBalances || []).map((balance) => [Number(balance.plateid), balance]));
+      if (balanceError || plateIds.some((id) => !balanceMap.has(Number(id)))) {
+        return NextResponse.json({ error: "Could not verify job-work and purchase balances." }, { status: 500 });
+      }
 
       (subplates || []).forEach((p: any) => {
         const bal = balanceMap.get(Number(p.id));
@@ -83,6 +75,11 @@ export async function POST(
         const poInward = Number(bal?.po_inward_qty ?? 0);
         const pendingInward = Number(bal?.pending_po_inward_qty ?? (poOrdered > 0 ? Math.max(0, poOrdered - poInward) : 0));
         const dispatchedQty = Number(bal?.customer_dispatched_qty ?? 0);
+
+        if (Number(bal?.outward_jobwork_qty) > 0) {
+          blockingErrors.push(`Plate "${p.platename}": ${bal?.outward_jobwork_qty} pcs pending at ${bal?.active_vendors || "vendor"}. Record an Inward Challan before moving to Project Register.`);
+          return;
+        }
 
         // 1. HARD BLOCK: Pending Purchase Inward
         if (pendingInward > 0) {
@@ -98,11 +95,11 @@ export async function POST(
 
         const isFullyDispatched = (dispatchedQty >= totalQty && totalQty > 0) ||
           ((p.location === "Customer" || p.dispatch_status === "dispatched") && pendingInward === 0 && (dispatchedQty === 0 || dispatchedQty >= totalQty));
-        const isFullyPacked = Number(p.packing_workby) > 0 && isFullyDispatched;
-        if (isFullyDispatched || isFullyPacked) return; // Done
+        if (isFullyDispatched) return;
+        hasUndispatchedPlates = true;
 
-        const hasPO = orderedSet.has(Number(p.id)) || Number(p.order_by) > 0 || poOrdered > 0;
-        const hasInward = inwardSet.has(Number(p.id)) || Number(p.received_workby) > 0 || poInward > 0;
+        const hasPO = Boolean(bal?.has_po || (!p.po_bypassed && Number(p.order_by) > 0));
+        const hasInward = poInward > 0;
         // Check if shop floor work (Stage 4 to Stage 9) has started:
         const hasShopFloorStarted = Boolean(
           Number(p.received_qcby) > 0 ||
@@ -113,7 +110,7 @@ export async function POST(
           Number(p.packing_workby) > 0
         );
 
-        if (!hasPO && !hasShopFloorStarted) {
+        if (!hasPO && !hasShopFloorStarted && !p.po_bypassed) {
           return;
         }
 
@@ -122,8 +119,10 @@ export async function POST(
           return;
         }
 
+        if (isPurchaseOptional(p, project.worktype) && hasCompletedManufacturing(p)) return;
+
         // If shop floor work has started (Stage 4 to Stage 9), HARD BLOCK until full packing and delivery
-        if (hasShopFloorStarted && !isFullyDispatched) {
+        if (hasShopFloorStarted || p.po_bypassed) {
           let stageName = "Manufacturing";
           if (Number(p.packing_workby) > 0) stageName = "Packing Done (Dispatch Pending)";
           else if (Number(p.final_qcby) > 0) stageName = "Final QC Done (Packing Pending)";
@@ -132,7 +131,7 @@ export async function POST(
           else if (Number(p.vmc_workby) > 0) stageName = "VMC Machining Done";
           else if (Number(p.received_qcby) > 0) stageName = "Programming Work Started";
 
-          blockingErrors.push(`Plate "${p.platename}": Shop floor work has already started (${stageName}). This mould cannot be moved to Project Register until all stages through Final Packing and Customer Delivery Challan are 100% completed.`);
+          blockingErrors.push(`Plate "${p.platename}": ${stageName}. ${isPurchaseOptional(p, project.worktype) ? "Complete Programming through Final Packing before closing." : "Complete all stages through Final Packing and Customer Delivery Challan."}`);
           return;
         }
       });
@@ -141,7 +140,7 @@ export async function POST(
     if (blockingErrors.length > 0) {
       return NextResponse.json(
         {
-          error: `Cannot move mould to Project Register: Some plates have in-progress work that must be completed first.`,
+          error: blockingErrors[0],
           details: blockingErrors,
         },
         { status: 400 }
@@ -158,11 +157,13 @@ export async function POST(
         status: "completed",
         dispatchdate: todayDate,
         updated_at: nowIso,
+        register_closure_reason: hasUndispatchedPlates ? closureReason : null,
+        register_closure_notes: hasUndispatchedPlates ? closureNotes || null : null,
       })
       .eq("id", project.id);
 
     if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      return NextResponse.json({ error: updateErr.message }, { status: updateErr.code === "P0001" ? 409 : 500 });
     }
 
     // Start 30-day photo retention cycle (Requirement F08)

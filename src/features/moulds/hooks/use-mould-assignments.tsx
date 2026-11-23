@@ -9,6 +9,7 @@ import { appStore } from "@/lib/state/store";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query/keys";
 import { broadcastQueryInvalidation } from "@/lib/query/realtime";
+import { hasInHousePurchaseClearance } from "@/lib/subplate-purchase";
 import { STAGE_DEFINITIONS } from "@/lib/subplate-stages";
 import type { ScanProject, Subplate } from "@/lib/supabase/types";
 
@@ -103,7 +104,7 @@ export function useMouldAssignments({
         }
       }
       const inwardQty = Number(foundSubplate?.po_inward_qty) || 0;
-      if (inwardQty <= 0) {
+      if (inwardQty <= 0 && !hasInHousePurchaseClearance(foundSubplate)) {
         appStore.addToast({
           type: "error",
           message: "Stage 3 (Material Inward) cannot be assigned manually. Steel has not been received yet. Go to Purchase Inward.",

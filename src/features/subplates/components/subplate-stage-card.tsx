@@ -1,5 +1,6 @@
 "use client";
 
+import { hasInHousePurchaseClearance } from "@/lib/subplate-purchase";
 import { useState } from "react";
 import { DispatchStageDetails } from "@/features/subplates/components/dispatch-stage-details";
 import { InwardStageDetails } from "@/features/subplates/components/inward-stage-details";
@@ -50,6 +51,7 @@ export function SubplateStageCard({
   const isStage2 = stage.key === "order_by";
   const isStage3 = stage.key === "received_workby";
   const isStage9 = stage.key === "packing_workby";
+  const inHouse = (isStage2 || isStage3) && hasInHousePurchaseClearance(row);
   const totalQty = Number(row.sqty) || 1;
   const orderedQty = row.ordered_qty ?? 0;
   const remainingQty = row.remaining_qty !== undefined ? row.remaining_qty : Math.max(0, totalQty - orderedQty);
@@ -75,7 +77,7 @@ export function SubplateStageCard({
   const isDispatched = isStage9 && Boolean((row as any).is_dispatched || isFullyDispatched || isPartialDispatch || linkedDispatches.length > 0);
 
   const isCardPartial = isPartial || isPartialInward || isPartialDispatch;
-  const isStageDone = isStage2 ? isFullyOrdered : isStage3 ? isFullyInwarded : isStage9 ? isFullyDispatched : isAssigned;
+  const isStageDone = inHouse || (isStage2 ? isFullyOrdered : isStage3 ? isFullyInwarded : isStage9 ? isFullyDispatched : isAssigned);
 
   return (
     <div
@@ -83,9 +85,11 @@ export function SubplateStageCard({
       className={`p-4 rounded-xl border transition-all space-y-3.5 flex flex-col justify-between ${isRoleCard ? "shadow-sm bg-white ring-1 ring-blue-500/15" : ""
         } ${isCardPartial
           ? "bg-white border-amber-300 shadow-xs ring-1 ring-amber-400/20"
-          : isStageDone
-            ? "bg-white border-blue-200 shadow-xs ring-1 ring-blue-500/10"
-            : "bg-white/80 border-slate-200 hover:border-slate-300"
+          : inHouse
+            ? "bg-white border-emerald-300 shadow-xs ring-1 ring-emerald-500/15"
+            : isStageDone
+              ? "bg-white border-blue-200 shadow-xs ring-1 ring-blue-500/10"
+              : "bg-white/80 border-slate-200 hover:border-slate-300"
         }`}
     >
       <div>
@@ -94,16 +98,30 @@ export function SubplateStageCard({
           <span
             className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded font-mono ${isCardPartial
               ? "bg-amber-50 text-amber-700 border border-amber-200/80"
-              : isStageDone
-                ? "bg-blue-50 text-blue-700 border border-blue-200/60"
-                : "bg-slate-100 text-slate-500 border border-slate-200/60"
+              : inHouse
+                ? "bg-emerald-50 text-emerald-800 border border-emerald-200/80"
+                : isStageDone
+                  ? "bg-blue-50 text-blue-700 border border-blue-200/60"
+                  : "bg-slate-100 text-slate-500 border border-slate-200/60"
               }`}
           >
             Stage {stage.step}
           </span>
-          {isStage2 ? (
+          {inHouse ? (
+            <div className="flex items-center gap-1 text-emerald-600 font-semibold text-xs">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono">
+                {isStage2 ? "PO Skipped" : "In-House"}
+              </span>
+            </div>
+          ) : isStage2 ? (
             isFullyOrdered ? (
-              <Lock className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="flex items-center gap-1 text-emerald-600 font-semibold text-xs">
+                <Lock className="w-4 h-4 shrink-0" />
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono">
+                  Ordered
+                </span>
+              </div>
             ) : isPartial ? (
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 font-mono">
                 Partial

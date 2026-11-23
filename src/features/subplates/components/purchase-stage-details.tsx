@@ -1,7 +1,8 @@
 "use client";
 
+import { hasInHousePurchaseClearance, isPurchaseOptional } from "@/lib/subplate-purchase";
 import type { SubplatePageContext } from "../hooks/use-subplate-page-controller";
-import { Lock, ShoppingCart } from "lucide-react";
+import { Lock, ShoppingCart, Warehouse } from "lucide-react";
 import type { Subplate } from "@/lib/supabase/types";
 
 type Props = Pick<SubplatePageContext,
@@ -28,9 +29,37 @@ export function PurchaseStageDetails({
   handleOpenCreatePOForPlate,
   remainingQty,
 }: Props) {
-  const staffMember = activeStaff.find((u) => u.id === Number(val));
-  const staffName = staffMember?.name || (row as any).order_by_name || `Staff #${val}`;
+  const staffMember = activeStaff.find((u) => u.id === Number(val || row.order_by));
+  const staffName = staffMember?.name || (row as any).order_by_name || `Staff #${val || row.order_by}`;
   const staffInitials = staffMember?.initials || (row as any).order_by_name?.slice(0, 2).toUpperCase() || "PO";
+
+  // In-House Material (PO Skipped) Clearance
+  if (hasInHousePurchaseClearance(row)) {
+    return (
+      <div
+        title="Material confirmed in-house. Commercial Purchase Order was bypassed."
+        className="h-9 px-2 rounded-lg bg-emerald-50/80 border border-emerald-300 hover:border-emerald-400 transition flex items-center justify-between gap-1.5 shadow-2xs group cursor-default"
+      >
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="w-5 h-5 rounded-md bg-emerald-600 text-white font-bold text-[9px] flex items-center justify-center shrink-0">
+            {staffInitials}
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold text-slate-900 truncate leading-tight group-hover:text-emerald-950">
+              {staffName}
+            </div>
+            <div className="text-[9px] font-mono text-emerald-700 truncate font-semibold leading-none flex items-center gap-1">
+              <span>In-House Material</span>
+              <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                PO Skipped
+              </span>
+            </div>
+          </div>
+        </div>
+        <Warehouse className="w-3.5 h-3.5 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" />
+      </div>
+    );
+  }
 
   const linkedPOs: any[] =
     row.linked_pos && row.linked_pos.length > 0
@@ -199,7 +228,7 @@ export function PurchaseStageDetails({
     >
       <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5 truncate">
         <ShoppingCart className="w-3.5 h-3.5 text-amber-600 shrink-0 group-hover:scale-110 transition-transform" />
-        <span className="truncate">Create PO</span>
+        <span className="truncate">{isPurchaseOptional(row) ? "Purchase Options" : "Create PO"}</span>
       </span>
       <span className="text-[9px] font-mono font-bold text-amber-700 bg-amber-100 border border-amber-200/80 px-1.5 py-0.5 rounded shrink-0">
         {totalQty} pcs

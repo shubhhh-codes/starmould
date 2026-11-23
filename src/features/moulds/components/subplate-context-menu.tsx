@@ -8,6 +8,10 @@ import {
   UserCheck,
   UserX,
 } from "lucide-react";
+import { useState } from "react";
+import { PurchaseRequiredModal } from "@/features/subplates/components/purchase-required-modal";
+import { hasInHousePurchaseClearance, isPurchaseOptional } from "@/lib/subplate-purchase";
+import type { ScanProject, Subplate } from "@/lib/supabase/types";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/context-menu";
 import { STAGE_DEFINITIONS, getAllowedStagesForUser } from "@/lib/subplate-stages";
 import type { MouldTableContext } from "../hooks/use-mould-table-controller";
@@ -44,6 +48,7 @@ export function SubplateContextMenu({
   canEditSubplate,
   handleOpenEditPlate,
 }: Props) {
+  const [purchaseChoice, setPurchaseChoice] = useState<{ plate: Subplate; project: ScanProject | null } | null>(null);
   return (
     <>
       {subplateContextMenu.subplate && (
@@ -71,6 +76,14 @@ export function SubplateContextMenu({
             const currentUserId = Number(currentUser?.id);
 
             const items: ContextMenuItem[] = [];
+            const project = subplateContextMenu.project;
+            const inHouse = hasInHousePurchaseClearance(sp);
+            const canChoosePurchase = isPurchaseOptional(sp, project?.worktype) &&
+              !sp.has_active_po && !sp.jobwork_balance?.has_po && !inHouse;
+            const openPurchaseChoice = () => setPurchaseChoice({
+              plate: { ...sp, mould_worktype: project?.worktype ?? sp.mould_worktype },
+              project: project ?? null,
+            });
 
             const isManagerial =
               isAdmin ||
@@ -95,7 +108,11 @@ export function SubplateContextMenu({
                 const staffName = validRawName || staffMember?.name || staffMember?.initials || `Staff #${val}`;
 
                 if (st.key === "order_by") {
-                  if (isDone) {
+                  if (inHouse) {
+                    items.push({ label: "Purchase cleared (in-house material)", icon: CheckCircle2, disabled: true, onClick: () => {} });
+                  } else if (canChoosePurchase) {
+                    items.push({ label: "Choose Purchase Option (Stage 2)", icon: ShoppingCart, onClick: openPurchaseChoice });
+                  } else if (isDone) {
                     items.push({
                       label: `Purchase (Locked by PO)`,
                       subtext: `Stage 2 • Assigned to ${staffName} via PO`,
@@ -120,7 +137,7 @@ export function SubplateContextMenu({
 
                 if (st.key === "received_workby") {
                   const inwardQty = Number((sp as any).po_inward_qty) || 0;
-                  if (!isDone && inwardQty <= 0) {
+                  if (!inHouse && !isDone && inwardQty <= 0) {
                     items.push({
                       label: `Material Inward (Gate Entry Required)`,
                       subtext: `Stage 3 • Receive steel at factory gate to unlock`,
@@ -136,7 +153,7 @@ export function SubplateContextMenu({
 
                 if (st.step >= 4 && st.step <= 9) {
                   const inwardQty = Number((sp as any).po_inward_qty) || 0;
-                  if (!isDone && inwardQty <= 0) {
+                  if (!inHouse && !isDone && inwardQty <= 0) {
                     items.push({
                       label: `${st.assignTitle} (Material Inward Required)`,
                       subtext: `Stage ${st.step} • Receive steel at factory gate to unlock`,
@@ -217,7 +234,9 @@ export function SubplateContextMenu({
                   const validRawName = rawName && rawName !== "-" ? rawName : null;
                   const name = validRawName || staffMember?.name || staffMember?.initials || "staff";
 
-                  if (isMine) {
+                  if (st.key === "order_by" && canChoosePurchase) {
+                    items.push({ label: "Choose Purchase Option (Stage 2)", icon: ShoppingCart, onClick: openPurchaseChoice });
+                  } else if (isMine) {
                     items.push({
                       label: `${st.label.replace(/^\d+\.\s*/, "")} (Assigned to You)`,
                       subtext: `Assigned to you • Only Admin can unassign`,
@@ -234,7 +253,7 @@ export function SubplateContextMenu({
                       disabled: true,
                       onClick: () => { },
                     });
-                  } else if (st.key === "received_workby" && (Number((sp as any).po_inward_qty) || 0) <= 0) {
+                  } else if (st.key === "received_workby" && !inHouse && (Number((sp as any).po_inward_qty) || 0) <= 0) {
                     items.push({
                       label: `Material Inward (Gate Entry Required)`,
                       subtext: `Stage 3 • Receive steel at factory gate to unlock`,
@@ -261,6 +280,14 @@ export function SubplateContextMenu({
           })()}
         />
       )}
+      <PurchaseRequiredModal
+        poRequiredModal={purchaseChoice?.plate ?? null}
+        setPoRequiredModal={() => setPurchaseChoice(null)}
+        handleOpenCreatePOForPlate={() => {
+          setCreatePOProject(purchaseChoice?.project ?? null);
+          setIsCreatePOOpen(true);
+        }}
+      />
     </>
   );
 }

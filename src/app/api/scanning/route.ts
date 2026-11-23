@@ -168,7 +168,7 @@ export async function GET(req: NextRequest) {
         getCachedUsers(),
         supabaseAdmin
           .from("subplate")
-          .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, packing_at")
+          .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, subplate_type, po_bypassed, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, packing_at")
           .or(`mold_id.in.(${deltaIds.join(",")}),projectid.in.(${deltaIds.join(",")})`)
           .order("id", { ascending: true })
           .is("deleted_at", null),
@@ -374,7 +374,7 @@ export async function GET(req: NextRequest) {
         scanIds.length > 0
           ? supabaseAdmin
               .from("subplate")
-              .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, packing_at")
+              .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, subplate_type, po_bypassed, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, packing_at")
               .or(`mold_id.in.(${scanIds.join(",")}),projectid.in.(${scanIds.join(",")})`)
               .order("id", { ascending: true })
               .is("deleted_at", null)

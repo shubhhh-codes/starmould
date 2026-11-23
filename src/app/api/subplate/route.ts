@@ -45,14 +45,14 @@ export async function GET(req: NextRequest) {
       const safeProjectId = projectid.replace(/[(),%]/g, "").trim();
       let leanQuery = supabaseAdmin
         .from("subplate")
-        .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, dispatch_status, shape, width, height, length, weight, unit, sqty, subplate_type, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
+        .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, dispatch_status, shape, width, height, length, weight, unit, sqty, subplate_type, po_bypassed, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at")
         .is("deleted_at", null)
         .order("id", { ascending: true });
 
       if (/^\d+$/.test(safeProjectId)) {
         leanQuery = leanQuery.or(`mold_id.eq.${safeProjectId},projectid.eq.${safeProjectId}`);
       } else {
-        leanQuery = leanQuery.or(`mold_code.eq.${safeProjectId},subprojectid.ilike.${safeProjectId}%`);
+        leanQuery = leanQuery.or(`mold_code.eq.${safeProjectId},projectid.eq.${safeProjectId},subprojectid.ilike.${safeProjectId}%`);
       }
 
       const { data: plates, error: pError } = await leanQuery;
@@ -90,7 +90,7 @@ export async function GET(req: NextRequest) {
 
       const jwBalanceMap = new Map<number, any>();
       if (plateIds.length > 0) {
-        const [{ data: orderedRows }, { data: jwBalances }, { data: inwardRows }, { data: dispatchRows }] = await Promise.all([
+        const [{ data: orderedRows }, { data: jwBalances, error: jwError }, { data: inwardRows }, { data: dispatchRows }] = await Promise.all([
           supabaseAdmin
             .from("purchase_items")
             .select("plateid, qty, purchase:pid!inner(id, srno, status, created_by, created_at)")
@@ -109,6 +109,10 @@ export async function GET(req: NextRequest) {
             .select("plateid, qty, dispatch:dispatchid(id, challanno, chdate, created_by, created_at, status)")
             .in("plateid", plateIds),
         ]);
+
+        if (jwError || jwBalances?.length !== plateIds.length) {
+          return NextResponse.json({ error: "Could not verify subplate inventory balances." }, { status: 500 });
+        }
 
         if (orderedRows) {
           orderedRows.forEach((row: any) => {
@@ -269,7 +273,7 @@ export async function GET(req: NextRequest) {
 
     let subplateQuery = supabaseAdmin
       .from("subplate")
-      .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, subplate_type, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at", { count: "exact" })
+      .select("id, platename, projectid, subprojectid, mold_id, mold_code, plate_category, material, location, shape, width, height, length, weight, unit, sqty, subplate_type, po_bypassed, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby, design_at, order_at, received_work_at, received_qc_at, vmc_work_at, vmc_qc_at, drilltap_at, final_qc_at, packing_at, created_at, updated_at", { count: "exact" })
       .is("deleted_at", null)
       .order("id", { ascending: false });
 
@@ -532,6 +536,7 @@ export async function GET(req: NextRequest) {
           },
           mould_project_code: scan?.projectid || `Project #${sp.projectid}`,
           mould_description: scan?.description || "",
+          mould_worktype: scan?.worktype || "",
           design_by_name: userMap.get(Number(sp.design_by))?.name || userMap.get(Number(sp.design_by))?.initials || "—",
           order_by_name: userMap.get(Number(sp.order_by))?.name || userMap.get(Number(sp.order_by))?.initials || "—",
           received_workby_name: userMap.get(Number(sp.received_workby))?.name || userMap.get(Number(sp.received_workby))?.initials || "—",
@@ -927,6 +932,24 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Missing or invalid subplate id" }, { status: 400 });
     }
 
+    if (body.action === "bypass_purchase") {
+      const { data, error } = await supabaseAdmin.rpc("bypass_subplate_purchase", {
+        p_plate: subplateId,
+        p_actor: Number(auth.user.id),
+      });
+      if (error) {
+        const status = error.code === "42501" ? 403 : error.code === "P0001" ? 409 : 500;
+        return NextResponse.json({ error: error.message }, { status });
+      }
+      invalidateCache("subplate_default_");
+      invalidateCache("scanning_default_");
+      invalidateCache("api_counts_all");
+      invalidateCache("api_pipeline_stage_counts");
+      invalidateCache("subplate_kpi_counts");
+      invalidateCache("shared_scans_lookup");
+      return NextResponse.json({ subplate: data });
+    }
+
     const now = new Date().toISOString();
     const updatePayload: Record<string, any> = {
       ...(updates || body),
@@ -1137,73 +1160,27 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Strict business rule: Stage 3 (received_workby) cannot be manually assigned without physical inward gate receipt.
-    // It is strictly unlocked by the Purchase Inward gate receipt workflow:
-    // 1) Plates must be physically received at factory gate (purchase_inward_items qty > 0).
-    // 2) If 0 inward items exist, manual assignment is blocked.
-    if ("received_workby" in updatePayload) {
-      const targetUserId = updatePayload.received_workby;
-      if (targetUserId !== null && targetUserId !== 0 && targetUserId !== "" && targetUserId !== undefined) {
-        const { data: inwardItems } = await supabaseAdmin
-          .from("purchase_inward_items")
-          .select("id, inward_qty")
-          .eq("plateid", subplateId);
+    const assignsInward = "received_workby" in updatePayload && Number(updatePayload.received_workby) > 0;
+    const assignsShopFloor = ["received_qcby", "vmc_workby", "vmc_qcby", "drilltap_workby", "final_qcby", "packing_workby"]
+      .some((key) => key in updatePayload && Number(updatePayload[key]) > 0);
+    if (assignsInward || assignsShopFloor || "received_workby" in updatePayload) {
+      const { data: material, error: materialError } = await supabaseAdmin
+        .from("view_subplate_jobwork_balance")
+        .select("po_bypassed, po_inward_qty")
+        .eq("plateid", subplateId)
+        .single();
 
-        const totalInwardQty = (inwardItems || []).reduce(
-          (sum, it) => sum + (Number(it.inward_qty) || 0),
-          0
-        );
-
-        if (!inwardItems || inwardItems.length === 0 || totalInwardQty <= 0) {
-          return NextResponse.json(
-            {
-              error:
-                "Stage 3 (Material Inward) cannot be assigned manually. Steel has not been received at factory gate. Record receipt in Purchase Inward first.",
-              code: "STAGE3_INWARD_REQUIRED",
-            },
-            { status: 400 }
-          );
-        }
+      if (materialError) {
+        return NextResponse.json({ error: "Could not verify material clearance" }, { status: 500 });
       }
-    }
-
-    // Strict business rule: Stages 4-9 (Programming to Packing) cannot commence until raw material is inwarded.
-    // Raw steel must be physically received at factory gate before shop floor manufacturing can start.
-    const shopFloorStageKeys = [
-      "received_qcby",
-      "vmc_workby",
-      "vmc_qcby",
-      "drilltap_workby",
-      "final_qcby",
-      "packing_workby",
-    ];
-
-    const isAssigningShopFloor = shopFloorStageKeys.some((k) => {
-      if (!(k in updatePayload)) return false;
-      const v = updatePayload[k];
-      return v !== null && v !== 0 && v !== "" && v !== undefined;
-    });
-
-    if (isAssigningShopFloor) {
-      const { data: inwardRows } = await supabaseAdmin
-        .from("purchase_inward_items")
-        .select("id, inward_qty")
-        .eq("plateid", subplateId);
-
-      const totalInward = (inwardRows || []).reduce(
-        (sum, it) => sum + (Number(it.inward_qty) || 0),
-        0
-      );
-
-      if (!inwardRows || inwardRows.length === 0 || totalInward <= 0) {
-        return NextResponse.json(
-          {
-            error:
-              "Shop floor production cannot be assigned because raw steel has not been received at factory gate. Record receipt in Purchase Inward first.",
-            code: "RAW_MATERIAL_INWARD_REQUIRED",
-          },
-          { status: 400 }
-        );
+      if (material.po_bypassed && "received_workby" in updatePayload && !assignsInward) {
+        return NextResponse.json({ error: "Material clearance is recorded as in-house for this subplate." }, { status: 409 });
+      }
+      if (!material.po_bypassed && Number(material.po_inward_qty) <= 0 && (assignsInward || assignsShopFloor)) {
+        return NextResponse.json({
+          error: "Record receipt in Purchase Inward before assigning this stage.",
+          code: assignsInward ? "STAGE3_INWARD_REQUIRED" : "RAW_MATERIAL_INWARD_REQUIRED",
+        }, { status: 400 });
       }
     }
 
@@ -1398,7 +1375,7 @@ export async function PUT(req: NextRequest) {
       const targetProj = data.projectid || data.mold_code;
       const { data: companionPlates } = await supabaseAdmin
         .from("subplate")
-        .select("id, location, dispatch_status, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby")
+        .select("id, location, dispatch_status, subplate_type, po_bypassed, design_by, order_by, received_workby, received_qcby, vmc_workby, vmc_qcby, drilltap_workby, final_qcby, packing_workby")
         .or(`projectid.eq.${targetProj},mold_code.eq.${targetProj}`)
         .is("deleted_at", null);
 
@@ -1406,6 +1383,7 @@ export async function PUT(req: NextRequest) {
         (companionPlates || []).length > 0 &&
         (companionPlates || []).every((sp: any) => {
           return (
+            sp.subplate_type !== "repair" && !sp.po_bypassed &&
             Number(sp.design_by) > 0 &&
             Number(sp.order_by) > 0 &&
             Number(sp.received_workby) > 0 &&
@@ -1429,7 +1407,8 @@ export async function PUT(req: NextRequest) {
             dispatchdate: todayDate,
             updated_at: new Date().toISOString(),
           })
-          .eq("projectid", targetProj);
+          .eq("projectid", targetProj)
+          .or("worktype.is.null,worktype.not.in.(Rework,Sample)");
       }
     }
 
