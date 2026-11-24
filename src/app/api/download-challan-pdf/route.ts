@@ -14,6 +14,7 @@ import path from "path";
 export async function GET(req: NextRequest) {
   let browser: any = null;
   try {
+    const { searchParams } = new URL(req.url);
     const access = await resolveDocumentRequest(req, "challan");
     if ("error" in access) return NextResponse.json({ error: access.error }, { status: access.status });
     const { id } = access;
@@ -451,10 +452,11 @@ export async function GET(req: NextRequest) {
       margin: { top: 0, right: 0, bottom: 0, left: 0 },
     });
 
+    const isInline = searchParams.get("inline") === "1" || searchParams.get("view") === "1";
     return new NextResponse(Buffer.from(pdfBuffer), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Job-Work-Challan-${challanNo.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf"`,
+        "Content-Disposition": `${isInline ? "inline" : "attachment"}; filename="Job-Work-Challan-${challanNo.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf"`,
       },
     });
   } catch (err: any) {

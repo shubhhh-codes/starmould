@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
       const plateMap = new Map(subplates.map((sp) => [sp.id, sp]));
 
       return NextResponse.json({
+        id: challan.id,
         docType: "OUTWARD JOB WORK CHALLAN",
         docNumber: challan.challanno,
         docDate: challan.chdate,
@@ -114,6 +115,7 @@ export async function GET(req: NextRequest) {
       const items = itemsRes.data || [];
 
       return NextResponse.json({
+        id: inward.id,
         docType: "JOB WORK INWARD RECEIPT",
         docNumber: inward.inchallanno,
         docDate: inward.chdate,
@@ -185,6 +187,7 @@ export async function GET(req: NextRequest) {
       const plateMap = new Map(subplates.map((sp) => [sp.id, sp]));
 
       return NextResponse.json({
+        id: purchase.id,
         docType: "PURCHASE ORDER",
         docNumber: purchase.srno,
         docDate: purchase.odate,
@@ -257,6 +260,7 @@ export async function GET(req: NextRequest) {
       }
 
       return NextResponse.json({
+        id: dispatch.id,
         docType: "FINISHED MOULD DELIVERY CHALLAN",
         docNumber: dispatch.challanno,
         docDate: dispatch.chdate,
@@ -339,6 +343,7 @@ export async function GET(req: NextRequest) {
       const subplate = spRes.data?.[0];
 
       return NextResponse.json({
+        id: worklog.id,
         docType: "MANUFACTURING WORK ORDER & LOG",
         docNumber: `WO-${worklog.id} (${worklog.projectid || "N/A"})`,
         docDate: worklog.rdate || worklog.sdate,
@@ -399,6 +404,7 @@ export async function GET(req: NextRequest) {
         .single();
 
       return NextResponse.json({
+        id: sample.id,
         docType: "SAMPLE DEVELOPMENT JOB ORDER",
         docNumber: sample.projectid,
         docDate: sample.rdate || sample.cdate,
@@ -439,6 +445,7 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
 
       return NextResponse.json({
+        id: subplate.id,
         docType: "SUBPLATE MANUFACTURING ROUTER",
         docNumber: subplate.subprojectid || `SP-${subplate.id}`,
         docDate: subplate.created_at ? String(subplate.created_at).slice(0, 10) : "",

@@ -913,27 +913,21 @@ function ChallanPageContent() {
       });
       if (res.ok) {
         const data = await res.json();
-        const targetUrl = data.url || `/print/challan/${challanId}`;
-        if (win) {
-          win.location.href = targetUrl;
-        } else {
-          window.open(targetUrl, "_blank", "noopener,noreferrer");
-        }
-      } else {
-        const fallbackUrl = `/print/challan/${challanId}`;
-        if (win) {
-          win.location.href = fallbackUrl;
-        } else {
-          window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        const targetUrl = data.url;
+        if (targetUrl) {
+          if (win) {
+            win.location.href = targetUrl;
+          } else {
+            window.open(targetUrl, "_blank", "noopener,noreferrer");
+          }
+          return;
         }
       }
+      if (win) win.close();
+      alert("Failed to generate secure print link");
     } catch {
-      const fallbackUrl = `/print/challan/${challanId}`;
-      if (win) {
-        win.location.href = fallbackUrl;
-      } else {
-        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-      }
+      if (win) win.close();
+      alert("Failed to generate secure print link");
     }
   };
 

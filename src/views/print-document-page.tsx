@@ -655,7 +655,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
 
       const isToken = typeof id === "string" && id.includes(".");
       const tokenParam = isToken ? `token=${encodeURIComponent(id)}` : "";
-      const numericId = doc?.id || doc?.quote?.id;
+      const numericId = doc?.id || doc?.quote?.id || (!isToken ? id : "");
       const idParam = numericId ? `id=${encodeURIComponent(numericId)}` : (isToken ? "" : `id=${encodeURIComponent(id)}`);
       const queryParams = [idParam, tokenParam].filter(Boolean).join("&");
 
@@ -687,7 +687,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       // Fallback: trigger download via hidden iframe without opening print window
       const isToken = typeof id === "string" && id.includes(".");
       const tokenParam = isToken ? `token=${encodeURIComponent(id)}` : "";
-      const numericId = doc?.id || doc?.quote?.id;
+      const numericId = doc?.id || doc?.quote?.id || (!isToken ? id : "");
       const idParam = numericId ? `id=${encodeURIComponent(numericId)}` : (isToken ? "" : `id=${encodeURIComponent(id)}`);
       const queryParams = [idParam, tokenParam].filter(Boolean).join("&");
       const fallbackUrl = type === "quotation"
@@ -726,16 +726,39 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       const docNum = doc?.docNumber || "";
       const partyName = doc?.party?.customername || doc?.party?.vendor_name || doc?.customerName || "";
       const title = `${docLabel} ${docNum} - Star Mould`.trim();
-      const shareUrl = typeof window !== "undefined" ? window.location.href : "";
-      const shareText = `Star Mould ${docLabel} ${docNum}${partyName ? ` for ${partyName}` : ""}`;
+      const fileName = `${docNum || (isQuotation ? "Quotation" : isDispatch ? "Delivery_Challan" : isChallan ? "Outward_Challan" : "Purchase_Order")}.pdf`;
 
-      // 1. Try native Web Share API (mobile devices & supported browsers)
-      if (typeof navigator !== "undefined" && navigator.share) {
+      const isToken = typeof id === "string" && id.includes(".");
+      const tokenParam = isToken ? `token=${encodeURIComponent(id)}` : "";
+      const numericId = doc?.id || doc?.quote?.id;
+      const idParam = numericId ? `id=${encodeURIComponent(numericId)}` : (isToken ? "" : `id=${encodeURIComponent(id)}`);
+      const queryParams = [idParam, tokenParam].filter(Boolean).join("&");
+
+      // Generate pristine vector PDF from server Puppeteer engine for direct sharing
+      const downloadUrl = isQuotation
+        ? `/api/download-quotation-pdf?${queryParams}`
+        : isDispatch
+        ? `/api/download-dispatch-pdf?${queryParams}`
+        : isChallan
+        ? `/api/download-challan-pdf?${queryParams}`
+        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&${queryParams}`;
+
+      const res = await fetch(downloadUrl);
+      if (!res.ok) {
+        throw new Error("Server PDF generation failed");
+      }
+
+      const blob = await res.blob();
+      const pdfFile = new File([blob], fileName, { type: "application/pdf" });
+
+      // 1. Check if navigator supports sharing files directly (e.g. WhatsApp, Outlook, Nearby Share, Teams)
+      // When files are provided without a URL, OS share sheets attach the actual PDF file rather than a web link
+      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
         try {
           await navigator.share({
             title,
-            text: shareText,
-            url: shareUrl,
+            text: `Star Mould ${docLabel} ${docNum}${partyName ? ` for ${partyName}` : ""}`,
+            files: [pdfFile],
           });
           setCopied(true);
           setTimeout(() => setCopied(false), 2500);
@@ -748,14 +771,27 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
         }
       }
 
-      // 2. Clipboard copy fallback for desktop browsers
-      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
+      // 2. If browser doesn't support file sharing via Web Share API, directly open the PDF in a new tab
+      // (शेयर करने पर PDF खुलना चाहिए)
+      const url = window.URL.createObjectURL(blob);
+      const newWin = window.open(url, "_blank");
+      if (!newWin) {
+        // Fallback: If popup blocker prevents opening new window, trigger direct download
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
       }
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
     } catch (err) {
-      console.error("Direct share error:", err);
+      console.error("Direct PDF share error:", err);
+      // Fallback: trigger standard PDF download
+      handleDownloadPdf();
     } finally {
       setIsSharing(false);
     }
@@ -1028,12 +1064,12 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               {isSharing ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
-                  <span className="hidden sm:inline">Sharing...</span>
+                  <span className="hidden sm:inline">Preparing PDF...</span>
                 </>
               ) : copied ? (
                 <>
                   <Check className="w-3.5 h-3.5 text-emerald-600" />
-                  <span className="hidden sm:inline text-emerald-700 font-bold">Link Copied!</span>
+                  <span className="hidden sm:inline text-emerald-700 font-bold">Shared</span>
                 </>
               ) : (
                 <>
@@ -1133,7 +1169,7 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
               ) : (
                 <PurchaseOrderVoucher
                   po={{
-                    id: Number(doc.id || 0),
+                    id: Number(doc.id || (!id?.includes(".") ? id : 0)),
                     srno: doc.docNumber,
                     odate: doc.docDate,
                     vname: doc.party?.id,

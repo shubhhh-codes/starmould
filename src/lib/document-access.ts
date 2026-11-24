@@ -45,17 +45,16 @@ export async function resolveDocumentRequest(req: NextRequest, expectedType?: Do
   let type = params.get("type") || expectedType;
   let id = params.get("id");
   const token = params.get("token") || (id?.includes(".") ? id : null);
-  if (token) {
-    const decoded = verifySecurePrintToken(token);
-    if (!decoded || (type && decoded.type !== type) ||
-        (params.has("token") && id && !id.includes(".") && id !== decoded.id)) {
-      return { error: "Invalid or mismatched print token", status: 400 };
-    }
-    type = decoded.type;
-    id = decoded.id;
-  } else if (!id || id.includes(".")) {
+  if (!token) {
     return { error: "Access denied: Document must be accessed using a secure encrypted link.", status: 403 };
   }
+  const decoded = verifySecurePrintToken(token);
+  if (!decoded || (type && decoded.type !== type) ||
+      (params.has("token") && id && !id.includes(".") && id !== decoded.id)) {
+    return { error: "Invalid or mismatched print token", status: 400 };
+  }
+  type = decoded.type;
+  id = decoded.id;
   if (expectedType && type !== expectedType) {
     return { error: "Incorrect document type", status: 400 };
   }

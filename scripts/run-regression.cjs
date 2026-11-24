@@ -21,6 +21,7 @@ if (process.argv.includes('--libraries')) {
     ['HTTP browser compatibility', [path.join(__dirname, 'test-browser-crypto.cjs')]],
     ['Database backup contracts', ['--test', path.join(__dirname, 'test-database-backups.cjs')]],
     ['Database backup access', [path.join(__dirname, 'test-backup-routes.cjs')]],
+    ['PDF print, share & download', [path.join(__dirname, 'test-pdf-print-share-download.cjs')]],
   ];
   for (const [label, args] of checks) {
     console.log(`\nRunning ${label}`);

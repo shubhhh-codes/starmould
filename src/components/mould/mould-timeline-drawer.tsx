@@ -100,13 +100,17 @@ export function MouldTimelineDrawer({
       });
       if (res.ok) {
         const payload = await res.json();
-        const targetUrl = payload.url || `/print/${docType}/${docId}`;
-        if (win) win.location.href = targetUrl;
+        const targetUrl = payload.url;
+        if (targetUrl && win) {
+          win.location.href = targetUrl;
+        } else if (win) {
+          win.close();
+        }
       } else {
-        if (win) win.location.href = `/print/${docType}/${docId}`;
+        if (win) win.close();
       }
     } catch {
-      if (win) win.location.href = `/print/${docType}/${docId}`;
+      if (win) win.close();
     }
   };
 

@@ -403,8 +403,9 @@ function QuotationPageContent() {
     } catch (err) {
       console.error("Direct PDF download error:", err);
       // Fallback: Open print voucher directly in a new tab so user can immediately view and save as PDF
-      const fallbackUrl = token ? `/print/quotation/${token}` : `/print/quotation/${id}`;
-      window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+      if (token) {
+        window.open(`/print/quotation/${token}`, "_blank", "noopener,noreferrer");
+      }
     } finally {
       setDownloadingId(null);
     }
@@ -428,27 +429,21 @@ function QuotationPageContent() {
       });
       if (res.ok) {
         const data = await res.json();
-        const targetUrl = data.url || `/print/quotation/${quote.id}`;
-        if (win) {
-          win.location.href = targetUrl;
-        } else {
-          window.open(targetUrl, "_blank", "noopener,noreferrer");
-        }
-      } else {
-        const fallbackUrl = `/print/quotation/${quote.id}`;
-        if (win) {
-          win.location.href = fallbackUrl;
-        } else {
-          window.open(fallbackUrl, "_blank", "noopener,noreferrer");
+        const targetUrl = data.url;
+        if (targetUrl) {
+          if (win) {
+            win.location.href = targetUrl;
+          } else {
+            window.open(targetUrl, "_blank", "noopener,noreferrer");
+          }
+          return;
         }
       }
+      if (win) win.close();
+      alert("Failed to generate secure print link");
     } catch {
-      const fallbackUrl = `/print/quotation/${quote.id}`;
-      if (win) {
-        win.location.href = fallbackUrl;
-      } else {
-        window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-      }
+      if (win) win.close();
+      alert("Failed to generate secure print link");
     }
   };
 

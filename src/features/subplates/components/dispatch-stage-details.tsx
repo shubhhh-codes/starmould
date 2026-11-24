@@ -38,7 +38,7 @@ export function DispatchStageDetails({
             return (
               <a
                 key={d.dispatch_id || idx}
-                href={d.print_url || `/print/dispatch/${d.dispatch_id || ""}`}
+                href={d.print_url || "/dispatch"}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Click to view Delivery Challan #${d.challanno}`}
@@ -74,7 +74,7 @@ export function DispatchStageDetails({
 
     return (
       <a
-        href={singleDispatch?.print_url || (singleDispatch ? `/print/dispatch/${singleDispatch.dispatch_id || ""}` : "/dispatch")}
+        href={singleDispatch?.print_url || "/dispatch"}
         target="_blank"
         rel="noopener noreferrer"
         title={singleDispatch ? `Click to view Delivery Challan #${singleDispatch.challanno}` : "Dispatched to Customer"}
@@ -112,7 +112,7 @@ export function DispatchStageDetails({
               return (
                 <a
                   key={d.dispatch_id || idx}
-                  href={d.print_url || `/print/dispatch/${d.dispatch_id || ""}`}
+                  href={d.print_url || "/dispatch"}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={`Click to view Delivery Challan #${d.challanno}`}
@@ -141,7 +141,7 @@ export function DispatchStageDetails({
           </div>
         ) : linkedDispatches.length === 1 ? (
           <a
-            href={linkedDispatches[0]?.print_url || `/print/dispatch/${linkedDispatches[0]?.dispatch_id || ""}`}
+            href={linkedDispatches[0]?.print_url || "/dispatch"}
             target="_blank"
             rel="noopener noreferrer"
             title={`Click to view Delivery Challan #${linkedDispatches[0]?.challanno}`}
