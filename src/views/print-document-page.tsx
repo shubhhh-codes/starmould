@@ -684,26 +684,8 @@ export function PrintDocumentPage({ params }: PrintDocumentPageProps) {
       document.body.removeChild(a);
     } catch (err) {
       console.error("Direct PDF download error:", err);
-      // Fallback: trigger download via hidden iframe without opening print window
-      const isToken = typeof id === "string" && id.includes(".");
-      const tokenParam = isToken ? `token=${encodeURIComponent(id)}` : "";
-      const numericId = doc?.id || doc?.quote?.id || (!isToken ? id : "");
-      const idParam = numericId ? `id=${encodeURIComponent(numericId)}` : (isToken ? "" : `id=${encodeURIComponent(id)}`);
-      const queryParams = [idParam, tokenParam].filter(Boolean).join("&");
-      const fallbackUrl = type === "quotation"
-        ? `/api/download-quotation-pdf?${queryParams}`
-        : type === "dispatch"
-        ? `/api/download-dispatch-pdf?${queryParams}`
-        : type === "challan"
-        ? `/api/download-challan-pdf?${queryParams}`
-        : `/api/download-po-pdf?type=${encodeURIComponent(type)}&${queryParams}`;
-      const iframe = document.createElement("iframe");
-      iframe.style.display = "none";
-      iframe.src = fallbackUrl;
-      document.body.appendChild(iframe);
-      setTimeout(() => {
-        if (iframe.parentNode) document.body.removeChild(iframe);
-      }, 30000);
+      // Fallback: trigger print dialog so user can "Save as PDF" directly
+      window.print();
     } finally {
       setIsDownloading(false);
     }

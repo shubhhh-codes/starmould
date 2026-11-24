@@ -1,4 +1,4 @@
-import { resolveChromeExecutable as findChromePath } from "@/lib/pdf/chrome";
+import { getBrowserLaunchOptions } from "@/lib/pdf/chrome";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { resolveDocumentRequest } from "@/lib/document-access";
@@ -6,6 +6,8 @@ import { escapeHtml, formatDate } from "@/lib/utils";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
+
+export const maxDuration = 60;
 
 
 
@@ -429,11 +431,7 @@ export async function GET(req: NextRequest) {
     let browser: any = null;
     let pdfBuffer: Uint8Array | null = null;
     try {
-      browser = await puppeteer.launch({
-        executablePath: findChromePath(),
-        headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
-      });
+      browser = await puppeteer.launch(await getBrowserLaunchOptions());
 
       const page = await browser.newPage();
       await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });

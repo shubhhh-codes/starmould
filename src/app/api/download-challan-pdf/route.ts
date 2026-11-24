@@ -1,4 +1,4 @@
-import { resolveChromeExecutable as findChromePath } from "@/lib/pdf/chrome";
+import { getBrowserLaunchOptions } from "@/lib/pdf/chrome";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { resolveDocumentRequest } from "@/lib/document-access";
@@ -6,6 +6,8 @@ import { escapeHtml, formatDate } from "@/lib/utils";
 import puppeteer from "puppeteer-core";
 import fs from "fs";
 import path from "path";
+
+export const maxDuration = 60;
 
 
 
@@ -436,11 +438,7 @@ export async function GET(req: NextRequest) {
     `;
 
     // Launch Chromium instance
-    browser = await puppeteer.launch({
-      executablePath: findChromePath(),
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-    });
+    browser = await puppeteer.launch(await getBrowserLaunchOptions());
 
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: "networkidle0" });

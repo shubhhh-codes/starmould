@@ -1,11 +1,10 @@
-import { resolveChromeExecutable as findChromePath } from "@/lib/pdf/chrome";
+import { getBrowserLaunchOptions } from "@/lib/pdf/chrome";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { resolveDocumentRequest } from "@/lib/document-access";
 import { escapeHtml, formatDate } from "@/lib/utils";
 import { COMPANY_PROFILE as COMPANY } from "@/lib/constants/company";
 import puppeteer from "puppeteer-core";
-import type { Browser, LaunchOptions } from "puppeteer-core";
 import fs from "fs";
 import path from "path";
 import { calculateGST, formatINRTwoDecimals } from "@/lib/gst-calculation";
@@ -13,31 +12,6 @@ import { amountInWords } from "@/lib/number-to-words";
 import type { QuotationItem } from "@/types/quotation";
 
 export const maxDuration = 60;
-
-let vercelLaunchOptions: Promise<LaunchOptions> | undefined;
-
-function getLaunchOptions(): Promise<LaunchOptions> | LaunchOptions {
-  if (process.env.VERCEL !== "1" || process.env.CHROME_EXECUTABLE_PATH) {
-    return {
-      executablePath: findChromePath(),
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
-    };
-  }
-
-  vercelLaunchOptions ??= import("@sparticuz/chromium").then<LaunchOptions>(async (mod: any) => {
-    const chromium = mod.default || mod;
-    return {
-      executablePath: await chromium.executablePath(),
-      headless: "shell" as const,
-      args: chromium.args,
-    };
-  }).catch((error: unknown) => {
-    vercelLaunchOptions = undefined;
-    throw error;
-  });
-  return vercelLaunchOptions;
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -1470,10 +1444,10 @@ export async function GET(req: NextRequest) {
     `;
 
     // Launch Headless Chrome via Puppeteer-core with exact A4 dimensions and try-finally cleanup
-    let browser: Browser | null = null;
+    let browser: any = null;
     let pdfBuffer: Uint8Array | null = null;
     try {
-      browser = await puppeteer.launch(await getLaunchOptions());
+      browser = await puppeteer.launch(await getBrowserLaunchOptions());
 
       const page = await browser.newPage();
       await page.setViewport({ width: 794, height: 1123, deviceScaleFactor: 2 });

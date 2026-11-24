@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer-core";
-import { resolveChromeExecutable } from "@/lib/pdf/chrome";
+import { getBrowserLaunchOptions } from "@/lib/pdf/chrome";
 import { ExportDatasetResult } from "../contracts";
 import { escapeHtml } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ export async function renderPdf(dataset: ExportDatasetResult): Promise<Buffer> {
   const isHierarchicalMoulds =
     dataset.rows.length > 0 && Array.isArray(dataset.rows[0].subplates);
 
-  const chromePath = resolveChromeExecutable();
+
 
   // Format timestamp in Asia/Kolkata
   const generatedTimeStr = new Intl.DateTimeFormat("en-IN", {
@@ -496,11 +496,7 @@ export async function renderPdf(dataset: ExportDatasetResult): Promise<Buffer> {
 
   let browser: any = null;
   try {
-    browser = await puppeteer.launch({
-      executablePath: chromePath,
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--font-render-hinting=none"],
-    });
+    browser = await puppeteer.launch(await getBrowserLaunchOptions());
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1123, height: 794, deviceScaleFactor: 2 });
